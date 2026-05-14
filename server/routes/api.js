@@ -74,7 +74,21 @@ router.post("/api/tickets/:ticketId/message", async (req, res) => {
 });
 
 router.get("/api/health", (req, res) => {
-  res.json({ status: "online", uptime: process.uptime() });
+  const memory = process.memoryUsage();
+  res.json({
+    status: "online",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    system: {
+      memory: {
+        heapTotal: Math.round(memory.heapTotal / 1024 / 1024) + "MB",
+        heapUsed: Math.round(memory.heapUsed / 1024 / 1024) + "MB",
+        rss: Math.round(memory.rss / 1024 / 1024) + "MB",
+      },
+      nodeVersion: process.version,
+      platform: process.platform,
+    }
+  });
 });
 
 module.exports = router;

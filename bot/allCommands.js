@@ -137,6 +137,14 @@ const generalCommands = [
           { name: "Moderasyon", value: "moderation" }
         )
     ),
+
+  new SlashCommandBuilder()
+    .setName("ping")
+    .setDescription("Botun gecikmesini ölç"),
+
+  new SlashCommandBuilder()
+    .setName("stats")
+    .setDescription("Bot istatistiklerini ve sistem durumunu göster"),
 ];
 
 const economyCommands = [

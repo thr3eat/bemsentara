@@ -80,39 +80,23 @@ async function handleGeneralCommand(interaction) {
     if (commandName === "profile") {
       if (!user) {
         const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
-        return interaction.editReply({ content: `❌ Henüz yetkilendirmediniz. [Yetkilendirin](${authUrl})` });
+        return interaction.editReply({ content: `❌ Henüz hesabınızı bağlamadınız. [Buraya Tıklayarak Bağlayın](${authUrl})` });
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`👤 ${user.robloxUsername || user.discordUsername}`)
+        .setTitle(`👤 ${user.discordUsername} Profili`)
+        .setThumbnail(user.discordAvatar)
         .setColor(user.profileColor || 0x7c6af7)
         .addFields(
-          {
-            name: "🎮 Roblox",
-            value: `**Username:** ${user.robloxUsername || "Yok"}\n**ID:** ${user.robloxId || "Yok"}`,
-            inline: false,
-          },
-          {
-            name: "💬 Discord",
-            value: `**Username:** ${user.discordUsername}\n**ID:** ${user.discordId}`,
-            inline: false,
-          },
-          {
-            name: "🎖️ Grup Rolü",
-            value: user.groupRole?.roleName || "Rolu yok",
-            inline: true,
-          },
-          {
-            name: "📅 Katılım",
-            value: `<t:${Math.floor(user.joinedAt / 1000)}:R>`,
-            inline: true,
-          }
+          { name: "🎮 Roblox Adı", value: user.robloxUsername || "Bağlanmamış", inline: true },
+          { name: "🔑 Yetki", value: user.isAuthorized ? "✅ Yetkili" : "❌ Yetkisiz", inline: true },
+          { name: "🛡️ Rol", value: user.groupRole || "Kullanıcı", inline: true },
+          { name: "📅 Katılım", value: new Date(user.joinedAt).toLocaleDateString("tr-TR"), inline: true }
         )
+        .setDescription(user.profileBio || "*Henüz bir biyografi ayarlanmamış.*")
+        .addFields({ name: "🔗 Dashboard", value: `[Dashboard'a Git](${BASE_URL}/dashboard)`, inline: false })
+        .setFooter({ text: "Sentara Yönetim Sistemi" })
         .setTimestamp();
-
-      if (user.profileBio) {
-        embed.addFields({ name: "📝 Hakkında", value: user.profileBio, inline: false });
-      }
 
       return interaction.editReply({ embeds: [embed] });
     }
@@ -303,7 +287,7 @@ async function handleGeneralCommand(interaction) {
       const categories = {
         general: {
           title: "📚 Genel Komutlar",
-          commands: "/support, /mytickets, /closeticket, /profile, /authorize, /robloxgrup, /robloxuser",
+          commands: "/support, /mytickets, /closeticket, /profile, /authorize, /robloxgrup, /robloxuser, /ping, /stats",
         },
         economy: {
           title: "💰 Ekonomi Komutları",
@@ -328,6 +312,36 @@ async function handleGeneralCommand(interaction) {
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "ping") {
+      const pingEmbed = new EmbedBuilder()
+        .setTitle("🏓 Pong!")
+        .setColor(0x4ade80)
+        .addFields(
+          { name: "Gecikme (API)", value: `${Date.now() - interaction.createdAt}ms`, inline: true },
+          { name: "Websocket", value: `${interaction.client.ws.ping}ms`, inline: true }
+        )
+        .setTimestamp();
+      return interaction.editReply({ embeds: [pingEmbed] });
+    }
+
+    if (commandName === "stats") {
+      const { users, tickets } = require("../../models/Store");
+      const memory = process.memoryUsage();
+      const statsEmbed = new EmbedBuilder()
+        .setTitle("📊 Bot İstatistikleri")
+        .setColor(0x7c6af7)
+        .addFields(
+          { name: "Uptime", value: `${Math.floor(process.uptime() / 3600)}s ${Math.floor((process.uptime() % 3600) / 60)}d`, inline: true },
+          { name: "Bellek Kullanımı", value: `${Math.round(memory.rss / 1024 / 1024)}MB`, inline: true },
+          { name: "Node.js", value: process.version, inline: true },
+          { name: "Kayıtlı Kullanıcı", value: `${users.data.size}`, inline: true },
+          { name: "Toplam Ticket", value: `${tickets.data.size}`, inline: true },
+          { name: "Platform", value: process.platform, inline: true }
+        )
+        .setTimestamp();
+      return interaction.editReply({ embeds: [statsEmbed] });
     }
 
     return null;

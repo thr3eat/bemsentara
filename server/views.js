@@ -556,13 +556,17 @@ function renderDashboard(user) {
 <body>
   <header>
     <div class="logo">sentara</div>
-    <div class="user-info">
-      <img src="${user.discordAvatar}" alt="Avatar" class="user-avatar">
-      <div>
-        <div>${user.discordUsername}</div>
-        <small>${user.robloxUsername || 'Yetkilendirmedi'}</small>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      ${user.isStaff || user.isAdmin ? '<a href="/staff" style="color: var(--accent); text-decoration: none; font-weight: 700;">👨‍💼 Staff Panel</a>' : ''}
+      ${user.isAdmin ? '<a href="/debug" style="color: #fca5a5; text-decoration: none; font-weight: 700;">🔍 Debug</a>' : ''}
+      <div class="user-info">
+        <img src="${user.discordAvatar}" alt="Avatar" class="user-avatar">
+        <div>
+          <div>${user.discordUsername}</div>
+          <small>${user.robloxUsername || 'Yetkilendirmedi'}</small>
+        </div>
+        <a href="/logout" class="logout">Çıkış</a>
       </div>
-      <a href="/logout" class="logout">Çıkış</a>
     </div>
   </header>
 
@@ -885,5 +889,128 @@ function renderAuthorizePage(discordId) {
 </html>`;
 }
 
-module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage };
+function renderStaffPanel(user) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Panel - Sentara</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0a0a0f; --surface: #13131a; --border: #2a2a3a; --accent: #7c6af7; --text: #e8e8ff; --muted: #7a7a9a; }
+    body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; margin: 0; }
+    header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    .ticket-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: rgba(124, 106, 247, 0.1); color: var(--accent); }
+    .btn { padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; }
+    .btn-close { background: #ef4444; color: white; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="font-size: 1.5rem; font-weight: 800;">👨‍💼 Staff Panel</div>
+    <a href="/dashboard" style="color: var(--accent); text-decoration: none;">← Dashboard</a>
+  </header>
+  <main>
+    <h2>Tüm Açık Ticket'lar</h2>
+    <table class="ticket-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Kullanıcı</th>
+          <th>Konu</th>
+          <th>Kategori</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="staff-tickets">
+        <tr><td colspan="5">Yükleniyor...</td></tr>
+      </tbody>
+    </table>
+  </main>
+  <script>
+    async function loadStaffTickets() {
+      const res = await fetch('/api/tickets/staff');
+      const data = await res.json();
+      const html = data.tickets.map(t => '<tr>' +
+        '<td>' + t.ticketId + '</td>' +
+        '<td>' + t.userName + '</td>' +
+        '<td>' + t.subject + '</td>' +
+        '<td>' + t.category + '</td>' +
+        '<td><button class="btn btn-close" onclick="closeTicket(\\'' + t.ticketId + '\\')">Kapat</button></td>' +
+        '</tr>').join('');
+      document.getElementById('staff-tickets').innerHTML = html || '<tr><td colspan="5">Açık ticket yok.</td></tr>';
+    }
+    async function closeTicket(id) {
+      if(!confirm('Kapatmak istediğine emin misin?')) return;
+      await fetch('/api/tickets/' + id + '/close', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason: 'Staff tarafından kapatıldı'}) });
+      loadStaffTickets();
+    }
+    loadStaffTickets();
+  </script>
+</body>
+</html>`;
+}
+
+function renderDebugPage(user, stats, logs) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Debug Console - Sentara</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
+  <style>
+    body { background: #05050a; color: #00ff41; font-family: 'Fira Code', monospace; padding: 2rem; margin: 0; }
+    .grid { display: grid; grid-template-columns: 350px 1fr; gap: 2rem; }
+    .card { background: #0a0a15; border: 1px solid #00ff41; padding: 1.5rem; border-radius: 8px; box-shadow: 0 0 15px rgba(0, 255, 65, 0.1); }
+    h1, h2 { color: #fff; margin-top: 0; }
+    pre { white-space: pre-wrap; font-size: 0.85rem; color: #4ade80; }
+    .log-entry { border-bottom: 1px solid #1a1a2e; padding: 0.5rem 0; font-size: 0.8rem; }
+    .type-INFO { color: #60a5fa; }
+    .type-ERROR { color: #f87171; font-weight: bold; }
+    .type-SUCCESS { color: #4ade80; }
+    .nav { margin-bottom: 2rem; }
+    .nav a { color: #00ff41; text-decoration: none; border: 1px solid #00ff41; padding: 0.5rem 1rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="nav"><a href="/dashboard">← Geri Dön</a></div>
+  <h1>🔍 System Debug Console</h1>
+  <div class="grid">
+    <div class="left">
+      <div class="card">
+        <h2>System Stats</h2>
+        <pre>${JSON.stringify(stats, null, 2)}</pre>
+      </div>
+      <br>
+      <div class="card">
+        <h2>Store State</h2>
+        <p>Users: ${stats.db.users}</p>
+        <p>Tickets: ${stats.db.tickets}</p>
+        <p>Economies: ${stats.db.economies}</p>
+      </div>
+    </div>
+    <div class="right">
+      <div class="card">
+        <h2>Recent Logs (${logs.length})</h2>
+        <div id="logs">
+          ${logs.reverse().map(l => `
+            <div class="log-entry">
+              <span style="color: #666;">[${l.timestamp.split('T')[1].split('.')[0]}]</span>
+              <span class="type-${l.type}">${l.type}</span>: ${l.msg}
+              <div style="color: #888; font-size: 0.75rem; margin-left: 1rem;">${l.details}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage, renderStaffPanel, renderDebugPage };
+
 
