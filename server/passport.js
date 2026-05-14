@@ -13,7 +13,7 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        let user = await User.findOne({ discordId: profile.id });
+        let user = User.findOne({ discordId: profile.id });
         if (!user) {
           user = new User({
             discordId: profile.id,
@@ -21,12 +21,13 @@ passport.use(
             discordEmail: profile.email,
             discordAvatar: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
           });
+          await user.save();
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
+          await user.save();
         }
 
-        await user.save();
         done(null, user);
       } catch (err) {
         done(err);
@@ -41,7 +42,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await User.findById(id);
+    const user = User.findById(id);
     done(null, user);
   } catch (err) {
     done(err);

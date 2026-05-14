@@ -1,30 +1,52 @@
-const mongoose = require("mongoose");
+// Ticket model - in-memory replacement for Mongoose model
+const { tickets } = require("./Store");
 
-const ticketSchema = new mongoose.Schema(
-  {
-    ticketId: String,
-    userId: String,
-    userName: String,
-    category: String,
-    subject: String,
-    description: String,
-    status: { type: String, enum: ["open", "closed", "pending"], default: "open" },
-    priority: { type: String, enum: ["low", "medium", "high"], default: "medium" },
-    channelId: String,
-    staffAssigned: String,
-    messages: [
-      {
-        authorId: String,
-        authorName: String,
-        content: String,
-        timestamp: { type: Date, default: Date.now },
-      },
-    ],
-    createdAt: { type: Date, default: Date.now },
-    closedAt: Date,
-    closeReason: String,
+const Ticket = {
+  findOne(query) {
+    return Promise.resolve(tickets.findOne(query));
   },
-  { timestamps: true }
-);
 
-module.exports = mongoose.model("Ticket", ticketSchema);
+  findById(id) {
+    return Promise.resolve(tickets.findById(id));
+  },
+
+  find(query) {
+    const results = tickets.find(query);
+    return Promise.resolve(results);
+  },
+};
+
+// Constructor-like: new Ticket({...}) then .save()
+function TicketConstructor(data) {
+  const defaults = {
+    status: "open",
+    priority: "medium",
+    messages: [],
+    createdAt: new Date(),
+    closedAt: null,
+    closeReason: null,
+  };
+  const merged = { ...defaults, ...data };
+  merged.save = function () {
+    // Check if already in store (update) or new (create)
+    if (merged._id) {
+      const stored = tickets.findOne({ _id: merged._id });
+      if (stored) {
+        // Update existing
+        Object.assign(stored, merged);
+        stored.save();
+        return Promise.resolve(merged);
+      }
+    }
+    const created = tickets.create(merged);
+    Object.assign(merged, created);
+    return Promise.resolve(merged);
+  };
+  return merged;
+}
+
+TicketConstructor.findOne = Ticket.findOne;
+TicketConstructor.findById = Ticket.findById;
+TicketConstructor.find = Ticket.find;
+
+module.exports = TicketConstructor;

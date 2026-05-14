@@ -1,9 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
-const MongoStore = require("connect-mongo");
 const passport = require("./passport");
-const { DB_URL, SESSION_SECRET } = require("../config");
+const { SESSION_SECRET } = require("../config");
 const authRoutes = require("./routes/auth");
 const apiRoutes = require("./routes/api");
 const pagesRoutes = require("./routes/pages");
@@ -18,7 +17,6 @@ app.use(
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: DB_URL }),
     cookie: { secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 },
   })
 );

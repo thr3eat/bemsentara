@@ -798,4 +798,92 @@ function renderTicketsPage(user) {
 </html>`;
 }
 
-module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage };
+function renderAuthorizePage(discordId) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yetkilendirme - Sentara</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --border: #2a2a3a;
+      --accent: #7c6af7;
+      --text: #e8e8ff;
+      --muted: #7a7a9a;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 2.5rem;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 450px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, var(--accent), #f76af7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    p { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+    input {
+      width: 100%;
+      padding: 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: white;
+      font-family: inherit;
+      margin-bottom: 1.5rem;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .btn {
+      width: 100%;
+      padding: 1rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">sentara</div>
+    <h1>Roblox Hesabını Bağla</h1>
+    <p>Discord hesabınızı doğrulamak için Roblox kullanıcı adınızı girin.</p>
+    <form action="/auth/authorize" method="POST">
+      <input type="hidden" name="discordId" value="${discordId}">
+      <input type="text" name="robloxUsername" placeholder="Roblox Kullanıcı Adı" required>
+      <button type="submit" class="btn">Hesabı Doğrula</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
+
+module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage };
+

@@ -1,9 +1,8 @@
-const mongoose = require("mongoose");
 const app = require("./server/app");
 const { createDiscordClient } = require("./bot/client");
 const { initializeDiscordHandlers } = require("./bot/handlers");
 const { registerAllCommands } = require("./bot/registerCommands");
-const { PORT, DB_URL, BASE_URL, TOKEN } = require("./config");
+const { PORT, BASE_URL, TOKEN } = require("./config");
 const path = require("path");
 const cron = require("node-cron");
 const axios = require("axios");
@@ -22,8 +21,7 @@ cron.schedule("*/14 * * * *", async () => {
 
 async function start() {
   try {
-    await mongoose.connect(DB_URL);
-    console.log("✅ MongoDB bağlandı");
+    console.log("✅ In-memory veri deposu hazır");
 
     await discordBot.login(TOKEN);
     console.log("✅ Discord bot başlatıldı");

@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-const DB_URL = process.env.MONGODB_URI || "mongodb://localhost:27017/sentara";
 const SESSION_SECRET = process.env.SESSION_SECRET || "sentara-secret-key";
 const BOT_ID = process.env.BOTID || process.env.BOT_ID;
 const TOKEN = process.env.TOKEN;
@@ -20,7 +19,6 @@ const SUPPORT_CATEGORIES = {
 module.exports = {
   PORT,
   BASE_URL,
-  DB_URL,
   SESSION_SECRET,
   BOT_ID,
   TOKEN,

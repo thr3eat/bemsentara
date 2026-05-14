@@ -1,30 +1,64 @@
-const mongoose = require("mongoose");
+// User model - in-memory replacement for Mongoose model
+const { users } = require("./Store");
 
-const userSchema = new mongoose.Schema(
-  {
-    discordId: String,
-    discordUsername: String,
-    discordAvatar: String,
-    discordEmail: String,
-
-    robloxId: Number,
-    robloxUsername: String,
-    robloxAvatar: String,
-
-    isAuthorized: { type: Boolean, default: false },
-    isStaff: { type: Boolean, default: false },
-    isAdmin: { type: Boolean, default: false },
-
-    groupRole: { roleId: Number, roleName: String },
-    canSetRole: { type: Boolean, default: false },
-    canManageMembers: { type: Boolean, default: false },
-    canManageTickets: { type: Boolean, default: false },
-
-    profileBio: String,
-    profileColor: { type: String, default: "#7c6af7" },
-    joinedAt: { type: Date, default: Date.now },
+const User = {
+  findOne(query) {
+    return Promise.resolve(users.findOne(query));
   },
-  { timestamps: true }
-);
 
-module.exports = mongoose.model("User", userSchema);
+  findById(id) {
+    return Promise.resolve(users.findById(id));
+  },
+
+  find(query) {
+    return Promise.resolve(users.find(query));
+  },
+
+  create(data) {
+    const defaults = {
+      isAuthorized: false,
+      isStaff: false,
+      isAdmin: false,
+      groupRole: null,
+      canSetRole: false,
+      canManageMembers: false,
+      canManageTickets: false,
+      profileBio: null,
+      profileColor: "#7c6af7",
+      joinedAt: new Date(),
+    };
+    return Promise.resolve(users.create({ ...defaults, ...data }));
+  },
+};
+
+// Constructor-like: new User({...}) then .save()
+function UserConstructor(data) {
+  const defaults = {
+    isAuthorized: false,
+    isStaff: false,
+    isAdmin: false,
+    groupRole: null,
+    canSetRole: false,
+    canManageMembers: false,
+    canManageTickets: false,
+    profileBio: null,
+    profileColor: "#7c6af7",
+    joinedAt: new Date(),
+  };
+  const merged = { ...defaults, ...data };
+  merged.save = function () {
+    const created = users.create(merged);
+    // Copy _id back
+    Object.assign(merged, created);
+    return Promise.resolve(merged);
+  };
+  return merged;
+}
+
+// Support both: User.findOne() and new User()
+UserConstructor.findOne = User.findOne;
+UserConstructor.findById = User.findById;
+UserConstructor.find = User.find;
+UserConstructor.create = User.create;
+
+module.exports = UserConstructor;
