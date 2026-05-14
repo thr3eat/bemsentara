@@ -1,7 +1,7 @@
 const { ActionRowBuilder, TextInputBuilder, TextInputStyle, ChannelType, PermissionFlagsBits } = require("discord.js");
 const Ticket = require("../../models/Ticket");
 const { generateTicketId } = require("../../utils/ticketId");
-const { SUPPORT_CATEGORIES } = require("../../config");
+const { SUPPORT_CATEGORIES, TARGET_GUILD_ID, TARGET_CHANNEL_ID } = require("../../config");
 const { buildTicketEmbed, buildCloseButton } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
@@ -18,38 +18,74 @@ async function handleModalSubmit(interaction) {
 
   try {
     const ticketId = generateTicketId();
-    const guild = interaction.guild;
-
-    let ticketCategory = guild.channels.cache.find(
-      (c) => c.name === "support-tickets" && c.type === ChannelType.GuildCategory
-    );
-
-    if (!ticketCategory) {
-      ticketCategory = await guild.channels.create({
-        name: "support-tickets",
-        type: ChannelType.GuildCategory,
-      });
+    const targetGuild = await interaction.client.guilds.fetch(TARGET_GUILD_ID);
+    if (!targetGuild) {
+      throw new Error("Hedef sunucu bulunamadı.");
     }
 
-    const ticketChannel = await guild.channels.create({
-      name: `${ticketId.toLowerCase()}`,
-      type: ChannelType.GuildText,
-      parent: ticketCategory.id,
-      permissionOverwrites: [
-        {
-          id: guild.id,
-          deny: [PermissionFlagsBits.ViewChannel],
-        },
-        {
-          id: interaction.user.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory,
-          ],
-        },
-      ],
-    });
+    const configuredChannel = TARGET_CHANNEL_ID
+      ? await targetGuild.channels.fetch(TARGET_CHANNEL_ID).catch(() => null)
+      : null;
+
+    let ticketChannel;
+    if (configuredChannel?.type === ChannelType.GuildCategory) {
+      ticketChannel = await targetGuild.channels.create({
+        name: `${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: configuredChannel.id,
+        permissionOverwrites: [
+          {
+            id: targetGuild.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: interaction.user.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          },
+        ],
+      });
+    } else if (configuredChannel?.type === ChannelType.GuildText) {
+      ticketChannel = await configuredChannel.threads.create({
+        name: ticketId.toLowerCase(),
+        autoArchiveDuration: 1440,
+        type: ChannelType.PublicThread,
+      });
+    } else {
+      let ticketCategory = targetGuild.channels.cache.find(
+        (c) => c.name === "support-tickets" && c.type === ChannelType.GuildCategory
+      );
+
+      if (!ticketCategory) {
+        ticketCategory = await targetGuild.channels.create({
+          name: "support-tickets",
+          type: ChannelType.GuildCategory,
+        });
+      }
+
+      ticketChannel = await targetGuild.channels.create({
+        name: `${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: ticketCategory.id,
+        permissionOverwrites: [
+          {
+            id: targetGuild.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: interaction.user.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          },
+        ],
+      });
+    }
 
     const ticket = new Ticket({
       ticketId,
