@@ -4,7 +4,8 @@
   "description": "Sentara Discord & Roblox Group Management Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "npm install"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -17,7 +18,7 @@
     "mongoose": "^7.6.1",
     "node-cron": "^3.0.3",
     "passport": "^0.6.0",
-    "passport-discord": "^0.6.0"
+    "passport-discord": "^0.1.4"
   },
   "engines": {
     "node": ">=18.0.0"
