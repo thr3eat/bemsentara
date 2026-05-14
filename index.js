@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const app = require("./server/app");
 const { createDiscordClient } = require("./bot/client");
 const { initializeDiscordHandlers } = require("./bot/handlers");
-const { registerDiscordCommands } = require("./bot/commands");
+const { registerAllCommands } = require("./bot/registerCommands");
 const { PORT, DB_URL, BASE_URL, TOKEN } = require("./config");
 const path = require("path");
 const cron = require("node-cron");
@@ -28,7 +28,7 @@ async function start() {
     await discordBot.login(TOKEN);
     console.log("✅ Discord bot başlatıldı");
 
-    await registerDiscordCommands();
+    await registerAllCommands();
 
     app.listen(PORT, () => {
       console.log(`🌐 Server: ${BASE_URL}`);

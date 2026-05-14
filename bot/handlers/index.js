@@ -1,7 +1,10 @@
 const { handleButtonInteraction } = require("./buttonHandler");
 const { handleSelectInteraction } = require("./selectHandler");
 const { handleModalSubmit } = require("./modalHandler");
-const { handleSlashCommand } = require("./slashHandler");
+const { handleGeneralCommand } = require("./generalCommandHandler");
+const { handleEconomyCommand } = require("./economyCommandHandler");
+const { handleFunCommand } = require("./funCommandHandler");
+const { handleModerationCommand } = require("./moderationCommandHandler");
 
 function initializeDiscordHandlers(client) {
   client.on("interactionCreate", async (interaction) => {
@@ -18,7 +21,19 @@ function initializeDiscordHandlers(client) {
     }
 
     if (interaction.isChatInputCommand()) {
-      return handleSlashCommand(interaction);
+      let result = await handleGeneralCommand(interaction);
+      if (result !== null) return result;
+
+      result = await handleEconomyCommand(interaction);
+      if (result !== null) return result;
+
+      result = await handleFunCommand(interaction);
+      if (result !== null) return result;
+
+      result = await handleModerationCommand(interaction);
+      if (result !== null) return result;
+
+      return null;
     }
 
     return null;
