@@ -609,20 +609,20 @@ function renderDashboard(user) {
         document.getElementById('total-count').textContent = tickets.length;
 
         const html = tickets.length > 0
-          ? tickets.map(t => `
+          ? tickets.map(t => \`
             <div class="ticket">
               <div class="ticket-info">
-                <h4>${t.ticketId}</h4>
+                <h4>\${t.ticketId}</h4>
                 <div class="ticket-meta">
-                  ${t.subject} • Kategori: ${t.category}
+                  \${t.subject} • Kategori: \${t.category}
                 </div>
               </div>
-              <span class="ticket-badge ${t.status === 'open' ? 'badge-open' : 'badge-closed'}">
-                ${t.status === 'open' ? '🟢 Açık' : '🔴 Kapalı'}
+              <span class="ticket-badge \${t.status === 'open' ? 'badge-open' : 'badge-closed'}">
+                \${t.status === 'open' ? '🟢 Açık' : '🔴 Kapalı'}
               </span>
             </div>
-          `).join('')
-          : '<p style="color: var(--muted);">Henüz ticket\'ınız yok.</p>';
+          \`).join('')
+          : '<p style="color: var(--muted);">Henüz ticket\\'ınız yok.</p>';
 
         document.getElementById('tickets').innerHTML = html;
       } catch (err) {
@@ -773,16 +773,16 @@ function renderTicketsPage(user) {
         if (!data.success) throw new Error(data.error);
 
         const html = data.tickets.length > 0
-          ? data.tickets.map(t => `
-            <div class="ticket-card" onclick="alert('Ticket: ${t.ticketId}')">
-              <div class="ticket-id">${t.ticketId}</div>
-              <div class="ticket-subject">${t.subject}</div>
+          ? data.tickets.map(t => \`
+            <div class="ticket-card" onclick="alert('Ticket: \${t.ticketId}')">
+              <div class="ticket-id">\${t.ticketId}</div>
+              <div class="ticket-subject">\${t.subject}</div>
               <div class="ticket-meta">
-                Kategori: ${t.category} • Durum: ${t.status}
+                Kategori: \${t.category} • Durum: \${t.status}
               </div>
             </div>
-          `).join('')
-          : '<p style="color: var(--muted);">Henüz ticket\'ınız yok.</p>';
+          \`).join('')
+          : '<p style="color: var(--muted);">Henüz ticket\\'ınız yok.</p>';
 
         document.getElementById('tickets').innerHTML = html;
       } catch (err) {
