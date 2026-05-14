@@ -595,38 +595,39 @@ function renderDashboard(user) {
   <script>
     async function loadTickets() {
       try {
-        const res = await fetch('/api/tickets');
-        const data = await res.json();
+        var res = await fetch('/api/tickets');
+        var data = await res.json();
 
         if (!data.success) throw new Error(data.error);
 
-        const tickets = data.tickets;
-        const open = tickets.filter(t => t.status === 'open').length;
-        const closed = tickets.filter(t => t.status === 'closed').length;
+        var tickets = data.tickets;
+        var open = tickets.filter(function(t) { return t.status === 'open'; }).length;
+        var closed = tickets.filter(function(t) { return t.status === 'closed'; }).length;
 
         document.getElementById('open-count').textContent = open;
         document.getElementById('closed-count').textContent = closed;
         document.getElementById('total-count').textContent = tickets.length;
 
-        const html = tickets.length > 0
-          ? tickets.map(t => \`
-            <div class="ticket">
-              <div class="ticket-info">
-                <h4>\${t.ticketId}</h4>
-                <div class="ticket-meta">
-                  \${t.subject} • Kategori: \${t.category}
-                </div>
-              </div>
-              <span class="ticket-badge \${t.status === 'open' ? 'badge-open' : 'badge-closed'}">
-                \${t.status === 'open' ? '🟢 Açık' : '🔴 Kapalı'}
-              </span>
-            </div>
-          \`).join('')
-          : '<p style="color: var(--muted);">Henüz ticket\\'ınız yok.</p>';
+        var html = '';
+        if (tickets.length > 0) {
+          tickets.forEach(function(t) {
+            var badgeClass = t.status === 'open' ? 'badge-open' : 'badge-closed';
+            var badgeText = t.status === 'open' ? '🟢 Açık' : '🔴 Kapalı';
+            html += '<div class="ticket">' +
+              '<div class="ticket-info">' +
+              '<h4>' + t.ticketId + '</h4>' +
+              '<div class="ticket-meta">' + t.subject + ' • Kategori: ' + t.category + '</div>' +
+              '</div>' +
+              '<span class="ticket-badge ' + badgeClass + '">' + badgeText + '</span>' +
+              '</div>';
+          });
+        } else {
+          html = '<p style="color: var(--muted);">Henüz ticket\'ınız yok.</p>';
+        }
 
         document.getElementById('tickets').innerHTML = html;
       } catch (err) {
-        document.getElementById('tickets').innerHTML = `<p style="color: #f87171;">❌ ${err.message}</p>`;
+        document.getElementById('tickets').innerHTML = '<p style="color: #f87171;">❌ ' + err.message + '</p>';
       }
     }
 
@@ -767,26 +768,27 @@ function renderTicketsPage(user) {
   <script>
     async function loadTickets() {
       try {
-        const res = await fetch('/api/tickets');
-        const data = await res.json();
+        var res = await fetch('/api/tickets');
+        var data = await res.json();
 
         if (!data.success) throw new Error(data.error);
 
-        const html = data.tickets.length > 0
-          ? data.tickets.map(t => \`
-            <div class="ticket-card" onclick="alert('Ticket: \${t.ticketId}')">
-              <div class="ticket-id">\${t.ticketId}</div>
-              <div class="ticket-subject">\${t.subject}</div>
-              <div class="ticket-meta">
-                Kategori: \${t.category} • Durum: \${t.status}
-              </div>
-            </div>
-          \`).join('')
-          : '<p style="color: var(--muted);">Henüz ticket\\'ınız yok.</p>';
+        var html = '';
+        if (data.tickets.length > 0) {
+          data.tickets.forEach(function(t) {
+            html += '<div class="ticket-card" onclick="alert(\'Ticket: ' + t.ticketId + '\')">' +
+              '<div class="ticket-id">' + t.ticketId + '</div>' +
+              '<div class="ticket-subject">' + t.subject + '</div>' +
+              '<div class="ticket-meta">Kategori: ' + t.category + ' • Durum: ' + t.status + '</div>' +
+              '</div>';
+          });
+        } else {
+          html = '<p style="color: var(--muted);">Henüz ticket\'ınız yok.</p>';
+        }
 
         document.getElementById('tickets').innerHTML = html;
       } catch (err) {
-        document.getElementById('tickets').innerHTML = `<p style="color: #f87171;">❌ ${err.message}</p>`;
+        document.getElementById('tickets').innerHTML = '<p style="color: #f87171;">❌ ' + err.message + '</p>';
       }
     }
 
