@@ -15,12 +15,16 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       try {
         let user = await User.findOne({ discordId: profile.id });
+        const avatarUrl = profile.avatar ? \`https://cdn.discordapp.com/avatars/\${profile.id}/\${profile.avatar}.png\` : \`https://cdn.discordapp.com/embed/avatars/\${parseInt(profile.discriminator || '0') % 5}.png\`;
+        const bannerUrl = profile.banner ? \`https://cdn.discordapp.com/banners/\${profile.id}/\${profile.banner}.png?size=512\` : null;
+
         if (!user) {
           user = new User({
             discordId: profile.id,
             discordUsername: profile.username,
             discordEmail: profile.email,
-            discordAvatar: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
+            discordAvatar: avatarUrl,
+            discordBanner: bannerUrl,
             isAdmin: ADMIN_IDS.includes(profile.id),
             isStaff: ADMIN_IDS.includes(profile.id),
           });
@@ -28,6 +32,8 @@ passport.use(
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
+          user.discordAvatar = avatarUrl;
+          user.discordBanner = bannerUrl || user.discordBanner;
           user.isAdmin = ADMIN_IDS.includes(profile.id);
           user.isStaff = ADMIN_IDS.includes(profile.id);
           await user.save();

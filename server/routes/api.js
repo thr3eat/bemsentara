@@ -91,4 +91,43 @@ router.get("/api/health", (req, res) => {
   });
 });
 
+router.post("/api/wiki", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  
+  const { content } = req.body;
+  if (!content || content.trim().length === 0) return res.status(400).json({ error: "Yorum boş olamaz." });
+  
+  const { wikis } = require("../../models/Store");
+  try {
+    const comment = wikis.create({
+      userId: req.user.discordId,
+      username: req.user.discordUsername,
+      avatar: req.user.discordAvatar,
+      content: content.trim(),
+    });
+    res.json({ success: true, comment });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/settings", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  
+  const { profileBio, profileColor } = req.body;
+  
+  const User = require("../../models/User");
+  try {
+    const user = await User.findById(req.user._id);
+    if (user) {
+        if (profileBio !== undefined) user.profileBio = profileBio;
+        if (profileColor !== undefined) user.profileColor = profileColor;
+        await user.save();
+    }
+    res.json({ success: true });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

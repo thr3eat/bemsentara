@@ -702,15 +702,18 @@ function renderDashboard(user) {
 
     @media (max-width: 768px) {
       header { flex-wrap: wrap; gap: 1rem; }
-      .header-actions { width: 100%; justify-content: space-between; }
+      .header-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
       .ticket { flex-direction: column; align-items: flex-start; gap: 1rem; }
     }
   </style>
 </head>
 <body>
   <header>
-    <div class="logo">sentara</div>
+    <a href="/" class="logo" style="text-decoration: none;">sentara</a>
     <div class="header-actions">
+      <a href="/profile" class="header-link">Profil</a>
+      <a href="/wiki" class="header-link">Wiki</a>
+      <a href="/settings" class="header-link">Ayarlar</a>
       ${user.isStaff || user.isAdmin ? '<a href="/staff" class="header-link staff">👨‍💼 Staff Panel</a>' : ''}
       ${user.isAdmin ? '<a href="/debug" class="header-link debug">🔍 Debug</a>' : ''}
       <div class="user-info">
@@ -1205,6 +1208,206 @@ function renderDebugPage(user, stats, logs) {
 </html>`;
 }
 
-module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage, renderStaffPanel, renderDebugPage };
+module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage, renderStaffPanel, renderDebugPage, renderProfilePage, renderSettingsPage, renderLegalPage, renderWikiPage };
 
+function _layout(title, user, content) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Sentara Premium</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050508;
+      --surface: rgba(20, 20, 30, 0.6);
+      --border: rgba(124, 106, 247, 0.2);
+      --accent: #7c6af7;
+      --accent2: #ff6bf7;
+      --text: #ffffff;
+      --muted: #a0a0c0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(circle at top left, #1a1a2e 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    header {
+      background: rgba(10, 10, 15, 0.5);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; transition: 0.3s; }
+    .nav-links a:hover { color: var(--text); }
+    main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); }
+    .btn { padding: 0.8rem 1.5rem; background: var(--accent); color: white; border: none; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 700; transition: 0.3s; }
+    .btn:hover { background: #6b57f5; transform: translateY(-2px); }
+    input, textarea { width: 100%; padding: 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: white; font-family: inherit; margin-bottom: 1rem; outline: none; }
+    input:focus, textarea:focus { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">sentara</a>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/profile">Profil</a>
+      <a href="/wiki">Wiki</a>
+      <a href="/settings">Ayarlar</a>
+      ${user ? '<a href="/logout" style="color: #f87171;">Çıkış</a>' : ''}
+    </div>
+  </header>
+  <main>
+    ${content}
+  </main>
+</body>
+</html>`;
+}
 
+function renderProfilePage(user) {
+  const banner = user.discordBanner ? `url(${user.discordBanner})` : `linear-gradient(135deg, ${user.profileColor || 'var(--accent)'}, #1a1a2e)`;
+  const content = `
+    <div style="background: ${banner}; background-size: cover; background-position: center; height: 200px; border-radius: 20px 20px 0 0; position: relative; border: 1px solid var(--border); border-bottom: none;">
+      <img src="${user.discordAvatar}" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--bg); position: absolute; bottom: -60px; left: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+    </div>
+    <div class="card" style="border-radius: 0 0 20px 20px; padding-top: 80px; position: relative;">
+      <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">${user.discordUsername}</h1>
+      <p style="color: var(--muted); margin-bottom: 2rem;">Roblox: ${user.robloxUsername || 'Bağlı değil'}</p>
+      
+      <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border);">
+        <h3 style="margin-bottom: 1rem; color: var(--accent);">Hakkımda</h3>
+        <p style="line-height: 1.6; white-space: pre-wrap;">${user.profileBio || 'Henüz bir biyografi eklenmemiş.'}</p>
+      </div>
+    </div>
+  `;
+  return _layout("Profil", user, content);
+}
+
+function renderSettingsPage(user) {
+  const content = `
+    <div class="card">
+      <h1 style="margin-bottom: 2rem;">Ayarlar</h1>
+      <form id="settingsForm">
+        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Profil Rengi (Hex)</label>
+        <input type="text" id="color" value="${user.profileColor || '#7c6af7'}" placeholder="#7c6af7">
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Biyografi</label>
+        <textarea id="bio" rows="5" placeholder="Kendinden bahset...">${user.profileBio || ''}</textarea>
+        
+        <button type="submit" class="btn">Kaydet</button>
+      </form>
+    </div>
+    <script>
+      document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profileColor: document.getElementById('color').value,
+            profileBio: document.getElementById('bio').value
+          })
+        });
+        if(res.ok) {
+          alert('Başarıyla kaydedildi!');
+          window.location.reload();
+        } else {
+          alert('Bir hata oluştu.');
+        }
+      });
+    </script>
+  `;
+  return _layout("Ayarlar", user, content);
+}
+
+function renderLegalPage(title, text) {
+  const content = `
+    <div class="card">
+      <h1 style="margin-bottom: 2rem; color: var(--accent);">${title}</h1>
+      <div style="line-height: 1.8; color: var(--muted);">${text}</div>
+      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); display: flex; gap: 1rem;">
+        <a href="/legal/tos" style="color: var(--accent); text-decoration: none;">Hizmet Koşulları</a>
+        <a href="/legal/privacy" style="color: var(--accent); text-decoration: none;">Gizlilik Politikası</a>
+      </div>
+    </div>
+  `;
+  return _layout(title, null, content);
+}
+
+function renderWikiPage(user, comments) {
+  const commentsHtml = comments.map(c => `
+    <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-start;">
+      <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%;">
+      <div>
+        <div style="font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">${c.username}</div>
+        <div style="line-height: 1.5; white-space: pre-wrap;">${c.content}</div>
+        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem;">${new Date(c.createdAt).toLocaleString('tr-TR')}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const content = `
+    <div class="card">
+      <h1 style="margin-bottom: 1rem;">Topluluk Wiki</h1>
+      <p style="color: var(--muted); margin-bottom: 3rem;">Sentara platformu hakkında topluluk tartışmaları, rehberler ve yorumlar.</p>
+      
+      <div style="margin-bottom: 3rem;">
+        <h3 style="margin-bottom: 1rem;">Bir şeyler paylaş...</h3>
+        ${user ? `
+          <form id="wikiForm">
+            <textarea id="wikiContent" rows="4" placeholder="Wiki'ye katkıda bulun..." required></textarea>
+            <button type="submit" class="btn">Gönder</button>
+          </form>
+        ` : '<p style="color: var(--danger);">Yorum yapmak için giriş yapmalısınız.</p>'}
+      </div>
+
+      <div>
+        <h3 style="margin-bottom: 1.5rem;">Paylaşımlar (${comments.length})</h3>
+        ${comments.length > 0 ? commentsHtml : '<p style="color: var(--muted);">Henüz paylaşım yok. İlk paylaşan sen ol!</p>'}
+      </div>
+    </div>
+    
+    ${user ? `
+    <script>
+      document.getElementById('wikiForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const res = await fetch('/api/wiki', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: document.getElementById('wikiContent').value
+          })
+        });
+        if(res.ok) {
+          window.location.reload();
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Bir hata oluştu.');
+        }
+      });
+    </script>
+    ` : ''}
+  `;
+  return _layout("Wiki", user, content);
+}

@@ -85,5 +85,6 @@ class InMemoryCollection {
 const users = new InMemoryCollection();
 const tickets = new InMemoryCollection();
 const economies = new InMemoryCollection();
+const wikis = new InMemoryCollection();
 
-module.exports = { users, tickets, economies, InMemoryCollection };
+module.exports = { users, tickets, economies, wikis, InMemoryCollection };
