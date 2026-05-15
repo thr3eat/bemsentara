@@ -12,7 +12,7 @@ function initializeDiscordHandlers(client) {
 
     if (message.content === "!tumrollerveidleriveisimleri") {
       const roles = message.guild.roles.cache.sort((a, b) => b.position - a.position);
-      let replyText = "**Sunucudaki Roller:**\n\n";
+      let replyText = "**Sunucudaki Rollerdir:**\n\n";
       
       roles.forEach((role) => {
         replyText += `**İsim:** ${role.name} | **ID:** ${role.id}\n`;
