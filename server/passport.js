@@ -15,8 +15,8 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       try {
         let user = await User.findOne({ discordId: profile.id });
-        const avatarUrl = profile.avatar ? \`https://cdn.discordapp.com/avatars/\${profile.id}/\${profile.avatar}.png\` : \`https://cdn.discordapp.com/embed/avatars/\${parseInt(profile.discriminator || '0') % 5}.png\`;
-        const bannerUrl = profile.banner ? \`https://cdn.discordapp.com/banners/\${profile.id}/\${profile.banner}.png?size=512\` : null;
+        const avatarUrl = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(profile.discriminator || '0') % 5}.png`;
+        const bannerUrl = profile.banner ? `https://cdn.discordapp.com/banners/${profile.id}/${profile.banner}.png?size=512` : null;
 
         if (!user) {
           user = new User({
