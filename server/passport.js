@@ -1,7 +1,7 @@
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const User = require("../models/User");
-const { BASE_URL } = require("../config");
+const { BASE_URL, ADMIN_IDS } = require("../config");
 
 passport.use(
   new DiscordStrategy(
@@ -13,18 +13,22 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        let user = User.findOne({ discordId: profile.id });
+        let user = await User.findOne({ discordId: profile.id });
         if (!user) {
           user = new User({
             discordId: profile.id,
             discordUsername: profile.username,
             discordEmail: profile.email,
             discordAvatar: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
+            isAdmin: ADMIN_IDS.includes(profile.id),
+            isStaff: ADMIN_IDS.includes(profile.id),
           });
           await user.save();
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
+          user.isAdmin = ADMIN_IDS.includes(profile.id);
+          user.isStaff = ADMIN_IDS.includes(profile.id);
           await user.save();
         }
 
@@ -42,7 +46,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = User.findById(id);
+    const user = await User.findById(id);
     done(null, user);
   } catch (err) {
     done(err);

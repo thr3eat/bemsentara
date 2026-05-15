@@ -16,6 +16,8 @@ const SUPPORT_CATEGORIES = {
   other: { name: "📝 Diğer", color: 0xaa96da },
 };
 
+const ADMIN_IDS = (process.env.ADMIN_IDS || "").split(",");
+
 module.exports = {
   PORT,
   BASE_URL,
@@ -24,5 +26,6 @@ module.exports = {
   TOKEN,
   TARGET_GUILD_ID,
   TARGET_CHANNEL_ID,
+  ADMIN_IDS,
   SUPPORT_CATEGORIES,
 };
