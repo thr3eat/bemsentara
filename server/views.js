@@ -1,29 +1,318 @@
+'use strict';
+
+// ─────────────────────────────────────────────
+// SHARED LAYOUT HELPER  (declared ONCE at top)
+// ─────────────────────────────────────────────
+function _layout(title, user, content, extraHead = '') {
+  const staffLinks = user && (user.isStaff || user.isAdmin)
+    ? `<a href="/staff" class="nav-link staff-link">👨‍💼 Staff</a>`
+    : '';
+  const adminLink = user && user.isAdmin
+    ? `<a href="/debug" class="nav-link debug-link">🔍 Debug</a>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${_esc(title)} — Sentara Premium</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  ${extraHead}
+  <style>
+    :root {
+      --bg:       #050508;
+      --surface:  rgba(20,20,30,0.65);
+      --border:   rgba(124,106,247,0.2);
+      --accent:   #7c6af7;
+      --accent2:  #ff6bf7;
+      --text:     #ffffff;
+      --muted:    #a0a0c0;
+      --success:  #4ade80;
+      --warning:  #fbbf24;
+      --danger:   #f87171;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body {
+      background: radial-gradient(circle at top left, #1a1a2e 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: rgba(10,10,15,0.55);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.4);
+    }
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .nav-links {
+      display: flex;
+      gap: 1.4rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .nav-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: color 0.25s;
+      padding: 0.2rem 0;
+      position: relative;
+    }
+    .nav-link::after {
+      content:'';
+      position: absolute;
+      bottom: -2px; left: 0;
+      width: 0; height: 2px;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-link:hover::after { width:100%; }
+    .nav-link.staff-link { color: var(--accent); }
+    .nav-link.debug-link  { color: var(--danger); }
+    .nav-link.logout-link { color: var(--danger); }
+    .nav-link.logout-link::after { background: var(--danger); }
+
+    /* ── Main & Card ── */
+    main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+    }
+    .card + .card { margin-top: 2rem; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.8rem 1.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: transform 0.25s, box-shadow 0.25s, opacity 0.25s;
+      box-shadow: 0 4px 15px rgba(124,106,247,0.3);
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(124,106,247,0.5); }
+    .btn:active { transform: translateY(0); }
+    .btn-sm { padding: 0.5rem 1rem; font-size: 0.85rem; }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 4px 15px rgba(239,68,68,0.3); }
+    .btn-danger:hover { box-shadow: 0 8px 25px rgba(239,68,68,0.5); }
+    .btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 4px 15px rgba(34,197,94,0.3); }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      box-shadow: none;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); box-shadow: none; }
+
+    /* ── Form elements ── */
+    label { display: block; margin-bottom: 0.4rem; color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+    input, textarea, select {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: white;
+      font-family: inherit;
+      font-size: 0.95rem;
+      margin-bottom: 1.2rem;
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,106,247,0.15);
+    }
+    select option { background: #1a1a2e; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.3rem 0.75rem;
+      border-radius: 30px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-open    { background: rgba(74,222,128,0.12); color: var(--success); border: 1px solid rgba(74,222,128,0.3); }
+    .badge-closed  { background: rgba(248,113,113,0.12); color: var(--danger);  border: 1px solid rgba(248,113,113,0.3); }
+    .badge-pending { background: rgba(251,191,36,0.12);  color: var(--warning); border: 1px solid rgba(251,191,36,0.3); }
+    .badge-admin   { background: rgba(255,107,247,0.12); color: var(--accent2); border: 1px solid rgba(255,107,247,0.3); }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      bottom: 2rem; right: 2rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      border: 1px solid;
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+      pointer-events: auto;
+      max-width: 320px;
+    }
+    .toast-success { background: rgba(34,197,94,0.15);  color: var(--success); border-color: rgba(34,197,94,0.3); }
+    .toast-error   { background: rgba(239,68,68,0.15);  color: var(--danger);  border-color: rgba(239,68,68,0.3); }
+    .toast-info    { background: rgba(124,106,247,0.15); color: var(--accent);  border-color: rgba(124,106,247,0.3); }
+    @keyframes toastIn  { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateX(30px); } }
+
+    /* ── Misc ── */
+    .text-muted  { color: var(--muted); }
+    .text-accent { color: var(--accent); }
+    .text-danger { color: var(--danger); }
+    .text-success{ color: var(--success); }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mt-3 { margin-top: 1.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+    .mb-3 { margin-bottom: 1.5rem; }
+    .d-flex { display:flex; }
+    .align-center { align-items:center; }
+    .gap-1 { gap:0.5rem; }
+    .gap-2 { gap:1rem; }
+    .w-full { width:100%; }
+    hr.divider { border:none; border-top:1px solid var(--border); margin:2rem 0; }
+
+    /* ── Responsive ── */
+    @media (max-width:768px) {
+      header { flex-wrap:wrap; gap:0.75rem; }
+      .nav-links { width:100%; flex-wrap:wrap; gap:0.75rem; }
+      main { padding: 2rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/dashboard" class="logo">sentara</a>
+    <nav class="nav-links">
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+      <a href="/profile"   class="nav-link">Profil</a>
+      <a href="/tickets"   class="nav-link">Ticket'lar</a>
+      <a href="/leaderboard" class="nav-link">Sıralama</a>
+      <a href="/shop"      class="nav-link">Mağaza</a>
+      <a href="/wiki"      class="nav-link">Wiki</a>
+      <a href="/settings"  class="nav-link">Ayarlar</a>
+      ${staffLinks}
+      ${adminLink}
+      ${user ? `<a href="/logout" class="nav-link logout-link">Çıkış</a>` : `<a href="/login" class="nav-link">Giriş</a>`}
+    </nav>
+  </header>
+
+  <div id="toast-container"></div>
+
+  <main>
+    ${content}
+  </main>
+
+  <script>
+    // ── Toast utility ──
+    function showToast(msg, type = 'info', duration = 3000) {
+      const c = document.getElementById('toast-container');
+      if (!c) return;
+      const t = document.createElement('div');
+      t.className = 'toast toast-' + type;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), duration);
+    }
+    window.showToast = showToast;
+
+    // ── Confirm util ──
+    function confirmAction(msg) {
+      return new Promise(resolve => resolve(window.confirm(msg)));
+    }
+    window.confirmAction = confirmAction;
+  </script>
+</body>
+</html>`;
+}
+
+
+// ─────────────────────────────────────────────
+// UTILITY: HTML escape (XSS prevention)
+// ─────────────────────────────────────────────
+function _esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
+// ─────────────────────────────────────────────
+// MAIN PAGE
+// ─────────────────────────────────────────────
 function renderMainPage() {
   return `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sentara - Premium Destek Sistemi</title>
+  <title>Sentara — Premium Destek Sistemi</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #050508;
-      --surface: rgba(20, 20, 30, 0.6);
-      --border: rgba(124, 106, 247, 0.2);
-      --accent: #7c6af7;
+      --bg:      #050508;
+      --surface: rgba(20,20,30,0.6);
+      --border:  rgba(124,106,247,0.2);
+      --accent:  #7c6af7;
       --accent2: #ff6bf7;
-      --text: #ffffff;
-      --muted: #a0a0c0;
+      --text:    #ffffff;
+      --muted:   #a0a0c0;
     }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      scroll-behavior: smooth;
-    }
-
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
     body {
       background: radial-gradient(circle at top right, #1a1a2e 0%, var(--bg) 60%);
       color: var(--text);
@@ -32,409 +321,388 @@ function renderMainPage() {
       overflow-x: hidden;
     }
 
-    /* Glow Elements */
     .glow {
-      position: absolute;
-      width: 400px;
-      height: 400px;
-      background: var(--accent);
-      filter: blur(150px);
-      border-radius: 50%;
-      opacity: 0.15;
-      z-index: -1;
-      animation: float 10s infinite ease-in-out alternate;
+      position:fixed; width:500px; height:500px;
+      border-radius:50%; opacity:0.12; z-index:0;
+      filter:blur(160px); pointer-events:none;
+      animation: floatGlow 12s infinite ease-in-out alternate;
     }
-    .glow.top-right { top: -100px; right: -100px; background: var(--accent2); }
-    .glow.bottom-left { bottom: -100px; left: -100px; }
-
-    @keyframes float {
-      0% { transform: translateY(0) scale(1); }
-      100% { transform: translateY(30px) scale(1.1); }
+    .glow-1 { background:var(--accent2); top:-150px; right:-150px; }
+    .glow-2 { background:var(--accent);  bottom:-150px; left:-150px; animation-delay:-6s; }
+    @keyframes floatGlow {
+      0%   { transform: scale(1) translate(0,0); }
+      100% { transform: scale(1.15) translate(20px,30px); }
     }
 
     header {
-      padding: 1.5rem 4rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: rgba(10, 10, 15, 0.4);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      padding: 1.2rem 4rem;
+      display:flex; justify-content:space-between; align-items:center;
+      background: rgba(10,10,15,0.45);
+      backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--border);
+      position:sticky; top:0; z-index:100;
     }
-
     .logo {
-      font-size: 2rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -1px;
+      font-size:2rem; font-weight:800; letter-spacing:-1px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      text-decoration:none;
     }
-
-    nav {
-      display: flex;
-      gap: 2rem;
-      align-items: center;
-    }
-
+    nav { display:flex; gap:2rem; align-items:center; }
     nav a {
-      color: var(--text);
-      text-decoration: none;
-      font-weight: 600;
-      transition: all 0.3s;
-      position: relative;
+      color:var(--text); text-decoration:none; font-weight:600;
+      transition:opacity 0.2s; position:relative;
     }
-
     nav a::after {
-      content: '';
-      position: absolute;
-      width: 0;
-      height: 2px;
-      bottom: -4px;
-      left: 0;
-      background: var(--accent);
-      transition: width 0.3s ease;
+      content:''; position:absolute; bottom:-4px; left:0;
+      width:0; height:2px; background:var(--accent);
+      transition:width 0.3s ease;
     }
-
-    nav a:hover::after {
-      width: 100%;
-    }
+    nav a:hover::after { width:100%; }
 
     .btn {
-      padding: 0.8rem 2rem;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color: white;
-      border: none;
-      border-radius: 30px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 800;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      box-shadow: 0 4px 15px rgba(124, 106, 247, 0.3);
-      position: relative;
-      overflow: hidden;
+      padding:0.8rem 2rem;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:white; border:none; border-radius:30px;
+      font-family:'Outfit',sans-serif; font-weight:800; font-size:1rem;
+      cursor:pointer; text-decoration:none;
+      transition:transform 0.3s, box-shadow 0.3s;
+      box-shadow:0 4px 15px rgba(124,106,247,0.35);
+      display:inline-flex; align-items:center; gap:0.5rem;
+      position:relative; overflow:hidden;
     }
-
-    .btn::before {
-      content: '';
-      position: absolute;
-      top: 0; left: -100%; width: 100%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      transition: all 0.5s;
+    .btn::after {
+      content:''; position:absolute; top:0; left:-100%;
+      width:100%; height:100%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
+      transition:left 0.5s;
     }
-    .btn:hover::before { left: 100%; }
+    .btn:hover::after { left:100%; }
+    .btn:hover { transform:translateY(-3px) scale(1.04); box-shadow:0 10px 28px rgba(124,106,247,0.55); }
 
-    .btn:hover {
-      transform: translateY(-3px) scale(1.05);
-      box-shadow: 0 10px 25px rgba(124, 106, 247, 0.5);
+    /* ── Hero ── */
+    .hero {
+      position:relative; z-index:1;
+      max-width:1100px; margin:0 auto;
+      padding:8rem 2rem 5rem;
+      text-align:center;
     }
-
-    main {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 6rem 2rem;
-      text-align: center;
+    .hero-badge {
+      display:inline-flex; align-items:center; gap:0.5rem;
+      background:rgba(124,106,247,0.12);
+      border:1px solid rgba(124,106,247,0.3);
+      padding:0.4rem 1rem; border-radius:30px;
+      font-size:0.85rem; font-weight:600; color:var(--accent);
+      margin-bottom:2rem;
+      animation:fadeUp 0.8s ease forwards; opacity:0;
     }
-
     h1 {
-      font-size: 4.5rem;
-      line-height: 1.1;
-      margin-bottom: 1.5rem;
-      font-weight: 800;
-      animation: fadeUp 1s ease forwards;
-      opacity: 0;
-      transform: translateY(20px);
+      font-size:5rem; line-height:1.05; font-weight:800;
+      margin-bottom:1.5rem;
+      animation:fadeUp 0.9s ease 0.1s forwards; opacity:0;
     }
-
     .grad {
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
     }
-
     .subtitle {
-      color: var(--muted);
-      font-size: 1.3rem;
-      margin: 0 auto 3.5rem auto;
-      max-width: 700px;
-      animation: fadeUp 1s ease 0.2s forwards;
-      opacity: 0;
-      transform: translateY(20px);
+      color:var(--muted); font-size:1.25rem; max-width:680px;
+      margin:0 auto 3rem;
+      animation:fadeUp 0.9s ease 0.2s forwards; opacity:0;
+      line-height:1.7;
     }
+    .hero-cta {
+      display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;
+      animation:fadeUp 0.9s ease 0.3s forwards; opacity:0;
+    }
+    .btn-outline {
+      padding:0.8rem 2rem; background:transparent;
+      border:1px solid var(--border); color:var(--text);
+      border-radius:30px; font-family:'Outfit',sans-serif;
+      font-weight:700; cursor:pointer; text-decoration:none;
+      transition:border-color 0.3s, color 0.3s;
+    }
+    .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
 
     @keyframes fadeUp {
-      to { opacity: 1; transform: translateY(0); }
+      to { opacity:1; transform:translateY(0); }
+      from { opacity:0; transform:translateY(24px); }
     }
 
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 2rem;
-      margin-top: 5rem;
+    /* ── Stats strip ── */
+    .stats {
+      display:flex; justify-content:center; gap:3rem; flex-wrap:wrap;
+      padding:2.5rem; background:var(--surface);
+      border:1px solid var(--border); border-radius:20px;
+      max-width:900px; margin:3rem auto 0;
+      animation:fadeUp 1s ease 0.4s forwards; opacity:0;
     }
+    .stat-item { text-align:center; }
+    .stat-value { font-size:2.5rem; font-weight:800; }
+    .stat-label { color:var(--muted); font-size:0.9rem; }
 
+    /* ── Features ── */
+    #features {
+      max-width:1100px; margin:6rem auto; padding:0 2rem;
+    }
+    .section-label {
+      text-align:center; color:var(--accent); font-weight:700;
+      font-size:0.85rem; letter-spacing:2px; text-transform:uppercase;
+      margin-bottom:1rem;
+    }
+    .section-title { text-align:center; font-size:2.8rem; font-weight:800; margin-bottom:4rem; }
+    .features-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.5rem;
+    }
     .feature {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2.5rem;
-      backdrop-filter: blur(10px);
-      transition: all 0.4s ease;
-      text-align: left;
-      opacity: 0;
-      transform: translateY(20px);
-      animation: fadeUp 1s ease 0.4s forwards;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:20px; padding:2rem;
+      backdrop-filter:blur(10px);
+      transition:transform 0.35s, border-color 0.35s, box-shadow 0.35s;
+      position:relative; overflow:hidden;
     }
-
-    .feature:hover {
-      border-color: var(--accent2);
-      transform: translateY(-10px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.5), 0 0 20px rgba(124, 106, 247, 0.2);
+    .feature::before {
+      content:''; position:absolute;
+      inset:0; border-radius:20px;
+      background:linear-gradient(135deg,rgba(124,106,247,0.06),transparent);
+      opacity:0; transition:opacity 0.35s;
     }
-
+    .feature:hover { transform:translateY(-8px); border-color:rgba(124,106,247,0.5); box-shadow:0 20px 40px rgba(0,0,0,0.5); }
+    .feature:hover::before { opacity:1; }
     .feature-icon {
-      font-size: 3rem;
-      margin-bottom: 1.5rem;
-      display: inline-block;
-      background: rgba(124, 106, 247, 0.1);
-      padding: 1rem;
-      border-radius: 15px;
+      font-size:2.5rem; display:inline-flex;
+      align-items:center; justify-content:center;
+      width:64px; height:64px;
+      background:rgba(124,106,247,0.1); border-radius:16px;
+      margin-bottom:1.5rem;
     }
+    .feature h3 { font-size:1.3rem; font-weight:800; margin-bottom:0.75rem; }
+    .feature p  { color:var(--muted); line-height:1.7; font-size:0.95rem; }
 
-    .feature h3 {
-      font-size: 1.4rem;
-      margin-bottom: 1rem;
-      font-weight: 800;
-    }
-
-    .feature p {
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
+    /* ── Footer ── */
     footer {
-      padding: 3rem;
-      text-align: center;
-      color: var(--muted);
-      border-top: 1px solid var(--border);
-      margin-top: 5rem;
-      background: rgba(5,5,8,0.8);
+      text-align:center; padding:3rem 2rem;
+      border-top:1px solid var(--border);
+      color:var(--muted); background:rgba(5,5,8,0.9);
+      position:relative; z-index:1;
     }
+    footer .logo { font-size:1.5rem; display:block; margin-bottom:0.75rem; }
+    .footer-links { display:flex; justify-content:center; gap:1.5rem; margin:1rem 0; flex-wrap:wrap; }
+    .footer-links a { color:var(--muted); text-decoration:none; font-size:0.9rem; transition:color 0.2s; }
+    .footer-links a:hover { color:var(--text); }
 
-    @media (max-width: 768px) {
-      header {
-        padding: 1rem;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      h1 { font-size: 2.8rem; }
-      .feature { padding: 1.5rem; }
+    @media(max-width:768px) {
+      header { padding:1rem; flex-direction:column; gap:1rem; }
+      h1 { font-size:2.8rem; }
+      .stats { gap:1.5rem; }
     }
   </style>
 </head>
 <body>
-  <div class="glow top-right"></div>
-  <div class="glow bottom-left"></div>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
 
   <header>
-    <div class="logo">sentara</div>
+    <a href="/" class="logo">sentara</a>
     <nav>
       <a href="#features">Özellikler</a>
+      <a href="/legal/tos">Koşullar</a>
       <a href="/login" class="btn">Giriş Yap</a>
     </nav>
   </header>
 
-  <main>
-    <h1>Discord'da <br><span class="grad">Yeni Nesil Destek</span></h1>
+  <div class="hero" style="position:relative;z-index:1;">
+    <div class="hero-badge">✨ Discord Destek Platformu</div>
+    <h1>Discord'da<br><span class="grad">Yeni Nesil Destek</span></h1>
     <p class="subtitle">Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada.</p>
-    
-    <a href="/login" class="btn" style="font-size: 1.2rem; padding: 1rem 3rem;">Hemen Başla</a>
+    <div class="hero-cta">
+      <a href="/login" class="btn" style="font-size:1.1rem;padding:1rem 2.5rem;">🚀 Hemen Başla</a>
+      <a href="#features" class="btn-outline">Özellikleri İncele</a>
+    </div>
 
-    <div id="features" class="features">
-      <div class="feature" style="animation-delay: 0.3s">
-        <div class="feature-icon">🎮</div>
-        <h3>Roblox Entegrasyonu</h3>
-        <p>Kullanıcıların Roblox hesaplarını Discord ile eşleştirin. Destek taleplerinde güvenilir kullanıcı doğrulama sağlayın.</p>
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-value grad">12K+</div>
+        <div class="stat-label">Kayıtlı Kullanıcı</div>
       </div>
-
-      <div class="feature" style="animation-delay: 0.4s">
-        <div class="feature-icon">⚡</div>
-        <h3>Işık Hızında Paneller</h3>
-        <p>Premium web paneli sayesinde oyun içi veya Discord içi tüm destek işlemlerinizi saniyeler içinde yönetin.</p>
+      <div class="stat-item">
+        <div class="stat-value grad">98K+</div>
+        <div class="stat-label">Çözülen Ticket</div>
       </div>
-
-      <div class="feature" style="animation-delay: 0.5s">
-        <div class="feature-icon">🎨</div>
-        <h3>Cam (Glass) Tasarım</h3>
-        <p>Modern, şık ve göz yormayan arayüz tasarımı ile hem takımınız hem de üyeleriniz için harika bir deneyim.</p>
+      <div class="stat-item">
+        <div class="stat-value grad">99.9%</div>
+        <div class="stat-label">Uptime</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value grad">&lt;2s</div>
+        <div class="stat-label">Ortalama Yanıt</div>
       </div>
     </div>
-  </main>
+  </div>
+
+  <section id="features">
+    <p class="section-label">Özellikler</p>
+    <h2 class="section-title">Neden <span class="grad">Sentara</span>?</h2>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon">🎮</div>
+        <h3>Roblox Entegrasyonu</h3>
+        <p>Kullanıcıların Roblox hesaplarını Discord ile eşleştirin. Destek taleplerinde güvenilir kimlik doğrulama sağlayın.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <h3>Işık Hızında Panel</h3>
+        <p>Premium web paneli sayesinde tüm destek işlemlerinizi saniyeler içinde yönetin. Gerçek zamanlı güncellemeler.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎨</div>
+        <h3>Modern Arayüz</h3>
+        <p>Glass morphism tasarım dili ile hem takımınız hem de üyeleriniz için unutulmaz bir kullanıcı deneyimi.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔒</div>
+        <h3>Gelişmiş Güvenlik</h3>
+        <p>OAuth2 tabanlı kimlik doğrulama, rol yönetimi ve izin sistemi ile güvenli bir ortam.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <h3>Detaylı İstatistikler</h3>
+        <p>Ticket metrikleri, personel performansı ve kullanıcı aktivitesi hakkında kapsamlı raporlar.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🤖</div>
+        <h3>Otomasyon</h3>
+        <p>Otomatik atama, kategorizasyon ve yanıt şablonları ile verimliliği maksimuma taşıyın.</p>
+      </div>
+    </div>
+  </section>
 
   <footer>
-    <div class="logo" style="font-size: 1.5rem; margin-bottom: 1rem;">sentara</div>
-    © 2026 Sentara Premium Support. Tüm hakları saklıdır.
+    <a href="/" class="logo">sentara</a>
+    <div class="footer-links">
+      <a href="/legal/tos">Hizmet Koşulları</a>
+      <a href="/legal/privacy">Gizlilik Politikası</a>
+      <a href="/wiki">Wiki</a>
+    </div>
+    <p style="font-size:0.85rem;">&copy; 2026 Sentara Premium Support. Tüm hakları saklıdır.</p>
   </footer>
 </body>
 </html>`;
 }
 
-function renderLoginPage() {
+
+// ─────────────────────────────────────────────
+// LOGIN PAGE
+// ─────────────────────────────────────────────
+function renderLoginPage(errorMsg = null) {
   return `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Giriş Yap - Sentara Premium</title>
+  <title>Giriş Yap — Sentara Premium</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #050508;
-      --surface: rgba(20, 20, 30, 0.6);
-      --border: rgba(124, 106, 247, 0.2);
-      --accent: #7c6af7;
+      --bg:      #050508;
+      --surface: rgba(20,20,30,0.6);
+      --border:  rgba(124,106,247,0.2);
+      --accent:  #7c6af7;
       --accent2: #ff6bf7;
-      --text: #ffffff;
-      --muted: #a0a0c0;
+      --text:    #ffffff;
+      --muted:   #a0a0c0;
+      --danger:  #f87171;
     }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     body {
       background: radial-gradient(circle at center, #1a1a2e 0%, var(--bg) 100%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
+      color:var(--text); font-family:'Outfit',sans-serif;
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
     }
-
     .glow {
-      position: absolute;
-      width: 500px;
-      height: 500px;
-      background: var(--accent);
-      filter: blur(200px);
-      border-radius: 50%;
-      opacity: 0.15;
-      animation: pulse 8s infinite alternate;
+      position:fixed; width:500px; height:500px; border-radius:50%;
+      filter:blur(200px); pointer-events:none; z-index:0;
+      animation:pulse 8s infinite alternate;
     }
-
+    .glow-1 { background:var(--accent); top:-200px; left:-200px; opacity:0.12; }
+    .glow-2 { background:var(--accent2); bottom:-200px; right:-200px; opacity:0.12; animation-delay:-4s; }
     @keyframes pulse {
-      0% { transform: scale(1); opacity: 0.1; }
-      100% { transform: scale(1.2); opacity: 0.25; }
+      0%   { transform:scale(1); opacity:0.1; }
+      100% { transform:scale(1.2); opacity:0.22; }
     }
-
-    .container {
-      width: 100%;
-      max-width: 420px;
-      padding: 2rem;
-      position: relative;
-      z-index: 10;
-    }
-
+    .container { position:relative; z-index:10; width:100%; max-width:420px; padding:1.5rem; }
     .card {
-      background: rgba(15, 15, 20, 0.5);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 3rem 2.5rem;
-      text-align: center;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
-      animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      background:rgba(15,15,20,0.55);
+      backdrop-filter:blur(24px);
+      border:1px solid var(--border);
+      border-radius:24px; padding:3rem 2.5rem;
+      text-align:center;
+      box-shadow:0 30px 60px -12px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05);
+      animation:popIn 0.55s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
     }
-
     @keyframes popIn {
-      0% { opacity: 0; transform: scale(0.9) translateY(20px); }
-      100% { opacity: 1; transform: scale(1) translateY(0); }
+      0%   { opacity:0; transform:scale(0.88) translateY(24px); }
+      100% { opacity:1; transform:scale(1) translateY(0); }
     }
-
     .logo {
-      font-size: 2.5rem;
-      font-weight: 800;
-      margin-bottom: 0.5rem;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -1px;
+      font-size:2.5rem; font-weight:800; letter-spacing:-1px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      margin-bottom:0.5rem; display:block;
     }
-
-    h1 {
-      font-size: 1.6rem;
-      margin-bottom: 0.5rem;
-      font-weight: 600;
+    .card h1 { font-size:1.5rem; font-weight:600; margin-bottom:0.4rem; }
+    .card .subtitle { color:var(--muted); margin-bottom:2rem; font-size:0.95rem; }
+    .error-box {
+      background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3);
+      color:var(--danger); padding:0.8rem 1rem; border-radius:10px;
+      margin-bottom:1.5rem; font-size:0.9rem;
     }
-
-    .subtitle {
-      color: var(--muted);
-      margin-bottom: 2.5rem;
-      font-size: 1rem;
-    }
-
-    .btn {
-      padding: 1.2rem;
-      border: none;
-      border-radius: 12px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-size: 1.1rem;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-    }
-
     .btn-discord {
-      background: #5865F2;
-      color: white;
-      box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+      width:100%; padding:1.1rem; border:none; border-radius:12px;
+      font-family:'Outfit',sans-serif; font-weight:700; font-size:1.05rem;
+      cursor:pointer; background:#5865F2; color:white;
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      text-decoration:none;
+      transition:background 0.25s, transform 0.25s, box-shadow 0.25s;
+      box-shadow:0 4px 15px rgba(88,101,242,0.35);
     }
-
-    .btn-discord:hover {
-      background: #4752C4;
-      transform: translateY(-3px);
-      box-shadow: 0 8px 25px rgba(88, 101, 242, 0.5);
+    .btn-discord:hover { background:#4752C4; transform:translateY(-3px); box-shadow:0 8px 25px rgba(88,101,242,0.55); }
+    .divider { color:var(--muted); font-size:0.85rem; margin:1.5rem 0; position:relative; }
+    .divider::before, .divider::after {
+      content:''; position:absolute; top:50%; width:40%; height:1px; background:var(--border);
     }
-
-    .back {
-      display: inline-block;
-      margin-top: 2rem;
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 0.95rem;
-      transition: color 0.2s;
-    }
-
-    .back:hover {
-      color: var(--text);
-    }
+    .divider::before { left:0; }
+    .divider::after  { right:0; }
+    .back { display:inline-block; margin-top:1.5rem; color:var(--muted); text-decoration:none; font-size:0.9rem; transition:color 0.2s; }
+    .back:hover { color:var(--text); }
+    .terms { margin-top:1.5rem; font-size:0.78rem; color:var(--muted); line-height:1.5; }
+    .terms a { color:var(--accent); text-decoration:none; }
+    .terms a:hover { text-decoration:underline; }
   </style>
 </head>
 <body>
-  <div class="glow"></div>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
   <div class="container">
     <div class="card">
-      <div class="logo">sentara</div>
-      <h1>Giriş Yap</h1>
-      <p class="subtitle">Platforma erişmek için Discord ile bağlanın</p>
+      <span class="logo">sentara</span>
+      <h1>Hoş Geldiniz</h1>
+      <p class="subtitle">Platforma erişmek için Discord hesabınızla devam edin</p>
 
-      <div class="auth-buttons">
-        <a href="/auth/discord" class="btn btn-discord">
-          <svg width="24" height="24" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a67.59,67.59,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.33,46,96.22,53,91.08,65.69,84.69,65.69Z"/></svg>
-          Discord ile Giriş Yap
-        </a>
-      </div>
+      ${errorMsg ? `<div class="error-box">⚠️ ${_esc(errorMsg)}</div>` : ''}
 
+      <a href="/auth/discord" class="btn-discord">
+        <svg width="22" height="22" viewBox="0 0 127.14 96.36" fill="currentColor">
+          <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a67.59,67.59,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.33,46,96.22,53,91.08,65.69,84.69,65.69Z"/>
+        </svg>
+        Discord ile Giriş Yap
+      </a>
+
+      <p class="terms">
+        Giriş yaparak <a href="/legal/tos">Hizmet Koşullarını</a> ve
+        <a href="/legal/privacy">Gizlilik Politikasını</a> kabul etmiş olursunuz.
+      </p>
       <a href="/" class="back">← Ana Sayfaya Dön</a>
     </div>
   </div>
@@ -442,963 +710,878 @@ function renderLoginPage() {
 </html>`;
 }
 
-function renderDashboard(user) {
-  const isRobloxLinked = user.robloxUsername && user.robloxUsername !== 'Yetkilendirmedi' && user.robloxUsername !== 'RobloxUser';
+
+// ─────────────────────────────────────────────
+// DISCORD AUTHORIZE PAGE
+// ─────────────────────────────────────────────
+function renderAuthorizePage(scopes = []) {
   return `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Sentara Premium</title>
+  <title>Yetkilendirme — Sentara Premium</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #050508;
-      --surface: rgba(20, 20, 30, 0.6);
-      --border: rgba(124, 106, 247, 0.2);
-      --accent: #7c6af7;
-      --accent2: #ff6bf7;
-      --text: #ffffff;
-      --muted: #a0a0c0;
-      --success: #4ade80;
-      --warning: #fbbf24;
-      --danger: #f87171;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
+    :root { --bg:#050508; --border:rgba(124,106,247,0.2); --accent:#7c6af7; --accent2:#ff6bf7; --text:#fff; --muted:#a0a0c0; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     body {
-      background: radial-gradient(circle at top left, #1a1a2e 0%, var(--bg) 100%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
+      background:radial-gradient(circle at center, #1a1a2e 0%, var(--bg) 100%);
+      color:var(--text); font-family:'Outfit',sans-serif;
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
     }
-
-    header {
-      background: rgba(10, 10, 15, 0.5);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-    }
-
-    .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -1px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 1.5rem;
-      align-items: center;
-    }
-
-    .header-link {
-      color: var(--muted);
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 0.3s;
-    }
-
-    .header-link:hover { color: var(--text); }
-    .header-link.staff { color: var(--accent); }
-    .header-link.debug { color: var(--danger); }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      background: rgba(255,255,255,0.03);
-      padding: 0.5rem 1rem;
-      border-radius: 30px;
-      border: 1px solid var(--border);
-    }
-
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 2px solid var(--accent);
-      box-shadow: 0 0 10px rgba(124, 106, 247, 0.4);
-    }
-
-    .logout {
-      color: var(--danger);
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 0.3s;
-    }
-    .logout:hover { color: #fca5a5; }
-
-    main {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 3rem 2rem;
-    }
-
-    .welcome-section {
-      margin-bottom: 3rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      animation: slideDown 0.5s ease;
-    }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .welcome-section h1 {
-      font-size: 2.5rem;
-      font-weight: 800;
-    }
-
-    .roblox-status {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      background: rgba(15,15,20,0.6);
-      backdrop-filter: blur(10px);
-      padding: 1rem 1.5rem;
-      border-radius: 15px;
-      border: 1px solid var(--border);
-    }
-
-    .btn-roblox {
-      padding: 0.8rem 1.5rem;
-      background: #000;
-      color: white;
-      border: 1px solid #333;
-      border-radius: 10px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .btn-roblox:hover {
-      background: #111;
-      border-color: #555;
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 2rem;
-      margin-bottom: 4rem;
-    }
-
     .card {
-      background: var(--surface);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2rem;
-      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      position: relative;
-      overflow: hidden;
+      background:rgba(15,15,20,0.55); backdrop-filter:blur(24px);
+      border:1px solid var(--border); border-radius:24px; padding:3rem 2.5rem;
+      text-align:center; max-width:400px; width:100%; margin:1.5rem;
+      box-shadow:0 30px 60px rgba(0,0,0,0.5);
+      animation:popIn 0.5s ease forwards;
     }
-
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; width: 4px; height: 100%;
-      background: var(--accent);
+    @keyframes popIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+    .logo { font-size:2rem; font-weight:800; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:block; margin-bottom:1.5rem; }
+    h1 { font-size:1.4rem; margin-bottom:0.5rem; }
+    p  { color:var(--muted); margin-bottom:2rem; font-size:0.95rem; line-height:1.6; }
+    .scope-list { text-align:left; margin-bottom:2rem; display:flex; flex-direction:column; gap:0.5rem; }
+    .scope-item {
+      display:flex; align-items:center; gap:0.75rem;
+      background:rgba(124,106,247,0.08); border:1px solid rgba(124,106,247,0.2);
+      padding:0.6rem 1rem; border-radius:10px; font-size:0.9rem;
     }
-
-    .card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.4), 0 0 15px rgba(124, 106, 247, 0.2);
-      border-color: var(--accent);
+    .btn {
+      width:100%; padding:1rem; border:none; border-radius:12px;
+      font-family:'Outfit',sans-serif; font-weight:700; font-size:1rem;
+      cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:white; margin-bottom:0.75rem; transition:transform 0.2s, box-shadow 0.2s;
+      text-decoration:none; display:block;
     }
-
-    .card h3 {
-      font-size: 1rem;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .card-value {
-      font-size: 3.5rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #fff, var(--muted));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .section {
-      background: var(--surface);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2.5rem;
-    }
-
-    .section h2 {
-      font-size: 1.8rem;
-      margin-bottom: 2rem;
-      font-weight: 800;
-    }
-
-    .ticket-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .ticket {
-      background: rgba(10,10,15,0.8);
-      border: 1px solid rgba(255,255,255,0.05);
-      border-radius: 12px;
-      padding: 1.5rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: all 0.3s;
-    }
-
-    .ticket:hover {
-      background: rgba(20,20,30,0.9);
-      border-color: var(--accent);
-      transform: translateX(5px);
-    }
-
-    .ticket-info h4 { margin-bottom: 0.5rem; font-size: 1.2rem; }
-    .ticket-meta { color: var(--muted); font-size: 0.95rem; }
-
-    .ticket-badge {
-      padding: 0.5rem 1rem;
-      border-radius: 30px;
-      font-size: 0.85rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .badge-open { background: rgba(74, 222, 128, 0.15); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.3); }
-    .badge-closed { background: rgba(248, 113, 113, 0.15); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); }
-
-    @media (max-width: 768px) {
-      header { flex-wrap: wrap; gap: 1rem; }
-      .header-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
-      .ticket { flex-direction: column; align-items: flex-start; gap: 1rem; }
-    }
+    .btn:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(124,106,247,0.45); }
+    .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+    .btn-ghost:hover { border-color:var(--accent); color:var(--text); box-shadow:none; }
   </style>
 </head>
 <body>
-  <header>
-    <a href="/" class="logo" style="text-decoration: none;">sentara</a>
-    <div class="header-actions">
-      <a href="/profile" class="header-link">Profil</a>
-      <a href="/wiki" class="header-link">Wiki</a>
-      <a href="/settings" class="header-link">Ayarlar</a>
-      ${user.isStaff || user.isAdmin ? '<a href="/staff" class="header-link staff">👨‍💼 Staff Panel</a>' : ''}
-      ${user.isAdmin ? '<a href="/debug" class="header-link debug">🔍 Debug</a>' : ''}
-      <div class="user-info">
-        <img src="${user.discordAvatar}" alt="Avatar" class="user-avatar">
-        <div>
-          <div style="font-weight: 600;">${user.discordUsername}</div>
-          <a href="/logout" class="logout" style="font-size: 0.85rem;">Çıkış Yap</a>
-        </div>
-      </div>
+  <div class="card">
+    <span class="logo">sentara</span>
+    <h1>Uygulamayı Yetkilendir</h1>
+    <p>Sentara şu izinlere erişmek istiyor:</p>
+    <div class="scope-list">
+      ${(scopes.length ? scopes : ['identify', 'email', 'guilds']).map(s => `
+        <div class="scope-item">✅ <span><strong>${_esc(s)}</strong></span></div>
+      `).join('')}
     </div>
-  </header>
-
-  <main>
-    <div class="welcome-section">
-      <div>
-        <h1>Hoş Geldin, ${user.discordUsername}! 👋</h1>
-        <p style="color: var(--muted); margin-top: 0.5rem;">İşte destek sistemindeki durumun.</p>
-      </div>
-      <div class="roblox-status">
-        ${isRobloxLinked ? 
-          \`<div>
-            <div style="color: var(--muted); font-size: 0.85rem;">Bağlı Roblox Hesabı</div>
-            <div style="font-weight: 700; color: var(--success);">✅ \${user.robloxUsername}</div>
-          </div>\` : 
-          \`<div>
-            <div style="color: var(--warning); font-weight: 600; margin-bottom: 0.3rem;">Roblox Hesabı Bağlı Değil</div>
-            <a href="/auth/roblox" class="btn-roblox">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M5.5 2h13C20.4 2 22 3.6 22 5.5v13c0 1.9-1.6 3.5-3.5 3.5h-13C3.6 22 2 20.4 2 18.5v-13C2 3.6 3.6 2 5.5 2zM12 5L6 12l6 7 6-7-6-7z"/></svg>
-              Roblox'u Bağla
-            </a>
-          </div>\`
-        }
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card" style="border-left-color: var(--success);">
-        <h3>🟢 Açık Ticket'lar</h3>
-        <div class="card-value" id="open-count">0</div>
-      </div>
-
-      <div class="card" style="border-left-color: var(--danger);">
-        <h3>🔴 Kapalı Ticket'lar</h3>
-        <div class="card-value" id="closed-count">0</div>
-      </div>
-
-      <div class="card" style="border-left-color: var(--accent);">
-        <h3>📊 Toplam Ticket</h3>
-        <div class="card-value" id="total-count">0</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>🎫 Ticket Geçmişin</h2>
-      <div class="ticket-list" id="tickets">
-        <p style="color: var(--muted); animation: pulse 2s infinite;">Yükleniyor...</p>
-      </div>
-    </div>
-  </main>
-
-  <script>
-    async function loadTickets() {
-      try {
-        const res = await fetch('/api/tickets');
-        const data = await res.json();
-
-        if (!data.success) throw new Error(data.error);
-
-        const tickets = data.tickets;
-        const open = tickets.filter(t => t.status === 'open').length;
-        const closed = tickets.filter(t => t.status === 'closed').length;
-
-        // Animate numbers
-        animateValue("open-count", parseInt(document.getElementById('open-count').innerText) || 0, open, 500);
-        animateValue("closed-count", parseInt(document.getElementById('closed-count').innerText) || 0, closed, 500);
-        animateValue("total-count", parseInt(document.getElementById('total-count').innerText) || 0, tickets.length, 500);
-
-        let html = '';
-        if (tickets.length > 0) {
-          tickets.forEach(t => {
-            const isOpen = t.status === 'open';
-            html += \`
-              <div class="ticket">
-                <div class="ticket-info">
-                  <h4>\${t.ticketId}</h4>
-                  <div class="ticket-meta">\${t.subject} • Kategori: \${t.category}</div>
-                </div>
-                <span class="ticket-badge \${isOpen ? 'badge-open' : 'badge-closed'}">
-                  \${isOpen ? 'AÇIK' : 'KAPALI'}
-                </span>
-              </div>
-            \`;
-          });
-        } else {
-          html = '<div style="text-align: center; padding: 3rem; color: var(--muted);">Henüz hiç destek talebi oluşturmamışsın.</div>';
-        }
-
-        document.getElementById('tickets').innerHTML = html;
-      } catch (err) {
-        document.getElementById('tickets').innerHTML = \`<div style="color: var(--danger); padding: 1rem;">❌ \${err.message}</div>\`;
-      }
-    }
-
-    function animateValue(id, start, end, duration) {
-        if (start === end) return;
-        let obj = document.getElementById(id);
-        let startTimestamp = null;
-        const step = (timestamp) => {
-            if (!startTimestamp) startTimestamp = timestamp;
-            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-            obj.innerHTML = Math.floor(progress * (end - start) + start);
-            if (progress < 1) {
-                window.requestAnimationFrame(step);
-            }
-        };
-        window.requestAnimationFrame(step);
-    }
-
-    loadTickets();
-    setInterval(loadTickets, 10000); // Poll every 10s
-  </script>
-</body>
-</html>`;
-}
-
-function renderTicketsPage(user) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem;">🎫 Tüm Ticket'lar</h1>
-      <div id="tickets" style="display: grid; gap: 1rem;">
-        <p style="color: var(--muted);">Yükleniyor...</p>
-      </div>
-    </div>
-    <script>
-      async function loadTickets() {
-        try {
-          const res = await fetch('/api/tickets');
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error);
-
-          let html = '';
-          if (data.tickets.length > 0) {
-            data.tickets.forEach(t => {
-              const isOpen = t.status === 'open';
-              html += `
-                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-                  <div>
-                    <div style="font-weight: 700; font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--accent);">${t.ticketId}</div>
-                    <div style="color: var(--muted);">${t.subject} • Kategori: ${t.category}</div>
-                  </div>
-                  <div style="padding: 0.5rem 1rem; border-radius: 20px; font-weight: 800; font-size: 0.8rem; background: ${isOpen ? 'rgba(74, 222, 128, 0.2)' : 'rgba(248, 113, 113, 0.2)'}; color: ${isOpen ? 'var(--success)' : '#f87171'}; border: 1px solid ${isOpen ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}">
-                    ${isOpen ? 'AÇIK' : 'KAPALI'}
-                  </div>
-                </div>
-              `;
-            });
-          } else {
-            html = '<p style="color: var(--muted);">Henüz ticket\'ınız yok.</p>';
-          }
-          document.getElementById('tickets').innerHTML = html;
-        } catch (err) {
-          document.getElementById('tickets').innerHTML = `<p style="color: #f87171;">❌ ${err.message}</p>`;
-        }
-      }
-      loadTickets();
-    </script>
-  `;
-  return _layout("Ticket'lar", user, content);
-}
-
-function renderStaffPanel(user) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem;">👨‍💼 Staff Panel</h1>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left;">
-          <thead>
-            <tr style="background: rgba(124, 106, 247, 0.1); border-bottom: 1px solid var(--border);">
-              <th style="padding: 1rem; color: var(--accent);">ID</th>
-              <th style="padding: 1rem; color: var(--accent);">Kullanıcı</th>
-              <th style="padding: 1rem; color: var(--accent);">Konu</th>
-              <th style="padding: 1rem; color: var(--accent);">Kategori</th>0,
-              <th style="padding: 1rem; color: var(--accent);">İşlem</th>
-            </tr>
-          </thead>
-          <tbody id="staff-tickets">
-            <tr><td colspan="5" style="padding: 1rem; color: var(--muted);">Yükleniyor...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <script>
-      async function loadStaffTickets() {
-        const res = await fetch('/api/tickets/staff');
-        const data = await res.json();
-        const html = data.tickets.map(t => `
-          <tr style="border-bottom: 1px solid var(--border); transition: 0.3s; background: rgba(0,0,0,0.2);">
-            <td style="padding: 1rem; font-weight: 700;">${t.ticketId}</td>
-            <td style="padding: 1rem;">${t.userName}</td>
-            <td style="padding: 1rem;">${t.subject}</td>
-            <td style="padding: 1rem;">${t.category}</td>
-            <td style="padding: 1rem;">
-              <button class="btn" style="background: #ef4444; padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="closeTicket('${t.ticketId}')">Kapat</button>
-            </td>
-          </tr>
-        `).join('');
-        document.getElementById('staff-tickets').innerHTML = html || '<tr><td colspan="5" style="padding: 1rem; color: var(--muted); text-align: center;">Açık ticket yok.</td></tr>';
-      }
-      async function closeTicket(id) {
-        if(!confirm('Kapatmak istediğine emin misin?')) return;
-        await fetch('/api/tickets/' + id + '/close', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason: 'Staff tarafından kapatıldı'}) });
-        loadStaffTickets();
-      }
-      loadStaffTickets();
-    </script>
-  `;
-  return _layout("Staff Panel", user, content);
-}
-
-function renderDebugPage(user, stats, logs) {
-  const content = `
-    <div class="card" style="background: rgba(0,0,0,0.5); padding: 1.5rem; border-radius: 10px; border: 1px solid rgba(74, 222, 128, 0.3);">
-        <h2 style="color: #4ade80; margin-bottom: 1rem;">Recent Logs (${logs.length})</h2>
-        <div id="logs" style="max-height: 400px; overflow-y: auto;">
-          ${logs.reverse().map(l => `
-            <div style="border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0.5rem 0; font-size: 0.8rem;">
-              <span style="color: #666;">[${l.timestamp.split('T')[1].split('.')[0]}]</span>
-              <span style="color: ${l.type === 'ERROR' ? '#f87171' : '#60a5fa'}; font-weight: ${l.type === 'ERROR' ? 'bold' : 'normal'};">${l.type}</span>: ${l.msg}
-              <div style="color: #888; font-size: 0.75rem; margin-left: 1rem;">${l.details || ''}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
+    <a href="/auth/discord" class="btn">İzin Ver</a>
+    <a href="/" class="btn btn-ghost">Reddet</a>
   </div>
 </body>
 </html>`;
 }
 
-module.exports = { renderMainPage, renderLoginPage, renderDashboard, renderTicketsPage, renderAuthorizePage, renderStaffPanel, renderDebugPage, renderProfilePage, renderSettingsPage, renderLegalPage, renderWikiPage };
 
-function _layout(title, user, content) {
-  return `<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} - Sentara Premium</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #050508;
-      --surface: rgba(20, 20, 30, 0.6);
-      --border: rgba(124, 106, 247, 0.2);
-      --accent: #7c6af7;
-      --accent2: #ff6bf7;
-      --text: #ffffff;
-      --muted: #a0a0c0;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: radial-gradient(circle at top left, #1a1a2e 0%, var(--bg) 100%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    header {
-      background: rgba(10, 10, 15, 0.5);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-decoration: none;
-    }
-    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; transition: 0.3s; }
-    .nav-links a:hover { color: var(--text); }
-    main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); }
-    .btn { padding: 0.8rem 1.5rem; background: var(--accent); color: white; border: none; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 700; transition: 0.3s; }
-    .btn:hover { background: #6b57f5; transform: translateY(-2px); }
-    input, textarea { width: 100%; padding: 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: white; font-family: inherit; margin-bottom: 1rem; outline: none; }
-    input:focus, textarea:focus { border-color: var(--accent); }
-  </style>
-</head>
-<body>
-  <header>
-    <a href="/" class="logo">sentara</a>
-    <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/profile">Profil</a>
-      <a href="/wiki">Wiki</a>
-      <a href="/settings">Ayarlar</a>
-      ${user ? '<a href="/logout" style="color: #f87171;">Çıkış</a>' : ''}
-    </div>
-  </header>
-  <main>
-    ${content}
-  </main>
-</body>
-</html>`;
-}
+// ─────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────
+function renderDashboard(user) {
+  const isRobloxLinked = user.robloxUsername &&
+    !['Yetkilendirmedi', 'RobloxUser', ''].includes(user.robloxUsername);
 
-function renderProfilePage(user) {
-  const banner = user.discordBanner ? `url(${user.discordBanner})` : `linear-gradient(135deg, ${user.profileColor || 'var(--accent)'}, #1a1a2e)`;
   const content = `
-    <div style="background: ${banner}; background-size: cover; background-position: center; height: 200px; border-radius: 20px 20px 0 0; position: relative; border: 1px solid var(--border); border-bottom: none;">
-      <img src="${user.discordAvatar}" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--bg); position: absolute; bottom: -60px; left: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-    </div>
-    <div class="card" style="border-radius: 0 0 20px 20px; padding-top: 80px; position: relative;">
-      <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">${user.discordUsername}</h1>
-      <p style="color: var(--muted); margin-bottom: 2rem;">Roblox: ${user.robloxUsername || 'Bağlı değil'}</p>
-      
-      <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border);">
-        <h3 style="margin-bottom: 1rem; color: var(--accent);">Hakkımda</h3>
-        <p style="line-height: 1.6; white-space: pre-wrap;">${user.profileBio || 'Henüz bir biyografi eklenmemiş.'}</p>
-      </div>
-    </div>
-  `;
-  return _layout("Profil", user, content);
-}
-
-function renderSettingsPage(user) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem;">Ayarlar</h1>
-      <form id="settingsForm">
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Profil Rengi (Hex)</label>
-        <input type="text" id="color" value="${user.profileColor || '#7c6af7'}" placeholder="#7c6af7">
-        
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Biyografi</label>
-        <textarea id="bio" rows="5" placeholder="Kendinden bahset...">${user.profileBio || ''}</textarea>
-        
-        <button type="submit" class="btn">Kaydet</button>
-      </form>
-    </div>
-    <script>
-      document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const res = await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            profileColor: document.getElementById('color').value,
-            profileBio: document.getElementById('bio').value
-          })
-        });
-        if(res.ok) {
-          alert('Başarıyla kaydedildi!');
-          window.location.reload();
-        } else {
-          alert('Bir hata oluştu.');
-        }
-      });
-    </script>
-  `;
-  return _layout("Ayarlar", user, content);
-}
-
-function renderLegalPage(title, text) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem; color: var(--accent);">${title}</h1>
-      <div style="line-height: 1.8; color: var(--muted);">${text}</div>
-      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); display: flex; gap: 1rem;">
-        <a href="/legal/tos" style="color: var(--accent); text-decoration: none;">Hizmet Koşulları</a>
-        <a href="/legal/privacy" style="color: var(--accent); text-decoration: none;">Gizlilik Politikası</a>
-      </div>
-    </div>
-  `;
-  return _layout(title, null, content);
-}
-
-function renderWikiPage(user, comments) {
-  const commentsHtml = comments.map(c => `
-    <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-start;">
-      <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%;">
+    <!-- Welcome -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:2.5rem; animation:fadeUp 0.5s ease;">
       <div>
-        <div style="font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">${c.username}</div>
-        <div style="line-height: 1.5; white-space: pre-wrap;">${c.content}</div>
-        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem;">${new Date(c.createdAt).toLocaleString('tr-TR')}</div>
+        <div style="color:var(--muted);font-size:0.9rem;margin-bottom:0.3rem;">Hoş Geldin 👋</div>
+        <h1 style="font-size:2.4rem;font-weight:800;">${_esc(user.discordUsername)}</h1>
+        <p class="text-muted mt-1">İşte destek sistemindeki güncel durumun.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;background:rgba(15,15,20,0.6);padding:1rem 1.5rem;border-radius:16px;border:1px solid var(--border);backdrop-filter:blur(10px);">
+        <img src="${_esc(user.discordAvatar)}" alt="Avatar"
+             style="width:50px;height:50px;border-radius:50%;border:2px solid var(--accent);box-shadow:0 0 12px rgba(124,106,247,0.4);">
+        <div>
+          <div style="font-weight:700;">${_esc(user.discordUsername)}</div>
+          <div style="font-size:0.8rem;color:var(--muted);">
+            ${user.isAdmin ? '<span style="color:var(--accent2);">👑 Admin</span>' :
+              user.isStaff ? '<span style="color:var(--accent);">🛡 Staff</span>' : 'Kullanıcı'}
+          </div>
+          <a href="/logout" style="color:var(--danger);font-size:0.8rem;text-decoration:none;">Çıkış Yap</a>
+        </div>
       </div>
     </div>
-  `).join('');
 
-  const content = `
+    <!-- Roblox Banner -->
+    <div style="background:${isRobloxLinked ? 'rgba(74,222,128,0.07)' : 'rgba(251,191,36,0.07)'};
+                border:1px solid ${isRobloxLinked ? 'rgba(74,222,128,0.25)' : 'rgba(251,191,36,0.25)'};
+                border-radius:16px;padding:1.25rem 1.5rem;
+                display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+                margin-bottom:2rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">${isRobloxLinked ? '✅' : '⚠️'}</span>
+        <div>
+          <div style="font-weight:700;color:${isRobloxLinked ? 'var(--success)' : 'var(--warning)'};">
+            ${isRobloxLinked ? 'Roblox Bağlandı' : 'Roblox Hesabı Bağlı Değil'}
+          </div>
+          <div style="font-size:0.85rem;color:var(--muted);">
+            ${isRobloxLinked ? _esc(user.robloxUsername) : 'Ticket açmak için Roblox bağlantısı gerekebilir.'}
+          </div>
+        </div>
+      </div>
+      ${!isRobloxLinked ? `<a href="/auth/roblox" class="btn btn-sm">Roblox'u Bağla</a>` : ''}
+    </div>
+
+    <!-- Stats Grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem;margin-bottom:2.5rem;">
+      <div class="card" style="border-left:4px solid var(--success);text-align:center;padding:1.5rem;">
+        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">🟢 Açık</div>
+        <div id="cnt-open"  style="font-size:3rem;font-weight:800;">—</div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--danger);text-align:center;padding:1.5rem;">
+        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">🔴 Kapalı</div>
+        <div id="cnt-closed" style="font-size:3rem;font-weight:800;">—</div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--accent);text-align:center;padding:1.5rem;">
+        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">📊 Toplam</div>
+        <div id="cnt-total" style="font-size:3rem;font-weight:800;">—</div>
+      </div>
+    </div>
+
+    <!-- Ticket List -->
     <div class="card">
-      <h1 style="margin-bottom: 1rem;">Topluluk Wiki</h1>
-      <p style="color: var(--muted); margin-bottom: 3rem;">Sentara platformu hakkında topluluk tartışmaları, rehberler ve yorumlar.</p>
-      
-      <div style="margin-bottom: 3rem;">
-        <h3 style="margin-bottom: 1rem;">Bir şeyler paylaş...</h3>
-        ${user ? `
-          <form id="wikiForm">
-            <textarea id="wikiContent" rows="4" placeholder="Wiki'ye katkıda bulun..." required></textarea>
-            <button type="submit" class="btn">Gönder</button>
-          </form>
-        ` : '<p style="color: var(--danger);">Yorum yapmak için giriş yapmalısınız.</p>'}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <h2 style="font-size:1.5rem;font-weight:800;">🎫 Ticket Geçmişin</h2>
+        <a href="/tickets" class="btn btn-ghost btn-sm">Tümünü Gör</a>
       </div>
-
-      <div>
-        <h3 style="margin-bottom: 1.5rem;">Paylaşımlar (${comments.length})</h3>
-        ${comments.length > 0 ? commentsHtml : '<p style="color: var(--muted);">Henüz paylaşım yok. İlk paylaşan sen ol!</p>'}
+      <div id="ticket-list">
+        <div style="color:var(--muted);text-align:center;padding:2rem;">
+          <div style="font-size:2rem;margin-bottom:0.5rem;">⏳</div>
+          Yükleniyor...
+        </div>
       </div>
     </div>
-    
-    ${user ? `
+
+    <style>
+      .ticket-row {
+        background:rgba(10,10,15,0.8); border:1px solid rgba(255,255,255,0.05);
+        border-radius:12px; padding:1.25rem 1.5rem;
+        display:flex; justify-content:space-between; align-items:center;
+        transition:border-color 0.25s, transform 0.25s;
+        margin-bottom:0.75rem;
+      }
+      .ticket-row:hover { border-color:var(--accent); transform:translateX(4px); }
+      .ticket-row:last-child { margin-bottom:0; }
+      @keyframes fadeUp {
+        from { opacity:0; transform:translateY(20px); }
+        to   { opacity:1; transform:translateY(0); }
+      }
+    </style>
+
     <script>
-      document.getElementById('wikiForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const res = await fetch('/api/wiki', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: document.getElementById('wikiContent').value
-          })
-        });
-        if(res.ok) {
-          window.location.reload();
-        } else {
+      function animateNum(id, end) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        let start = 0, duration = 600;
+        const step = (ts) => {
+          if (!step.t) step.t = ts;
+          const p = Math.min((ts - step.t) / duration, 1);
+          el.textContent = Math.floor(p * end);
+          if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+
+      async function loadDashboard() {
+        try {
+          const res  = await fetch('/api/tickets');
           const data = await res.json();
-          alert(data.error || 'Bir hata oluştu.');
-function _layout(title, user, content) {
-  return `<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} - Sentara Premium</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #050508;
-      --surface: rgba(20, 20, 30, 0.6);
-      --border: rgba(124, 106, 247, 0.2);
-      --accent: #7c6af7;
-      --accent2: #ff6bf7;
-      --text: #ffffff;
-      --muted: #a0a0c0;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: radial-gradient(circle at top left, #1a1a2e 0%, var(--bg) 100%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    header {
-      background: rgba(10, 10, 15, 0.5);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-decoration: none;
-    }
-    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; transition: 0.3s; }
-    .nav-links a:hover { color: var(--text); }
-    main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); }
-    .btn { padding: 0.8rem 1.5rem; background: var(--accent); color: white; border: none; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 700; transition: 0.3s; }
-    .btn:hover { background: #6b57f5; transform: translateY(-2px); }
-    input, textarea { width: 100%; padding: 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: white; font-family: inherit; margin-bottom: 1rem; outline: none; }
-    input:focus, textarea:focus { border-color: var(--accent); }
-  </style>
-</head>
-<body>
-  <header>
-    <a href="/" class="logo">sentara</a>
-    <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/profile">Profil</a>
-      <a href="/leaderboard">Liderlik Tablosu</a>
-      <a href="/shop">Mağaza</a>
-      <a href="/wiki">Wiki</a>
-      <a href="/settings">Ayarlar</a>
-      ${user ? '<a href="/logout" style="color: #f87171;">Çıkış</a>' : ''}
-    </div>
-  </header>
-  <main>
-    ${content}
-  </main>
-</body>
-</html>`;
-}
+          if (!data.success) throw new Error(data.error || 'API hatası');
 
-function renderProfilePage(user) {
-  const banner = user.discordBanner ? `url(${user.discordBanner})` : `linear-gradient(135deg, ${user.profileColor || 'var(--accent)'}, #1a1a2e)`;
-  const content = `
-    <div style="background: ${banner}; background-size: cover; background-position: center; height: 200px; border-radius: 20px 20px 0 0; position: relative; border: 1px solid var(--border); border-bottom: none;">
-      <img src="${user.discordAvatar}" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--bg); position: absolute; bottom: -60px; left: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-    </div>
-    <div class="card" style="border-radius: 0 0 20px 20px; padding-top: 80px; position: relative;">
-      <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">${user.discordUsername}</h1>
-      <p style="color: var(--muted); margin-bottom: 2rem;">Roblox: ${user.robloxUsername || 'Bağlı değil'}</p>
-      
-      <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border);">
-        <h3 style="margin-bottom: 1rem; color: var(--accent);">Hakkımda</h3>
-        <p style="line-height: 1.6; white-space: pre-wrap;">${user.profileBio || 'Henüz bir biyografi eklenmemiş.'}</p>
-      </div>
-    </div>
-  `;
-  return _layout("Profil", user, content);
-}
+          const tickets = data.tickets || [];
+          const open   = tickets.filter(t => t.status === 'open').length;
+          const closed = tickets.filter(t => t.status !== 'open').length;
 
-function renderSettingsPage(user) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem;">Ayarlar</h1>
-      <form id="settingsForm">
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Profil Rengi (Hex)</label>
-        <input type="text" id="color" value="${user.profileColor || '#7c6af7'}" placeholder="#7c6af7">
-        
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--muted);">Biyografi</label>
-        <textarea id="bio" rows="5" placeholder="Kendinden bahset...">${user.profileBio || ''}</textarea>
-        
-        <button type="submit" class="btn">Kaydet</button>
-      </form>
-    </div>
-    <script>
-      document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const res = await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            profileColor: document.getElementById('color').value,
-            profileBio: document.getElementById('bio').value
-          })
-        });
-        if(res.ok) {
-          alert('Başarıyla kaydedildi!');
-          window.location.reload();
-        } else {
-          alert('Bir hata oluştu.');
-        }
-      });
-    </script>
-  `;
-  return _layout("Ayarlar", user, content);
-}
+          animateNum('cnt-open',   open);
+          animateNum('cnt-closed', closed);
+          animateNum('cnt-total',  tickets.length);
 
-function renderLegalPage(title, text) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem; color: var(--accent);">${title}</h1>
-      <div style="line-height: 1.8; color: var(--muted);">${text}</div>
-      <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); display: flex; gap: 1rem;">
-        <a href="/legal/tos" style="color: var(--accent); text-decoration: none;">Hizmet Koşulları</a>
-        <a href="/legal/privacy" style="color: var(--accent); text-decoration: none;">Gizlilik Politikası</a>
-      </div>
-    </div>
-  `;
-  return _layout(title, null, content);
-}
+          const list = document.getElementById('ticket-list');
+          if (!tickets.length) {
+            list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz hiç destek talebi oluşturmamışsın.</div>';
+            return;
+          }
 
-function renderWikiPage(user, comments) {
-  const commentsHtml = comments.map(c => `
-    <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-start;">
-      <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%;">
-      <div>
-        <div style="font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">${c.username}</div>
-        <div style="line-height: 1.5; white-space: pre-wrap;">${c.content}</div>
-        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem;">${new Date(c.createdAt).toLocaleString('tr-TR')}</div>
-      </div>
-    </div>
-  `).join('');
-
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 1rem;">Topluluk Wiki</h1>
-      <p style="color: var(--muted); margin-bottom: 3rem;">Sentara platformu hakkında topluluk tartışmaları, rehberler ve yorumlar.</p>
-      
-      <div style="margin-bottom: 3rem;">
-        <h3 style="margin-bottom: 1rem;">Bir şeyler paylaş...</h3>
-        ${user ? `
-          <form id="wikiForm">
-            <textarea id="wikiContent" rows="4" placeholder="Wiki'ye katkıda bulun..." required></textarea>
-            <button type="submit" class="btn">Gönder</button>
-          </form>
-        ` : '<p style="color: var(--danger);">Yorum yapmak için giriş yapmalısınız.</p>'}
-      </div>
-
-      <div>
-        <h3 style="margin-bottom: 1.5rem;">Paylaşımlar (${comments.length})</h3>
-        ${comments.length > 0 ? commentsHtml : '<p style="color: var(--muted);">Henüz paylaşım yok. İlk paylaşan sen ol!</p>'}
-      </div>
-    </div>
-    
-    ${user ? `
-    <script>
-      document.getElementById('wikiForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const res = await fetch('/api/wiki', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: document.getElementById('wikiContent').value
-          })
-        });
-        if(res.ok) {
-          window.location.reload();
-        } else {
-          const data = await res.json();
-          alert(data.error || 'Bir hata oluştu.');
-        }
-      });
-    </script>
-    ` : ''}
-  `;
-  return _layout("Wiki", user, content);
-}
-
-function renderLeaderboardPage(user, topUsers) {
-  const content = `
-    <div class="card">
-      <h1 style="margin-bottom: 2rem; text-align: center; font-size: 2.5rem; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🏆 Liderlik Tablosu</h1>
-      <p style="text-align: center; color: var(--muted); margin-bottom: 3rem;">Sunucunun en zengin kullanıcıları</p>
-      
-      <div style="display: flex; flex-direction: column; gap: 1rem;">
-        ${topUsers.map((u, i) => `
-          <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); padding: 1rem 1.5rem; border-radius: 15px; border: 1px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#b45309' : 'var(--border)'};">
-            <div style="display: flex; align-items: center; gap: 1.5rem;">
-              <div style="font-size: 1.5rem; font-weight: 800; color: ${i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#b45309' : 'var(--muted)'}; width: 30px; text-align: center;">
-                ${i + 1}
+          list.innerHTML = tickets.slice(0, 10).map(t => {
+            const isOpen = t.status === 'open';
+            return \`<div class="ticket-row">
+              <div>
+                <div style="font-weight:700;margin-bottom:0.3rem;">\${t.ticketId}</div>
+                <div style="color:var(--muted);font-size:0.9rem;">\${t.subject || ''} · \${t.category || ''}</div>
               </div>
-              <img src="${u.avatar}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#b45309' : 'transparent'};">
-              <div style="font-weight: 700; font-size: 1.2rem;">${u.username}</div>
-            </div>
-            <div style="font-size: 1.2rem; font-weight: 800; color: #4ade80;">
-              💵 ${u.balance.toLocaleString('tr-TR')}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
+              <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
+            </div>\`;
+          }).join('');
+        } catch (err) {
+          document.getElementById('ticket-list').innerHTML =
+            \`<div style="color:var(--danger);padding:1rem;">❌ \${err.message}</div>\`;
+        }
+      }
+
+      loadDashboard();
+      setInterval(loadDashboard, 15000);
+    </script>
   `;
-  return _layout("Liderlik Tablosu", user, content);
+  return _layout('Dashboard', user, content);
 }
 
-function renderShopPage(user, items) {
+
+// ─────────────────────────────────────────────
+// TICKETS PAGE
+// ─────────────────────────────────────────────
+function renderTicketsPage(user) {
   const content = `
     <div class="card">
-      <h1 style="margin-bottom: 2rem; text-align: center; font-size: 2.5rem; color: var(--accent);">🛒 Mağaza</h1>
-      <p style="text-align: center; color: var(--muted); margin-bottom: 3rem;">Ekonomi bakiyenizle satın alabileceğiniz özellikler.</p>
-      
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
-        ${items.map(item => `
-          <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; text-align: center; transition: 0.3s; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--accent)'" onmouseout="this.style.transform='none'; this.style.borderColor='var(--border)'">
-            <div style="font-size: 4rem; margin-bottom: 1rem;">${item.icon}</div>
-            <h3 style="font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--text);">${item.name}</h3>
-            <p style="color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; min-height: 40px;">${item.desc}</p>
-            <div style="font-size: 1.5rem; font-weight: 800; color: #4ade80; margin-bottom: 1.5rem;">
-              💵 ${item.price.toLocaleString('tr-TR')}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <h1 style="font-size:2rem;font-weight:800;">🎫 Ticket'larım</h1>
+        <div style="display:flex;gap:0.75rem;align-items:center;">
+          <select id="filter-status" style="width:auto;margin-bottom:0;font-size:0.9rem;">
+            <option value="">Tümü</option>
+            <option value="open">Açık</option>
+            <option value="closed">Kapalı</option>
+          </select>
+        </div>
+      </div>
+      <div id="tickets-container">
+        <div style="color:var(--muted);text-align:center;padding:3rem;">Yükleniyor...</div>
+      </div>
+    </div>
+
+    <style>
+      .ticket-item {
+        background:rgba(0,0,0,0.3); border:1px solid var(--border);
+        border-radius:14px; padding:1.5rem;
+        display:flex; justify-content:space-between; align-items:center;
+        transition:border-color 0.25s, transform 0.25s;
+        margin-bottom:1rem; flex-wrap:wrap; gap:1rem;
+      }
+      .ticket-item:hover { border-color:var(--accent); transform:translateX(4px); }
+    </style>
+
+    <script>
+      let allTickets = [];
+
+      async function loadTickets() {
+        try {
+          const res  = await fetch('/api/tickets');
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          allTickets = data.tickets || [];
+          renderTickets();
+        } catch (err) {
+          document.getElementById('tickets-container').innerHTML =
+            \`<div style="color:var(--danger);padding:1rem;">❌ \${err.message}</div>\`;
+        }
+      }
+
+      function renderTickets() {
+        const filter  = document.getElementById('filter-status').value;
+        const tickets = filter ? allTickets.filter(t => t.status === filter) : allTickets;
+        const c = document.getElementById('tickets-container');
+
+        if (!tickets.length) {
+          c.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Ticket bulunamadı.</div>';
+          return;
+        }
+
+        c.innerHTML = tickets.map(t => {
+          const isOpen = t.status === 'open';
+          return \`<div class="ticket-item">
+            <div>
+              <div style="font-weight:700;color:var(--accent);margin-bottom:0.3rem;">\${t.ticketId}</div>
+              <div style="margin-bottom:0.2rem;">\${t.subject || 'Konu belirtilmedi'}</div>
+              <div style="color:var(--muted);font-size:0.85rem;">Kategori: \${t.category || '—'}</div>
             </div>
-            <button class="btn" style="width: 100%;" onclick="alert('Mağaza sistemi yakında aktif olacak!')">Satın Al</button>
+            <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
+          </div>\`;
+        }).join('');
+      }
+
+      document.getElementById('filter-status').addEventListener('change', renderTickets);
+      loadTickets();
+    </script>
+  `;
+  return _layout("Ticket'larım", user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// STAFF PANEL
+// ─────────────────────────────────────────────
+function renderStaffPanel(user) {
+  const content = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <h1 style="font-size:2rem;font-weight:800;">👨‍💼 Staff Panel</h1>
+        <div style="display:flex;gap:0.75rem;align-items:center;">
+          <select id="sf-filter" style="width:auto;margin-bottom:0;font-size:0.9rem;">
+            <option value="open">Açık</option>
+            <option value="closed">Kapalı</option>
+            <option value="">Tümü</option>
+          </select>
+          <button class="btn btn-sm" onclick="loadStaff()">🔄 Yenile</button>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;text-align:left;min-width:600px;">
+          <thead>
+            <tr style="background:rgba(124,106,247,0.1);border-bottom:1px solid var(--border);">
+              <th style="padding:0.9rem 1rem;color:var(--accent);">ID</th>
+              <th style="padding:0.9rem 1rem;color:var(--accent);">Kullanıcı</th>
+              <th style="padding:0.9rem 1rem;color:var(--accent);">Konu</th>
+              <th style="padding:0.9rem 1rem;color:var(--accent);">Kategori</th>
+              <th style="padding:0.9rem 1rem;color:var(--accent);">Durum</th>
+              <th style="padding:0.9rem 1rem;color:var(--accent);">İşlem</th>
+            </tr>
+          </thead>
+          <tbody id="sf-body">
+            <tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--muted);">Yükleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      async function loadStaff() {
+        const filter = document.getElementById('sf-filter').value;
+        try {
+          const res  = await fetch('/api/tickets/staff');
+          const data = await res.json();
+          const rows = (data.tickets || [])
+            .filter(t => !filter || t.status === filter);
+
+          const tbody = document.getElementById('sf-body');
+          if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--muted);">Ticket bulunamadı.</td></tr>';
+            return;
+          }
+
+          tbody.innerHTML = rows.map(t => {
+            const isOpen = t.status === 'open';
+            return \`<tr style="border-bottom:1px solid var(--border);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+              <td style="padding:1rem;font-weight:700;color:var(--accent);">\${t.ticketId}</td>
+              <td style="padding:1rem;">\${t.userName || '—'}</td>
+              <td style="padding:1rem;">\${t.subject || '—'}</td>
+              <td style="padding:1rem;">\${t.category || '—'}</td>
+              <td style="padding:1rem;"><span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span></td>
+              <td style="padding:1rem;">
+                \${isOpen
+                  ? \`<button class="btn btn-sm btn-danger" onclick="closeTicket('\${t.ticketId}')">Kapat</button>\`
+                  : \`<button class="btn btn-sm btn-success" onclick="reopenTicket('\${t.ticketId}')">Yeniden Aç</button>\`
+                }
+              </td>
+            </tr>\`;
+          }).join('');
+        } catch (err) {
+          document.getElementById('sf-body').innerHTML =
+            \`<tr><td colspan="6" style="padding:1rem;color:var(--danger);">❌ \${err.message}</td></tr>\`;
+        }
+      }
+
+      async function closeTicket(id) {
+        if (!confirm('Bu ticket\\'ı kapatmak istediğine emin misin?')) return;
+        try {
+          const res = await fetch('/api/tickets/' + id + '/close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'Staff tarafından kapatıldı' })
+          });
+          if (res.ok) { showToast('Ticket kapatıldı.', 'success'); loadStaff(); }
+          else showToast('İşlem başarısız.', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+      }
+
+      async function reopenTicket(id) {
+        try {
+          const res = await fetch('/api/tickets/' + id + '/reopen', { method: 'POST' });
+          if (res.ok) { showToast('Ticket yeniden açıldı.', 'success'); loadStaff(); }
+          else showToast('İşlem başarısız.', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+      }
+
+      document.getElementById('sf-filter').addEventListener('change', loadStaff);
+      loadStaff();
+    </script>
+  `;
+  return _layout('Staff Panel', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// DEBUG PAGE  (fixed — was truncated)
+// ─────────────────────────────────────────────
+function renderDebugPage(user, stats = {}, logs = []) {
+  const safeStats = stats || {};
+  const safeLogs  = Array.isArray(logs) ? logs : [];
+
+  const content = `
+    <h1 style="font-size:2rem;font-weight:800;margin-bottom:1.5rem;color:var(--danger);">🔍 Debug Panel</h1>
+
+    <!-- Stats Grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem;">
+      ${Object.entries(safeStats).map(([k, v]) => `
+        <div class="card" style="padding:1.25rem;">
+          <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.4rem;">${_esc(k)}</div>
+          <div style="font-size:2rem;font-weight:800;color:var(--accent);">${_esc(String(v))}</div>
+        </div>
+      `).join('') || '<div class="card" style="padding:1.25rem;color:var(--muted);">İstatistik yok.</div>'}
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2 style="font-size:1.4rem;font-weight:800;color:var(--success);">Loglar (${safeLogs.length})</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <select id="log-filter" style="width:auto;margin-bottom:0;font-size:0.85rem;">
+            <option value="">Tümü</option>
+            <option value="ERROR">ERROR</option>
+            <option value="WARN">WARN</option>
+            <option value="INFO">INFO</option>
+          </select>
+          <button class="btn btn-sm btn-ghost" onclick="renderLogs()">Filtrele</button>
+        </div>
+      </div>
+      <div id="log-output" style="max-height:500px;overflow-y:auto;font-family:monospace;font-size:0.8rem;"></div>
+    </div>
+
+    <script>
+      const rawLogs = ${JSON.stringify(safeLogs.slice().reverse())};
+
+      function renderLogs() {
+        const filter = document.getElementById('log-filter').value;
+        const list   = filter ? rawLogs.filter(l => l.type === filter) : rawLogs;
+        const colors = { ERROR:'#f87171', WARN:'#fbbf24', INFO:'#60a5fa' };
+
+        document.getElementById('log-output').innerHTML = list.length
+          ? list.map(l => {
+              const time    = (l.timestamp || '').split('T')[1] || l.timestamp || '';
+              const timeStr = time.split('.')[0] || time;
+              const col     = colors[l.type] || '#a0a0c0';
+              return \`<div style="border-bottom:1px solid rgba(255,255,255,0.07);padding:0.5rem 0;">
+                <span style="color:#555;">[&thinsp;\${timeStr}&thinsp;]</span>
+                <span style="color:\${col};font-weight:\${l.type==='ERROR'?'bold':'normal'};">&nbsp;\${l.type || '?'}</span>:
+                <span>&nbsp;\${l.msg || ''}</span>
+                \${l.details ? \`<div style="color:#888;margin-left:2rem;margin-top:0.2rem;">\${l.details}</div>\` : ''}
+              </div>\`;
+            }).join('')
+          : '<div style="color:var(--muted);padding:1rem;text-align:center;">Log bulunamadı.</div>';
+      }
+
+      renderLogs();
+    </script>
+  `;
+  return _layout('Debug', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// PROFILE PAGE
+// ─────────────────────────────────────────────
+function renderProfilePage(user) {
+  const banner = user.discordBanner
+    ? `url(${_esc(user.discordBanner)})`
+    : `linear-gradient(135deg, ${_esc(user.profileColor || '#7c6af7')}, #1a1a2e)`;
+
+  const content = `
+    <!-- Banner -->
+    <div style="background:${banner};background-size:cover;background-position:center;
+                height:220px;border-radius:20px 20px 0 0;position:relative;
+                border:1px solid var(--border);border-bottom:none;">
+      <img src="${_esc(user.discordAvatar)}" alt="Avatar"
+           style="width:110px;height:110px;border-radius:50%;border:4px solid var(--bg);
+                  position:absolute;bottom:-55px;left:2rem;
+                  box-shadow:0 4px 20px rgba(0,0,0,0.6);">
+    </div>
+
+    <!-- Info Card -->
+    <div class="card" style="border-radius:0 0 20px 20px;padding-top:4rem;border-top:none;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+          <h1 style="font-size:2.2rem;font-weight:800;margin-bottom:0.3rem;">${_esc(user.discordUsername)}</h1>
+          <div style="color:var(--muted);font-size:0.9rem;">
+            Roblox: <span style="color:${user.robloxUsername ? 'var(--success)' : 'var(--muted)'};">${_esc(user.robloxUsername || 'Bağlı değil')}</span>
           </div>
-        `).join('')}
+          <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            ${user.isAdmin ? '<span class="badge badge-admin">👑 Admin</span>' : ''}
+            ${user.isStaff && !user.isAdmin ? '<span class="badge" style="background:rgba(124,106,247,0.12);color:var(--accent);border:1px solid rgba(124,106,247,0.3);">🛡 Staff</span>' : ''}
+          </div>
+        </div>
+        <a href="/settings" class="btn btn-ghost btn-sm">✏️ Düzenle</a>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Bio -->
+      <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:15px;border:1px solid var(--border);">
+        <h3 style="margin-bottom:0.75rem;color:var(--accent);font-size:1rem;">📝 Hakkımda</h3>
+        <p style="line-height:1.7;white-space:pre-wrap;color:${user.profileBio ? 'var(--text)' : 'var(--muted)'};">
+          ${_esc(user.profileBio || 'Henüz bir biyografi eklenmemiş.')}
+        </p>
       </div>
     </div>
   `;
-  return _layout("Mağaza", user, content);
+  return _layout('Profil', user, content);
 }
+
+
+// ─────────────────────────────────────────────
+// SETTINGS PAGE
+// ─────────────────────────────────────────────
+function renderSettingsPage(user) {
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:2rem;">⚙️ Ayarlar</h1>
+
+      <div id="settings-form">
+        <label>Profil Rengi (Hex)</label>
+        <input type="color" id="color" value="${_esc(user.profileColor || '#7c6af7')}"
+               style="width:60px;height:44px;padding:4px;cursor:pointer;margin-bottom:1.2rem;">
+        <input type="text"  id="colorText" value="${_esc(user.profileColor || '#7c6af7')}"
+               placeholder="#7c6af7" style="margin-top:-0.5rem;">
+
+        <label>Biyografi</label>
+        <textarea id="bio" rows="5" placeholder="Kendinden bahset..." maxlength="500">${_esc(user.profileBio || '')}</textarea>
+        <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
+          <span id="bio-count">${(user.profileBio || '').length}</span>/500
+        </div>
+
+        <hr class="divider">
+
+        <h2 style="font-size:1.3rem;font-weight:700;margin-bottom:1rem;">🔗 Bağlı Hesaplar</h2>
+        <div style="background:rgba(0,0,0,0.3);padding:1rem 1.25rem;border-radius:12px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+          <div>
+            <div style="font-weight:700;margin-bottom:0.2rem;">Discord</div>
+            <div style="color:var(--success);font-size:0.85rem;">✅ ${_esc(user.discordUsername)}</div>
+          </div>
+        </div>
+        <div style="background:rgba(0,0,0,0.3);padding:1rem 1.25rem;border-radius:12px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;">
+          <div>
+            <div style="font-weight:700;margin-bottom:0.2rem;">Roblox</div>
+            <div style="color:${user.robloxUsername ? 'var(--success)' : 'var(--warning)'};font-size:0.85rem;">
+              ${user.robloxUsername ? '✅ ' + _esc(user.robloxUsername) : '⚠️ Bağlı değil'}
+            </div>
+          </div>
+          ${!user.robloxUsername ? `<a href="/auth/roblox" class="btn btn-sm">Bağla</a>` : `<a href="/auth/roblox/unlink" class="btn btn-sm btn-danger">Bağlantıyı Kes</a>`}
+        </div>
+
+        <button class="btn w-full" id="save-btn" onclick="saveSettings()">💾 Kaydet</button>
+      </div>
+    </div>
+
+    <script>
+      const bioEl   = document.getElementById('bio');
+      const countEl = document.getElementById('bio-count');
+      const colorEl = document.getElementById('color');
+      const colorTx = document.getElementById('colorText');
+
+      bioEl.addEventListener('input', () => { countEl.textContent = bioEl.value.length; });
+      colorEl.addEventListener('input', () => { colorTx.value = colorEl.value; });
+      colorTx.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(colorTx.value)) colorEl.value = colorTx.value;
+      });
+
+      async function saveSettings() {
+        const btn = document.getElementById('save-btn');
+        btn.textContent = 'Kaydediliyor...';
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profileColor: colorEl.value,
+              profileBio: bioEl.value
+            })
+          });
+          if (res.ok) {
+            showToast('Ayarlar başarıyla kaydedildi!', 'success');
+          } else {
+            const d = await res.json().catch(() => ({}));
+            showToast(d.error || 'Bir hata oluştu.', 'error');
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        } finally {
+          btn.textContent = '💾 Kaydet';
+          btn.disabled = false;
+        }
+      }
+    </script>
+  `;
+  return _layout('Ayarlar', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// LEGAL PAGE
+// ─────────────────────────────────────────────
+function renderLegalPage(title, text) {
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:2rem;">${_esc(title)}</h1>
+      <div style="line-height:1.9;color:var(--muted);">${text}</div>
+      <hr class="divider">
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+        <a href="/legal/tos"     style="color:var(--accent);text-decoration:none;font-weight:600;">Hizmet Koşulları</a>
+        <a href="/legal/privacy" style="color:var(--accent);text-decoration:none;font-weight:600;">Gizlilik Politikası</a>
+        <a href="/"              style="color:var(--muted); text-decoration:none;">Ana Sayfa</a>
+      </div>
+    </div>
+  `;
+  return _layout(title, null, content);
+}
+
+
+// ─────────────────────────────────────────────
+// WIKI PAGE
+// ─────────────────────────────────────────────
+function renderWikiPage(user, comments = []) {
+  const commentsHtml = comments.map(c => `
+    <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:15px;
+                border:1px solid var(--border);margin-bottom:1rem;
+                display:flex;gap:1rem;align-items:flex-start;">
+      <img src="${_esc(c.avatar)}" alt="" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;color:var(--accent);margin-bottom:0.3rem;">${_esc(c.username)}</div>
+        <div style="line-height:1.6;word-break:break-word;white-space:pre-wrap;">${_esc(c.content)}</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">${new Date(c.createdAt).toLocaleString('tr-TR')}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const formHtml = user ? `
+    <div id="wiki-form">
+      <label>Paylaşımın</label>
+      <textarea id="wiki-content" rows="4" placeholder="Wiki'ye katkıda bulun..." maxlength="2000" required></textarea>
+      <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
+        <span id="wc-count">0</span>/2000
+      </div>
+      <button class="btn" id="wiki-btn" onclick="postWiki()">📨 Gönder</button>
+    </div>
+  ` : `<div style="background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);padding:1rem;border-radius:10px;color:var(--danger);">
+    Yorum yapmak için <a href="/login" style="color:var(--accent);">giriş yapmalısınız</a>.
+  </div>`;
+
+  const script = user ? `
+    <script>
+      const wcEl  = document.getElementById('wiki-content');
+      const cntEl = document.getElementById('wc-count');
+      if (wcEl) wcEl.addEventListener('input', () => { cntEl.textContent = wcEl.value.length; });
+
+      async function postWiki() {
+        const btn     = document.getElementById('wiki-btn');
+        const content = wcEl ? wcEl.value.trim() : '';
+        if (!content) { showToast('Boş paylaşım gönderilemez.', 'error'); return; }
+        btn.textContent = 'Gönderiliyor...';
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/wiki', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          if (res.ok) {
+            showToast('Paylaşım gönderildi!', 'success');
+            setTimeout(() => window.location.reload(), 800);
+          } else {
+            const d = await res.json().catch(() => ({}));
+            showToast(d.error || 'Bir hata oluştu.', 'error');
+            btn.textContent = '📨 Gönder';
+            btn.disabled = false;
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+          btn.textContent = '📨 Gönder';
+          btn.disabled = false;
+        }
+      }
+    <\/script>
+  ` : '';
+
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">📖 Topluluk Wiki</h1>
+      <p class="text-muted mb-3">Sentara platformu hakkında topluluk tartışmaları ve rehberler.</p>
+
+      <hr class="divider">
+      <h3 style="margin-bottom:1rem;">💬 Bir şeyler paylaş</h3>
+      ${formHtml}
+
+      <hr class="divider">
+      <h3 style="margin-bottom:1.5rem;">Paylaşımlar (${comments.length})</h3>
+      ${comments.length > 0 ? commentsHtml : '<div style="text-align:center;padding:2rem;color:var(--muted);">Henüz paylaşım yok. İlk paylaşan sen ol!</div>'}
+    </div>
+    ${script}
+  `;
+  return _layout('Wiki', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// LEADERBOARD PAGE
+// ─────────────────────────────────────────────
+function renderLeaderboardPage(user, topUsers = []) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const rankColors = ['#fbbf24', '#9ca3af', '#b45309'];
+
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2.2rem;font-weight:800;text-align:center;margin-bottom:0.5rem;
+                 background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+        🏆 Liderlik Tablosu
+      </h1>
+      <p style="text-align:center;color:var(--muted);margin-bottom:2.5rem;">Sunucunun en zengin kullanıcıları</p>
+
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        ${topUsers.map((u, i) => {
+          const borderColor = rankColors[i] || 'var(--border)';
+          return `
+          <div style="display:flex;align-items:center;justify-content:space-between;
+                      background:rgba(0,0,0,0.3);padding:1rem 1.5rem;border-radius:16px;
+                      border:1px solid ${borderColor};transition:transform 0.2s;"
+               onmouseover="this.style.transform='translateX(4px)'"
+               onmouseout="this.style.transform='none'">
+            <div style="display:flex;align-items:center;gap:1.25rem;">
+              <div style="font-size:1.5rem;width:32px;text-align:center;font-weight:800;color:${borderColor};">
+                ${medals[i] || (i + 1)}
+              </div>
+              <img src="${_esc(u.avatar)}" alt="" style="width:46px;height:46px;border-radius:50%;border:2px solid ${borderColor};">
+              <span style="font-weight:700;font-size:1.1rem;">${_esc(u.username)}</span>
+            </div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">
+              💵 ${Number(u.balance).toLocaleString('tr-TR')}
+            </div>
+          </div>`;
+        }).join('') || '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz veri yok.</div>'}
+      </div>
+    </div>
+  `;
+  return _layout('Liderlik Tablosu', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// SHOP PAGE
+// ─────────────────────────────────────────────
+function renderShopPage(user, items = []) {
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2.2rem;font-weight:800;text-align:center;margin-bottom:0.5rem;color:var(--accent);">🛒 Mağaza</h1>
+      <p style="text-align:center;color:var(--muted);margin-bottom:3rem;">Ekonomi bakiyenizle satın alabileceğiniz özellikler</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;">
+        ${items.map(item => `
+          <div style="background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:20px;
+                      padding:2rem;text-align:center;transition:transform 0.3s,border-color 0.3s,box-shadow 0.3s;cursor:pointer;display:flex;flex-direction:column;align-items:center;"
+               onmouseover="this.style.transform='translateY(-6px)';this.style.borderColor='var(--accent)';this.style.boxShadow='0 15px 30px rgba(0,0,0,0.5)'"
+               onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+            <div style="font-size:3.5rem;margin-bottom:1rem;">${_esc(item.icon || '📦')}</div>
+            <h3 style="font-size:1.3rem;margin-bottom:0.5rem;">${_esc(item.name)}</h3>
+            <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.9rem;line-height:1.5;flex:1;">${_esc(item.desc || '')}</p>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--success);margin-bottom:1.5rem;">
+              💵 ${Number(item.price).toLocaleString('tr-TR')}
+            </div>
+            <button class="btn w-full" onclick="buyItem('${_esc(item.id || item.name)}','${_esc(item.name)}')">Satın Al</button>
+          </div>
+        `).join('') || '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted);">Mağazada henüz ürün yok.</div>'}
+      </div>
+    </div>
+
+    <script>
+      async function buyItem(id, name) {
+        if (!confirm(name + ' satın almak istiyor musun?')) return;
+        try {
+          const res = await fetch('/api/shop/buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: id })
+          });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) showToast(d.message || 'Satın alındı!', 'success');
+          else showToast(d.error || 'İşlem başarısız.', 'error');
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        }
+      }
+    </script>
+  `;
+  return _layout('Mağaza', user, content);
+}
+
+
+// ─────────────────────────────────────────────
+// 404 / ERROR PAGE
+// ─────────────────────────────────────────────
+function renderErrorPage(code = 404, message = 'Sayfa bulunamadı.') {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${code} — Sentara</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --accent:#7c6af7; --accent2:#ff6bf7; --bg:#050508; --muted:#a0a0c0; }
+    body {
+      background:radial-gradient(circle at center,#1a1a2e 0%,var(--bg) 100%);
+      color:#fff; font-family:'Outfit',sans-serif;
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      text-align:center; padding:2rem;
+    }
+    .code {
+      font-size:8rem; font-weight:800; line-height:1;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      margin-bottom:1rem;
+    }
+    h1 { font-size:1.5rem; margin-bottom:1rem; }
+    p  { color:var(--muted); margin-bottom:2rem; }
+    a  {
+      display:inline-block; padding:0.8rem 2rem;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:white; border-radius:30px; text-decoration:none; font-weight:700;
+      transition:transform 0.2s, box-shadow 0.2s;
+      box-shadow:0 4px 15px rgba(124,106,247,0.35);
+    }
+    a:hover { transform:translateY(-3px); box-shadow:0 8px 25px rgba(124,106,247,0.55); }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="code">${code}</div>
+    <h1>Bir şeyler ters gitti.</h1>
+    <p>${_esc(message)}</p>
+    <a href="/">Ana Sayfaya Dön</a>
+  </div>
+</body>
+</html>`;
+}
+
+
+// ─────────────────────────────────────────────
+// EXPORTS
+// ─────────────────────────────────────────────
+module.exports = {
+  renderMainPage,
+  renderLoginPage,
+  renderAuthorizePage,
+  renderDashboard,
+  renderTicketsPage,
+  renderStaffPanel,
+  renderDebugPage,
+  renderProfilePage,
+  renderSettingsPage,
+  renderLegalPage,
+  renderWikiPage,
+  renderLeaderboardPage,
+  renderShopPage,
+  renderErrorPage,
+  // Internal helpers (exported for testing)
+  _esc,
+  _layout,
+};
