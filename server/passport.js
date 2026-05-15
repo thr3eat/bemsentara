@@ -55,6 +55,7 @@ passport.use(
       callbackURL: `${BASE_URL}/auth/roblox/callback`,
       scope: ["openid", "profile"],
       pkce: true,
+      state: true,
       passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, profile, done) => {
