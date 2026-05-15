@@ -1,5 +1,6 @@
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
+const RobloxStrategy = require("passport-roblox");
 const User = require("../models/User");
 const { BASE_URL, ADMIN_IDS } = require("../config");
 
@@ -32,6 +33,38 @@ passport.use(
           await user.save();
         }
 
+        done(null, user);
+      } catch (err) {
+        done(err);
+      }
+    }
+  )
+);
+
+passport.use(
+  new RobloxStrategy(
+    {
+      clientID: process.env.ROBLOX_CLIENT_ID,
+      clientSecret: process.env.ROBLOX_CLIENT_SECRET,
+      callbackURL: `${BASE_URL}/auth/roblox/callback`,
+      scope: ["openid", "profile"],
+      pkce: true,
+      passReqToCallback: true,
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+      try {
+        if (!req.user) {
+            return done(new Error("Lütfen önce Discord ile giriş yapın."));
+        }
+        
+        let user = await User.findById(req.user._id);
+        if (user) {
+            user.robloxId = profile.id;
+            user.robloxUsername = profile.preferredUsername || profile.nickname || profile.name || "RobloxUser"; 
+            user.isAuthorized = true;
+            await user.save();
+        }
+        
         done(null, user);
       } catch (err) {
         done(err);
