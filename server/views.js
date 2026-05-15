@@ -3,13 +3,18 @@
 // ─────────────────────────────────────────────
 // SHARED LAYOUT HELPER  (declared ONCE at top)
 // ─────────────────────────────────────────────
-function _layout(title, user, content, extraHead = '') {
+function _layout(title, user, content, extraHead = '', activePath = '') {
   const staffLinks = user && (user.isStaff || user.isAdmin)
-    ? `<a href="/staff" class="nav-link staff-link">👨‍💼 Staff</a>`
+    ? `<a href="/staff" class="nav-link staff-link${activePath === '/staff' ? ' nav-active' : ''}">👨‍💼 Staff</a>`
     : '';
   const adminLink = user && user.isAdmin
-    ? `<a href="/debug" class="nav-link debug-link">🔍 Debug</a>`
+    ? `<a href="/debug" class="nav-link debug-link${activePath === '/debug' ? ' nav-active' : ''}">🔍 Debug</a>`
     : '';
+
+  function navLink(href, label) {
+    const active = activePath === href ? ' nav-active' : '';
+    return `<a href="${href}" class="nav-link${active}">${label}</a>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="tr">
@@ -96,6 +101,48 @@ function _layout(title, user, content, extraHead = '') {
     .nav-link.debug-link  { color: var(--danger); }
     .nav-link.logout-link { color: var(--danger); }
     .nav-link.logout-link::after { background: var(--danger); }
+    .nav-link.nav-active { color: var(--text); }
+    .nav-link.nav-active::after { width: 100%; }
+
+    /* ── Hamburger ── */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+    }
+    .hamburger span {
+      display: block;
+      width: 22px; height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      transition: transform 0.3s, opacity 0.3s;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    @media (max-width: 768px) {
+      .hamburger { display: flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0; right: 0;
+        background: rgba(10,10,15,0.97);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--border);
+        padding: 1rem 2rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        z-index: 199;
+      }
+      .nav-links.open { display: flex; }
+      .nav-link { padding: 0.6rem 0; font-size: 1rem; }
+    }
 
     /* ── Main & Card ── */
     main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem; }
@@ -201,6 +248,10 @@ function _layout(title, user, content, extraHead = '') {
     .toast-success { background: rgba(34,197,94,0.15);  color: var(--success); border-color: rgba(34,197,94,0.3); }
     .toast-error   { background: rgba(239,68,68,0.15);  color: var(--danger);  border-color: rgba(239,68,68,0.3); }
     .toast-info    { background: rgba(124,106,247,0.15); color: var(--accent);  border-color: rgba(124,106,247,0.3); }
+    .toast-warning { background: rgba(251,191,36,0.15);  color: var(--warning); border-color: rgba(251,191,36,0.3); }
+    .toast-inner   { display:flex; align-items:flex-start; justify-content:space-between; gap:0.75rem; }
+    .toast-close   { cursor:pointer; opacity:0.6; flex-shrink:0; font-size:1rem; background:none; border:none; color:inherit; padding:0; line-height:1; }
+    .toast-close:hover { opacity:1; }
     @keyframes toastIn  { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
     @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateX(30px); } }
 
@@ -232,14 +283,18 @@ function _layout(title, user, content, extraHead = '') {
 <body>
   <header>
     <a href="/dashboard" class="logo">sentara</a>
-    <nav class="nav-links">
-      <a href="/dashboard" class="nav-link">Dashboard</a>
-      <a href="/profile"   class="nav-link">Profil</a>
-      <a href="/tickets"   class="nav-link">Ticket'lar</a>
-      <a href="/leaderboard" class="nav-link">Sıralama</a>
-      <a href="/shop"      class="nav-link">Mağaza</a>
-      <a href="/wiki"      class="nav-link">Wiki</a>
-      <a href="/settings"  class="nav-link">Ayarlar</a>
+    <button class="hamburger" id="hamburger" aria-label="Menü" onclick="this.classList.toggle('open');document.getElementById('nav-links').classList.toggle('open')">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="nav-links" id="nav-links">
+      ${navLink('/dashboard', 'Dashboard')}
+      ${navLink('/profile',   'Profil')}
+      ${navLink('/tickets',   "Ticket'lar")}
+      ${navLink('/notifications', '🔔 Bildirimler')}
+      ${navLink('/leaderboard', 'Sıralama')}
+      ${navLink('/shop',      'Mağaza')}
+      ${navLink('/wiki',      'Wiki')}
+      ${navLink('/settings',  'Ayarlar')}
       ${staffLinks}
       ${adminLink}
       ${user ? `<a href="/logout" class="nav-link logout-link">Çıkış</a>` : `<a href="/login" class="nav-link">Giriş</a>`}
@@ -254,14 +309,15 @@ function _layout(title, user, content, extraHead = '') {
 
   <script>
     // ── Toast utility ──
-    function showToast(msg, type = 'info', duration = 3000) {
+    function showToast(msg, type = 'info', duration = 3500) {
       const c = document.getElementById('toast-container');
       if (!c) return;
       const t = document.createElement('div');
       t.className = 'toast toast-' + type;
-      t.textContent = msg;
+      t.innerHTML = \`<div class="toast-inner"><span>\${msg}</span><button class="toast-close" onclick="this.closest('.toast').remove()">✕</button></div>\`;
       c.appendChild(t);
-      setTimeout(() => t.remove(), duration);
+      const timer = setTimeout(() => t.remove(), duration);
+      t.querySelector('.toast-close').addEventListener('click', () => clearTimeout(timer));
     }
     window.showToast = showToast;
 
@@ -270,6 +326,16 @@ function _layout(title, user, content, extraHead = '') {
       return new Promise(resolve => resolve(window.confirm(msg)));
     }
     window.confirmAction = confirmAction;
+
+    // ── Close mobile nav on outside click ──
+    document.addEventListener('click', (e) => {
+      const nav = document.getElementById('nav-links');
+      const btn = document.getElementById('hamburger');
+      if (nav && btn && !nav.contains(e.target) && !btn.contains(e.target)) {
+        nav.classList.remove('open');
+        btn.classList.remove('open');
+      }
+    });
   </script>
 </body>
 </html>`;
@@ -846,7 +912,10 @@ function renderDashboard(user) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
         <h2 style="font-size:1.5rem;font-weight:800;">🎫 Ticket Geçmişin</h2>
-        <a href="/tickets" class="btn btn-ghost btn-sm">Tümünü Gör</a>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <a href="/tickets/new" class="btn btn-sm">➕ Yeni Ticket</a>
+          <a href="/tickets" class="btn btn-ghost btn-sm">Tümünü Gör</a>
+        </div>
       </div>
       <div id="ticket-list">
         <div style="color:var(--muted);text-align:center;padding:2rem;">
@@ -854,6 +923,15 @@ function renderDashboard(user) {
           Yükleniyor...
         </div>
       </div>
+    </div>
+
+    <!-- Activity Chart -->
+    <div class="card" style="margin-top:2rem;">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;">📈 Son 7 Günlük Aktivite</h2>
+      <div id="activity-chart" style="display:flex;align-items:flex-end;gap:0.5rem;height:80px;padding:0 0.25rem;">
+        <div style="color:var(--muted);font-size:0.85rem;align-self:center;">Yükleniyor...</div>
+      </div>
+      <div id="activity-labels" style="display:flex;gap:0.5rem;margin-top:0.5rem;padding:0 0.25rem;"></div>
     </div>
 
     <style>
@@ -908,25 +986,73 @@ function renderDashboard(user) {
 
           list.innerHTML = tickets.slice(0, 10).map(t => {
             const isOpen = t.status === 'open';
+            const ago = t.createdAt ? timeAgo(t.createdAt) : '';
             return \`<div class="ticket-row">
               <div>
                 <div style="font-weight:700;margin-bottom:0.3rem;">\${t.ticketId}</div>
                 <div style="color:var(--muted);font-size:0.9rem;">\${t.subject || ''} · \${t.category || ''}</div>
+                \${ago ? \`<div style="color:var(--muted);font-size:0.78rem;margin-top:0.2rem;">🕐 \${ago}</div>\` : ''}
               </div>
               <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
             </div>\`;
           }).join('');
+
+          // Build activity chart from ticket dates
+          renderActivityChart(tickets);
         } catch (err) {
           document.getElementById('ticket-list').innerHTML =
             \`<div style="color:var(--danger);padding:1rem;">❌ \${err.message}</div>\`;
         }
       }
 
+      function timeAgo(dateStr) {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1)  return 'az önce';
+        if (m < 60) return m + ' dakika önce';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + ' saat önce';
+        return Math.floor(h / 24) + ' gün önce';
+      }
+
+      function renderActivityChart(tickets) {
+        const days = 7;
+        const counts = Array(days).fill(0);
+        const labels = [];
+        const now = new Date();
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          labels.push(d.toLocaleDateString('tr-TR', { weekday: 'short' }));
+          tickets.forEach(t => {
+            if (!t.createdAt) return;
+            const td = new Date(t.createdAt);
+            if (td.toDateString() === d.toDateString()) counts[days - 1 - i]++;
+          });
+        }
+        const max = Math.max(...counts, 1);
+        const chart = document.getElementById('activity-chart');
+        const labelsEl = document.getElementById('activity-labels');
+        if (!chart) return;
+        chart.innerHTML = counts.map((c, i) => {
+          const h = Math.max(8, Math.round((c / max) * 80));
+          const isToday = i === days - 1;
+          return \`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="font-size:0.7rem;color:var(--muted);">\${c || ''}</div>
+            <div style="width:100%;height:\${h}px;background:\${isToday ? 'linear-gradient(to top,var(--accent),var(--accent2))' : 'rgba(124,106,247,0.3)'};
+                        border-radius:6px 6px 0 0;transition:height 0.6s ease;cursor:default;"
+                 title="\${labels[i]}: \${c} ticket"></div>
+          </div>\`;
+        }).join('');
+        if (labelsEl) labelsEl.innerHTML = labels.map(l =>
+          \`<div style="flex:1;text-align:center;font-size:0.72rem;color:var(--muted);">\${l}</div>\`
+        ).join('');
+
       loadDashboard();
       setInterval(loadDashboard, 15000);
     </script>
   `;
-  return _layout('Dashboard', user, content);
+  return _layout('Dashboard', user, content, '', '/dashboard');
 }
 
 
@@ -938,14 +1064,23 @@ function renderTicketsPage(user) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
         <h1 style="font-size:2rem;font-weight:800;">🎫 Ticket'larım</h1>
-        <div style="display:flex;gap:0.75rem;align-items:center;">
-          <select id="filter-status" style="width:auto;margin-bottom:0;font-size:0.9rem;">
-            <option value="">Tümü</option>
-            <option value="open">Açık</option>
-            <option value="closed">Kapalı</option>
-          </select>
-        </div>
+        <a href="/tickets/new" class="btn btn-sm">➕ Yeni Ticket</a>
       </div>
+
+      <!-- Search + Filter bar -->
+      <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+        <input id="search-input" type="text" placeholder="🔍 Ticket ara..." style="flex:1;min-width:180px;margin-bottom:0;">
+        <select id="filter-status" style="width:auto;margin-bottom:0;font-size:0.9rem;">
+          <option value="">Tümü</option>
+          <option value="open">Açık</option>
+          <option value="closed">Kapalı</option>
+        </select>
+        <select id="filter-cat" style="width:auto;margin-bottom:0;font-size:0.9rem;">
+          <option value="">Tüm Kategoriler</option>
+        </select>
+      </div>
+
+      <div id="ticket-count" style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem;"></div>
       <div id="tickets-container">
         <div style="color:var(--muted);text-align:center;padding:3rem;">Yükleniyor...</div>
       </div>
@@ -954,12 +1089,14 @@ function renderTicketsPage(user) {
     <style>
       .ticket-item {
         background:rgba(0,0,0,0.3); border:1px solid var(--border);
-        border-radius:14px; padding:1.5rem;
+        border-radius:14px; padding:1.25rem 1.5rem;
         display:flex; justify-content:space-between; align-items:center;
         transition:border-color 0.25s, transform 0.25s;
-        margin-bottom:1rem; flex-wrap:wrap; gap:1rem;
+        margin-bottom:0.75rem; flex-wrap:wrap; gap:1rem;
+        cursor:default;
       }
       .ticket-item:hover { border-color:var(--accent); transform:translateX(4px); }
+      .ticket-item:last-child { margin-bottom:0; }
     </style>
 
     <script>
@@ -971,6 +1108,16 @@ function renderTicketsPage(user) {
           const data = await res.json();
           if (!data.success) throw new Error(data.error);
           allTickets = data.tickets || [];
+
+          // Populate category filter
+          const cats = [...new Set(allTickets.map(t => t.category).filter(Boolean))];
+          const catSel = document.getElementById('filter-cat');
+          cats.forEach(c => {
+            const o = document.createElement('option');
+            o.value = o.textContent = c;
+            catSel.appendChild(o);
+          });
+
           renderTickets();
         } catch (err) {
           document.getElementById('tickets-container').innerHTML =
@@ -978,23 +1125,51 @@ function renderTicketsPage(user) {
         }
       }
 
+      function timeAgo(dateStr) {
+        if (!dateStr) return '';
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1)  return 'az önce';
+        if (m < 60) return m + 'dk önce';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + 'sa önce';
+        return Math.floor(h / 24) + 'g önce';
+      }
+
       function renderTickets() {
-        const filter  = document.getElementById('filter-status').value;
-        const tickets = filter ? allTickets.filter(t => t.status === filter) : allTickets;
-        const c = document.getElementById('tickets-container');
+        const q      = (document.getElementById('search-input').value || '').toLowerCase();
+        const status = document.getElementById('filter-status').value;
+        const cat    = document.getElementById('filter-cat').value;
+        const c      = document.getElementById('tickets-container');
+        const countEl = document.getElementById('ticket-count');
+
+        let tickets = allTickets;
+        if (status) tickets = tickets.filter(t => t.status === status);
+        if (cat)    tickets = tickets.filter(t => t.category === cat);
+        if (q)      tickets = tickets.filter(t =>
+          (t.ticketId || '').toLowerCase().includes(q) ||
+          (t.subject  || '').toLowerCase().includes(q) ||
+          (t.category || '').toLowerCase().includes(q)
+        );
+
+        countEl.textContent = tickets.length + ' ticket bulundu';
 
         if (!tickets.length) {
-          c.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Ticket bulunamadı.</div>';
+          c.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Eşleşen ticket bulunamadı.</div>';
           return;
         }
 
         c.innerHTML = tickets.map(t => {
           const isOpen = t.status === 'open';
+          const ago = timeAgo(t.createdAt);
           return \`<div class="ticket-item">
-            <div>
-              <div style="font-weight:700;color:var(--accent);margin-bottom:0.3rem;">\${t.ticketId}</div>
-              <div style="margin-bottom:0.2rem;">\${t.subject || 'Konu belirtilmedi'}</div>
-              <div style="color:var(--muted);font-size:0.85rem;">Kategori: \${t.category || '—'}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;flex-wrap:wrap;">
+                <span style="font-weight:700;color:var(--accent);">\${t.ticketId}</span>
+                \${t.category ? \`<span style="font-size:0.75rem;background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);padding:0.1rem 0.5rem;border-radius:20px;color:var(--muted);">\${t.category}</span>\` : ''}
+              </div>
+              <div style="margin-bottom:0.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">\${t.subject || 'Konu belirtilmedi'}</div>
+              \${ago ? \`<div style="color:var(--muted);font-size:0.78rem;">🕐 \${ago}</div>\` : ''}
             </div>
             <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
           </div>\`;
@@ -1002,10 +1177,12 @@ function renderTicketsPage(user) {
       }
 
       document.getElementById('filter-status').addEventListener('change', renderTickets);
+      document.getElementById('filter-cat').addEventListener('change', renderTickets);
+      document.getElementById('search-input').addEventListener('input', renderTickets);
       loadTickets();
     </script>
   `;
-  return _layout("Ticket'larım", user, content);
+  return _layout("Ticket'larım", user, content, '', '/tickets');
 }
 
 
@@ -1564,6 +1741,159 @@ function renderErrorPage(code = 404, message = 'Sayfa bulunamadı.') {
 
 
 // ─────────────────────────────────────────────
+// CREATE TICKET PAGE  (yeni)
+// ─────────────────────────────────────────────
+function renderCreateTicketPage(user, categories = []) {
+  const defaultCats = ['Genel Destek', 'Teknik Sorun', 'Hesap', 'Ödeme', 'Diğer'];
+  const cats = categories.length ? categories : defaultCats;
+
+  const content = `
+    <div class="card" style="max-width:640px;margin:0 auto;">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">➕ Yeni Ticket Oluştur</h1>
+      <p class="text-muted mb-3">Ekibimiz en kısa sürede sana dönecek.</p>
+      <hr class="divider">
+
+      <div id="ticket-form">
+        <label>Kategori <span style="color:var(--danger);">*</span></label>
+        <select id="tc-category">
+          <option value="">— Seçiniz —</option>
+          ${cats.map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('')}
+        </select>
+
+        <label>Konu <span style="color:var(--danger);">*</span></label>
+        <input type="text" id="tc-subject" placeholder="Kısa bir konu başlığı girin" maxlength="100">
+
+        <label>Açıklama <span style="color:var(--danger);">*</span></label>
+        <textarea id="tc-desc" rows="6" placeholder="Sorununuzu veya talebinizi ayrıntılı olarak anlatın..." maxlength="2000"></textarea>
+        <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
+          <span id="tc-count">0</span>/2000
+        </div>
+
+        <label>Öncelik</label>
+        <select id="tc-priority">
+          <option value="normal">Normal</option>
+          <option value="high">Yüksek</option>
+          <option value="low">Düşük</option>
+        </select>
+
+        <div id="tc-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--danger);padding:0.8rem 1rem;border-radius:10px;margin-bottom:1rem;"></div>
+
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+          <button class="btn" id="tc-submit" onclick="submitTicket()" style="flex:1;">📨 Gönder</button>
+          <a href="/tickets" class="btn btn-ghost" style="flex:1;text-align:center;">İptal</a>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const descEl  = document.getElementById('tc-desc');
+      const cntEl   = document.getElementById('tc-count');
+      descEl.addEventListener('input', () => { cntEl.textContent = descEl.value.length; });
+
+      async function submitTicket() {
+        const cat      = document.getElementById('tc-category').value;
+        const subject  = document.getElementById('tc-subject').value.trim();
+        const desc     = descEl.value.trim();
+        const priority = document.getElementById('tc-priority').value;
+        const errEl    = document.getElementById('tc-error');
+        const btn      = document.getElementById('tc-submit');
+
+        errEl.style.display = 'none';
+        if (!cat)     { errEl.textContent = 'Lütfen bir kategori seçin.';        errEl.style.display='block'; return; }
+        if (!subject) { errEl.textContent = 'Lütfen bir konu başlığı girin.';    errEl.style.display='block'; return; }
+        if (!desc)    { errEl.textContent = 'Lütfen açıklama kısmını doldurun.'; errEl.style.display='block'; return; }
+
+        btn.textContent = 'Gönderiliyor...';
+        btn.disabled = true;
+
+        try {
+          const res = await fetch('/api/tickets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat, subject, description: desc, priority })
+          });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) {
+            showToast('Ticket oluşturuldu! 🎉', 'success');
+            setTimeout(() => window.location.href = '/tickets', 1000);
+          } else {
+            errEl.textContent = d.error || 'Bir hata oluştu.';
+            errEl.style.display = 'block';
+            btn.textContent = '📨 Gönder';
+            btn.disabled = false;
+          }
+        } catch {
+          errEl.textContent = 'Bağlantı hatası. Lütfen tekrar deneyin.';
+          errEl.style.display = 'block';
+          btn.textContent = '📨 Gönder';
+          btn.disabled = false;
+        }
+      }
+    </script>
+  `;
+  return _layout('Yeni Ticket', user, content, '', '/tickets');
+}
+
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS PAGE  (yeni)
+// ─────────────────────────────────────────────
+function renderNotificationsPage(user, notifications = []) {
+  const notifHtml = notifications.map(n => {
+    const icons = { ticket:'🎫', system:'⚙️', staff:'👨‍💼', mention:'💬', warning:'⚠️' };
+    const icon = icons[n.type] || '🔔';
+    const isRead = n.read;
+    return `
+      <div style="display:flex;gap:1rem;align-items:flex-start;padding:1.25rem;
+                  border-radius:14px;border:1px solid ${isRead ? 'var(--border)' : 'rgba(124,106,247,0.35)'};
+                  background:${isRead ? 'rgba(0,0,0,0.2)' : 'rgba(124,106,247,0.06)'};
+                  margin-bottom:0.75rem;transition:border-color 0.25s;"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${isRead ? 'var(--border)' : 'rgba(124,106,247,0.35)'}'">
+        <div style="font-size:1.5rem;flex-shrink:0;">${icon}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:${isRead ? '600' : '800'};margin-bottom:0.25rem;">${_esc(n.title || '')}</div>
+          <div style="color:var(--muted);font-size:0.9rem;line-height:1.5;">${_esc(n.message || '')}</div>
+          ${n.createdAt ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;">${new Date(n.createdAt).toLocaleString('tr-TR')}</div>` : ''}
+        </div>
+        ${!isRead ? `<div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:0.4rem;box-shadow:0 0 6px var(--accent);"></div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const content = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h1 style="font-size:2rem;font-weight:800;">🔔 Bildirimler</h1>
+          ${unreadCount > 0 ? `<div style="color:var(--accent);font-size:0.85rem;margin-top:0.25rem;">${unreadCount} okunmamış bildirim</div>` : ''}
+        </div>
+        ${unreadCount > 0 ? `<button class="btn btn-ghost btn-sm" onclick="markAllRead()">✅ Tümünü Okundu İşaretle</button>` : ''}
+      </div>
+
+      ${notifications.length > 0 ? notifHtml
+        : `<div style="text-align:center;padding:4rem;color:var(--muted);">
+             <div style="font-size:3rem;margin-bottom:1rem;">🔕</div>
+             <div>Henüz bildiriminiz yok.</div>
+           </div>`}
+    </div>
+
+    <script>
+      async function markAllRead() {
+        try {
+          const res = await fetch('/api/notifications/read-all', { method: 'POST' });
+          if (res.ok) { showToast('Tüm bildirimler okundu işaretlendi.', 'success'); setTimeout(() => location.reload(), 600); }
+          else showToast('Bir hata oluştu.', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+      }
+    </script>
+  `;
+  return _layout('Bildirimler', user, content, '', '/notifications');
+}
+
+
+// ─────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────
 module.exports = {
@@ -1572,6 +1902,8 @@ module.exports = {
   renderAuthorizePage,
   renderDashboard,
   renderTicketsPage,
+  renderCreateTicketPage,
+  renderNotificationsPage,
   renderStaffPanel,
   renderDebugPage,
   renderProfilePage,
