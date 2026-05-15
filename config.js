@@ -16,7 +16,7 @@ const SUPPORT_CATEGORIES = {
   other: { name: "📝 Diğer", color: 0xaa96da },
 };
 
-const ADMIN_IDS = (process.env.ADMIN_IDS || "").split(",");
+const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350").split(",");
 
 module.exports = {
   PORT,

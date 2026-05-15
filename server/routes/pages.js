@@ -1,5 +1,5 @@
 const express = require("express");
-const { renderMainPage, renderDashboard, renderTicketsPage, renderStaffPanel, renderDebugPage, renderProfilePage, renderSettingsPage, renderLegalPage, renderWikiPage } = require("../views");
+const { renderMainPage, renderDashboard, renderTicketsPage, renderStaffPanel, renderDebugPage, renderProfilePage, renderSettingsPage, renderLegalPage, renderWikiPage, renderLeaderboardPage, renderShopPage } = require("../views");
 const { users, tickets, economies } = require("../../models/Store");
 
 const router = express.Router();
@@ -64,6 +64,29 @@ router.get("/wiki", (req, res) => {
   const { wikis } = require("../../models/Store");
   const comments = wikis.find({});
   res.send(renderWikiPage(req.user, comments));
+});
+
+router.get("/leaderboard", (req, res) => {
+  const { economies, users } = require("../../models/Store");
+  const allEco = economies.find({}).sort({ balance: -1 }).slice(0, 10);
+  const topUsers = allEco.map(e => {
+    const user = users.findOne({ discordId: e.userId });
+    return {
+      username: user ? user.discordUsername : "Bilinmiyor",
+      avatar: user ? user.discordAvatar : "https://cdn.discordapp.com/embed/avatars/0.png",
+      balance: e.balance
+    };
+  });
+  res.send(renderLeaderboardPage(req.user, topUsers));
+});
+
+router.get("/shop", (req, res) => {
+  const shopItems = [
+    { id: 'vip', name: 'VIP Rolü', desc: 'Sunucuda VIP rolüne sahip olursun.', price: 50000, icon: '🌟' },
+    { id: 'custom_color', name: 'Özel Renk', desc: 'İsmine özel bir renk ekle.', price: 25000, icon: '🎨' },
+    { id: 'ticket_priority', name: 'Öncelikli Destek', desc: 'Ticketların en üst sırada gözükür.', price: 100000, icon: '⚡' }
+  ];
+  res.send(renderShopPage(req.user, shopItems));
 });
 
 module.exports = router;
