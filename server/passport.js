@@ -60,20 +60,23 @@ passport.use(
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
+        console.log("Roblox Profile Received:", JSON.stringify(profile, null, 2));
+        
         if (!req.user) {
             return done(new Error("Lütfen önce Discord ile giriş yapın."));
         }
         
         let user = await User.findById(req.user._id);
         if (user) {
-            user.robloxId = profile.id;
-            user.robloxUsername = profile.preferredUsername || profile.nickname || profile.name || "RobloxUser"; 
+            user.robloxId = profile.id || profile.sub || (profile._json && profile._json.sub);
+            user.robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name || "RobloxUser"; 
             user.isAuthorized = true;
             await user.save();
         }
         
         done(null, user);
       } catch (err) {
+        console.error("Roblox Auth Error:", err);
         done(err);
       }
     }
