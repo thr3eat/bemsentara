@@ -115,6 +115,9 @@ async function handleGeneralCommand(interaction) {
         .setDescription(`[Tıklayın ve Roblox hesabınızla giriş yapın](${authUrl})`)
         .setColor(0x7c6af7);
 
+      const { logAuthorize } = require("../services/commandLog");
+      logAuthorize(interaction, { authUrl, dbUser: user });
+
       return interaction.editReply({ embeds: [embed] });
     }
 

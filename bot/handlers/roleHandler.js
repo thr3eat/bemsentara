@@ -2,6 +2,7 @@ const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const User = require("../../models/User");
 const { BASE_URL, ADMIN_IDS } = require("../../config");
 const { syncMemberRoles, buildSyncPlan, MAIN_GROUP_ID } = require("../services/roleSyncService");
+const { logUpdate } = require("../services/commandLog");
 
 function formatRoleList(roles) {
   if (!roles.length) return "None";
@@ -21,7 +22,7 @@ function buildUpdateEmbed(member, result) {
     .setTimestamp();
 }
 
-async function runSyncForMember(interaction, { ephemeral = true } = {}) {
+async function runSyncForMember(interaction, { ephemeral = true, commandName = "update" } = {}) {
   const { guild, member, user } = interaction;
 
   if (!guild) {
@@ -35,6 +36,7 @@ async function runSyncForMember(interaction, { ephemeral = true } = {}) {
 
   if (!dbUser?.robloxId) {
     const authUrl = `${BASE_URL}/auth/authorize?discordId=${user.id}`;
+    logUpdate(interaction, { commandName, dbUser, notLinked: true });
     return interaction.reply({
       content: `❌ Roblox hesabınız bağlı değil. Önce hesabınızı bağlayın:\n🔗 [Roblox Hesabını Bağla](${authUrl})\nveya \`/authorize\` komutunu kullanın.`,
       ephemeral: true,
@@ -53,10 +55,13 @@ async function runSyncForMember(interaction, { ephemeral = true } = {}) {
     );
 
     if (!result.success) {
+      logUpdate(interaction, { commandName, dbUser, result });
       return interaction.editReply({
         content: `❌ ${result.message}`,
       });
     }
+
+    logUpdate(interaction, { commandName, dbUser, result });
 
     if (dbUser.groupRole !== result.rankName) {
       dbUser.groupRole = result.rankName;
@@ -84,6 +89,11 @@ async function runSyncForMember(interaction, { ephemeral = true } = {}) {
     return interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error("Role sync error:", err);
+    logUpdate(interaction, {
+      commandName,
+      dbUser: await User.findOne({ discordId: user.id }),
+      error: err.message,
+    });
     return interaction.editReply({
       content: `❌ Bir hata oluştu: ${err.message}`,
     });
@@ -91,11 +101,11 @@ async function runSyncForMember(interaction, { ephemeral = true } = {}) {
 }
 
 async function handleVerify(interaction) {
-  return runSyncForMember(interaction, { ephemeral: true });
+  return runSyncForMember(interaction, { ephemeral: true, commandName: "verify" });
 }
 
 async function handleUpdate(interaction) {
-  return runSyncForMember(interaction, { ephemeral: false });
+  return runSyncForMember(interaction, { ephemeral: false, commandName: "update" });
 }
 
 function formatDebugList(items, empty = "—") {

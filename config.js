@@ -9,6 +9,8 @@ const TARGET_GUILD_ID = process.env.TARGET_GUILD_ID || "1414639355456389344";
 const TARGET_CHANNEL_ID = process.env.TARGET_CHANNEL_ID || "1504201341021716690";
 /** Doğrulama rehber mesajının gönderileceği kanal */
 const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID || "1504201338878296164";
+/** /update ve /authorize komut logları */
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "1504201542801035336";
 
 const SUPPORT_CATEGORIES = {
   billing: { name: "💳 Ödeme Sorunu", color: 0xff6b6b },
@@ -29,6 +31,7 @@ module.exports = {
   TARGET_GUILD_ID,
   TARGET_CHANNEL_ID,
   VERIFY_CHANNEL_ID,
+  LOG_CHANNEL_ID,
   ADMIN_IDS,
   SUPPORT_CATEGORIES,
 };
