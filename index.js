@@ -26,10 +26,12 @@ cron.schedule("*/14 * * * *", async () => {
 async function start() {
   try {
     const { initStore, saveStoreNow } = require("./models/Store");
-    const counts = initStore();
+    const counts = await initStore();
     const { STORE_FILE } = require("./models/persistence");
+    const { isMongoActive } = require("./models/db");
+    const storageBackend = isMongoActive() ? "MongoDB" : `Dosya → ${STORE_FILE}`;
     logger.success(
-      `Veri deposu yüklendi: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki → ${STORE_FILE}`
+      `Veri deposu yüklendi [${storageBackend}]: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki`
     );
 
     process.on("SIGINT", () => {

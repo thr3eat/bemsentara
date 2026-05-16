@@ -376,4 +376,64 @@ router.post("/api/settings", async (req, res) => {
   }
 });
 
+// ── Moderatör puan sıralaması ────────────────────────────────────────────────
+router.get("/api/staff/ratings", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+
+  try {
+    const { tickets: ticketStore, users: userStore } = require("../../models/Store");
+
+    // Değerlendirme yapılmış tüm ticketları bul
+    const ratedTickets = ticketStore.find({ rated: true });
+
+    // Moderatör bazında istatistik topla
+    const staffMap = new Map();
+
+    for (const ticket of ratedTickets) {
+      const staffId = ticket.claimedBy || ticket.closedBy;
+      if (!staffId) continue;
+
+      if (!staffMap.has(staffId)) {
+        staffMap.set(staffId, {
+          staffId,
+          totalScore: 0,
+          count: 0,
+          scores: [],
+        });
+      }
+
+      const entry = staffMap.get(staffId);
+      entry.totalScore += ticket.ratingScore || 0;
+      entry.count += 1;
+      entry.scores.push(ticket.ratingScore || 0);
+    }
+
+    // Kullanıcı bilgilerini ekle ve sırala
+    const result = [];
+    for (const [staffId, data] of staffMap.entries()) {
+      const staffUser = userStore.findOne({ discordId: staffId });
+      const avg = data.count > 0 ? (data.totalScore / data.count) : 0;
+
+      result.push({
+        staffId,
+        username: staffUser ? staffUser.discordUsername : "Bilinmiyor",
+        avatar: staffUser ? staffUser.discordAvatar : "https://cdn.discordapp.com/embed/avatars/0.png",
+        averageScore: Math.round(avg * 10) / 10,
+        totalRatings: data.count,
+        totalScore: data.totalScore,
+        // Puan dağılımı (1-5 kaç tane)
+        distribution: [1, 2, 3, 4, 5].map(s => data.scores.filter(x => x === s).length),
+      });
+    }
+
+    // Ortalama puana göre azalan sırala
+    result.sort((a, b) => b.averageScore - a.averageScore || b.totalRatings - a.totalRatings);
+
+    res.json({ success: true, staff: result });
+  } catch (err) {
+    console.error("[/api/staff/ratings]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

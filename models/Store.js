@@ -1,7 +1,10 @@
-// Veri deposu — bellek + disk (data/store.json), yeniden başlatmada korunur
+// Veri deposu — bellek + disk (data/store.json) VEYA MongoDB
+// MONGODB_URI env varsa MongoDB kullanır, yoksa dosya sistemi devam eder.
+// Dışarıya açılan API tamamen aynı — hiçbir model/handler değişmez.
 
 const crypto = require("crypto");
 const { loadIntoCollections, scheduleSave, flushSave } = require("./persistence");
+const db = require("./db");
 
 class InMemoryCollection {
   constructor(name, onMutate) {
@@ -33,6 +36,12 @@ class InMemoryCollection {
     };
     this.data.set(id, record);
     this._persist();
+
+    // MongoDB'ye async yaz
+    if (db.isMongoActive()) {
+      db.upsertRecord(this.name, id, record).catch(() => {});
+    }
+
     return this._wrap(record);
   }
 
@@ -91,6 +100,12 @@ class InMemoryCollection {
       delete stored.save;
       self.data.set(wrapped._id, stored);
       self._persist();
+
+      // MongoDB'ye async yaz
+      if (db.isMongoActive()) {
+        db.upsertRecord(self.name, wrapped._id, stored).catch(() => {});
+      }
+
       return Promise.resolve(wrapped);
     };
     return wrapped;
@@ -105,28 +120,121 @@ const collections = {
 };
 
 function onStoreMutate() {
+  // Dosya sistemi backup (MongoDB yoksa veya ek güvenlik için)
   scheduleSave(collections);
 }
 
-collections.users = new InMemoryCollection("users", onStoreMutate);
-collections.tickets = new InMemoryCollection("tickets", onStoreMutate);
-collections.economies = new InMemoryCollection("economies", onStoreMutate);
+collections.users       = new InMemoryCollection("users",       onStoreMutate);
+collections.tickets     = new InMemoryCollection("tickets",     onStoreMutate);
+collections.economies   = new InMemoryCollection("economies",   onStoreMutate);
 collections.wikiArticles = new InMemoryCollection("wikiArticles", onStoreMutate);
 
-const users = collections.users;
-const tickets = collections.tickets;
-const economies = collections.economies;
+const users       = collections.users;
+const tickets     = collections.tickets;
+const economies   = collections.economies;
 const wikiArticles = collections.wikiArticles;
 /** @deprecated eski importlar için */
 const wikis = wikiArticles;
 
-function initStore() {
-  const counts = loadIntoCollections(collections);
-  return counts;
+/**
+ * Uygulama başlangıcında çağrılır.
+ * MongoDB varsa oradan, yoksa dosyadan yükler.
+ */
+async function initStore() {
+  // 1) MongoDB bağlantısını dene
+  const mongoOk = await db.connectMongo();
+
+  if (mongoOk) {
+    // MongoDB'den yükle
+    const colNames = ["users", "tickets", "economies", "wikiArticles"];
+    const counts = {};
+
+    for (const name of colNames) {
+      const records = await db.loadCollectionFromMongo(name);
+      if (records) {
+        let count = 0;
+        for (const [id, data] of Object.entries(records)) {
+          if (!data || !id) continue;
+          // Tarih alanlarını canlandır
+          const revived = reviveDates(data);
+          revived._id = id;
+          collections[name].data.set(id, revived);
+          count++;
+        }
+        counts[name] = count;
+      } else {
+        counts[name] = 0;
+      }
+    }
+
+    // Eğer MongoDB boşsa ama dosyada veri varsa → dosyadan MongoDB'ye migrate et
+    const totalMongo = Object.values(counts).reduce((a, b) => a + b, 0);
+    if (totalMongo === 0) {
+      const fileCounts = loadIntoCollections(collections);
+      const totalFile = Object.values(fileCounts).reduce((a, b) => a + b, 0);
+      if (totalFile > 0) {
+        console.log(`[Store] Dosyadan ${totalFile} kayıt MongoDB'ye taşınıyor...`);
+        await migrateFileToMongo();
+        console.log("[Store] Migrasyon tamamlandı.");
+        return fileCounts;
+      }
+    }
+
+    return counts;
+  } else {
+    // Dosya sistemi fallback
+    const counts = loadIntoCollections(collections);
+    return counts;
+  }
+}
+
+/** Dosyadaki tüm verileri MongoDB'ye toplu yazar */
+async function migrateFileToMongo() {
+  const colNames = ["users", "tickets", "economies", "wikiArticles"];
+  for (const name of colNames) {
+    await db.saveCollectionToMongo(name, collections[name].data);
+  }
 }
 
 function saveStoreNow() {
+  // Her iki sisteme de yaz
   flushSave(collections);
+  if (db.isMongoActive()) {
+    const colNames = ["users", "tickets", "economies", "wikiArticles"];
+    for (const name of colNames) {
+      db.saveCollectionToMongo(name, collections[name].data).catch(() => {});
+    }
+  }
+}
+
+// Tarih alanlarını string'den Date'e çevir
+const DATE_FIELDS = new Set(["createdAt", "updatedAt", "joinedAt", "closedAt"]);
+
+function reviveDates(record) {
+  if (!record || typeof record !== "object") return record;
+  const out = { ...record };
+  for (const key of DATE_FIELDS) {
+    if (out[key] && typeof out[key] === "string") {
+      out[key] = new Date(out[key]);
+    }
+  }
+  if (Array.isArray(out.messages)) {
+    out.messages = out.messages.map((m) => {
+      if (m?.createdAt && typeof m.createdAt === "string") {
+        return { ...m, createdAt: new Date(m.createdAt) };
+      }
+      return m;
+    });
+  }
+  if (Array.isArray(out.comments)) {
+    out.comments = out.comments.map((c) => {
+      if (c?.createdAt && typeof c.createdAt === "string") {
+        return { ...c, createdAt: new Date(c.createdAt) };
+      }
+      return c;
+    });
+  }
+  return out;
 }
 
 module.exports = {

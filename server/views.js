@@ -1230,7 +1230,14 @@ function renderTicketsPage(user) {
 // ─────────────────────────────────────────────
 function renderStaffPanel(user) {
   const content = `
-    <div class="card">
+    <!-- Sekme başlıkları -->
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border);padding-bottom:0;">
+      <button class="sf-tab sf-tab-active" onclick="switchTab('tickets',this)" style="padding:0.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">🎫 Ticketlar</button>
+      <button class="sf-tab" onclick="switchTab('ratings',this)" style="padding:0.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">⭐ Moderatör Puanları</button>
+    </div>
+
+    <!-- Ticket sekmesi -->
+    <div id="tab-tickets" class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
         <h1 style="font-size:2rem;font-weight:800;">👨‍💼 Staff Panel</h1>
         <div style="display:flex;gap:0.75rem;align-items:center;">
@@ -1262,7 +1269,36 @@ function renderStaffPanel(user) {
       </div>
     </div>
 
+    <!-- Moderatör Puanları sekmesi -->
+    <div id="tab-ratings" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h1 style="font-size:2rem;font-weight:800;">⭐ Moderatör Puan Sıralaması</h1>
+          <p style="color:var(--muted);font-size:0.9rem;margin-top:0.25rem;">Kullanıcı değerlendirmelerine göre sıralama (anonim)</p>
+        </div>
+        <button class="btn btn-sm" onclick="loadRatings()">🔄 Yenile</button>
+      </div>
+
+      <div id="ratings-body">
+        <div style="text-align:center;padding:3rem;color:var(--muted);">Yükleniyor...</div>
+      </div>
+    </div>
+
     <script>
+      // ── Sekme geçişi ──────────────────────────────────────────────────────
+      function switchTab(name, btn) {
+        document.getElementById('tab-tickets').style.display = name === 'tickets' ? '' : 'none';
+        document.getElementById('tab-ratings').style.display = name === 'ratings' ? '' : 'none';
+        document.querySelectorAll('.sf-tab').forEach(t => {
+          t.style.borderBottomColor = 'transparent';
+          t.style.color = 'var(--muted)';
+        });
+        btn.style.borderBottomColor = 'var(--accent)';
+        btn.style.color = 'var(--text)';
+        if (name === 'ratings') loadRatings();
+      }
+
+      // ── Ticket listesi ────────────────────────────────────────────────────
       async function loadStaff() {
         const filter = document.getElementById('sf-filter').value;
         try {
@@ -1322,6 +1358,84 @@ function renderStaffPanel(user) {
 
       document.getElementById('sf-filter').addEventListener('change', loadStaff);
       loadStaff();
+
+      // ── Moderatör puan sıralaması ─────────────────────────────────────────
+      async function loadRatings() {
+        const box = document.getElementById('ratings-body');
+        box.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Yükleniyor...</div>';
+        try {
+          const res  = await fetch('/api/staff/ratings');
+          const data = await res.json();
+          const list = data.staff || [];
+
+          if (!list.length) {
+            box.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz değerlendirme yok.</div>';
+            return;
+          }
+
+          const medals = ['🥇','🥈','🥉'];
+          const rankColors = ['#fbbf24','#9ca3af','#b45309'];
+
+          box.innerHTML = list.map((s, i) => {
+            const avg   = s.averageScore.toFixed(1);
+            const stars = renderStars(s.averageScore);
+            const medal = medals[i] || (i + 1);
+            const color = rankColors[i] || 'var(--border)';
+            const dist  = (s.distribution || [0,0,0,0,0]);
+            const maxDist = Math.max(...dist, 1);
+
+            const distBars = dist.map((cnt, idx) => {
+              const pct = Math.round((cnt / maxDist) * 100);
+              return \`<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:3px;">
+                <span style="font-size:0.75rem;color:var(--muted);width:12px;">\${idx+1}</span>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+                  <div style="width:\${pct}%;height:100%;background:var(--accent);border-radius:3px;transition:width 0.6s;"></div>
+                </div>
+                <span style="font-size:0.75rem;color:var(--muted);width:20px;text-align:right;">\${cnt}</span>
+              </div>\`;
+            }).join('');
+
+            return \`
+            <div style="display:flex;gap:1.5rem;align-items:flex-start;padding:1.5rem;
+                        background:rgba(0,0,0,0.3);border:1px solid \${color};border-radius:18px;
+                        margin-bottom:1rem;transition:transform 0.2s,box-shadow 0.2s;"
+                 onmouseover="this.style.transform='translateX(4px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)'"
+                 onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+
+              <!-- Sıra -->
+              <div style="font-size:1.8rem;width:36px;text-align:center;flex-shrink:0;padding-top:0.25rem;">\${medal}</div>
+
+              <!-- Avatar -->
+              <img src="\${s.avatar}" alt="" style="width:52px;height:52px;border-radius:50%;border:2px solid \${color};flex-shrink:0;">
+
+              <!-- Bilgi -->
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:1.15rem;font-weight:800;margin-bottom:0.25rem;">\${s.username}</div>
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                  <span style="font-size:1.3rem;">\${stars}</span>
+                  <span style="font-size:1.4rem;font-weight:800;color:\${color};">\${avg}</span>
+                  <span style="color:var(--muted);font-size:0.85rem;">/ 5.0</span>
+                  <span style="background:rgba(124,106,247,0.12);color:var(--accent);border:1px solid rgba(124,106,247,0.3);
+                               padding:0.2rem 0.6rem;border-radius:20px;font-size:0.78rem;font-weight:700;">
+                    \${s.totalRatings} değerlendirme
+                  </span>
+                </div>
+                <!-- Puan dağılımı -->
+                <div style="max-width:220px;">\${distBars}</div>
+              </div>
+            </div>\`;
+          }).join('');
+        } catch (err) {
+          box.innerHTML = \`<div style="text-align:center;padding:2rem;color:var(--danger);">❌ \${err.message}</div>\`;
+        }
+      }
+
+      function renderStars(score) {
+        const full  = Math.floor(score);
+        const half  = score - full >= 0.5 ? 1 : 0;
+        const empty = 5 - full - half;
+        return '⭐'.repeat(full) + (half ? '✨' : '') + '☆'.repeat(empty);
+      }
     </script>
   `;
   return _layout('Staff Panel', user, content);
