@@ -3,6 +3,20 @@ const Ticket = require("../../models/Ticket");
 const { getSupportMenuEmbed, getCategorySelectMenu } = require("../embeds");
 
 async function handleButtonInteraction(interaction) {
+  if (interaction.customId === "verify_help_refresh") {
+    const { BASE_URL } = require("../../config");
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle("📋 Komut Özeti")
+      .setDescription(
+        "**`/authorize`** — Roblox hesabını bağla\n" +
+          "**`/verify`** — İlk rol doğrulaması (gizli)\n" +
+          "**`/update`** — Rolleri yeniden senkronize et\n\n" +
+          `🌐 Web: [${BASE_URL}/dashboard](${BASE_URL}/dashboard)`
+      );
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
   if (interaction.customId === "open_support_menu") {
     const embed = getSupportMenuEmbed();
     const selectMenu = getCategorySelectMenu();

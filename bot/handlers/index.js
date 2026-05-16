@@ -7,6 +7,11 @@ const { handleFunCommand } = require("./funCommandHandler");
 const { handleModerationCommand } = require("./moderationCommandHandler");
 
 function initializeDiscordHandlers(client) {
+  client.once("ready", async () => {
+    const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
+    await ensureVerifyHelpMessage(client);
+  });
+
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guild) return;
 
