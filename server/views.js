@@ -847,8 +847,8 @@ function renderAuthorizePage(scopes = []) {
 // DASHBOARD
 // ─────────────────────────────────────────────
 function renderDashboard(user) {
-  const isRobloxLinked = user.robloxUsername &&
-    !['Yetkilendirmedi', 'RobloxUser', ''].includes(user.robloxUsername);
+  // Use isAuthorized flag instead of checking username, since username might be a fallback value
+  const isRobloxLinked = user.isAuthorized && user.robloxId;
 
   const content = `
     <!-- Welcome -->

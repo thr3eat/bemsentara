@@ -1,6 +1,7 @@
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const RobloxStrategy = require("passport-roblox");
+const axios = require("axios");
 const User = require("../models/User");
 const { BASE_URL, ADMIN_IDS } = require("../config");
 
@@ -85,7 +86,24 @@ passport.use(
         });
         
         user.robloxId = profile.id || profile.sub || (profile._json && profile._json.sub);
-        user.robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name || "RobloxUser"; 
+        
+        // Try to get actual username from Roblox API
+        let robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name;
+        
+        if (!robloxUsername && user.robloxId) {
+          try {
+            // Fetch username from Roblox API
+            const userResponse = await axios.get(`https://users.roblox.com/v1/users/${user.robloxId}`);
+            const userData = userResponse.data;
+            robloxUsername = userData.name || userData.username || `User_${user.robloxId}`;
+            console.log("Fetched username from Roblox API:", robloxUsername);
+          } catch (apiErr) {
+            console.warn("Could not fetch Roblox username from API:", apiErr.message);
+            robloxUsername = `User_${user.robloxId}`;
+          }
+        }
+        
+        user.robloxUsername = robloxUsername || "RobloxUser";
         user.isAuthorized = true;
         
         console.log("Saving user...");
