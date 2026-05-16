@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const generalCommands = [
   new SlashCommandBuilder()
@@ -128,7 +128,7 @@ const generalCommands = [
     .addStringOption((o) =>
       o
         .setName("kategori")
-        .setDescription("Komut kategorisi")
+        .setDescription("Komut kategoriisi")
         .setRequired(false)
         .addChoices(
           { name: "Genel Komutlar", value: "general" },
@@ -160,7 +160,7 @@ const generalCommands = [
     .addNumberOption((o) =>
       o.setName("grupid").setDescription("Roblox Grup ID").setRequired(true)
     )
-    .setDefaultMemberPermissions("ADMINISTRATOR")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // ✅ HATA BURADAYDI, DÜZELTİLDİ
     .setDMPermission(false),
 ];
 
@@ -324,6 +324,7 @@ const moderationCommands = [
     ),
 ];
 
+// JSON'a dönüştürülmüş komut listesi (Deploy etmek için)
 const allCommands = [
   ...generalCommands,
   ...economyCommands,
