@@ -1,7 +1,28 @@
 const express = require("express");
+const crypto = require("crypto");
 const Ticket = require("../../models/Ticket");
+const User = require("../../models/User");
+const { wikiArticles, saveStoreNow } = require("../../models/Store");
+const { isSiteAdmin, isSiteStaff } = require("../../utils/adminCheck");
 
 const router = express.Router();
+
+function requireLogin(req, res) {
+  if (!req.user) {
+    res.status(401).json({ error: "Giriş yapmanız gerekli." });
+    return false;
+  }
+  return true;
+}
+
+function requireAdmin(req, res) {
+  if (!requireLogin(req, res)) return false;
+  if (!isSiteAdmin(req.user)) {
+    res.status(403).json({ error: "Bu işlem için admin yetkisi gerekli." });
+    return false;
+  }
+  return true;
+}
 
 router.get("/api/tickets", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Yetkilendirme gerekli" });
@@ -122,24 +143,152 @@ router.get("/api/health", (req, res) => {
   });
 });
 
-router.post("/api/wiki", async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
-  
-  const { content } = req.body;
-  if (!content || content.trim().length === 0) return res.status(400).json({ error: "Yorum boş olamaz." });
-  
-  const { wikis } = require("../../models/Store");
+router.get("/api/wiki/articles", (req, res) => {
+  const list = wikiArticles
+    .find({})
+    .sort({ createdAt: -1 })
+    .map((a) => ({
+      _id: a._id,
+      title: a.title,
+      body: a.body?.slice(0, 200),
+      imageUrl: a.imageUrl,
+      authorName: a.authorName,
+      authorAvatar: a.authorAvatar,
+      commentCount: (a.comments || []).length,
+      createdAt: a.createdAt,
+    }));
+  res.json({ success: true, articles: list });
+});
+
+router.post("/api/wiki/articles", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { title, body, imageUrl } = req.body;
+  const t = (title || "").trim();
+  const b = (body || "").trim();
+  if (!t || t.length < 2) {
+    return res.status(400).json({ error: "Başlık en az 2 karakter olmalı." });
+  }
+  if (!b) return res.status(400).json({ error: "Metin boş olamaz." });
+
+  let img = (imageUrl || "").trim();
+  if (img && !/^https?:\/\//i.test(img)) {
+    return res.status(400).json({ error: "Geçerli bir resim URL'si girin (https://...)." });
+  }
+  if (!img) img = null;
+
   try {
-    const comment = wikis.create({
+    const article = wikiArticles.create({
+      title: t.slice(0, 120),
+      body: b.slice(0, 20000),
+      imageUrl: img,
+      authorId: req.user.discordId,
+      authorName: req.user.discordUsername,
+      authorAvatar: req.user.discordAvatar,
+      comments: [],
+    });
+    saveStoreNow();
+    res.json({ success: true, article });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete("/api/wiki/articles/:id", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+  wikiArticles.data.delete(req.params.id);
+  wikiArticles.persist();
+  saveStoreNow();
+  res.json({ success: true });
+});
+
+router.post("/api/wiki/articles/:id/comments", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const { content } = req.body;
+  const text = (content || "").trim();
+  if (!text) return res.status(400).json({ error: "Yorum boş olamaz." });
+
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+
+  try {
+    const comment = {
+      _id: crypto.randomBytes(8).toString("hex"),
       userId: req.user.discordId,
       username: req.user.discordUsername,
       avatar: req.user.discordAvatar,
-      content: content.trim(),
-    });
+      content: text.slice(0, 2000),
+      createdAt: new Date(),
+    };
+    article.comments = article.comments || [];
+    article.comments.push(comment);
+    await article.save();
+    saveStoreNow();
     res.json({ success: true, comment });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get("/api/admin/users", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const q = (req.query.q || "").trim().toLowerCase();
+  const { users } = require("../../models/Store");
+  let list = users.find({});
+
+  if (q) {
+    list = list.filter(
+      (u) =>
+        String(u.discordId).includes(q) ||
+        (u.discordUsername || "").toLowerCase().includes(q) ||
+        (u.robloxUsername || "").toLowerCase().includes(q)
+    );
+  }
+
+  list = list.slice(0, 50).map((u) => ({
+    _id: u._id,
+    discordId: u.discordId,
+    discordUsername: u.discordUsername,
+    robloxUsername: u.robloxUsername,
+    isAdmin: Boolean(u.isAdmin),
+    isStaff: Boolean(u.isStaff),
+    isAuthorized: Boolean(u.isAuthorized),
+  }));
+
+  res.json({ success: true, users: list });
+});
+
+router.post("/api/admin/users/:discordId/roles", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const targetId = String(req.params.discordId);
+  if (targetId === String(req.user.discordId) && req.body.isAdmin === false) {
+    return res.status(400).json({ error: "Kendi admin yetkinizi kaldıramazsınız." });
+  }
+
+  const user = await User.findOne({ discordId: targetId });
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+  if (req.body.isAdmin !== undefined) user.isAdmin = Boolean(req.body.isAdmin);
+  if (req.body.isStaff !== undefined) user.isStaff = Boolean(req.body.isStaff);
+  if (user.isAdmin) user.isStaff = true;
+
+  await user.save();
+  saveStoreNow();
+
+  res.json({
+    success: true,
+    user: {
+      discordId: user.discordId,
+      discordUsername: user.discordUsername,
+      isAdmin: user.isAdmin,
+      isStaff: user.isStaff,
+    },
+  });
 });
 
 router.post("/api/roles/sync", async (req, res) => {
@@ -210,16 +359,19 @@ router.post("/api/settings", async (req, res) => {
   
   const { profileBio, profileColor } = req.body;
   
-  const User = require("../../models/User");
   try {
     const user = await User.findById(req.user._id);
     if (user) {
-        if (profileBio !== undefined) user.profileBio = profileBio;
-        if (profileColor !== undefined) user.profileColor = profileColor;
-        await user.save();
+      if (profileBio !== undefined) user.profileBio = String(profileBio).slice(0, 500);
+      if (profileColor !== undefined) user.profileColor = String(profileColor).slice(0, 32);
+      await user.save();
+      saveStoreNow();
+      if (req.session) {
+        req.session.passport.user = user._id;
+      }
     }
     res.json({ success: true });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

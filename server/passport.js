@@ -3,7 +3,8 @@ const DiscordStrategy = require("passport-discord").Strategy;
 const RobloxStrategy = require("passport-roblox");
 const axios = require("axios");
 const User = require("../models/User");
-const { BASE_URL, ADMIN_IDS } = require("../config");
+const { BASE_URL } = require("../config");
+const { isEnvAdmin } = require("../utils/adminCheck");
 
 passport.use(
   new DiscordStrategy(
@@ -19,30 +20,33 @@ passport.use(
         const avatarUrl = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(profile.discriminator || '0') % 5}.png`;
         const bannerUrl = profile.banner ? `https://cdn.discordapp.com/banners/${profile.id}/${profile.banner}.png?size=512` : null;
 
+        const discordId = String(profile.id);
+        const envAdmin = isEnvAdmin(discordId);
+
         if (!user) {
           user = new User({
-            discordId: String(profile.id),
+            discordId,
             discordUsername: profile.username,
             discordEmail: profile.email,
             discordAvatar: avatarUrl,
             discordBanner: bannerUrl,
-            isAdmin: ADMIN_IDS.includes(profile.id),
-            isStaff: ADMIN_IDS.includes(profile.id),
+            isAdmin: envAdmin,
+            isStaff: envAdmin,
           });
           await user.save();
-          const { saveStoreNow } = require("../models/Store");
-          saveStoreNow();
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
           user.discordAvatar = avatarUrl;
           user.discordBanner = bannerUrl || user.discordBanner;
-          user.isAdmin = ADMIN_IDS.includes(profile.id);
-          user.isStaff = ADMIN_IDS.includes(profile.id);
+          if (envAdmin) {
+            user.isAdmin = true;
+            user.isStaff = true;
+          }
           await user.save();
-          const { saveStoreNow } = require("../models/Store");
-          saveStoreNow();
         }
+        const { saveStoreNow } = require("../models/Store");
+        saveStoreNow();
 
         done(null, user);
       } catch (err) {

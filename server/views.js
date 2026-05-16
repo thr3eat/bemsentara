@@ -1,14 +1,16 @@
 'use strict';
 
+const { isSiteAdmin, isSiteStaff } = require("../utils/adminCheck");
+
 // ─────────────────────────────────────────────
 // SHARED LAYOUT HELPER  (declared ONCE at top)
 // ─────────────────────────────────────────────
 function _layout(title, user, content, extraHead = '', activePath = '') {
-  const staffLinks = user && (user.isStaff || user.isAdmin)
+  const staffLinks = user && isSiteStaff(user)
     ? `<a href="/staff" class="nav-link staff-link${activePath === '/staff' ? ' nav-active' : ''}">👨‍💼 Staff</a>`
     : '';
-  const adminLink = user && user.isAdmin
-    ? `<a href="/debug" class="nav-link debug-link${activePath === '/debug' ? ' nav-active' : ''}">🔍 Debug</a>`
+  const adminLink = user && isSiteAdmin(user)
+    ? `<a href="/admin" class="nav-link debug-link${activePath === '/admin' ? ' nav-active' : ''}">⚙️ Admin</a>`
     : '';
 
   function navLink(href, label) {
@@ -1554,91 +1556,58 @@ function renderLegalPage(title, text) {
 // ─────────────────────────────────────────────
 // WIKI PAGE
 // ─────────────────────────────────────────────
-function renderWikiPage(user, comments = []) {
-  const commentsHtml = comments.map(c => `
-    <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:15px;
-                border:1px solid var(--border);margin-bottom:1rem;
-                display:flex;gap:1rem;align-items:flex-start;">
-      <img src="${_esc(c.avatar)}" alt="" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;color:var(--accent);margin-bottom:0.3rem;">${_esc(c.username)}</div>
-        <div style="line-height:1.6;word-break:break-word;white-space:pre-wrap;">${_esc(c.content)}</div>
-        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">${new Date(c.createdAt).toLocaleString('tr-TR')}</div>
+function renderWikiListPage(user, articles = [], canManage = false) {
+  const adminForm = canManage ? `
+    <details style="margin-bottom:2rem;background:rgba(124,106,247,0.06);border:1px solid var(--border);border-radius:16px;padding:1.25rem;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--accent);">➕ Yeni wiki makalesi (Admin)</summary>
+      <div style="margin-top:1.25rem;display:flex;flex-direction:column;gap:1rem;">
+        <div><label>Başlık</label><input type="text" id="wa-title" maxlength="120"></div>
+        <div><label>Resim URL</label><input type="url" id="wa-image" placeholder="https://..."></div>
+        <div><label>Metin</label><textarea id="wa-body" rows="8" maxlength="20000"></textarea></div>
+        <button class="btn" id="wa-create-btn" onclick="createWikiArticle()">📖 Yayınla</button>
       </div>
-    </div>
-  `).join('');
-
-  const formHtml = user ? `
-    <div id="wiki-form">
-      <label>Paylaşımın</label>
-      <textarea id="wiki-content" rows="4" placeholder="Wiki'ye katkıda bulun..." maxlength="2000" required></textarea>
-      <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
-        <span id="wc-count">0</span>/2000
-      </div>
-      <button class="btn" id="wiki-btn" onclick="postWiki()">📨 Gönder</button>
-    </div>
-  ` : `<div style="background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);padding:1rem;border-radius:10px;color:var(--danger);">
-    Yorum yapmak için <a href="/login" style="color:var(--accent);">giriş yapmalısınız</a>.
-  </div>`;
-
-  const script = user ? `
+    </details>
     <script>
-      const wcEl  = document.getElementById('wiki-content');
-      const cntEl = document.getElementById('wc-count');
-      if (wcEl) wcEl.addEventListener('input', () => { cntEl.textContent = wcEl.value.length; });
-
-      async function postWiki() {
-        const btn     = document.getElementById('wiki-btn');
-        const content = wcEl ? wcEl.value.trim() : '';
-        if (!content) { showToast('Boş paylaşım gönderilemez.', 'error'); return; }
-        btn.textContent = 'Gönderiliyor...';
-        btn.disabled = true;
-        try {
-          const res = await fetch('/api/wiki', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content })
-          });
-          if (res.ok) {
-            showToast('Paylaşım gönderildi!', 'success');
-            setTimeout(() => window.location.reload(), 800);
-          } else {
-            const d = await res.json().catch(() => ({}));
-            showToast(d.error || 'Bir hata oluştu.', 'error');
-            btn.textContent = '📨 Gönder';
-            btn.disabled = false;
-          }
-        } catch {
-          showToast('Bağlantı hatası.', 'error');
-          btn.textContent = '📨 Gönder';
-          btn.disabled = false;
-        }
+      async function createWikiArticle() {
+        const btn = document.getElementById('wa-create-btn');
+        const res = await fetch('/api/wiki/articles', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            title: document.getElementById('wa-title').value.trim(),
+            body: document.getElementById('wa-body').value.trim(),
+            imageUrl: document.getElementById('wa-image').value.trim() || null
+          }) });
+        const d = await res.json().catch(()=>({}));
+        if (res.ok) location.href='/wiki/'+d.article._id;
+        else { showToast(d.error||'Hata','error'); btn.disabled=false; }
       }
-    <\/script>
-  ` : '';
-
-  const content = `
-    <div class="card">
-      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">📖 Topluluk Wiki</h1>
-      <p class="text-muted mb-3">Sentara platformu hakkında topluluk tartışmaları ve rehberler.</p>
-
-      <hr class="divider">
-      <h3 style="margin-bottom:1rem;">💬 Bir şeyler paylaş</h3>
-      ${formHtml}
-
-      <hr class="divider">
-      <h3 style="margin-bottom:1.5rem;">Paylaşımlar (${comments.length})</h3>
-      ${comments.length > 0 ? commentsHtml : '<div style="text-align:center;padding:2rem;color:var(--muted);">Henüz paylaşım yok. İlk paylaşan sen ol!</div>'}
-    </div>
-    ${script}
-  `;
-  return _layout('Wiki', user, content);
+    <\/script>` : '';
+  const listHtml = articles.length ? articles.map(a => {
+    const p = (a.body||'').slice(0,160);
+    const img = a.imageUrl ? '<img src="'+_esc(a.imageUrl)+'" style="width:100%;max-height:140px;object-fit:cover;border-radius:12px;margin-bottom:0.75rem;">' : '';
+    return '<a href="/wiki/'+_esc(a._id)+'" style="display:block;text-decoration:none;color:inherit;background:rgba(0,0,0,0.3);padding:1.25rem;border-radius:16px;border:1px solid var(--border);margin-bottom:1rem;">'+img+
+      '<h3 style="font-weight:800;">'+_esc(a.title)+'</h3><p style="color:var(--muted);">'+_esc(p)+'</p><span style="font-size:0.8rem;color:var(--muted);">💬 '+(a.comments||[]).length+' yorum</span></a>';
+  }).join('') : '<p style="text-align:center;color:var(--muted);">Henüz makale yok.</p>';
+  return _layout('Wiki', user, '<div class="card"><h1>📖 Wiki</h1><p class="text-muted mb-3">Makaleler ve yorumlar.</p>'+adminForm+'<hr class="divider">'+listHtml+'</div>', '', '/wiki');
 }
 
+function renderWikiArticlePage(user, article, canManage = false) {
+  const comments = (article.comments||[]).slice().sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const img = article.imageUrl ? '<img src="'+_esc(article.imageUrl)+'" style="width:100%;max-height:420px;object-fit:cover;border-radius:16px;margin-bottom:1.5rem;">' : '';
+  const ch = comments.map(c=>'<div style="display:flex;gap:1rem;margin-bottom:0.75rem;padding:1rem;background:rgba(0,0,0,0.25);border-radius:12px;border:1px solid var(--border);">'+
+    '<img src="'+_esc(c.avatar||'')+'" style="width:40px;height:40px;border-radius:50%;"><div><b style="color:var(--accent);">'+_esc(c.username)+'</b><div style="white-space:pre-wrap;">'+_esc(c.content)+'</div></div></div>').join('');
+  const cf = user ? '<textarea id="comment-body" rows="3" style="width:100%;margin-bottom:0.75rem;"></textarea><button class="btn" onclick="postComment()">💬 Yorum</button>' : '<a href="/login">Giriş yap</a>';
+  const del = canManage ? '<button class="btn" style="background:var(--danger);" onclick="deleteArticle()">Sil</button>' : '';
+  const aid = JSON.stringify(article._id);
+  return _layout(article.title, user, '<div class="card"><a href="/wiki">← Liste</a><h1 style="margin:1rem 0;">'+_esc(article.title)+'</h1>'+del+img+
+    '<div style="white-space:pre-wrap;line-height:1.8;margin:1.5rem 0;">'+_esc(article.body)+'</div><h3>Yorumlar</h3>'+ch+cf+'</div><script>const articleId='+aid+
+    ';async function postComment(){const c=document.getElementById("comment-body").value.trim();if(!c)return;const r=await fetch("/api/wiki/articles/"+articleId+"/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:c})});if(r.ok)location.reload();}async function deleteArticle(){if(confirm("Silinsin mi?")){const r=await fetch("/api/wiki/articles/"+articleId,{method:"DELETE"});if(r.ok)location.href="/wiki";}}<\/script>', '', '/wiki');
+}
 
-// ─────────────────────────────────────────────
-// LEADERBOARD PAGE
-// ─────────────────────────────────────────────
+function renderAdminPage(user) {
+  return _layout('Admin', user, '<div class="card"><h1>⚙️ Admin</h1><input id="admin-search" placeholder="Ara..." style="flex:1;"><button class="btn" onclick="searchUsers()">Ara</button><div id="admin-results"></div></div>'+
+    '<script>async function searchUsers(){const q=document.getElementById("admin-search").value;const r=await fetch("/api/admin/users?q="+encodeURIComponent(q));const d=await r.json();const b=document.getElementById("admin-results");if(!d.users||!d.users.length){b.innerHTML="Yok";return;}b.innerHTML=d.users.map(u=>"<div style=\\"padding:1rem;border:1px solid var(--border);margin:0.5rem 0;border-radius:12px;\\"><b>"+u.discordUsername+"</b><br><label><input type=checkbox data-id="+u.discordId+" data-role=admin "+(u.isAdmin?"checked":"")+" onchange=saveRoles('"+u.discordId+"')> Admin</label> <label><input type=checkbox data-id="+u.discordId+" data-role=staff "+(u.isStaff?"checked":"")+" onchange=saveRoles('"+u.discordId+"')> Staff</label></div>").join("");}async function saveRoles(id){const a=document.querySelector(\'input[data-id="'+id+'"][data-role=admin]\');const s=document.querySelector(\'input[data-id="'+id+'"][data-role=staff]\');await fetch("/api/admin/users/"+id+"/roles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({isAdmin:a.checked,isStaff:s.checked})});showToast("Kaydedildi","success");}searchUsers();<\/script>', '', '/admin');
+}
+
 function renderLeaderboardPage(user, topUsers = []) {
   const medals = ['🥇', '🥈', '🥉'];
   const rankColors = ['#fbbf24', '#9ca3af', '#b45309'];
@@ -1946,7 +1915,9 @@ module.exports = {
   renderProfilePage,
   renderSettingsPage,
   renderLegalPage,
-  renderWikiPage,
+  renderWikiListPage,
+  renderWikiArticlePage,
+  renderAdminPage,
   renderLeaderboardPage,
   renderShopPage,
   renderErrorPage,

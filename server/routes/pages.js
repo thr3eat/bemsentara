@@ -1,6 +1,21 @@
 const express = require("express");
-const { renderMainPage, renderDashboard, renderTicketsPage, renderStaffPanel, renderDebugPage, renderProfilePage, renderSettingsPage, renderLegalPage, renderWikiPage, renderLeaderboardPage, renderShopPage } = require("../views");
-const { users, tickets, economies } = require("../../models/Store");
+const {
+  renderMainPage,
+  renderDashboard,
+  renderTicketsPage,
+  renderStaffPanel,
+  renderDebugPage,
+  renderProfilePage,
+  renderSettingsPage,
+  renderLegalPage,
+  renderWikiListPage,
+  renderWikiArticlePage,
+  renderAdminPage,
+  renderLeaderboardPage,
+  renderShopPage,
+} = require("../views");
+const { users, tickets, economies, wikiArticles } = require("../../models/Store");
+const { isSiteAdmin } = require("../../utils/adminCheck");
 
 const router = express.Router();
 
@@ -19,12 +34,13 @@ router.get("/tickets", (req, res) => {
 });
 
 router.get("/staff", (req, res) => {
-  if (!req.user || (!req.user.isStaff && !req.user.isAdmin)) return res.redirect("/");
+  const { isSiteStaff } = require("../../utils/adminCheck");
+  if (!req.user || !isSiteStaff(req.user)) return res.redirect("/");
   res.send(renderStaffPanel(req.user));
 });
 
 router.get("/debug", (req, res) => {
-  if (!req.user || !req.user.isAdmin) return res.redirect("/");
+  if (!req.user || !isSiteAdmin(req.user)) return res.redirect("/");
   const logger = require("../../utils/logger");
   const memory = process.memoryUsage();
   const stats = {
@@ -37,6 +53,7 @@ router.get("/debug", (req, res) => {
       users: users.data.size,
       tickets: tickets.data.size,
       economies: economies.data.size,
+      wikiArticles: wikiArticles.data.size,
     }
   };
   res.send(renderDebugPage(req.user, stats, logger.getLogs()));
@@ -61,9 +78,21 @@ router.get("/legal/privacy", (req, res) => {
 });
 
 router.get("/wiki", (req, res) => {
-  const { wikis } = require("../../models/Store");
-  const comments = wikis.find({});
-  res.send(renderWikiPage(req.user, comments));
+  const articles = wikiArticles.find({}).sort({ createdAt: -1 });
+  res.send(renderWikiListPage(req.user, articles, isSiteAdmin(req.user)));
+});
+
+router.get("/wiki/:id", (req, res) => {
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.redirect("/wiki");
+  res.send(
+    renderWikiArticlePage(req.user, article, isSiteAdmin(req.user))
+  );
+});
+
+router.get("/admin", (req, res) => {
+  if (!req.user || !isSiteAdmin(req.user)) return res.redirect("/");
+  res.send(renderAdminPage(req.user));
 });
 
 router.get("/leaderboard", (req, res) => {

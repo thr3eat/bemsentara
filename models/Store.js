@@ -101,7 +101,7 @@ const collections = {
   users: null,
   tickets: null,
   economies: null,
-  wikis: null,
+  wikiArticles: null,
 };
 
 function onStoreMutate() {
@@ -111,12 +111,14 @@ function onStoreMutate() {
 collections.users = new InMemoryCollection("users", onStoreMutate);
 collections.tickets = new InMemoryCollection("tickets", onStoreMutate);
 collections.economies = new InMemoryCollection("economies", onStoreMutate);
-collections.wikis = new InMemoryCollection("wikis", onStoreMutate);
+collections.wikiArticles = new InMemoryCollection("wikiArticles", onStoreMutate);
 
 const users = collections.users;
 const tickets = collections.tickets;
 const economies = collections.economies;
-const wikis = collections.wikis;
+const wikiArticles = collections.wikiArticles;
+/** @deprecated eski importlar için */
+const wikis = wikiArticles;
 
 function initStore() {
   const counts = loadIntoCollections(collections);
@@ -131,6 +133,7 @@ module.exports = {
   users,
   tickets,
   economies,
+  wikiArticles,
   wikis,
   InMemoryCollection,
   initStore,

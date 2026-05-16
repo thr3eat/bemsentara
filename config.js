@@ -30,7 +30,13 @@ const SUPPORT_CATEGORIES = {
   other: { name: "📝 Diğer", color: 0xaa96da },
 };
 
-const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350").split(",");
+const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+/** Kalıcı veri klasörü (Render disk: /var/data gibi) */
+const DATA_DIR = process.env.DATA_DIR || null;
 
 module.exports = {
   PORT,
@@ -48,5 +54,6 @@ module.exports = {
   VOICE_JOIN_CHANNEL_ID,
   VOICE_CATEGORY_ID,
   ADMIN_IDS,
+  DATA_DIR,
   SUPPORT_CATEGORIES,
 };

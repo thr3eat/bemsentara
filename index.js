@@ -27,8 +27,9 @@ async function start() {
   try {
     const { initStore, saveStoreNow } = require("./models/Store");
     const counts = initStore();
+    const { STORE_FILE } = require("./models/persistence");
     logger.success(
-      `Veri deposu yüklendi (disk): ${counts.users} kullanıcı, ${counts.tickets} ticket`
+      `Veri deposu yüklendi: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki → ${STORE_FILE}`
     );
 
     process.on("SIGINT", () => {
