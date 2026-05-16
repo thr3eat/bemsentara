@@ -32,6 +32,8 @@ function TicketConstructor(data) {
     rated: false,
     ratingScore: null,
     ratingNote: null,
+    channelDeleted: false,
+    channelDeletedAt: null,
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {

@@ -210,7 +210,8 @@ async function handleCloseReasonModal(interaction) {
       const closeEmbed = new EmbedBuilder()
         .setTitle("🔒 Ticket Kapatıldı")
         .setDescription(
-          `**Kapatan:** ${interaction.user.username}\n**Sebep:** ${reason}`
+          `**Kapatan:** ${interaction.user.username}\n**Sebep:** ${reason}\n\n` +
+          `⏳ Bu kanal **5 dakika** içinde yeniden açılmazsa otomatik silinecektir.`
         )
         .setColor(0xed4245)
         .setTimestamp();
@@ -221,6 +222,11 @@ async function handleCloseReasonModal(interaction) {
         SendMessages: false,
       });
     }
+
+    // 5) 5 dakika sonra kanal silinmek üzere kuyruğa al
+    const { scheduleTicketDeletion } = require("../services/ticketCleanup");
+    scheduleTicketDeletion(ticket.ticketId);
+
   } catch (err) {
     console.error("[closeTicket] Hata:", err);
   }

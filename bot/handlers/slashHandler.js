@@ -108,7 +108,10 @@ async function handleSlashCommand(interaction) {
       if (channel) {
         const closeEmbed = new EmbedBuilder()
           .setTitle("🔒 Ticket Kapatıldı")
-          .setDescription(`**Sebep:** ${reason}`)
+          .setDescription(
+            `**Sebep:** ${reason}\n\n` +
+            `⏳ Bu kanal **5 dakika** içinde yeniden açılmazsa otomatik silinecektir.`
+          )
           .setColor(0xed4245)
           .setTimestamp();
         await channel.send({ embeds: [closeEmbed] });
@@ -117,6 +120,10 @@ async function handleSlashCommand(interaction) {
           SendMessages: false,
         });
       }
+
+      // 5 dakika sonra kanal silinmek üzere kuyruğa al
+      const { scheduleTicketDeletion } = require("../services/ticketCleanup");
+      scheduleTicketDeletion(ticket.ticketId);
 
       return interaction.editReply({ content: "✅ Ticket kapatıldı" });
     }

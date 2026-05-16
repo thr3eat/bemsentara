@@ -102,6 +102,10 @@ async function handleButtonInteraction(interaction) {
       ticket.closeReason = null;
       await ticket.save();
 
+      // Silme kuyruğunu iptal et
+      const { cancelTicketDeletion } = require("../services/ticketCleanup");
+      cancelTicketDeletion(ticketId);
+
       return interaction.reply({
         content: "✅ Ticket yeniden açıldı.",
         ephemeral: true,
