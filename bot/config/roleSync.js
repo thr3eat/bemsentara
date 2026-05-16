@@ -13,30 +13,129 @@ const BRANCH_GROUPS = {
 
 const SEPARATOR_ROLE_NAME = "▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
-/** Senkron sırasında yönetilen (eklenip kaldırılabilen) yapısal roller */
+/**
+ * Roblox rütbe adı → Discord seviye rolü + ayırıcı çizgiler (ID ile).
+ * Üye kendi rütbesine ek olarak ilgili seviye rolünü ve çizgileri alır.
+ */
+const RANK_TIERS = [
+  {
+    wrapperRole: "Teşkilat Yönetimi",
+    skipTeşkilatPersoneli: true,
+    separatorIds: ["1504200905669738526", "1504200915370905731"],
+    ranks: [
+      "Sunucu Yöneticisi",
+      "Teşkilat Yönetimi",
+      "Geliştirme Ekibi",
+      "Yönetim Kurulu Başkanı",
+      "Yönetim Kurulu Başkan Y.",
+      "Yönetim Kurulu",
+    ],
+  },
+  {
+    wrapperRole: "Kıdemli Teşkilat Müdürü",
+    separatorIds: ["1504201013739913246", "1504201021663088873"],
+    ranks: [
+      "Kıdemli Teşkilat Müdürü",
+      "Yüksek Polis Kurulu",
+      "Teftiş Kurulu Başkanı",
+      "Teftiş Kurulu Başkan Yardımcısı",
+      "Teftiş Kurulu",
+      "Emniyet Genel Müdürü",
+    ],
+  },
+  {
+    wrapperRole: "Teşkilat Müdürü",
+    separatorIds: ["1504201021663088873", "1504201030211211484"],
+    ranks: [
+      "Teşkilat Müdürü",
+      "1. Sınıf Emniyet Müdürü",
+      "2. Sınıf Emniyet Müdürü",
+      "3. Sınıf Emniyet Müdürü",
+      "4.Sınıf Emniyet Müdürü",
+      "Müdür",
+    ],
+  },
+  {
+    wrapperRole: "Kıdemli Teşkilat Komiseri",
+    separatorIds: ["1504201030211211484", "1504201036880023652"],
+    ranks: [
+      "Kıdemli Teşkilat Komiseri",
+      "Emniyet Amiri",
+      "Amir Adayı",
+      "Emekli Personel",
+    ],
+  },
+  {
+    wrapperRole: "Teşkilat Komiseri",
+    separatorIds: ["1504201036880023652", "1504201052071792760"],
+    ranks: [
+      "Teşkilat Komiseri",
+      "Başkomiser",
+      "Üskomiser",
+      "Komiser",
+      "Askomiser",
+      "Komiser Yardımcısı",
+      "Stajyer Komiser",
+    ],
+  },
+  {
+    wrapperRole: "Kıdemli Teşkilat Memuru",
+    separatorIds: ["1504201060590424235", "1504201065703407746"],
+    ranks: ["Aday Komiser", "Kıdemli Teşkilat Memuru", "Teşkilat Memuru"],
+  },
+  {
+    wrapperRole: "Teşkilat Memuru",
+    separatorIds: ["1504201065703407746", "1504201077065781428"],
+    ranks: [
+      "Uzm. Başpolis Memuru",
+      "Kıdemli Başpolis Memuru",
+      "Başpolis Memuru",
+      "Başpolis Memuru Adayı",
+      "Kıdemli Polis Memuru",
+      "Polis Memuru",
+      "Polis Memuru Adayı",
+      "Akademi",
+      "Akademi Adayı",
+    ],
+  },
+];
+
+const TIER_WRAPPER_ROLES = RANK_TIERS.map((t) => t.wrapperRole);
+
+/** Senkron sırasında yönetilen yapısal roller */
 const STRUCTURAL_ROLE_NAMES = [
   "Teşkilat Personeli",
-  "Teşkilat Memuru",
-  "Teşkilat Komiseri",
+  ...TIER_WRAPPER_ROLES,
   SEPARATOR_ROLE_NAME,
   "Branşlı Personel",
   "Branşsız Personel",
   ...Object.values(BRANCH_GROUPS),
 ];
 
-/** Komiser ve üstü rütbeler */
-const KOMISER_PATTERN =
-  /komiser|müdür|amir|genel|kurul|başkan|koordinatör|danışman|teftiş|emniyet/i;
+/** Tüm seviye ayırıcı rol ID'leri (yönetilen set) */
+const TIER_SEPARATOR_IDS = [
+  ...new Set(RANK_TIERS.flatMap((t) => t.separatorIds)),
+];
 
-/** Memur / akademi hattı */
-const MEMUR_PATTERN =
-  /memur|akademi|polis|başpolis|uzm\.|uzman|aday|stajyer/i;
+function normalizeRankName(name) {
+  return (name || "").trim().toLowerCase();
+}
+
+function findTierForRank(rankName) {
+  const key = normalizeRankName(rankName);
+  return RANK_TIERS.find((tier) =>
+    tier.ranks.some((r) => normalizeRankName(r) === key)
+  );
+}
 
 module.exports = {
   MAIN_GROUP_ID,
   BRANCH_GROUPS,
   SEPARATOR_ROLE_NAME,
+  RANK_TIERS,
+  TIER_WRAPPER_ROLES,
   STRUCTURAL_ROLE_NAMES,
-  KOMISER_PATTERN,
-  MEMUR_PATTERN,
+  TIER_SEPARATOR_IDS,
+  findTierForRank,
+  normalizeRankName,
 };

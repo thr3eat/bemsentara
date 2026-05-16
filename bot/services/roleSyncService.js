@@ -2,10 +2,10 @@ const axios = require("axios");
 const {
   MAIN_GROUP_ID,
   BRANCH_GROUPS,
-  SEPARATOR_ROLE_NAME,
   STRUCTURAL_ROLE_NAMES,
-  KOMISER_PATTERN,
-  MEMUR_PATTERN,
+  TIER_SEPARATOR_IDS,
+  TIER_WRAPPER_ROLES,
+  findTierForRank,
 } = require("../config/roleSync");
 
 async function fetchUserGroups(robloxId) {
@@ -22,21 +22,15 @@ function findRoleByName(guild, name) {
   return (
     guild.roles.cache.find(
       (r) =>
-        r.name.toLowerCase() === target &&
-        !r.managed &&
-        r.id !== guild.id
+        r.name.toLowerCase() === target && !r.managed && r.id !== guild.id
     ) || null
   );
 }
 
-function getTeşkilatWrapper(rankName) {
-  if (KOMISER_PATTERN.test(rankName) && /komiser|müdür|amir|genel|kurul|başkan/i.test(rankName)) {
-    return "Teşkilat Komiseri";
-  }
-  if (MEMUR_PATTERN.test(rankName)) {
-    return "Teşkilat Memuru";
-  }
-  return null;
+function findRoleById(guild, roleId) {
+  if (!roleId) return null;
+  const role = guild.roles.cache.get(String(roleId));
+  return role && !role.managed && role.id !== guild.id ? role : null;
 }
 
 function findBranchMembership(userGroups) {
@@ -55,10 +49,9 @@ function findBranchMembership(userGroups) {
 }
 
 /**
- * Roblox grup verilerinden hedef Discord rol adlarını hesaplar.
+ * Roblox grup verilerinden hedef Discord rol adlarını ve ID'lerini hesaplar.
  */
-function computeDesiredRoleNames(userGroups) {
-  const desired = new Set();
+function computeDesiredRoles(userGroups) {
   const mainMembership = userGroups.find((g) => g.group.id === MAIN_GROUP_ID);
 
   if (!mainMembership) {
@@ -67,29 +60,40 @@ function computeDesiredRoleNames(userGroups) {
       error: "not_in_main_group",
       rankName: null,
       desiredNames: [],
+      desiredRoleIds: [],
+      tier: null,
     };
   }
 
   const rankName = mainMembership.role.name;
-  desired.add(rankName);
-  desired.add("Teşkilat Personeli");
-  desired.add(SEPARATOR_ROLE_NAME);
+  const desiredNames = new Set();
+  const desiredRoleIds = new Set();
 
-  const wrapper = getTeşkilatWrapper(rankName);
-  if (wrapper) {
-    desired.add(wrapper);
-    desired.add(SEPARATOR_ROLE_NAME);
+  desiredNames.add(rankName);
+
+  const tier = findTierForRank(rankName);
+
+  if (tier) {
+    desiredNames.add(tier.wrapperRole);
+    for (const sepId of tier.separatorIds) {
+      desiredRoleIds.add(String(sepId));
+    }
+    if (!tier.skipTeşkilatPersoneli) {
+      desiredNames.add("Teşkilat Personeli");
+    }
+  } else {
+    desiredNames.add("Teşkilat Personeli");
   }
 
   const branch = findBranchMembership(userGroups);
   if (branch) {
-    desired.add("Branşlı Personel");
-    desired.add(branch.departmentRoleName);
+    desiredNames.add("Branşlı Personel");
+    desiredNames.add(branch.departmentRoleName);
     if (branch.rankName && branch.rankName.toLowerCase() !== "guest") {
-      desired.add(branch.rankName);
+      desiredNames.add(branch.rankName);
     }
   } else {
-    desired.add("Branşsız Personel");
+    desiredNames.add("Branşsız Personel");
   }
 
   return {
@@ -97,16 +101,25 @@ function computeDesiredRoleNames(userGroups) {
     error: null,
     rankName,
     branch,
-    desiredNames: [...desired],
+    tier: tier?.wrapperRole || null,
+    desiredNames: [...desiredNames],
+    desiredRoleIds: [...desiredRoleIds],
   };
 }
 
 function getManagedRoleIds(guild) {
-  const ids = new Set();
+  const ids = new Set(TIER_SEPARATOR_IDS.map(String));
+
   for (const name of STRUCTURAL_ROLE_NAMES) {
     const role = findRoleByName(guild, name);
     if (role) ids.add(role.id);
   }
+
+  for (const wrapper of TIER_WRAPPER_ROLES) {
+    const role = findRoleByName(guild, wrapper);
+    if (role) ids.add(role.id);
+  }
+
   return ids;
 }
 
@@ -132,12 +145,36 @@ async function addAllManagedRankRoles(guild, managedIds) {
   }
 }
 
+function resolveDesiredRoleIds(guild, plan, unresolved) {
+  const desiredRoleIds = new Set();
+
+  for (const name of plan.desiredNames) {
+    const role = findRoleByName(guild, name);
+    if (role) {
+      desiredRoleIds.add(role.id);
+    } else {
+      unresolved.push(name);
+    }
+  }
+
+  for (const roleId of plan.desiredRoleIds) {
+    const role = findRoleById(guild, roleId);
+    if (role) {
+      desiredRoleIds.add(role.id);
+    } else {
+      unresolved.push(`id:${roleId}`);
+    }
+  }
+
+  return desiredRoleIds;
+}
+
 /**
  * Üyenin Discord rollerini Roblox verilerine göre senkronize eder.
  */
 async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
   const userGroups = await fetchUserGroups(robloxId);
-  const plan = computeDesiredRoleNames(userGroups);
+  const plan = computeDesiredRoles(userGroups);
 
   if (!plan.ok) {
     return {
@@ -148,20 +185,12 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
       removed: [],
       nickname: null,
       rankName: null,
+      tier: null,
     };
   }
 
-  const desiredRoleIds = new Set();
   const unresolved = [];
-
-  for (const name of plan.desiredNames) {
-    const role = findRoleByName(guild, name);
-    if (role) {
-      desiredRoleIds.add(role.id);
-    } else {
-      unresolved.push(name);
-    }
-  }
+  const desiredRoleIds = resolveDesiredRoleIds(guild, plan, unresolved);
 
   const managedIds = getManagedRoleIds(guild);
   await addAllManagedRankRoles(guild, managedIds);
@@ -200,6 +229,7 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
     unresolved,
     nickname,
     rankName: plan.rankName,
+    tier: plan.tier,
     branch: plan.branch,
     desiredNames: plan.desiredNames,
   };
@@ -207,8 +237,9 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
 
 module.exports = {
   fetchUserGroups,
-  computeDesiredRoleNames,
+  computeDesiredRoles,
   syncMemberRoles,
   findRoleByName,
+  findRoleById,
   MAIN_GROUP_ID,
 };

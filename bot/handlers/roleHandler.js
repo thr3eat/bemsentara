@@ -65,6 +65,14 @@ async function runSyncForMember(interaction, { ephemeral = true } = {}) {
 
     const embed = buildUpdateEmbed(fullMember, result);
 
+    if (result.tier) {
+      embed.addFields({
+        name: "Seviye Rolü",
+        value: result.tier,
+        inline: true,
+      });
+    }
+
     if (result.unresolved?.length) {
       embed.addFields({
         name: "⚠️ Eşleşmeyen Roller",
