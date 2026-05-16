@@ -8,7 +8,8 @@ async function handleEconomyCommand(interaction) {
 
   if (!["ekonomi", "gelir", "itemler"].includes(commandName)) return null;
 
-  await interaction.deferReply({ ephemeral: true });
+  const { deferEphemeral } = require("../utils/interaction");
+  await interaction.deferReply(deferEphemeral());
 
   try {
     let userEco = await Economy.findOne({ userId: interaction.user.id });

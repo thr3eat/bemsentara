@@ -3,6 +3,7 @@ const User = require("../../models/User");
 const { BASE_URL, ADMIN_IDS } = require("../../config");
 const { syncMemberRoles, buildSyncPlan, MAIN_GROUP_ID } = require("../services/roleSyncService");
 const { logUpdate } = require("../services/commandLog");
+const { deferEphemeral, replyEphemeral } = require("../utils/interaction");
 
 function formatRoleList(roles) {
   if (!roles.length) return "None";
@@ -26,10 +27,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
   const { guild, member, user } = interaction;
 
   if (!guild) {
-    return interaction.reply({
-      content: "❌ Bu komut yalnızca sunucuda kullanılabilir.",
-      ephemeral: true,
-    });
+    return interaction.reply(replyEphemeral("❌ Bu komut yalnızca sunucuda kullanılabilir."));
   }
 
   const dbUser = await User.findOne({ discordId: user.id });
@@ -37,13 +35,14 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
   if (!dbUser?.robloxId) {
     const authUrl = `${BASE_URL}/auth/authorize?discordId=${user.id}`;
     logUpdate(interaction, { commandName, dbUser, notLinked: true });
-    return interaction.reply({
-      content: `❌ Roblox hesabınız bağlı değil. Önce hesabınızı bağlayın:\n🔗 [Roblox Hesabını Bağla](${authUrl})\nveya \`/authorize\` komutunu kullanın.`,
-      ephemeral: true,
-    });
+    return interaction.reply(
+      replyEphemeral(
+        `❌ Roblox hesabınız bağlı değil. Önce hesabınızı bağlayın:\n🔗 [Roblox Hesabını Bağla](${authUrl})\nveya \`/authorize\` komutunu kullanın.`
+      )
+    );
   }
 
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(ephemeral ? deferEphemeral() : {});
 
   try {
     const fullMember = member.partial ? await member.fetch() : member;
@@ -234,23 +233,17 @@ async function handleDebugUpdate(interaction) {
     interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
 
   if (!isAdmin) {
-    return interaction.reply({
-      content: "❌ Bu komut yalnızca yöneticiler içindir.",
-      ephemeral: true,
-    });
+    return interaction.reply(replyEphemeral("❌ Bu komut yalnızca yöneticiler içindir."));
   }
 
   if (!interaction.guild) {
-    return interaction.reply({
-      content: "❌ Bu komut yalnızca sunucuda kullanılabilir.",
-      ephemeral: true,
-    });
+    return interaction.reply(replyEphemeral("❌ Bu komut yalnızca sunucuda kullanılabilir."));
   }
 
   const targetUser = interaction.options.getUser("kullanici") || interaction.user;
   const apply = interaction.options.getBoolean("uygula") ?? false;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply(deferEphemeral());
 
   try {
     const dbUser = await User.findOne({ discordId: targetUser.id });

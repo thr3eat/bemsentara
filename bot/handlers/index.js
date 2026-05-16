@@ -40,6 +40,25 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("interactionCreate", async (interaction) => {
+    try {
+      await handleInteraction(interaction);
+    } catch (err) {
+      console.error("[interactionCreate]", err);
+      const { Ephemeral } = require("../utils/interaction");
+      if (interaction.isRepliable()) {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({ content: "❌ Bir hata oluştu." }).catch(() => null);
+        } else {
+          await interaction
+            .reply({ content: "❌ Bir hata oluştu.", flags: Ephemeral })
+            .catch(() => null);
+        }
+      }
+    }
+  });
+}
+
+async function handleInteraction(interaction) {
     if (interaction.isButton()) {
       const { handleVoiceButton } = require("./voiceButtonHandler");
       const voiceResult = await handleVoiceButton(interaction);
@@ -78,7 +97,6 @@ function initializeDiscordHandlers(client) {
     }
 
     return null;
-  });
 }
 
 module.exports = { initializeDiscordHandlers };

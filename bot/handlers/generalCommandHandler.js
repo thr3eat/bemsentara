@@ -3,6 +3,24 @@ const Ticket = require("../../models/Ticket");
 const User = require("../../models/User");
 const { getSupportMenuEmbed, getSupportButton } = require("../embeds");
 const { SUPPORT_CATEGORIES, BASE_URL } = require("../../config");
+const { deferEphemeral } = require("../utils/interaction");
+
+const GENERAL_COMMANDS = new Set([
+  "support",
+  "mytickets",
+  "closeticket",
+  "profile",
+  "authorize",
+  "robloxgrup",
+  "robloxuser",
+  "abonelik",
+  "ayarlar",
+  "kanal",
+  "otomod",
+  "yardim",
+  "ping",
+  "stats",
+]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
@@ -15,7 +33,9 @@ async function handleGeneralCommand(interaction) {
     return handleUpdate(interaction);
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  if (!GENERAL_COMMANDS.has(commandName)) return null;
+
+  await interaction.deferReply(deferEphemeral());
 
   try {
     const user = await User.findOne({ discordId: interaction.user.id });

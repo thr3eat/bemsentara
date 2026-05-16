@@ -1,4 +1,5 @@
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { deferEphemeral } = require("../utils/interaction");
 
 async function handleModerationCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
@@ -6,7 +7,7 @@ async function handleModerationCommand(interaction) {
 
   if (!["mesaj_sil", "sustur", "susturma_kaldir", "yasakla", "yasaklama_kaldir"].includes(commandName)) return null;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply(deferEphemeral());
 
   try {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {

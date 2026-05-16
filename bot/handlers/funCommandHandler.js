@@ -6,7 +6,8 @@ async function handleFunCommand(interaction) {
 
   if (!["boom_ayarlar", "boom_oyunu", "kelime_oyunu_ayarlar", "kelime_oyunu", "oyunlar"].includes(commandName)) return null;
 
-  await interaction.deferReply({ ephemeral: true });
+  const { deferEphemeral } = require("../utils/interaction");
+  await interaction.deferReply(deferEphemeral());
 
   try {
     if (commandName === "boom_ayarlar") {
