@@ -8,6 +8,8 @@ function createDiscordClient() {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.GuildModeration,
     ],
   });
 }

@@ -42,6 +42,13 @@ async function handleButtonInteraction(interaction) {
     ticket.closedAt = new Date();
     await ticket.save();
 
+    const { logTicketClosed } = require("../services/ticketLog");
+    logTicketClosed(ticket, {
+      closedBy: interaction.user.id,
+      closedByName: interaction.user.username,
+      source: "Discord Kapat Butonu",
+    });
+
     const channel = await interaction.guild.channels.fetch(ticket.channelId);
     if (channel) {
       const closeEmbed = new EmbedBuilder()

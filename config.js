@@ -11,6 +11,16 @@ const TARGET_CHANNEL_ID = process.env.TARGET_CHANNEL_ID || "1504201341021716690"
 const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID || "1504201338878296164";
 /** /update ve /authorize komut logları */
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "1504201542801035336";
+/** Ticket oluşturma / kapanma kayıtları */
+const TICKET_LOG_CHANNEL_ID = process.env.TICKET_LOG_CHANNEL_ID || "1504201536207585392";
+/** Ban / unban logları */
+const BAN_LOG_CHANNEL_ID = process.env.BAN_LOG_CHANNEL_ID || "1504201531551907941";
+/** Ses sistemi panel kanalı */
+const VOICE_PANEL_CHANNEL_ID = process.env.VOICE_PANEL_CHANNEL_ID || "1504201547943383130";
+/** Join-to-create ses kanalı (bu kanala girince özel oda açılır) */
+const VOICE_JOIN_CHANNEL_ID = process.env.VOICE_JOIN_CHANNEL_ID || "1504201626750025728";
+/** Özel ses kanallarının oluşturulacağı kategori */
+const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1504201250160246886";
 
 const SUPPORT_CATEGORIES = {
   billing: { name: "💳 Ödeme Sorunu", color: 0xff6b6b },
@@ -32,6 +42,11 @@ module.exports = {
   TARGET_CHANNEL_ID,
   VERIFY_CHANNEL_ID,
   LOG_CHANNEL_ID,
+  TICKET_LOG_CHANNEL_ID,
+  BAN_LOG_CHANNEL_ID,
+  VOICE_PANEL_CHANNEL_ID,
+  VOICE_JOIN_CHANNEL_ID,
+  VOICE_CATEGORY_ID,
   ADMIN_IDS,
   SUPPORT_CATEGORIES,
 };

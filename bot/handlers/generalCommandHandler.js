@@ -71,6 +71,14 @@ async function handleGeneralCommand(interaction) {
       ticket.closeReason = reason;
       await ticket.save();
 
+      const { logTicketClosed } = require("../services/ticketLog");
+      logTicketClosed(ticket, {
+        closedBy: interaction.user.id,
+        closedByName: interaction.user.username,
+        reason,
+        source: "Discord /closeticket",
+      });
+
       const channel = interaction.guild.channels.cache.get(ticket.channelId);
       if (channel) {
         const closeEmbed = new EmbedBuilder()

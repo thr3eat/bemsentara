@@ -97,6 +97,12 @@ async function handleModalSubmit(interaction) {
 
     await ticketChannel.send({ embeds: [ticketEmbed], components: [closeButton] });
 
+    const { logTicketCreated } = require("../services/ticketLog");
+    logTicketCreated(ticket, {
+      source: "Discord Destek Menüsü",
+      ticketChannelId: ticketChannel.id,
+    });
+
     return interaction.reply({ content: `✅ Ticket oluşturuldu: ${ticketChannel}`, ephemeral: true });
   } catch (err) {
     console.error("Ticket oluşturma hatası:", err);

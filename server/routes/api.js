@@ -59,6 +59,14 @@ router.post("/api/tickets/:ticketId/close", async (req, res) => {
     ticket.closeReason = reason;
     await ticket.save();
 
+    const { logTicketClosed } = require("../../bot/services/ticketLog");
+    logTicketClosed(ticket, {
+      closedBy: req.user.discordId,
+      closedByName: req.user.discordUsername,
+      reason,
+      source: "Web Panel",
+    });
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -81,6 +89,15 @@ router.post("/api/tickets/:ticketId/message", async (req, res) => {
     });
 
     await ticket.save();
+
+    const { logTicketMessage } = require("../../bot/services/ticketLog");
+    logTicketMessage(ticket, {
+      authorId: req.user.discordId,
+      authorName: req.user.discordUsername,
+      content,
+      source: "Web Panel",
+    });
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

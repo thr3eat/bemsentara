@@ -7,9 +7,14 @@ const { handleFunCommand } = require("./funCommandHandler");
 const { handleModerationCommand } = require("./moderationCommandHandler");
 
 function initializeDiscordHandlers(client) {
+  const { initializeVoiceAndBanHandlers } = require("./voiceHandler");
+  initializeVoiceAndBanHandlers(client);
+
   client.once("ready", async () => {
     const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
+    const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
     await ensureVerifyHelpMessage(client);
+    await ensureVoicePanelMessage(client);
   });
 
   client.on("messageCreate", async (message) => {
@@ -36,14 +41,23 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
+      const { handleVoiceButton } = require("./voiceButtonHandler");
+      const voiceResult = await handleVoiceButton(interaction);
+      if (voiceResult !== null) return voiceResult;
       return handleButtonInteraction(interaction);
     }
 
-    if (interaction.isStringSelectMenu()) {
+    if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) {
+      const { handleVoiceSelect } = require("./voiceButtonHandler");
+      const voiceSel = await handleVoiceSelect(interaction);
+      if (voiceSel !== null) return voiceSel;
       return handleSelectInteraction(interaction);
     }
 
     if (interaction.isModalSubmit()) {
+      const { handleVoiceModal } = require("./voiceButtonHandler");
+      const voiceModal = await handleVoiceModal(interaction);
+      if (voiceModal !== null) return voiceModal;
       return handleModalSubmit(interaction);
     }
 
