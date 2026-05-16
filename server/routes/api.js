@@ -7,9 +7,21 @@ router.get("/api/tickets", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Yetkilendirme gerekli" });
 
   try {
-    const tickets = await Ticket.find({ userId: req.user.discordId }).sort({ createdAt: -1 });
+    const discordId = req.user.discordId;
+    console.log("Fetching tickets for user:", {
+      discordId,
+      userId: req.user._id,
+      username: req.user.discordUsername,
+      isAuthorized: req.user.isAuthorized,
+      robloxUsername: req.user.robloxUsername
+    });
+    
+    const tickets = await Ticket.find({ userId: discordId }).sort({ createdAt: -1 });
+    console.log("Found tickets:", tickets.length);
+    
     res.json({ success: true, tickets });
   } catch (err) {
+    console.error("Ticket fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });

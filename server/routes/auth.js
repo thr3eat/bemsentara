@@ -31,7 +31,9 @@ router.get("/auth/roblox", passport.authenticate("roblox"));
 router.get(
   "/auth/roblox/callback",
   passport.authenticate("roblox", { failureRedirect: "/dashboard" }),
-  (req, res) => {
+  async (req, res) => {
+    // Force session to be marked as modified so it gets saved with updated user
+    req.session.touch();
     res.redirect("/dashboard?robloxLinked=true");
   }
 );

@@ -72,6 +72,14 @@ passport.use(
             user.robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name || "RobloxUser"; 
             user.isAuthorized = true;
             await user.save();
+            
+            // Update session with new user data
+            req.user = user;
+            console.log("User updated with Roblox info:", {
+              robloxId: user.robloxId,
+              robloxUsername: user.robloxUsername,
+              isAuthorized: user.isAuthorized
+            });
         }
         
         done(null, user);
