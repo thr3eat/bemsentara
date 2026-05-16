@@ -9,6 +9,7 @@ const {
   VERIFY_CHANNEL_ID,
   BASE_URL,
 } = require("../../config");
+const { MAIN_GROUP_URL } = require("../config/roleSync");
 
 /** Mevcut mesajı tanımak için footer işareti */
 const VERIFY_HELP_MARKER = "Sentara-Verify-Help-v1";
@@ -53,7 +54,7 @@ function getVerifyHelpEmbed() {
       {
         name: "⚠️ Bilmeniz gerekenler",
         value:
-          "• Ana **BEM** grubunun üyesi olmalısınız\n" +
+          `• Ana **[BEM grubunun](${MAIN_GROUP_URL})** üyesi olmalısınız\n` +
           "• Discord rol adları, Roblox rütbe adlarıyla aynı olmalıdır\n" +
           "• Branş daireniz varsa ilgili branş grubuna da üye olun\n" +
           "• Sorun yaşarsanız ticket açın veya yetkililere yazın",

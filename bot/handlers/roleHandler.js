@@ -61,7 +61,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     if (!result.success) {
       logUpdate(interaction, { commandName, dbUser, result });
       return interaction.editReply({
-        content: `❌ ${result.message}`,
+        content: result.message,
       });
     }
 

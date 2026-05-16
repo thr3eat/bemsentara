@@ -1,6 +1,12 @@
 /** Ana BEM grubu */
 const MAIN_GROUP_ID = Number(process.env.ROBLOX_MAIN_GROUP_ID || 8505535);
 
+const MAIN_GROUP_URL =
+  process.env.ROBLOX_MAIN_GROUP_URL ||
+  "https://www.roblox.com/communities/8505535/BEM-Bursa-Emniyet-M-d-rl";
+
+const NOT_IN_MAIN_GROUP_MESSAGE = `❌ **BEM grubunun üyesi değilsin!**\nÖnce gruba katıl: ${MAIN_GROUP_URL}`;
+
 /** Branş Roblox grup ID → Discord daire rol adı */
 const BRANCH_GROUPS = {
   33060430: "Asayiş Daire Başkanlığı",
@@ -130,6 +136,8 @@ function findTierForRank(rankName) {
 
 module.exports = {
   MAIN_GROUP_ID,
+  MAIN_GROUP_URL,
+  NOT_IN_MAIN_GROUP_MESSAGE,
   BRANCH_GROUPS,
   SEPARATOR_ROLE_NAME,
   RANK_TIERS,

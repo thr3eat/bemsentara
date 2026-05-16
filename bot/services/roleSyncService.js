@@ -5,6 +5,7 @@ const {
   STRUCTURAL_ROLE_NAMES,
   TIER_SEPARATOR_IDS,
   TIER_WRAPPER_ROLES,
+  NOT_IN_MAIN_GROUP_MESSAGE,
   findTierForRank,
 } = require("../config/roleSync");
 
@@ -191,7 +192,7 @@ async function buildSyncPlan(guild, member, robloxId, robloxUsername) {
     return {
       success: false,
       error: plan.error,
-      message: "Ana BEM grubunun üyesi değilsiniz.",
+      message: NOT_IN_MAIN_GROUP_MESSAGE,
       userGroups,
       rankName: null,
       tier: null,
