@@ -50,8 +50,8 @@ passport.use(
 passport.use(
   new RobloxStrategy(
     {
-      clientID: process.env.ROBLOX_CLIENT_ID || "6748474744887863615",
-      clientSecret: process.env.ROBLOX_CLIENT_SECRET || "RBX-4cu22Y7nHEGVVnrep29VdQoTsZQxHFrhhObPdjejfsKDr1f4P9K1DONn5VpcHxLL",
+      clientID: process.env.ROBLOX_OAUTH_CLIENT_ID || process.env.ROBLOX_CLIENT_ID || "6748474744887863615",
+      clientSecret: process.env.ROBLOX_OAUTH_CLIENT_SECRET || process.env.ROBLOX_CLIENT_SECRET || "RBX-4cu22Y7nHEGVVnrep29VdQoTsZQxHFrhhObPdjejfsKDr1f4P9K1DONn5VpcHxLL",
       callbackURL: `${BASE_URL}/auth/roblox/callback`,
       scope: ["openid", "profile"],
       pkce: true,
