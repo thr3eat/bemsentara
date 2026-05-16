@@ -30,6 +30,8 @@ passport.use(
             isStaff: ADMIN_IDS.includes(profile.id),
           });
           await user.save();
+          const { saveStoreNow } = require("../models/Store");
+          saveStoreNow();
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
@@ -38,6 +40,8 @@ passport.use(
           user.isAdmin = ADMIN_IDS.includes(profile.id);
           user.isStaff = ADMIN_IDS.includes(profile.id);
           await user.save();
+          const { saveStoreNow } = require("../models/Store");
+          saveStoreNow();
         }
 
         done(null, user);
@@ -108,7 +112,9 @@ passport.use(
         
         console.log("Saving user...");
         await user.save();
-        
+        const { saveStoreNow } = require("../models/Store");
+        saveStoreNow();
+
         console.log("After save:", { 
           robloxId: user.robloxId, 
           robloxUsername: user.robloxUsername, 
@@ -138,6 +144,9 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await User.findById(id);
+    if (!user) {
+      return done(null, false);
+    }
     done(null, user);
   } catch (err) {
     done(err);

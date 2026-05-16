@@ -25,7 +25,20 @@ cron.schedule("*/14 * * * *", async () => {
 
 async function start() {
   try {
-    logger.success("In-memory veri deposu hazır");
+    const { initStore, saveStoreNow } = require("./models/Store");
+    const counts = initStore();
+    logger.success(
+      `Veri deposu yüklendi (disk): ${counts.users} kullanıcı, ${counts.tickets} ticket`
+    );
+
+    process.on("SIGINT", () => {
+      saveStoreNow();
+      process.exit(0);
+    });
+    process.on("SIGTERM", () => {
+      saveStoreNow();
+      process.exit(0);
+    });
 
     await discordBot.login(TOKEN);
     logger.success("Discord bot başlatıldı");

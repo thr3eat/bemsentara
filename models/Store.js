@@ -1,11 +1,21 @@
-// In-memory data store - replaces MongoDB/Mongoose
-// Data will reset on server restart, but no external database needed
+// Veri deposu — bellek + disk (data/store.json), yeniden başlatmada korunur
 
 const crypto = require("crypto");
+const { loadIntoCollections, scheduleSave, flushSave } = require("./persistence");
 
 class InMemoryCollection {
-  constructor() {
+  constructor(name, onMutate) {
+    this.name = name;
     this.data = new Map();
+    this.onMutate = onMutate;
+  }
+
+  persist() {
+    if (this.onMutate) this.onMutate();
+  }
+
+  _persist() {
+    this.persist();
   }
 
   _generateId() {
@@ -22,6 +32,7 @@ class InMemoryCollection {
       updatedAt: now,
     };
     this.data.set(id, record);
+    this._persist();
     return this._wrap(record);
   }
 
@@ -41,7 +52,6 @@ class InMemoryCollection {
         results.push(this._wrap(record));
       }
     }
-    // Add sort method to results array
     results.sort = function (sortObj) {
       const key = Object.keys(sortObj)[0];
       const dir = sortObj[key];
@@ -67,24 +77,55 @@ class InMemoryCollection {
 
   _wrap(record) {
     const self = this;
-    // Make a copy with a save method
     const wrapped = { ...record };
     wrapped.save = function () {
       wrapped.updatedAt = new Date();
-      // Update the stored record with current values
       const stored = { ...wrapped };
       delete stored.save;
       self.data.set(wrapped._id, stored);
+      self._persist();
       return Promise.resolve(wrapped);
     };
     return wrapped;
   }
 }
 
-// Singleton stores
-const users = new InMemoryCollection();
-const tickets = new InMemoryCollection();
-const economies = new InMemoryCollection();
-const wikis = new InMemoryCollection();
+const collections = {
+  users: null,
+  tickets: null,
+  economies: null,
+  wikis: null,
+};
 
-module.exports = { users, tickets, economies, wikis, InMemoryCollection };
+function onStoreMutate() {
+  scheduleSave(collections);
+}
+
+collections.users = new InMemoryCollection("users", onStoreMutate);
+collections.tickets = new InMemoryCollection("tickets", onStoreMutate);
+collections.economies = new InMemoryCollection("economies", onStoreMutate);
+collections.wikis = new InMemoryCollection("wikis", onStoreMutate);
+
+const users = collections.users;
+const tickets = collections.tickets;
+const economies = collections.economies;
+const wikis = collections.wikis;
+
+function initStore() {
+  const counts = loadIntoCollections(collections);
+  return counts;
+}
+
+function saveStoreNow() {
+  flushSave(collections);
+}
+
+module.exports = {
+  users,
+  tickets,
+  economies,
+  wikis,
+  InMemoryCollection,
+  initStore,
+  saveStoreNow,
+};
