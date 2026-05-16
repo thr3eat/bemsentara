@@ -28,62 +28,54 @@ async function handleModalSubmit(interaction) {
       : null;
 
     let ticketChannel;
+    const permissionOverwrites = [
+      {
+        id: targetGuild.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: interaction.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks,
+        ],
+      },
+    ];
+
     if (configuredChannel?.type === ChannelType.GuildCategory) {
       ticketChannel = await targetGuild.channels.create({
-        name: `${ticketId.toLowerCase()}`,
+        name: `ticket-${ticketId.toLowerCase()}`,
         type: ChannelType.GuildText,
         parent: configuredChannel.id,
-        permissionOverwrites: [
-          {
-            id: targetGuild.id,
-            deny: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: interaction.user.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-            ],
-          },
-        ],
+        permissionOverwrites,
       });
     } else if (configuredChannel?.type === ChannelType.GuildText) {
-      ticketChannel = await configuredChannel.threads.create({
-        name: ticketId.toLowerCase(),
-        autoArchiveDuration: 1440,
-        type: ChannelType.PublicThread,
+      ticketChannel = await targetGuild.channels.create({
+        name: `ticket-${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: configuredChannel.parentId,
+        permissionOverwrites,
       });
     } else {
       let ticketCategory = targetGuild.channels.cache.find(
-        (c) => c.name === "support-tickets" && c.type === ChannelType.GuildCategory
+        (c) => c.name.toLowerCase() === "destek talepleri" && c.type === ChannelType.GuildCategory
       );
 
       if (!ticketCategory) {
         ticketCategory = await targetGuild.channels.create({
-          name: "support-tickets",
+          name: "DESTEK TALEPLERİ",
           type: ChannelType.GuildCategory,
         });
       }
 
       ticketChannel = await targetGuild.channels.create({
-        name: `${ticketId.toLowerCase()}`,
+        name: `ticket-${ticketId.toLowerCase()}`,
         type: ChannelType.GuildText,
         parent: ticketCategory.id,
-        permissionOverwrites: [
-          {
-            id: targetGuild.id,
-            deny: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: interaction.user.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-            ],
-          },
-        ],
+        permissionOverwrites,
       });
     }
 
