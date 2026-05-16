@@ -1,15 +1,17 @@
 const axios = require("axios");
 const { EmbedBuilder } = require("discord.js");
 
+const MAIN_GROUP_ID = 8505535;
+
 // Fetch user's rank in a Roblox group
-async function getUserGroupRank(userId, groupId) {
+async function getUserGroupRank(userId) {
   try {
     const response = await axios.get(
       `https://groups.roblox.com/v1/users/${userId}/groups/roles`,
       { timeout: 5000 }
     );
     
-    const groupRole = response.data.data.find(g => g.group.id === groupId);
+    const groupRole = response.data.data.find(g => g.group.id === MAIN_GROUP_ID);
     if (groupRole) {
       return {
         rankId: groupRole.role.id,
@@ -24,15 +26,15 @@ async function getUserGroupRank(userId, groupId) {
 }
 
 // Fetch all ranks in a group
-async function getGroupRanks(groupId) {
+async function getGroupRanks() {
   try {
     const response = await axios.get(
-      `https://groups.roblox.com/v1/groups/${groupId}/roles`,
+      `https://groups.roblox.com/v1/groups/${MAIN_GROUP_ID}/roles`,
       { timeout: 5000 }
     );
     return response.data.roles;
   } catch (err) {
-    console.error(`Error fetching group ${groupId} ranks:`, err.message);
+    console.error(`Error fetching group ${MAIN_GROUP_ID} ranks:`, err.message);
     return [];
   }
 }
@@ -47,7 +49,7 @@ function findDiscordRole(guild, rankName) {
 }
 
 // Handle /verify command
-async function handleVerify(interaction, groupId) {
+async function handleVerify(interaction) {
   const { user, guild, member } = interaction;
 
   // Fetch user from database to get Roblox ID
@@ -65,11 +67,11 @@ async function handleVerify(interaction, groupId) {
 
   try {
     // Get user's rank in group
-    const rank = await getUserGroupRank(parseInt(dbUser.robloxId), groupId);
+    const rank = await getUserGroupRank(parseInt(dbUser.robloxId));
 
     if (!rank) {
       return interaction.editReply({
-        content: `❌ Siz bu grup (${groupId}) üyesi değilsiniz!`,
+        content: `❌ Siz bu grubun üyesi değilsiniz!`,
       });
     }
 
@@ -92,8 +94,7 @@ async function handleVerify(interaction, groupId) {
       .setTitle("✅ Rol Senkronize Edildi!")
       .setDescription(`Roblox rankunuz: **${rank.rankName}**`)
       .addFields(
-        { name: "Discord Rolü", value: `<@&${discordRole.id}>`, inline: true },
-        { name: "Roblox Grup ID", value: `${groupId}`, inline: true }
+        { name: "Discord Rolü", value: `<@&${discordRole.id}>`, inline: true }
       )
       .setTimestamp();
 
@@ -107,7 +108,7 @@ async function handleVerify(interaction, groupId) {
 }
 
 // Handle /update command (update all members)
-async function handleUpdate(interaction, groupId) {
+async function handleUpdate(interaction) {
   const { guild } = interaction;
 
   if (!interaction.memberPermissions.has("ADMINISTRATOR")) {
@@ -148,7 +149,7 @@ async function handleUpdate(interaction, groupId) {
         }
 
         // Get user's rank in group
-        const rank = await getUserGroupRank(parseInt(dbUser.robloxId), groupId);
+        const rank = await getUserGroupRank(parseInt(dbUser.robloxId));
 
         if (rank) {
           const discordRole = findDiscordRole(guild, rank.rankName);
@@ -179,8 +180,7 @@ async function handleUpdate(interaction, groupId) {
       .addFields(
         { name: "İşlenen Üyeler", value: `${processed}`, inline: true },
         { name: "Güncellenen Roller", value: `${updated}`, inline: true },
-        { name: "Hatalar", value: `${errors}`, inline: true },
-        { name: "Roblox Grup ID", value: `${groupId}`, inline: false }
+        { name: "Hatalar", value: `${errors}`, inline: true }
       )
       .setTimestamp();
 
