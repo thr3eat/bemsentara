@@ -15,7 +15,7 @@ function getSupportMenuEmbed() {
     .setTitle("🛟 Destek Sistemi / Support System")
     .setDescription("Lütfen aşağıdan bir kategori seçin.\n\nPlease select a category below.")
     .setColor(0x7c6af7)
-    .setFooter({ text: "Sentara Support • bemsentara.onrender.com" })
+    .setFooter({ text: "Sentara Support • Eko tarafından tasarlandı" })
     .setImage("https://cdn.discordapp.com/attachments/1234567890/sentara-banner.png");
 }
 
