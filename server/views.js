@@ -1604,8 +1604,69 @@ function renderWikiArticlePage(user, article, canManage = false) {
 }
 
 function renderAdminPage(user) {
-  return _layout('Admin', user, '<div class="card"><h1>⚙️ Admin</h1><input id="admin-search" placeholder="Ara..." style="flex:1;"><button class="btn" onclick="searchUsers()">Ara</button><div id="admin-results"></div></div>'+
-    '<script>async function searchUsers(){const q=document.getElementById("admin-search").value;const r=await fetch("/api/admin/users?q="+encodeURIComponent(q));const d=await r.json();const b=document.getElementById("admin-results");if(!d.users||!d.users.length){b.innerHTML="Yok";return;}b.innerHTML=d.users.map(u=>"<div style=\\"padding:1rem;border:1px solid var(--border);margin:0.5rem 0;border-radius:12px;\\"><b>"+u.discordUsername+"</b><br><label><input type=checkbox data-id="+u.discordId+" data-role=admin "+(u.isAdmin?"checked":"")+" onchange=saveRoles('"+u.discordId+"')> Admin</label> <label><input type=checkbox data-id="+u.discordId+" data-role=staff "+(u.isStaff?"checked":"")+" onchange=saveRoles('"+u.discordId+"')> Staff</label></div>").join("");}async function saveRoles(id){const a=document.querySelector(\'input[data-id="'+id+'"][data-role=admin]\');const s=document.querySelector(\'input[data-id="'+id+'"][data-role=staff]\');await fetch("/api/admin/users/"+id+"/roles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({isAdmin:a.checked,isStaff:s.checked})});showToast("Kaydedildi","success");}searchUsers();<\/script>', '', '/admin');
+  const content = `
+    <div class="card">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">⚙️ Admin Paneli</h1>
+      <p class="text-muted mb-3">Kullanıcılara admin veya staff yetkisi verin.</p>
+      <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
+        <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;">
+        <button type="button" class="btn" onclick="adminSearchUsers()">Ara</button>
+      </div>
+      <div id="admin-results"></div>
+      <hr class="divider" style="margin-top:2rem;">
+      <a href="/debug" style="color:var(--accent);">🔍 Debug sayfası</a>
+    </div>
+    <script>
+      function adminEsc(s) {
+        const el = document.createElement('div');
+        el.textContent = s == null ? '' : String(s);
+        return el.innerHTML;
+      }
+      async function adminSearchUsers() {
+        const q = document.getElementById('admin-search').value.trim();
+        const box = document.getElementById('admin-results');
+        box.innerHTML = '<p style="color:var(--muted);">Aranıyor...</p>';
+        try {
+          const res = await fetch('/api/admin/users?q=' + encodeURIComponent(q));
+          const d = await res.json();
+          if (!res.ok) {
+            box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>';
+            return;
+          }
+          if (!d.users || !d.users.length) {
+            box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>';
+            return;
+          }
+          box.innerHTML = d.users.map(function(u) {
+            return '<div class="admin-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
+              '<div style="font-weight:800;margin-bottom:0.25rem;">' + adminEsc(u.discordUsername) + '</div>' +
+              '<div style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">ID: ' + adminEsc(u.discordId) + '</div>' +
+              '<label style="margin-right:1rem;cursor:pointer;"><input type="checkbox" class="admin-cb-admin" ' + (u.isAdmin ? 'checked' : '') + '> Admin</label>' +
+              '<label style="margin-right:1rem;cursor:pointer;"><input type="checkbox" class="admin-cb-staff" ' + (u.isStaff ? 'checked' : '') + '> Staff</label>' +
+              '<button type="button" class="btn btn-sm" onclick="adminSaveRoles(this)">Kaydet</button></div>';
+          }).join('');
+        } catch (err) {
+          box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
+        }
+      }
+      async function adminSaveRoles(btn) {
+        const row = btn.closest('.admin-user-row');
+        const id = row.getAttribute('data-discord-id');
+        const isAdmin = row.querySelector('.admin-cb-admin').checked;
+        const isStaff = row.querySelector('.admin-cb-staff').checked;
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/roles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isAdmin: isAdmin, isStaff: isStaff })
+        });
+        const d = await res.json().catch(function() { return {}; });
+        if (res.ok) showToast('Kaydedildi: ' + (d.user && d.user.discordUsername ? d.user.discordUsername : id), 'success');
+        else showToast(d.error || 'Kaydedilemedi', 'error');
+      }
+      adminSearchUsers();
+    <\/script>
+  `;
+  return _layout('Admin', user, content, '', '/admin');
 }
 
 function renderLeaderboardPage(user, topUsers = []) {
