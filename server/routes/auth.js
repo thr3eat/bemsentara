@@ -22,10 +22,20 @@ router.get("/login", (req, res) => {
 });
 
 router.get("/auth/authorize", (req, res) => {
+  const linkDiscordId = req.query.discordId ? String(req.query.discordId) : null;
+  if (linkDiscordId) {
+    req.session.linkDiscordId = linkDiscordId;
+  }
+
   if (!req.isAuthenticated()) {
     return res.redirect("/auth/discord");
   }
-  res.redirect("/auth/roblox");
+
+  if (linkDiscordId && req.user && String(req.user.discordId) !== linkDiscordId) {
+    return res.redirect("/dashboard?wrongDiscord=1");
+  }
+
+  return res.redirect("/auth/roblox");
 });
 
 router.get("/auth/discord", passport.authenticate("discord"));
@@ -34,6 +44,11 @@ router.get(
   "/auth/discord/callback",
   passport.authenticate("discord", { failureRedirect: "/login" }),
   (req, res) => {
+    const linkId = req.session.linkDiscordId;
+    if (linkId && req.user && String(req.user.discordId) === String(linkId)) {
+      delete req.session.linkDiscordId;
+      return res.redirect("/auth/roblox");
+    }
     res.redirect("/dashboard");
   }
 );
@@ -54,10 +69,16 @@ router.get(
         
         // Re-establish user in regenerated session
         if (req.user) {
-          req.login(req.user, (err) => {
+          req.login(req.user, async (err) => {
             if (err) {
               console.error("Login error:", err);
               return res.redirect("/dashboard?robloxError=true");
+            }
+            const User = require("../../models/User");
+            const fresh = await User.findOne({ discordId: String(req.user.discordId) });
+            if (fresh) {
+              req.user = fresh;
+              req.session.passport.user = fresh._id;
             }
             tryAutoSyncRoles(req.user).catch(() => {});
             res.redirect("/dashboard?robloxLinked=true");

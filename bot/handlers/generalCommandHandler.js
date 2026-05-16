@@ -3,6 +3,7 @@ const Ticket = require("../../models/Ticket");
 const User = require("../../models/User");
 const { getSupportMenuEmbed, getSupportButton } = require("../embeds");
 const { SUPPORT_CATEGORIES, BASE_URL } = require("../../config");
+const { findUserByDiscordId, hasRobloxLink } = require("../../utils/userLink");
 const { deferEphemeral } = require("../utils/interaction");
 
 const GENERAL_COMMANDS = new Set([
@@ -38,7 +39,7 @@ async function handleGeneralCommand(interaction) {
   await interaction.deferReply(deferEphemeral());
 
   try {
-    const user = await User.findOne({ discordId: interaction.user.id });
+    const user = await findUserByDiscordId(interaction.user.id);
 
     if (commandName === "support") {
       if (!interaction.guild) {
@@ -123,8 +124,14 @@ async function handleGeneralCommand(interaction) {
         .setThumbnail(user.discordAvatar)
         .setColor(user.profileColor || 0x7c6af7)
         .addFields(
-          { name: "🎮 Roblox Adı", value: user.robloxUsername || "Bağlanmamış", inline: true },
-          { name: "🔑 Yetki", value: user.isAuthorized ? "✅ Yetkili" : "❌ Yetkisiz", inline: true },
+          {
+            name: "🎮 Roblox",
+            value: hasRobloxLink(user)
+              ? `${user.robloxUsername || "?"} (\`${user.robloxId}\`)`
+              : "Bağlanmamış",
+            inline: true,
+          },
+          { name: "🔑 Bağlantı", value: hasRobloxLink(user) ? "✅ Bağlı" : "❌ Bağlı değil", inline: true },
           { name: "🛡️ Rol", value: user.groupRole || "Kullanıcı", inline: true },
           { name: "📅 Katılım", value: new Date(user.joinedAt).toLocaleDateString("tr-TR"), inline: true }
         )
@@ -150,9 +157,10 @@ async function handleGeneralCommand(interaction) {
     }
 
     if (commandName === "robloxgrup") {
-      if (!user) {
+      if (!hasRobloxLink(user)) {
+        const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
         return interaction.editReply({
-          content: "❌ Önce /authorize komutu ile Roblox hesabınızı yetkilendirmelisiniz.",
+          content: `❌ Roblox hesabınız bağlı değil. \`/authorize\` veya [buradan](${authUrl}) bağlayın.`,
         });
       }
 
@@ -168,9 +176,10 @@ async function handleGeneralCommand(interaction) {
     }
 
     if (commandName === "robloxuser") {
-      if (!user) {
+      if (!hasRobloxLink(user)) {
+        const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
         return interaction.editReply({
-          content: "❌ Önce /authorize komutu ile Roblox hesabınızı yetkilendirmelisiniz.",
+          content: `❌ Roblox hesabınız bağlı değil. \`/authorize\` veya [buradan](${authUrl}) bağlayın.`,
         });
       }
 

@@ -145,7 +145,10 @@ router.post("/api/wiki", async (req, res) => {
 router.post("/api/roles/sync", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
 
-  if (!req.user.robloxId) {
+  const { hasRobloxLink, findUserByDiscordId } = require("../../utils/userLink");
+  const freshUser = (await findUserByDiscordId(req.user.discordId)) || req.user;
+
+  if (!hasRobloxLink(freshUser)) {
     return res.status(400).json({
       error: "Roblox hesabı bağlı değil.",
       authorizeUrl: `/auth/authorize?discordId=${req.user.discordId}`,
@@ -169,18 +172,17 @@ router.post("/api/roles/sync", async (req, res) => {
     const result = await syncMemberRoles(
       guild,
       member,
-      parseInt(req.user.robloxId, 10),
-      req.user.robloxUsername
+      parseInt(freshUser.robloxId, 10),
+      freshUser.robloxUsername
     );
 
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.message });
     }
 
-    const user = await User.findById(req.user._id);
-    if (user && user.groupRole !== result.rankName) {
-      user.groupRole = result.rankName;
-      await user.save();
+    if (freshUser && freshUser.groupRole !== result.rankName) {
+      freshUser.groupRole = result.rankName;
+      await freshUser.save();
     }
 
     res.json({

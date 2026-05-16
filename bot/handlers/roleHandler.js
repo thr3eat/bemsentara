@@ -1,6 +1,7 @@
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const User = require("../../models/User");
 const { BASE_URL, ADMIN_IDS } = require("../../config");
+const { findUserByDiscordId, hasRobloxLink } = require("../../utils/userLink");
 const { syncMemberRoles, buildSyncPlan, MAIN_GROUP_ID } = require("../services/roleSyncService");
 const { logUpdate } = require("../services/commandLog");
 const { deferEphemeral, replyEphemeral } = require("../utils/interaction");
@@ -30,14 +31,18 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     return interaction.reply(replyEphemeral("❌ Bu komut yalnızca sunucuda kullanılabilir."));
   }
 
-  const dbUser = await User.findOne({ discordId: user.id });
+  const dbUser = await findUserByDiscordId(user.id);
 
-  if (!dbUser?.robloxId) {
+  if (!hasRobloxLink(dbUser)) {
     const authUrl = `${BASE_URL}/auth/authorize?discordId=${user.id}`;
     logUpdate(interaction, { commandName, dbUser, notLinked: true });
     return interaction.reply(
       replyEphemeral(
-        `❌ Roblox hesabınız bağlı değil. Önce hesabınızı bağlayın:\n🔗 [Roblox Hesabını Bağla](${authUrl})\nveya \`/authorize\` komutunu kullanın.`
+        `❌ Roblox hesabınız sisteme kayıtlı görünmüyor.\n\n` +
+          `1. \`/authorize\` → bağlantıya tıkla\n` +
+          `2. **Aynı Discord hesabıyla** siteye giriş yap\n` +
+          `3. Roblox'u bağla, sonra \`/verify\` veya \`/update\`\n\n` +
+          `🔗 [Bağlantı](${authUrl})`
       )
     );
   }
@@ -90,7 +95,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     console.error("Role sync error:", err);
     logUpdate(interaction, {
       commandName,
-      dbUser: await User.findOne({ discordId: user.id }),
+      dbUser: await findUserByDiscordId(user.id),
       error: err.message,
     });
     return interaction.editReply({
@@ -246,10 +251,10 @@ async function handleDebugUpdate(interaction) {
   await interaction.deferReply(deferEphemeral());
 
   try {
-    const dbUser = await User.findOne({ discordId: targetUser.id });
+    const dbUser = await findUserByDiscordId(targetUser.id);
     const targetMember = await interaction.guild.members.fetch(targetUser.id);
 
-    if (!dbUser?.robloxId) {
+    if (!hasRobloxLink(dbUser)) {
       const embed = buildDebugEmbed(targetMember, dbUser, { success: false }, { applied: false });
       return interaction.editReply({ embeds: [embed] });
     }

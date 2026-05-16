@@ -15,13 +15,13 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        let user = await User.findOne({ discordId: profile.id });
+        let user = await User.findOne({ discordId: String(profile.id) });
         const avatarUrl = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(profile.discriminator || '0') % 5}.png`;
         const bannerUrl = profile.banner ? `https://cdn.discordapp.com/banners/${profile.id}/${profile.banner}.png?size=512` : null;
 
         if (!user) {
           user = new User({
-            discordId: profile.id,
+            discordId: String(profile.id),
             discordUsername: profile.username,
             discordEmail: profile.email,
             discordAvatar: avatarUrl,
@@ -74,9 +74,11 @@ passport.use(
             return done(new Error("Lütfen önce Discord ile giriş yapın."));
         }
         
-        console.log("Fetching user by ID:", req.user._id);
         let user = await User.findById(req.user._id);
-        
+        if (!user && req.user.discordId) {
+          user = await User.findOne({ discordId: String(req.user.discordId) });
+        }
+
         if (!user) {
             console.error("Error: User not found in database with ID:", req.user._id);
             return done(new Error("Kullanıcı veritabanında bulunamadı."));
@@ -89,8 +91,21 @@ passport.use(
           isAuthorized: user.isAuthorized 
         });
         
-        user.robloxId = profile.id || profile.sub || (profile._json && profile._json.sub);
-        
+        const rawRobloxId =
+          profile.id ??
+          profile.sub ??
+          (profile._json && (profile._json.sub || profile._json.id));
+
+        user.robloxId = rawRobloxId != null ? String(rawRobloxId) : null;
+
+        if (!user.robloxId) {
+          return done(new Error("Roblox hesap ID alınamadı. Tekrar deneyin."));
+        }
+
+        if (req.user.discordId && String(user.discordId) !== String(req.user.discordId)) {
+          user.discordId = String(req.user.discordId);
+        }
+
         // Try to get actual username from Roblox API
         let robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name;
         
@@ -147,6 +162,8 @@ passport.deserializeUser(async (id, done) => {
     if (!user) {
       return done(null, false);
     }
+    if (user.discordId) user.discordId = String(user.discordId);
+    if (user.robloxId) user.robloxId = String(user.robloxId);
     done(null, user);
   } catch (err) {
     done(err);

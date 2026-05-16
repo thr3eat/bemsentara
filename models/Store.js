@@ -70,7 +70,14 @@ class InMemoryCollection {
 
   _matches(record, query) {
     for (const [key, value] of Object.entries(query)) {
-      if (record[key] !== value) return false;
+      if (value === undefined) continue;
+      const a = record[key];
+      const b = value;
+      if (key === "discordId" || key === "robloxId" || key === "_id") {
+        if (String(a) !== String(b)) return false;
+      } else if (a !== b) {
+        return false;
+      }
     }
     return true;
   }
