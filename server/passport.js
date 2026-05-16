@@ -60,31 +60,53 @@ passport.use(
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
+        console.log("=== ROBLOX AUTH CALLBACK ===");
         console.log("Roblox Profile Received:", JSON.stringify(profile, null, 2));
+        console.log("Request User Before:", req.user ? { _id: req.user._id, discordId: req.user.discordId, discordUsername: req.user.discordUsername } : "NO USER");
         
         if (!req.user) {
+            console.error("Error: No user in request - must login with Discord first");
             return done(new Error("Lütfen önce Discord ile giriş yapın."));
         }
         
+        console.log("Fetching user by ID:", req.user._id);
         let user = await User.findById(req.user._id);
-        if (user) {
-            user.robloxId = profile.id || profile.sub || (profile._json && profile._json.sub);
-            user.robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name || "RobloxUser"; 
-            user.isAuthorized = true;
-            await user.save();
-            
-            // Update session with new user data
-            req.user = user;
-            console.log("User updated with Roblox info:", {
-              robloxId: user.robloxId,
-              robloxUsername: user.robloxUsername,
-              isAuthorized: user.isAuthorized
-            });
+        
+        if (!user) {
+            console.error("Error: User not found in database with ID:", req.user._id);
+            return done(new Error("Kullanıcı veritabanında bulunamadı."));
         }
+        
+        console.log("User found, updating with Roblox data...");
+        console.log("Before update:", { 
+          robloxId: user.robloxId, 
+          robloxUsername: user.robloxUsername, 
+          isAuthorized: user.isAuthorized 
+        });
+        
+        user.robloxId = profile.id || profile.sub || (profile._json && profile._json.sub);
+        user.robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name || "RobloxUser"; 
+        user.isAuthorized = true;
+        
+        console.log("Saving user...");
+        await user.save();
+        
+        console.log("After save:", { 
+          robloxId: user.robloxId, 
+          robloxUsername: user.robloxUsername, 
+          isAuthorized: user.isAuthorized,
+          _id: user._id
+        });
+        
+        // Update session with new user data
+        req.user = user;
+        console.log("Session updated with user data");
+        console.log("=== ROBLOX AUTH COMPLETE ===");
         
         done(null, user);
       } catch (err) {
-        console.error("Roblox Auth Error:", err);
+        console.error("=== ROBLOX AUTH ERROR ===");
+        console.error(err);
         done(err);
       }
     }

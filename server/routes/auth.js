@@ -32,9 +32,31 @@ router.get(
   "/auth/roblox/callback",
   passport.authenticate("roblox", { failureRedirect: "/dashboard" }),
   async (req, res) => {
-    // Force session to be marked as modified so it gets saved with updated user
-    req.session.touch();
-    res.redirect("/dashboard?robloxLinked=true");
+    try {
+      // Regenerate session to ensure updated user data is persisted
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regenerate error:", err);
+          return res.redirect("/dashboard?robloxError=true");
+        }
+        
+        // Re-establish user in regenerated session
+        if (req.user) {
+          req.login(req.user, (err) => {
+            if (err) {
+              console.error("Login error:", err);
+              return res.redirect("/dashboard?robloxError=true");
+            }
+            res.redirect("/dashboard?robloxLinked=true");
+          });
+        } else {
+          res.redirect("/dashboard?robloxError=true");
+        }
+      });
+    } catch (err) {
+      console.error("Roblox callback error:", err);
+      res.redirect("/dashboard?robloxError=true");
+    }
   }
 );
 

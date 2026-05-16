@@ -47,6 +47,15 @@ function UserConstructor(data) {
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {
+    // If this user already exists (has _id), update it
+    if (merged._id && users.data.has(merged._id)) {
+      merged.updatedAt = new Date();
+      const stored = { ...merged };
+      delete stored.save;
+      users.data.set(merged._id, stored);
+      return Promise.resolve(merged);
+    }
+    // Otherwise create a new user
     const created = users.create(merged);
     // Copy _id back
     Object.assign(merged, created);
