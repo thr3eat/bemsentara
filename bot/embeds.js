@@ -4,6 +4,9 @@ const {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require("discord.js");
 const { SUPPORT_CATEGORIES } = require("../config");
 
@@ -65,10 +68,79 @@ function buildCloseButton(ticketId) {
   );
 }
 
+/** Ticket kapatma sebebi soran modal */
+function buildCloseReasonModal(ticketId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`close_reason_modal_${ticketId}`)
+    .setTitle("Ticket Kapatma Sebebi");
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("close_reason")
+        .setLabel("Kapatma Sebebi")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("Bu ticket'ı neden kapatıyorsunuz?")
+        .setRequired(true)
+        .setMaxLength(500)
+    )
+  );
+
+  return modal;
+}
+
+/** Kullanıcıya DM'de gönderilecek "Tekrar Aç" ve "Değerlendir" butonları */
+function buildReopenAndRateRow(ticketId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`reopen_ticket_${ticketId}`)
+      .setLabel("🔓 Tekrar Aç")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`rate_ticket_${ticketId}`)
+      .setLabel("⭐ Değerlendir")
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+/** Değerlendirme modal'ı (5 yıldız + yorum) */
+function buildRatingModal(ticketId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`rating_modal_${ticketId}`)
+    .setTitle("Destek Değerlendirmesi");
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("rating_score")
+        .setLabel("Puan (1-5)")
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder("1, 2, 3, 4 veya 5 girin")
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(1)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("rating_note")
+        .setLabel("Değerlendirme Notu (isteğe bağlı)")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("Destek hakkında düşüncelerinizi yazın...")
+        .setRequired(false)
+        .setMaxLength(500)
+    )
+  );
+
+  return modal;
+}
+
 module.exports = {
   getSupportMenuEmbed,
   getCategorySelectMenu,
   getSupportButton,
   buildTicketEmbed,
   buildCloseButton,
+  buildCloseReasonModal,
+  buildReopenAndRateRow,
+  buildRatingModal,
 };

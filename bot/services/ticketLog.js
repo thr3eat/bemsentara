@@ -99,8 +99,96 @@ function logTicketMessage(ticket, { authorId, authorName, content, source }) {
   sendTicketLog(embed);
 }
 
+/**
+ * Ticket kanalındaki tüm mesajları log kanalına gönderir.
+ * @param {import('discord.js').TextChannel} channel
+ * @param {object} ticket
+ */
+async function logTicketMessages(channel, ticket) {
+  const client = getDiscordClient();
+  if (!client?.isReady() || !TICKET_LOG_CHANNEL_ID) return;
+
+  try {
+    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    const logChannel = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID);
+    if (!logChannel?.isSendable()) return;
+
+    // Tüm mesajları çek (Discord max 100/istek, birden fazla sayfa)
+    let allMessages = [];
+    let lastId = null;
+
+    while (true) {
+      const options = { limit: 100 };
+      if (lastId) options.before = lastId;
+
+      const fetched = await channel.messages.fetch(options);
+      if (fetched.size === 0) break;
+
+      allMessages = allMessages.concat([...fetched.values()]);
+      lastId = fetched.last().id;
+
+      if (fetched.size < 100) break;
+    }
+
+    // Kronolojik sıraya koy (eskiden yeniye)
+    allMessages.reverse();
+
+    // Bot mesajlarını filtrele, sadece gerçek mesajları al
+    const humanMessages = allMessages.filter((m) => !m.author.bot || m.embeds.length === 0);
+
+    if (humanMessages.length === 0) {
+      const emptyEmbed = new EmbedBuilder()
+        .setColor(0x7c6af7)
+        .setTitle(`📜 Ticket Geçmişi — ${ticket.ticketId}`)
+        .setDescription("Bu ticket'ta kullanıcı mesajı bulunmuyor.")
+        .setFooter({ text: "Sentara • Bilet Kaydı" })
+        .setTimestamp();
+      await logChannel.send({ embeds: [emptyEmbed] });
+      return;
+    }
+
+    // Başlık embed'i
+    const headerEmbed = new EmbedBuilder()
+      .setColor(0x7c6af7)
+      .setTitle(`📜 Ticket Geçmişi — ${ticket.ticketId}`)
+      .setDescription(
+        `**Konu:** ${ticket.subject}\n**Toplam mesaj:** ${humanMessages.length}`
+      )
+      .setFooter({ text: "Sentara • Bilet Kaydı" })
+      .setTimestamp();
+    await logChannel.send({ embeds: [headerEmbed] });
+
+    // Mesajları 10'arlı gruplar halinde embed olarak gönder
+    const chunkSize = 10;
+    for (let i = 0; i < humanMessages.length; i += chunkSize) {
+      const chunk = humanMessages.slice(i, i + chunkSize);
+      const lines = chunk.map((m) => {
+        const time = `<t:${Math.floor(m.createdTimestamp / 1000)}:T>`;
+        const content = m.content
+          ? truncate(m.content, 200)
+          : m.embeds.length > 0
+          ? "[Embed]"
+          : m.attachments.size > 0
+          ? "[Dosya]"
+          : "[Bilinmeyen]";
+        return `${time} **${m.author.username}:** ${content}`;
+      });
+
+      const msgEmbed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setDescription(lines.join("\n"))
+        .setFooter({ text: `Mesajlar ${i + 1}–${Math.min(i + chunkSize, humanMessages.length)}` });
+
+      await logChannel.send({ embeds: [msgEmbed] });
+    }
+  } catch (err) {
+    console.warn("[ticketLog] Mesaj geçmişi loglanamadı:", err.message);
+  }
+}
+
 module.exports = {
   logTicketCreated,
   logTicketClosed,
   logTicketMessage,
+  logTicketMessages,
 };

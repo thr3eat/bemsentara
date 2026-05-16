@@ -61,9 +61,50 @@ async function handleSlashCommand(interaction) {
       ticket.status = "closed";
       ticket.closedAt = new Date();
       ticket.closeReason = reason;
+      ticket.closedBy = interaction.user.id;
+      ticket.closedByName = interaction.user.username;
       await ticket.save();
 
+      // Kanal mesajlarını logla
+      const { logTicketClosed, logTicketMessages } = require("../services/ticketLog");
       const channel = interaction.guild.channels.cache.get(ticket.channelId);
+
+      if (channel) {
+        await logTicketMessages(channel, ticket);
+      }
+
+      logTicketClosed(ticket, {
+        closedBy: interaction.user.id,
+        closedByName: interaction.user.username,
+        reason,
+        source: "/closeticket komutu",
+      });
+
+      // Ticket sahibine DM gönder
+      try {
+        const { buildReopenAndRateRow } = require("../embeds");
+        const ticketOwner = await interaction.client.users.fetch(ticket.userId);
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle("🔒 Ticket'ınız Kapatıldı")
+          .setDescription(
+            `Ticket'ınız **${interaction.user.username}** adlı kişi tarafından kapatıldı.\n\n` +
+              `**Sebep:** ${reason}\n\n` +
+              `Ticket'ı yeniden açmak veya destek ekibini değerlendirmek için aşağıdaki butonları kullanabilirsiniz.`
+          )
+          .addFields(
+            { name: "🎫 Ticket ID", value: `\`${ticket.ticketId}\``, inline: true },
+            { name: "📋 Konu", value: ticket.subject, inline: true }
+          )
+          .setFooter({ text: "Sentara Support • Gizlilik politikamız gereği değerlendirme notunuz anonim tutulur." })
+          .setTimestamp();
+
+        const dmButtons = buildReopenAndRateRow(ticket.ticketId);
+        await ticketOwner.send({ embeds: [dmEmbed], components: [dmButtons] });
+      } catch (dmErr) {
+        console.warn("[closeticket] Kullanıcıya DM gönderilemedi:", dmErr.message);
+      }
+
       if (channel) {
         const closeEmbed = new EmbedBuilder()
           .setTitle("🔒 Ticket Kapatıldı")

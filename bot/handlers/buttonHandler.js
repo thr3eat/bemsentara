@@ -1,10 +1,17 @@
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const Ticket = require("../../models/Ticket");
-const { getSupportMenuEmbed, getCategorySelectMenu } = require("../embeds");
+const {
+  getSupportMenuEmbed,
+  getCategorySelectMenu,
+  buildCloseReasonModal,
+  buildRatingModal,
+  buildCloseButton,
+} = require("../embeds");
+const { BASE_URL } = require("../../config");
 
 async function handleButtonInteraction(interaction) {
+  // ── Doğrulama yardım butonu ──────────────────────────────────────────────
   if (interaction.customId === "verify_help_refresh") {
-    const { BASE_URL } = require("../../config");
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle("📋 Komut Özeti")
@@ -17,18 +24,24 @@ async function handleButtonInteraction(interaction) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── Destek menüsü butonu ─────────────────────────────────────────────────
   if (interaction.customId === "open_support_menu") {
     const embed = getSupportMenuEmbed();
     const selectMenu = getCategorySelectMenu();
     return interaction.reply({ embeds: [embed], components: [selectMenu], ephemeral: true });
   }
 
+  // ── Ticket kapat butonu → sebep modal'ı aç ──────────────────────────────
   if (interaction.customId.startsWith("close_ticket_")) {
     const ticketId = interaction.customId.replace("close_ticket_", "");
     const ticket = await Ticket.findOne({ ticketId });
 
     if (!ticket) {
       return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
+    }
+
+    if (ticket.status === "closed") {
+      return interaction.reply({ content: "❌ Bu ticket zaten kapalı", ephemeral: true });
     }
 
     if (
@@ -38,33 +51,86 @@ async function handleButtonInteraction(interaction) {
       return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz", ephemeral: true });
     }
 
-    ticket.status = "closed";
-    ticket.closedAt = new Date();
-    await ticket.save();
+    // Kapatma sebebini soran modal'ı göster
+    const modal = buildCloseReasonModal(ticketId);
+    return interaction.showModal(modal);
+  }
 
-    const { logTicketClosed } = require("../services/ticketLog");
-    logTicketClosed(ticket, {
-      closedBy: interaction.user.id,
-      closedByName: interaction.user.username,
-      source: "Discord Kapat Butonu",
-    });
+  // ── Ticket tekrar aç butonu ──────────────────────────────────────────────
+  if (interaction.customId.startsWith("reopen_ticket_")) {
+    const ticketId = interaction.customId.replace("reopen_ticket_", "");
+    const ticket = await Ticket.findOne({ ticketId });
 
-    const channel = await interaction.guild.channels.fetch(ticket.channelId);
-    if (channel) {
-      const closeEmbed = new EmbedBuilder()
-        .setTitle("🔒 Ticket Kapatıldı")
-        .setDescription(`Bu ticket kapatılmıştır.`)
-        .setColor(0xed4245)
-        .setTimestamp();
-
-      await channel.send({ embeds: [closeEmbed] });
-      await channel.permissionOverwrites.edit(ticket.userId, {
-        ViewChannel: false,
-        SendMessages: false,
-      });
+    if (!ticket) {
+      return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
     }
 
-    return interaction.reply({ content: "✅ Ticket kapatıldı", ephemeral: true });
+    if (ticket.status === "open") {
+      return interaction.reply({ content: "❌ Bu ticket zaten açık", ephemeral: true });
+    }
+
+    if (ticket.userId !== interaction.user.id) {
+      return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
+    }
+
+    // Kanalı bul ve izinleri geri ver
+    try {
+      const guild = await interaction.client.guilds.fetch(
+        require("../../config").TARGET_GUILD_ID
+      );
+      const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+
+      if (channel) {
+        await channel.permissionOverwrites.edit(ticket.userId, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+        });
+
+        const reopenEmbed = new EmbedBuilder()
+          .setTitle("🔓 Ticket Yeniden Açıldı")
+          .setDescription(`<@${ticket.userId}> tarafından yeniden açıldı.`)
+          .setColor(0x4ade80)
+          .setTimestamp();
+
+        const closeButton = buildCloseButton(ticketId);
+        await channel.send({ embeds: [reopenEmbed], components: [closeButton] });
+      }
+
+      ticket.status = "open";
+      ticket.closedAt = null;
+      ticket.closeReason = null;
+      await ticket.save();
+
+      return interaction.reply({
+        content: "✅ Ticket yeniden açıldı.",
+        ephemeral: true,
+      });
+    } catch (err) {
+      console.error("[reopen_ticket] Hata:", err);
+      return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+    }
+  }
+
+  // ── Değerlendirme butonu → rating modal'ı aç ────────────────────────────
+  if (interaction.customId.startsWith("rate_ticket_")) {
+    const ticketId = interaction.customId.replace("rate_ticket_", "");
+    const ticket = await Ticket.findOne({ ticketId });
+
+    if (!ticket) {
+      return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
+    }
+
+    if (ticket.userId !== interaction.user.id) {
+      return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
+    }
+
+    if (ticket.rated) {
+      return interaction.reply({ content: "❌ Bu ticket'ı zaten değerlendirdiniz", ephemeral: true });
+    }
+
+    const modal = buildRatingModal(ticketId);
+    return interaction.showModal(modal);
   }
 
   return null;

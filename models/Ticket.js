@@ -25,6 +25,13 @@ function TicketConstructor(data) {
     createdAt: new Date(),
     closedAt: null,
     closeReason: null,
+    closedBy: null,
+    closedByName: null,
+    claimedBy: null,
+    claimedByName: null,
+    rated: false,
+    ratingScore: null,
+    ratingNote: null,
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {
