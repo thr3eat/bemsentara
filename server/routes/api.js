@@ -16,7 +16,8 @@ router.get("/api/tickets", async (req, res) => {
       robloxUsername: req.user.robloxUsername
     });
     
-    const tickets = await Ticket.find({ userId: discordId }).sort({ createdAt: -1 });
+    const ticketsArray = await Ticket.find({ userId: discordId });
+    const tickets = ticketsArray.sort({ createdAt: -1 });
     console.log("Found tickets:", tickets.length);
     
     res.json({ success: true, tickets });
@@ -32,7 +33,8 @@ router.get("/api/tickets/staff", async (req, res) => {
   }
 
   try {
-    const tickets = await Ticket.find({ status: "open" }).sort({ createdAt: -1 });
+    const ticketsArray = await Ticket.find({ status: "open" });
+    const tickets = ticketsArray.sort({ createdAt: -1 });
     res.json({ success: true, tickets });
   } catch (err) {
     res.status(500).json({ error: err.message });

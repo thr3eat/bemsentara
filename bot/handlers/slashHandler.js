@@ -129,6 +129,18 @@ async function handleSlashCommand(interaction) {
 
       return interaction.editReply({ embeds: [embed] });
     }
+
+    if (commandName === "verify") {
+      const { handleVerify } = require("./roleHandler");
+      const groupId = interaction.options.getNumber("grupid");
+      return handleVerify(interaction, groupId);
+    }
+
+    if (commandName === "update") {
+      const { handleUpdate } = require("./roleHandler");
+      const groupId = interaction.options.getNumber("grupid");
+      return handleUpdate(interaction, groupId);
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });
