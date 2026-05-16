@@ -27,7 +27,7 @@ const RANK_TIERS = [
       "Teşkilat Yönetimi",
       "Geliştirme Ekibi",
       "Yönetim Kurulu Başkanı",
-      "Yönetim Kurulu Başkan Y.",
+      "Yönetim Kurulu Başkan Yardımcısı",
       "Yönetim Kurulu",
     ],
   },
