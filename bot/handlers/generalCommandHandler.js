@@ -8,9 +8,10 @@ async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
 
-  if (commandName === "verify" || commandName === "update") {
-    const { handleVerify, handleUpdate } = require("./roleHandler");
+  if (commandName === "verify" || commandName === "update" || commandName === "debug-update") {
+    const { handleVerify, handleUpdate, handleDebugUpdate } = require("./roleHandler");
     if (commandName === "verify") return handleVerify(interaction);
+    if (commandName === "debug-update") return handleDebugUpdate(interaction);
     return handleUpdate(interaction);
   }
 
@@ -293,7 +294,7 @@ async function handleGeneralCommand(interaction) {
       const categories = {
         general: {
           title: "📚 Genel Komutlar",
-          commands: "/support, /mytickets, /closeticket, /profile, /authorize, /verify, /update, /robloxgrup, /robloxuser, /ping, /stats",
+          commands: "/support, /mytickets, /closeticket, /profile, /authorize, /verify, /update, /debug-update, /robloxgrup, /robloxuser, /ping, /stats",
         },
         economy: {
           title: "💰 Ekonomi Komutları",

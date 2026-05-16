@@ -170,27 +170,55 @@ function resolveDesiredRoleIds(guild, plan, unresolved) {
 }
 
 /**
- * Üyenin Discord rollerini Roblox verilerine göre senkronize eder.
+ * Senkron planını hesaplar (dry-run). Rolleri değiştirmez.
  */
-async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
-  const userGroups = await fetchUserGroups(robloxId);
+async function buildSyncPlan(guild, member, robloxId, robloxUsername) {
+  let userGroups;
+  try {
+    userGroups = await fetchUserGroups(robloxId);
+  } catch (err) {
+    return {
+      success: false,
+      error: "roblox_api",
+      message: `Roblox API hatası: ${err.message}`,
+      userGroups: [],
+    };
+  }
+
   const plan = computeDesiredRoles(userGroups);
 
   if (!plan.ok) {
     return {
       success: false,
-      error: "not_in_main_group",
+      error: plan.error,
       message: "Ana BEM grubunun üyesi değilsiniz.",
-      added: [],
-      removed: [],
-      nickname: null,
+      userGroups,
       rankName: null,
       tier: null,
     };
   }
 
   const unresolved = [];
+  const resolved = [];
   const desiredRoleIds = resolveDesiredRoleIds(guild, plan, unresolved);
+
+  for (const name of plan.desiredNames) {
+    const role = findRoleByName(guild, name);
+    resolved.push({
+      name,
+      id: role?.id || null,
+      ok: Boolean(role),
+    });
+  }
+
+  for (const roleId of plan.desiredRoleIds) {
+    const role = findRoleById(guild, roleId);
+    resolved.push({
+      name: role?.name || `id:${roleId}`,
+      id: role?.id || roleId,
+      ok: Boolean(role),
+    });
+  }
 
   const managedIds = getManagedRoleIds(guild);
   await addAllManagedRankRoles(guild, managedIds);
@@ -212,22 +240,24 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
     }
   }
 
-  if (toAdd.length) await member.roles.add(toAdd, "Sentara rol senkronizasyonu");
-  if (toRemove.length) await member.roles.remove(toRemove, "Sentara rol senkronizasyonu");
-
   const nickname = robloxUsername || member.displayName;
-  if (nickname && member.manageable && member.nickname !== nickname) {
-    await member.setNickname(nickname, "Sentara rol senkronizasyonu");
-  }
+  const nicknameWouldChange =
+    Boolean(nickname && member.manageable && member.nickname !== nickname);
 
   return {
     success: true,
     error: null,
-    message: "Roller güncellendi.",
-    added: toAdd,
-    removed: toRemove,
+    message: "Plan hazır.",
+    userGroups,
+    plan,
+    resolved,
     unresolved,
+    desiredRoleIds: [...desiredRoleIds],
+    managedCount: managedIds.size,
+    toAdd,
+    toRemove,
     nickname,
+    nicknameWouldChange,
     rankName: plan.rankName,
     tier: plan.tier,
     branch: plan.branch,
@@ -235,9 +265,54 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
   };
 }
 
+/**
+ * Üyenin Discord rollerini Roblox verilerine göre senkronize eder.
+ */
+async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
+  const syncPlan = await buildSyncPlan(guild, member, robloxId, robloxUsername);
+
+  if (!syncPlan.success) {
+    return {
+      success: false,
+      error: syncPlan.error,
+      message: syncPlan.message,
+      added: [],
+      removed: [],
+      nickname: null,
+      rankName: null,
+      tier: null,
+    };
+  }
+
+  const { toAdd, toRemove, nickname, nicknameWouldChange } = syncPlan;
+
+  if (toAdd.length) await member.roles.add(toAdd, "Sentara rol senkronizasyonu");
+  if (toRemove.length) await member.roles.remove(toRemove, "Sentara rol senkronizasyonu");
+
+  if (nicknameWouldChange) {
+    await member.setNickname(nickname, "Sentara rol senkronizasyonu");
+  }
+
+  return {
+    success: true,
+    error: null,
+    message: "Roller güncellendi.",
+    applied: true,
+    added: toAdd,
+    removed: toRemove,
+    unresolved: syncPlan.unresolved,
+    nickname,
+    rankName: syncPlan.rankName,
+    tier: syncPlan.tier,
+    branch: syncPlan.branch,
+    desiredNames: syncPlan.desiredNames,
+  };
+}
+
 module.exports = {
   fetchUserGroups,
   computeDesiredRoles,
+  buildSyncPlan,
   syncMemberRoles,
   findRoleByName,
   findRoleById,

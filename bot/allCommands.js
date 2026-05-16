@@ -155,6 +155,18 @@ const generalCommands = [
     .setName("update")
     .setDescription("Ana BEM grubu ve branş gruplarına göre rollerinizi günceller")
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("debug-update")
+    .setDescription("[Yönetici] Rol senkron debug — önizleme veya uygulama")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Test edilecek kullanıcı (boş = kendin)").setRequired(false)
+    )
+    .addBooleanOption((o) =>
+      o.setName("uygula").setDescription("true = rolleri gerçekten uygula").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
 ];
 
 const economyCommands = [

@@ -1,7 +1,7 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const User = require("../../models/User");
-const { BASE_URL } = require("../../config");
-const { syncMemberRoles } = require("../services/roleSyncService");
+const { BASE_URL, ADMIN_IDS } = require("../../config");
+const { syncMemberRoles, buildSyncPlan, MAIN_GROUP_ID } = require("../services/roleSyncService");
 
 function formatRoleList(roles) {
   if (!roles.length) return "None";
@@ -98,9 +98,204 @@ async function handleUpdate(interaction) {
   return runSyncForMember(interaction, { ephemeral: false });
 }
 
+function formatDebugList(items, empty = "—") {
+  if (!items?.length) return empty;
+  return items
+    .slice(0, 15)
+    .map((r) => (typeof r === "string" ? r : `<@&${r.id}> \`${r.name}\``))
+    .join("\n")
+    .slice(0, 1024);
+}
+
+function buildDebugEmbed(targetMember, dbUser, syncPlan, { applied }) {
+  const embed = new EmbedBuilder()
+    .setColor(syncPlan.success ? 0xfbbf24 : 0xed4245)
+    .setTitle(`🔧 Debug Update${applied ? " (uygulandı)" : " (önizleme)"}`)
+    .setDescription(`Hedef: ${targetMember} (\`${targetMember.id}\`)`)
+    .setTimestamp();
+
+  if (!dbUser?.robloxId) {
+    embed.addFields({
+      name: "Veritabanı",
+      value: "❌ Roblox bağlı değil",
+      inline: false,
+    });
+    return embed;
+  }
+
+  embed.addFields(
+    {
+      name: "Roblox",
+      value: `**${dbUser.robloxUsername || "?"}**\nID: \`${dbUser.robloxId}\``,
+      inline: true,
+    },
+    {
+      name: "DB",
+      value: `Yetkili: ${dbUser.isAuthorized ? "✅" : "❌"}\nKayıtlı rütbe: \`${dbUser.groupRole || "—"}\``,
+      inline: true,
+    }
+  );
+
+  if (!syncPlan.success) {
+    embed.addFields({
+      name: "Hata",
+      value: syncPlan.message || syncPlan.error,
+      inline: false,
+    });
+    return embed;
+  }
+
+  const groupList = syncPlan.userGroups
+    .slice(0, 12)
+    .map((g) => `• ${g.group.name}: **${g.role.name}**`)
+    .join("\n");
+
+  embed.addFields(
+    {
+      name: "Ana grup rütbesi",
+      value: `**${syncPlan.rankName}** (grup \`${MAIN_GROUP_ID}\`)`,
+      inline: false,
+    },
+    {
+      name: "Seviye / Branş",
+      value: `Seviye: \`${syncPlan.tier || "—"}\`\nBranş: \`${syncPlan.branch?.departmentRoleName || "Branşsız"}\``,
+      inline: true,
+    },
+    {
+      name: "Takma ad",
+      value: syncPlan.nicknameWouldChange
+        ? `→ \`${syncPlan.nickname}\``
+        : `\`${syncPlan.nickname || "—"}\` (değişmez)`,
+      inline: true,
+    },
+    {
+      name: "Roblox grupları",
+      value: (groupList || "—").slice(0, 1024),
+      inline: false,
+    },
+    {
+      name: "Hedef roller",
+      value: syncPlan.desiredNames.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+      inline: false,
+    },
+    {
+      name: "Çözümleme",
+      value:
+        syncPlan.resolved
+          .map((r) => `${r.ok ? "✅" : "❌"} ${r.name}${r.id ? ` (${r.id})` : ""}`)
+          .join("\n")
+          .slice(0, 1024) || "—",
+      inline: false,
+    }
+  );
+
+  if (syncPlan.unresolved?.length) {
+    embed.addFields({
+      name: "⚠️ Eşleşmeyen",
+      value: syncPlan.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+      inline: false,
+    });
+  }
+
+  embed.addFields(
+    {
+      name: applied ? "Eklenen" : "Eklenecek",
+      value: formatDebugList(applied ? syncPlan.added : syncPlan.toAdd, "None"),
+      inline: true,
+    },
+    {
+      name: applied ? "Kaldırılan" : "Kaldırılacak",
+      value: formatDebugList(applied ? syncPlan.removed : syncPlan.toRemove, "None"),
+      inline: true,
+    },
+    {
+      name: "Yönetilen rol havuzu",
+      value: `\`${syncPlan.managedCount}\` rol`,
+      inline: true,
+    }
+  );
+
+  return embed;
+}
+
+async function handleDebugUpdate(interaction) {
+  const isAdmin =
+    ADMIN_IDS.includes(interaction.user.id) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+
+  if (!isAdmin) {
+    return interaction.reply({
+      content: "❌ Bu komut yalnızca yöneticiler içindir.",
+      ephemeral: true,
+    });
+  }
+
+  if (!interaction.guild) {
+    return interaction.reply({
+      content: "❌ Bu komut yalnızca sunucuda kullanılabilir.",
+      ephemeral: true,
+    });
+  }
+
+  const targetUser = interaction.options.getUser("kullanici") || interaction.user;
+  const apply = interaction.options.getBoolean("uygula") ?? false;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const dbUser = await User.findOne({ discordId: targetUser.id });
+    const targetMember = await interaction.guild.members.fetch(targetUser.id);
+
+    if (!dbUser?.robloxId) {
+      const embed = buildDebugEmbed(targetMember, dbUser, { success: false }, { applied: false });
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    const plan = await buildSyncPlan(
+      interaction.guild,
+      targetMember,
+      parseInt(dbUser.robloxId, 10),
+      dbUser.robloxUsername
+    );
+
+    if (apply && plan.success) {
+      const result = await syncMemberRoles(
+        interaction.guild,
+        targetMember,
+        parseInt(dbUser.robloxId, 10),
+        dbUser.robloxUsername
+      );
+
+      if (result.success && dbUser.groupRole !== result.rankName) {
+        dbUser.groupRole = result.rankName;
+        await dbUser.save();
+      }
+
+      const embed = buildDebugEmbed(
+        targetMember,
+        dbUser,
+        { ...plan, added: result.added, removed: result.removed, success: result.success, message: result.message },
+        { applied: true }
+      );
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    const embed = buildDebugEmbed(targetMember, dbUser, plan, { applied: false });
+    embed.setFooter({ text: "Önizleme — uygulamak için uygula: true" });
+
+    return interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error("Debug update error:", err);
+    return interaction.editReply({
+      content: `❌ Debug hatası: ${err.message}`,
+    });
+  }
+}
+
 module.exports = {
   handleVerify,
   handleUpdate,
+  handleDebugUpdate,
   runSyncForMember,
   buildUpdateEmbed,
 };
