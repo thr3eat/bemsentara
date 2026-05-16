@@ -148,19 +148,12 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("verify")
-    .setDescription("Roblox grup rollerinizi Discord rollerine dönüştürün (RoWifi benzeri)")
-    .addNumberOption((o) =>
-      o.setName("grupid").setDescription("Roblox Grup ID").setRequired(true)
-    )
+    .setDescription("Roblox hesabınıza göre Discord rollerinizi senkronize eder")
     .setDMPermission(false),
 
   new SlashCommandBuilder()
     .setName("update")
-    .setDescription("Tüm sunucu üyelerinin Roblox rollerini güncelle")
-    .addNumberOption((o) =>
-      o.setName("grupid").setDescription("Roblox Grup ID").setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // ✅ HATA BURADAYDI, DÜZELTİLDİ
+    .setDescription("Ana BEM grubu ve branş gruplarına göre rollerinizi günceller")
     .setDMPermission(false),
 ];
 

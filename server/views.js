@@ -889,8 +889,12 @@ function renderDashboard(user) {
           </div>
         </div>
       </div>
-      ${!isRobloxLinked ? `<a href="/auth/roblox" class="btn btn-sm">Roblox'u Bağla</a>` : ''}
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        ${!isRobloxLinked ? `<a href="/auth/roblox" class="btn btn-sm">Roblox'u Bağla</a>` : `<button type="button" id="btn-sync-roles" class="btn btn-sm btn-success">🔄 Rolleri Güncelle</button>`}
+      </div>
     </div>
+
+    <div id="role-sync-result" style="display:none;margin-bottom:2rem;"></div>
 
     <!-- Stats Grid -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem;margin-bottom:2.5rem;">
@@ -1047,6 +1051,39 @@ function renderDashboard(user) {
         if (labelsEl) labelsEl.innerHTML = labels.map(l =>
           \`<div style="flex:1;text-align:center;font-size:0.72rem;color:var(--muted);">\${l}</div>\`
         ).join('');
+      }
+
+      async function syncRolesFromWeb() {
+        const btn = document.getElementById('btn-sync-roles');
+        const box = document.getElementById('role-sync-result');
+        if (!btn || !box) return;
+        btn.disabled = true;
+        btn.textContent = '⏳ Güncelleniyor...';
+        box.style.display = 'block';
+        box.innerHTML = '<div class="card" style="color:var(--muted);">Roller senkronize ediliyor...</div>';
+        try {
+          const res = await fetch('/api/roles/sync', { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Senkronizasyon başarısız');
+          }
+          const added = (data.added || []).map(r => r.name).join(', ') || 'Yok';
+          const removed = (data.removed || []).map(r => r.name).join(', ') || 'Yok';
+          box.innerHTML = '<div class="card" style="border-left:4px solid var(--success);">' +
+            '<div style="font-weight:800;margin-bottom:0.75rem;">✅ Update — ' + (data.nickname || '') + '</div>' +
+            '<div style="font-size:0.9rem;margin-bottom:0.4rem;"><strong>Rütbe:</strong> ' + (data.rankName || '—') + '</div>' +
+            '<div style="font-size:0.9rem;margin-bottom:0.4rem;"><strong>Eklenen:</strong> ' + added + '</div>' +
+            '<div style="font-size:0.9rem;"><strong>Kaldırılan:</strong> ' + removed + '</div></div>';
+        } catch (err) {
+          box.innerHTML = '<div class="card" style="border-left:4px solid var(--danger);color:var(--danger);">❌ ' + err.message + '</div>';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔄 Rolleri Güncelle';
+        }
+      }
+
+      const syncBtn = document.getElementById('btn-sync-roles');
+      if (syncBtn) syncBtn.addEventListener('click', syncRolesFromWeb);
 
       loadDashboard();
       setInterval(loadDashboard, 15000);

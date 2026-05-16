@@ -10,6 +10,8 @@ const axios = require("axios");
 const logger = require("./utils/logger");
 
 const discordBot = createDiscordClient();
+const { setDiscordClient } = require("./bot/discordClient");
+setDiscordClient(discordBot);
 initializeDiscordHandlers(discordBot);
 
 cron.schedule("*/14 * * * *", async () => {

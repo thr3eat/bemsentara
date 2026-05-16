@@ -125,6 +125,67 @@ router.post("/api/wiki", async (req, res) => {
   }
 });
 
+router.post("/api/roles/sync", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+
+  if (!req.user.robloxId) {
+    return res.status(400).json({
+      error: "Roblox hesabı bağlı değil.",
+      authorizeUrl: `/auth/authorize?discordId=${req.user.discordId}`,
+    });
+  }
+
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const { syncMemberRoles } = require("../../bot/services/roleSyncService");
+  const { TARGET_GUILD_ID, BASE_URL } = require("../../config");
+  const User = require("../../models/User");
+
+  const client = getDiscordClient();
+  if (!client?.isReady()) {
+    return res.status(503).json({ error: "Discord bot henüz hazır değil. Birkaç saniye sonra tekrar deneyin." });
+  }
+
+  try {
+    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    const member = await guild.members.fetch(req.user.discordId);
+
+    const result = await syncMemberRoles(
+      guild,
+      member,
+      parseInt(req.user.robloxId, 10),
+      req.user.robloxUsername
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.message });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (user && user.groupRole !== result.rankName) {
+      user.groupRole = result.rankName;
+      await user.save();
+    }
+
+    res.json({
+      success: true,
+      nickname: result.nickname,
+      rankName: result.rankName,
+      added: result.added.map((r) => ({ id: r.id, name: r.name })),
+      removed: result.removed.map((r) => ({ id: r.id, name: r.name })),
+      unresolved: result.unresolved || [],
+      dashboardUrl: `${BASE_URL}/dashboard`,
+    });
+  } catch (err) {
+    if (err.code === 10007) {
+      return res.status(404).json({
+        error: "Discord sunucusunda bulunamadınız. Önce sunucuya katılın.",
+      });
+    }
+    console.error("Web role sync error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/api/settings", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
   

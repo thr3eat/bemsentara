@@ -5,6 +5,18 @@ const { renderLoginPage, renderAuthorizePage } = require("../views");
 
 const router = express.Router();
 
+async function tryAutoSyncRoles(user) {
+  if (!user?.robloxId || !user?.discordId) return;
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const { syncMemberRoles } = require("../../bot/services/roleSyncService");
+  const { TARGET_GUILD_ID } = require("../../config");
+  const client = getDiscordClient();
+  if (!client?.isReady()) return;
+  const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+  const member = await guild.members.fetch(user.discordId);
+  await syncMemberRoles(guild, member, parseInt(user.robloxId, 10), user.robloxUsername);
+}
+
 router.get("/login", (req, res) => {
   res.send(renderLoginPage());
 });
@@ -47,6 +59,7 @@ router.get(
               console.error("Login error:", err);
               return res.redirect("/dashboard?robloxError=true");
             }
+            tryAutoSyncRoles(req.user).catch(() => {});
             res.redirect("/dashboard?robloxLinked=true");
           });
         } else {
