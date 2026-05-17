@@ -631,6 +631,7 @@ router.get("/api/admin/users", async (req, res) => {
     robloxUsername: u.robloxUsername,
     isAdmin: Boolean(u.isAdmin),
     isStaff: Boolean(u.isStaff),
+    roles: u.roles || [],
     isAuthorized: Boolean(u.isAuthorized),
     isBanned: Boolean(u.isBanned),
     banReason: u.banReason || null,
@@ -650,9 +651,15 @@ router.post("/api/admin/users/:discordId/roles", async (req, res) => {
   const user = await User.findOne({ discordId: targetId });
   if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
 
-  if (req.body.isAdmin !== undefined) user.isAdmin = Boolean(req.body.isAdmin);
-  if (req.body.isStaff !== undefined) user.isStaff = Boolean(req.body.isStaff);
-  if (user.isAdmin) user.isStaff = true;
+  // Handle new roles array format
+  if (Array.isArray(req.body.roles)) {
+    user.roles = req.body.roles;
+  } else {
+    // Handle old isAdmin/isStaff format
+    if (req.body.isAdmin !== undefined) user.isAdmin = Boolean(req.body.isAdmin);
+    if (req.body.isStaff !== undefined) user.isStaff = Boolean(req.body.isStaff);
+    if (user.isAdmin) user.isStaff = true;
+  }
 
   await user.save();
   saveStoreNow();
@@ -664,6 +671,7 @@ router.post("/api/admin/users/:discordId/roles", async (req, res) => {
       discordUsername: user.discordUsername,
       isAdmin: user.isAdmin,
       isStaff: user.isStaff,
+      roles: user.roles || [],
     },
   });
 });
@@ -851,6 +859,98 @@ router.post("/api/admin/users/:discordId/unban", async (req, res) => {
       success: true,
       message: `${user.discordUsername} yasağı kaldırıldı.`,
       discordResult,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: rütbe tanımları ───────────────────────────────────────────────────
+const SITE_ROLES = {
+  wiki_editor:      { name: "📝 Wiki Editörü",        color: "#7c6af7" },
+  moderator:        { name: "🛡️ Moderatör",            color: "#4ade80" },
+  support_lead:     { name: "⭐ Destek Lideri",        color: "#fbbf24" },
+  content_creator:  { name: "🎬 İçerik Yaratıcısı",   color: "#ff6bf7" },
+  translator:       { name: "🌐 Çevirmen",             color: "#06b6d4" },
+  event_manager:    { name: "🎉 Etkinlik Yöneticisi",  color: "#f97316" },
+  community_helper: { name: "🤝 Topluluk Yardımcısı", color: "#a3e635" },
+  media_team:       { name: "📸 Medya Ekibi",          color: "#e879f9" },
+  developer:        { name: "💻 Geliştirici",          color: "#38bdf8" },
+  vip:              { name: "👑 VIP",                  color: "#facc15" },
+};
+
+// ── Admin: kullanıcıya rütbe ata ─────────────────────────────────────────────
+router.post("/api/admin/users/:discordId/site-roles", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const targetId = String(req.params.discordId);
+  const { roles } = req.body;
+
+  if (!Array.isArray(roles)) {
+    return res.status(400).json({ error: "Roles bir dizi olmalı." });
+  }
+
+  const validRoles = roles.filter(r => SITE_ROLES[r]);
+
+  try {
+    const user = await User.findOne({ discordId: targetId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    user.roles = validRoles;
+    await user.save();
+    saveStoreNow();
+
+    res.json({
+      success: true,
+      message: `${user.discordUsername} rütbeleri güncellendi.`,
+      roles: user.roles,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: rütbe listesi ─────────────────────────────────────────────────────
+router.get("/api/admin/roles", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ success: true, roles: SITE_ROLES });
+});
+
+// ── Admin: kullanıcıya coin ver ──────────────────────────────────────────────
+router.post("/api/admin/users/:discordId/give-coins", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const targetId = String(req.params.discordId);
+  const { amount, reason } = req.body;
+  const coins = parseInt(amount, 10);
+
+  if (isNaN(coins) || coins <= 0) {
+    return res.status(400).json({ error: "Geçerli bir miktar girin." });
+  }
+  if (coins > 1000000) {
+    return res.status(400).json({ error: "Maksimum 1.000.000 coin verebilirsiniz." });
+  }
+
+  try {
+    const user = await User.findOne({ discordId: targetId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    let eco = await Economy.findOne({ userId: targetId });
+    if (!eco) {
+      eco = new Economy({ userId: targetId });
+    }
+
+    eco.balance = (eco.balance || 0) + coins;
+    eco.totalEarned = (eco.totalEarned || 0) + coins;
+    await eco.save();
+    saveStoreNow();
+
+    console.log(`[admin-coins] ${req.user.discordUsername} → ${user.discordUsername}: +${coins} coin (${reason || 'sebep yok'})`);
+
+    res.json({
+      success: true,
+      message: `${user.discordUsername} kullanıcısına ${coins.toLocaleString("tr-TR")} coin verildi.`,
+      newBalance: eco.balance,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

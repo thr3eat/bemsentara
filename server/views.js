@@ -2165,6 +2165,14 @@ function renderAdminPage(user) {
         style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
         👥 Kullanıcılar
       </button>
+      <button class="adm-tab" onclick="admTab('roles',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        🎖 Rütbeler
+      </button>
+      <button class="adm-tab" onclick="admTab('coins',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        💰 Para Ver
+      </button>
       <button class="adm-tab" onclick="admTab('bans',this)"
         style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
         🚫 Banlar
@@ -2182,6 +2190,62 @@ function renderAdminPage(user) {
       <div id="admin-results"></div>
       <hr class="divider" style="margin-top:2rem;">
       <a href="/debug" style="color:var(--accent);">🔍 Debug sayfası</a>
+    </div>
+
+    <!-- Rütbe yönetimi -->
+    <div id="adm-roles" class="card" style="display:none;">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:.5rem;">🎖 Rütbe Yönetimi</h1>
+      <p class="text-muted mb-3">Kullanıcılara özel rütbeler atayın. Birden fazla rütbe seçilebilir.</p>
+      <div style="display:flex;gap:.75rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+        <input type="text" id="role-search" placeholder="Discord adı veya ID ara..." style="flex:1;min-width:200px;margin-bottom:0;">
+        <button class="btn" onclick="roleSearchUsers()">🔍 Ara</button>
+      </div>
+
+      <!-- Rütbe açıklamaları -->
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem;">
+        <div style="font-size:.8rem;color:var(--muted);width:100%;margin-bottom:.25rem;font-weight:700;">Mevcut Rütbeler:</div>
+        <span style="background:rgba(124,106,247,.15);color:#7c6af7;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">📝 Wiki Editörü</span>
+        <span style="background:rgba(74,222,128,.15);color:#4ade80;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">🛡️ Moderatör</span>
+        <span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">⭐ Destek Lideri</span>
+        <span style="background:rgba(255,107,247,.15);color:#ff6bf7;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">🎬 İçerik Yaratıcısı</span>
+        <span style="background:rgba(6,182,212,.15);color:#06b6d4;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">🌐 Çevirmen</span>
+        <span style="background:rgba(249,115,22,.15);color:#f97316;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">🎉 Etkinlik Yöneticisi</span>
+        <span style="background:rgba(163,230,53,.15);color:#a3e635;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">🤝 Topluluk Yardımcısı</span>
+        <span style="background:rgba(232,121,249,.15);color:#e879f9;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">📸 Medya Ekibi</span>
+        <span style="background:rgba(56,189,248,.15);color:#38bdf8;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">💻 Geliştirici</span>
+        <span style="background:rgba(250,204,21,.15);color:#facc15;padding:.25rem .75rem;border-radius:20px;font-size:.8rem;font-weight:700;">👑 VIP</span>
+      </div>
+
+      <div id="role-results"></div>
+    </div>
+
+    <!-- Coin yönetimi -->
+    <div id="adm-coins" class="card" style="display:none;">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:.5rem;">💰 Coin Yönetimi</h1>
+      <p class="text-muted mb-3">Kullanıcılara coin verin. Maksimum tek seferde 1.000.000 coin.</p>
+
+      <div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:16px;padding:1.5rem;margin-bottom:2rem;">
+        <h3 style="font-size:1rem;font-weight:800;color:#fbbf24;margin-bottom:1rem;">➕ Kullanıcıya Coin Ver</h3>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem;">
+          <input type="text" id="coin-id" placeholder="Discord ID veya kullanıcı adı" style="flex:1;min-width:200px;margin-bottom:0;">
+          <input type="number" id="coin-amount" placeholder="Miktar" min="1" max="1000000" style="width:160px;margin-bottom:0;">
+        </div>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+          <input type="text" id="coin-reason" placeholder="Sebep (isteğe bağlı)" style="flex:1;min-width:200px;margin-bottom:0;">
+          <button class="btn" onclick="giveCoins()">💸 Ver</button>
+        </div>
+        <div id="coin-result" style="margin-top:1rem;"></div>
+      </div>
+
+      <!-- Hızlı miktarlar -->
+      <div style="margin-bottom:1.5rem;">
+        <div style="font-size:.85rem;color:var(--muted);font-weight:700;margin-bottom:.5rem;">Hızlı Miktarlar:</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          ${[100, 500, 1000, 5000, 10000, 50000].map(n =>
+            `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('coin-amount').value=${n}">${n.toLocaleString('tr-TR')} 🪙</button>`
+          ).join('')}
+        </div>
+      </div>
     </div>
 
     <!-- Ban yönetimi -->
@@ -2220,8 +2284,10 @@ function renderAdminPage(user) {
     <script>
       // ── Sekme geçişi ──────────────────────────────────────────────────────
       function admTab(name, btn) {
-        document.getElementById('adm-users').style.display = name === 'users' ? '' : 'none';
-        document.getElementById('adm-bans').style.display  = name === 'bans'  ? '' : 'none';
+        document.getElementById('adm-users').style.display  = name === 'users'  ? '' : 'none';
+        document.getElementById('adm-roles').style.display  = name === 'roles'  ? '' : 'none';
+        document.getElementById('adm-coins').style.display  = name === 'coins'  ? '' : 'none';
+        document.getElementById('adm-bans').style.display   = name === 'bans'   ? '' : 'none';
         document.querySelectorAll('.adm-tab').forEach(t => {
           t.style.borderBottomColor = 'transparent';
           t.style.color = 'var(--muted)';
@@ -2229,6 +2295,7 @@ function renderAdminPage(user) {
         btn.style.borderBottomColor = 'var(--accent)';
         btn.style.color = 'var(--text)';
         if (name === 'bans') loadBans();
+        if (name === 'roles') roleSearchUsers();
       }
 
       // ── Kullanıcı arama ───────────────────────────────────────────────────
@@ -2283,7 +2350,7 @@ function renderAdminPage(user) {
 
       function quickBan(id, name) {
         document.getElementById('ban-id').value = id;
-        admTab('bans', document.querySelectorAll('.adm-tab')[1]);
+        admTab('bans', document.querySelectorAll('.adm-tab')[3]);
       }
 
       async function quickUnban(id) {
@@ -2374,6 +2441,202 @@ function renderAdminPage(user) {
           showToast(d.message || 'Ban kaldırıldı.', 'success');
           if (d.discordResult) showToast(d.discordResult, 'info');
           loadBans();
+        } else showToast(d.error || 'Hata', 'error');
+      }
+
+      // ── Rütbe yönetimi ────────────────────────────────────────────────────
+      const ROLE_DEFS = {
+        wiki_editor:      { name: '📝 Wiki Editörü',        color: '#7c6af7' },
+        moderator:        { name: '🛡️ Moderatör',            color: '#4ade80' },
+        support_lead:     { name: '⭐ Destek Lideri',        color: '#fbbf24' },
+        content_creator:  { name: '🎬 İçerik Yaratıcısı',   color: '#ff6bf7' },
+        translator:       { name: '🌐 Çevirmen',             color: '#06b6d4' },
+        event_manager:    { name: '🎉 Etkinlik Yöneticisi',  color: '#f97316' },
+        community_helper: { name: '🤝 Topluluk Yardımcısı', color: '#a3e635' },
+        media_team:       { name: '📸 Medya Ekibi',          color: '#e879f9' },
+        developer:        { name: '💻 Geliştirici',          color: '#38bdf8' },
+        vip:              { name: '👑 VIP',                  color: '#facc15' },
+      };
+
+      async function roleSearchUsers() {
+        const q = (document.getElementById('role-search')?.value || '').trim();
+        const box = document.getElementById('role-results');
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);">Aranıyor...</p>';
+        try {
+          const res = await fetch('/api/admin/users?q=' + encodeURIComponent(q));
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>'; return; }
+          if (!d.users || !d.users.length) { box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>'; return; }
+
+          box.innerHTML = d.users.map(function(u) {
+            const userRoles = u.roles || [];
+            const checkboxes = Object.entries(ROLE_DEFS).map(([rid, rdef]) => {
+              const checked = userRoles.includes(rid) ? 'checked' : '';
+              return \`<label style="display:inline-flex;align-items:center;gap:.35rem;margin:.25rem .5rem .25rem 0;cursor:pointer;font-size:.85rem;padding:.3rem .6rem;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid var(--border);">
+                <input type="checkbox" class="role-cb" data-role="\${rid}" \${checked} style="width:auto;margin:0;">
+                <span style="color:\${rdef.color};">\${rdef.name}</span>
+              </label>\`;
+            }).join('');
+
+            const currentBadges = userRoles.length
+              ? userRoles.map(r => ROLE_DEFS[r] ? \`<span style="background:rgba(0,0,0,.3);color:\${ROLE_DEFS[r].color};padding:.2rem .6rem;border-radius:12px;font-size:.75rem;font-weight:700;">\${ROLE_DEFS[r].name}</span>\` : '').join(' ')
+              : '<span style="color:var(--muted);font-size:.8rem;">Rütbe yok</span>';
+
+            return \`<div class="role-user-row" data-discord-id="\${adminEsc(u.discordId)}" style="background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem;">
+              <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">
+                \${u.discordAvatar ? \`<img src="\${adminEsc(u.discordAvatar)}" style="width:36px;height:36px;border-radius:50%;">\` : ''}
+                <div>
+                  <div style="font-weight:800;">\${adminEsc(u.discordUsername)}</div>
+                  <div style="font-size:.78rem;color:var(--muted);">ID: \${adminEsc(u.discordId)}</div>
+                </div>
+                <div style="margin-left:auto;display:flex;gap:.35rem;flex-wrap:wrap;">\${currentBadges}</div>
+              </div>
+              <div style="margin-bottom:1rem;">\${checkboxes}</div>
+              <button class="btn btn-sm" onclick="roleSaveRoles(this)">💾 Rütbeleri Kaydet</button>
+            </div>\`;
+          }).join('');
+        } catch (err) {
+          box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
+        }
+      }
+
+      async function roleSaveRoles(btn) {
+        const row = btn.closest('.role-user-row');
+        const id = row.getAttribute('data-discord-id');
+        const roles = Array.from(row.querySelectorAll('.role-cb:checked')).map(cb => cb.getAttribute('data-role'));
+        btn.disabled = true;
+        btn.textContent = 'Kaydediliyor...';
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/site-roles', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roles })
+        });
+        const d = await res.json().catch(() => ({}));
+        btn.disabled = false;
+        btn.textContent = '💾 Rütbeleri Kaydet';
+        if (res.ok) showToast(d.message || 'Rütbeler kaydedildi.', 'success');
+        else showToast(d.error || 'Kaydedilemedi', 'error');
+      }
+
+      // ── Coin verme ────────────────────────────────────────────────────────
+      async function giveCoins() {
+        const idOrName = document.getElementById('coin-id').value.trim();
+        const amount   = parseInt(document.getElementById('coin-amount').value, 10);
+        const reason   = document.getElementById('coin-reason').value.trim();
+        const resultBox = document.getElementById('coin-result');
+
+        if (!idOrName) { showToast('Discord ID veya kullanıcı adı girin.', 'warning'); return; }
+        if (isNaN(amount) || amount <= 0) { showToast('Geçerli bir miktar girin.', 'warning'); return; }
+        if (amount > 1000000) { showToast('Maksimum 1.000.000 coin verebilirsiniz.', 'warning'); return; }
+
+        resultBox.innerHTML = '<span style="color:var(--muted);">Kullanıcı aranıyor...</span>';
+
+        // Kullanıcıyı ara
+        const sr = await fetch('/api/admin/users?q=' + encodeURIComponent(idOrName));
+        const sd = await sr.json().catch(() => ({}));
+        const found = (sd.users || []).find(u =>
+          u.discordId === idOrName ||
+          (u.discordUsername || '').toLowerCase() === idOrName.toLowerCase()
+        );
+
+        if (!found) {
+          resultBox.innerHTML = '<span style="color:var(--danger);">❌ Kullanıcı bulunamadı.</span>';
+          return;
+        }
+
+        resultBox.innerHTML = \`<span style="color:var(--muted);">\${adminEsc(found.discordUsername)} kullanıcısına \${amount.toLocaleString('tr-TR')} coin veriliyor...</span>\`;
+
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(found.discordId) + '/give-coins', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, reason })
+        });
+        const d = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          showToast(d.message || 'Coin verildi.', 'success');
+          resultBox.innerHTML = \`<span style="color:var(--success);">✅ \${adminEsc(d.message)} • Yeni bakiye: \${(d.newBalance || 0).toLocaleString('tr-TR')} 🪙</span>\`;
+          document.getElementById('coin-id').value = '';
+          document.getElementById('coin-amount').value = '';
+          document.getElementById('coin-reason').value = '';
+        } else {
+          resultBox.innerHTML = \`<span style="color:var(--danger);">❌ \${adminEsc(d.error || 'Hata')}</span>\`;
+          showToast(d.error || 'Hata', 'error');
+        }
+      }
+
+      // ── Rütbe yönetimi ────────────────────────────────────────────────────
+      const ROLE_DEFS = {
+        wiki_editor:     { name: '📝 Wiki Editörü',      color: '#7c6af7' },
+        moderator:       { name: '🛡 Moderatör',         color: '#4ade80' },
+        support_lead:    { name: '⭐ Destek Lideri',     color: '#fbbf24' },
+        content_creator: { name: '🎬 İçerik Yaratıcısı', color: '#ff6bf7' },
+        translator:      { name: '🌐 Çevirmen',          color: '#06b6d4' },
+      };
+
+      async function roleSearchUsers() {
+        const q = document.getElementById('role-search').value.trim();
+        const box = document.getElementById('role-results');
+        box.innerHTML = '<p style="color:var(--muted);">Aranıyor...</p>';
+        try {
+          const res = await fetch('/api/admin/users?q=' + encodeURIComponent(q));
+          const d = await res.json();
+          if (!res.ok) { box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>'; return; }
+          if (!d.users || !d.users.length) { box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>'; return; }
+          box.innerHTML = d.users.map(function(u) {
+            const roleCheckboxes = Object.keys(ROLE_DEFS).map(rid => 
+              '<label style="display:inline-flex;align-items:center;gap:.3rem;margin-right:1rem;cursor:pointer;font-size:.85rem;">' +
+              '<input type="checkbox" class="role-cb" data-role="' + rid + '" ' + ((u.roles || []).includes(rid) ? 'checked' : '') + '> ' +
+              ROLE_DEFS[rid].name + '</label>'
+            ).join('');
+            return '<div class="role-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
+              '<div style="font-weight:800;margin-bottom:.75rem;">' + adminEsc(u.discordUsername) + '</div>' +
+              '<div style="margin-bottom:1rem;">' + roleCheckboxes + '</div>' +
+              '<button class="btn btn-sm" onclick="roleSaveRoles(this)">💾 Kaydet</button></div>';
+          }).join('');
+        } catch (err) {
+          box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
+        }
+      }
+
+      async function roleSaveRoles(btn) {
+        const row = btn.closest('.role-user-row');
+        const id = row.getAttribute('data-discord-id');
+        const roles = Array.from(row.querySelectorAll('.role-cb:checked')).map(cb => cb.getAttribute('data-role'));
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/roles', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roles })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) showToast('Rütbeler kaydedildi.', 'success');
+        else showToast(d.error || 'Kaydedilemedi', 'error');
+      }
+
+      // ── Coin verme ────────────────────────────────────────────────────────
+      async function giveCoins() {
+        const idOrName = document.getElementById('coin-id').value.trim();
+        const amount   = parseInt(document.getElementById('coin-amount').value, 10);
+        const reason   = document.getElementById('coin-reason').value.trim();
+
+        if (!idOrName) { showToast('Discord ID veya kullanıcı adı girin.', 'warning'); return; }
+        if (isNaN(amount) || amount <= 0) { showToast('Geçerli bir miktar girin.', 'warning'); return; }
+
+        // Kullanıcıyı ara
+        const sr = await fetch('/api/admin/users?q=' + encodeURIComponent(idOrName));
+        const sd = await sr.json().catch(() => ({}));
+        const found = (sd.users || []).find(u => u.discordId === idOrName || u.discordUsername?.toLowerCase() === idOrName.toLowerCase());
+
+        if (!found) { showToast('Kullanıcı bulunamadı.', 'error'); return; }
+
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(found.discordId) + '/give-coins', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, reason })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showToast(d.message || 'Coin verildi.', 'success');
+          document.getElementById('coin-id').value = '';
+          document.getElementById('coin-amount').value = '';
+          document.getElementById('coin-reason').value = '';
         } else showToast(d.error || 'Hata', 'error');
       }
     <\/script>

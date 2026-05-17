@@ -19,6 +19,7 @@ const User = {
       isAuthorized: false,
       isStaff: false,
       isAdmin: false,
+      roles: [],
       groupRole: null,
       canSetRole: false,
       canManageMembers: false,
@@ -35,13 +36,9 @@ const User = {
 function UserConstructor(data) {
   const defaults = {
     isAuthorized: false,
-    isAdmin: false,
-    isModerator: false,
     isStaff: false,
-    isWikiEditor: false,
-    isEventManager: false,
-    isSupport: false,
-    isContentCreator: false,
+    isAdmin: false,
+    roles: [],
     isBanned: false,
     banReason: null,
     bannedAt: null,
