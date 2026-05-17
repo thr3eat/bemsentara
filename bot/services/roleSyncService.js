@@ -290,6 +290,19 @@ async function syncMemberRoles(guild, member, robloxId, robloxUsername) {
   if (toAdd.length) await member.roles.add(toAdd, "Sentara rol senkronizasyonu");
   if (toRemove.length) await member.roles.remove(toRemove, "Sentara rol senkronizasyonu");
 
+  // Doğrulanmamış rolünü kaldır (BEM sunucusunda başarılı sync sonrası)
+  try {
+    const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID } = require("../../config");
+    if (UNVERIFIED_ROLE_ID && guild.id === TARGET_GUILD_ID) {
+      if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
+        await member.roles.remove(UNVERIFIED_ROLE_ID, "Doğrulama tamamlandı");
+        console.log(`[roleSync] ${member.user.tag} → doğrulanmamış rolü kaldırıldı`);
+      }
+    }
+  } catch (err) {
+    console.warn("[roleSync] Doğrulanmamış rol kaldırılamadı:", err.message);
+  }
+
   if (nicknameWouldChange) {
     await member.setNickname(nickname, "Sentara rol senkronizasyonu");
   }

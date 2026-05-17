@@ -19,6 +19,27 @@ function initializeDiscordHandlers(client) {
     startCleanupScheduler();
   });
 
+  // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
+  client.on("guildMemberAdd", async (member) => {
+    try {
+      const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID } = require("../../config");
+      if (member.guild.id !== TARGET_GUILD_ID) return;
+      if (!UNVERIFIED_ROLE_ID) return;
+      if (member.user.bot) return;
+
+      const role = member.guild.roles.cache.get(UNVERIFIED_ROLE_ID);
+      if (!role) {
+        console.warn(`[guildMemberAdd] Doğrulanmamış rol bulunamadı: ${UNVERIFIED_ROLE_ID}`);
+        return;
+      }
+
+      await member.roles.add(role, "Yeni üye — doğrulanmamış");
+      console.log(`[guildMemberAdd] ${member.user.tag} → doğrulanmamış rolü verildi`);
+    } catch (err) {
+      console.error("[guildMemberAdd] Rol verilemedi:", err.message);
+    }
+  });
+
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guild) return;
 

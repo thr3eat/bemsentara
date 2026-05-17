@@ -16,6 +16,8 @@ const BAN_LOG_CHANNEL_ID = process.env.BAN_LOG_CHANNEL_ID || "150420153155190794
 const VOICE_PANEL_CHANNEL_ID = process.env.VOICE_PANEL_CHANNEL_ID || "1504201547943383130";
 const VOICE_JOIN_CHANNEL_ID = process.env.VOICE_JOIN_CHANNEL_ID || "1504201626750025728";
 const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1504201250160246886";
+/** Doğrulanmamış üyelere verilecek rol (BEM sunucusu) */
+const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || "1505511498095788063";
 
 // ── İkinci sunucu (EKOYILDIZ) ────────────────────────────────────────────────
 const GUILD2_ID                  = process.env.GUILD2_ID                  || "1367646464804655104";
@@ -60,6 +62,7 @@ module.exports = {
   VOICE_PANEL_CHANNEL_ID,
   VOICE_JOIN_CHANNEL_ID,
   VOICE_CATEGORY_ID,
+  UNVERIFIED_ROLE_ID,
   // İkinci sunucu
   GUILD2_ID,
   GUILD2_TICKET_CATEGORY_ID,
