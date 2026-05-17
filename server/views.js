@@ -1125,21 +1125,35 @@ function renderTicketsPage(user) {
       </div>
     </div>
 
+    <!-- Kapatma sebebi modal -->
+    <div id="close-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:#1a1a2e;border:1px solid var(--border);border-radius:20px;padding:2rem;max-width:480px;width:90%;">
+        <h3 style="margin-bottom:1rem;">🔒 Ticket'ı Kapat</h3>
+        <textarea id="close-reason-input" rows="4" placeholder="Kapatma sebebi..." style="width:100%;margin-bottom:1rem;"></textarea>
+        <div style="display:flex;gap:0.75rem;">
+          <button class="btn btn-danger" onclick="confirmClose()" style="flex:1;">Kapat</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('close-modal').style.display='none'" style="flex:1;">İptal</button>
+        </div>
+      </div>
+    </div>
+
     <style>
       .ticket-item {
         background:rgba(0,0,0,0.3); border:1px solid var(--border);
         border-radius:14px; padding:1.25rem 1.5rem;
-        display:flex; justify-content:space-between; align-items:center;
         transition:border-color 0.25s, transform 0.25s;
-        margin-bottom:0.75rem; flex-wrap:wrap; gap:1rem;
-        cursor:default;
+        margin-bottom:0.75rem;
       }
       .ticket-item:hover { border-color:var(--accent); transform:translateX(4px); }
       .ticket-item:last-child { margin-bottom:0; }
+      .ticket-header { display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.5rem; }
+      .ticket-meta { display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;font-size:0.8rem;color:var(--muted); }
+      .ticket-actions { display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap; }
     </style>
 
     <script>
       let allTickets = [];
+      let pendingCloseId = null;
 
       async function loadTickets() {
         try {
@@ -1148,7 +1162,6 @@ function renderTicketsPage(user) {
           if (!data.success) throw new Error(data.error);
           allTickets = data.tickets || [];
 
-          // Populate category filter
           const cats = [...new Set(allTickets.map(t => t.category).filter(Boolean))];
           const catSel = document.getElementById('filter-cat');
           cats.forEach(c => {
@@ -1172,7 +1185,9 @@ function renderTicketsPage(user) {
         if (m < 60) return m + 'dk önce';
         const h = Math.floor(m / 60);
         if (h < 24) return h + 'sa önce';
-        return Math.floor(h / 24) + 'g önce';
+        const d = Math.floor(h / 24);
+        if (d < 30) return d + 'g önce';
+        return Math.floor(d / 30) + 'ay önce';
       }
 
       function renderTickets() {
@@ -1201,18 +1216,69 @@ function renderTicketsPage(user) {
         c.innerHTML = tickets.map(t => {
           const isOpen = t.status === 'open';
           const ago = timeAgo(t.createdAt);
-          return \`<div class="ticket-item">
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;flex-wrap:wrap;">
-                <span style="font-weight:700;color:var(--accent);">\${t.ticketId}</span>
-                \${t.category ? \`<span style="font-size:0.75rem;background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);padding:0.1rem 0.5rem;border-radius:20px;color:var(--muted);">\${t.category}</span>\` : ''}
+          const closedAgo = t.closedAt ? timeAgo(t.closedAt) : null;
+          const hasChannel = t.channelId && !t.channelDeleted;
+          const source = t.source === 'web' ? '🌐 Web' : '💬 Discord';
+
+          const actions = isOpen
+            ? \`<button class="btn btn-sm btn-danger" onclick="openCloseModal('\${t.ticketId}')">🔒 Kapat</button>
+               \${hasChannel ? \`<a href="https://discord.com/channels/\${t.guildId || ''}/ \${t.channelId}" target="_blank" class="btn btn-sm btn-ghost">💬 Kanala Git</a>\` : ''}\`
+            : \`<button class="btn btn-sm btn-success" onclick="reopenTicket('\${t.ticketId}')">🔓 Tekrar Aç</button>\`;
+
+          return \`<div class="ticket-item" id="ticket-\${t.ticketId}">
+            <div class="ticket-header">
+              <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.25rem;">
+                  <span style="font-weight:800;color:var(--accent);">\${t.ticketId}</span>
+                  \${t.category ? \`<span style="font-size:0.75rem;background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);padding:0.1rem 0.5rem;border-radius:20px;color:var(--muted);">\${t.category}</span>\` : ''}
+                  <span style="font-size:0.72rem;color:var(--muted);">\${source}</span>
+                </div>
+                <div style="font-weight:600;margin-bottom:0.2rem;">\${t.subject || 'Konu belirtilmedi'}</div>
               </div>
-              <div style="margin-bottom:0.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">\${t.subject || 'Konu belirtilmedi'}</div>
-              \${ago ? \`<div style="color:var(--muted);font-size:0.78rem;">🕐 \${ago}</div>\` : ''}
+              <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
             </div>
-            <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
+            <div class="ticket-meta">
+              \${ago ? \`<span>🕐 \${ago}</span>\` : ''}
+              \${!isOpen && closedAgo ? \`<span>🔒 \${closedAgo} kapatıldı</span>\` : ''}
+              \${t.closeReason ? \`<span title="\${t.closeReason}">� \${t.closeReason.slice(0,40)}\${t.closeReason.length>40?'…':''}</span>\` : ''}
+            </div>
+            <div class="ticket-actions">\${actions}</div>
           </div>\`;
         }).join('');
+      }
+
+      // ── Kapatma ──
+      function openCloseModal(ticketId) {
+        pendingCloseId = ticketId;
+        document.getElementById('close-reason-input').value = '';
+        document.getElementById('close-modal').style.display = 'flex';
+      }
+
+      async function confirmClose() {
+        if (!pendingCloseId) return;
+        const reason = document.getElementById('close-reason-input').value.trim() || 'Web üzerinden kapatıldı';
+        document.getElementById('close-modal').style.display = 'none';
+        try {
+          const res = await fetch('/api/tickets/' + pendingCloseId + '/close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason })
+          });
+          if (res.ok) { showToast('Ticket kapatıldı.', 'success'); await loadTickets(); }
+          else { const d = await res.json().catch(()=>({})); showToast(d.error || 'Hata', 'error'); }
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+        pendingCloseId = null;
+      }
+
+      // ── Tekrar Aç ──
+      async function reopenTicket(ticketId) {
+        if (!confirm('Bu ticket\\'ı yeniden açmak istiyor musun?')) return;
+        try {
+          const res = await fetch('/api/tickets/' + ticketId + '/reopen', { method: 'POST' });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) { showToast(d.message || 'Ticket yeniden açıldı.', 'success'); await loadTickets(); }
+          else showToast(d.error || 'Hata', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
       }
 
       document.getElementById('filter-status').addEventListener('change', renderTickets);
@@ -2278,8 +2344,11 @@ function renderCreateTicketPage(user, categories = []) {
           });
           const d = await res.json().catch(() => ({}));
           if (res.ok) {
-            showToast('Ticket oluşturuldu! 🎉', 'success');
-            setTimeout(() => window.location.href = '/tickets', 1000);
+            const msg = d.discordChannel
+              ? \`Ticket oluşturuldu! 🎉 \${d.discordChannel}\`
+              : 'Ticket oluşturuldu! 🎉';
+            showToast(msg, 'success');
+            setTimeout(() => window.location.href = '/tickets', 1500);
           } else {
             errEl.textContent = d.error || 'Bir hata oluştu.';
             errEl.style.display = 'block';

@@ -75,26 +75,72 @@ async function handleButtonInteraction(interaction) {
 
     // Kanalı bul ve izinleri geri ver
     try {
-      const { TARGET_GUILD_ID } = require("../../config");
+      const { TARGET_GUILD_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID, TARGET_CHANNEL_ID } = require("../../config");
+      const { ChannelType, PermissionFlagsBits: PF } = require("discord.js");
       const guildId = ticket.guildId || TARGET_GUILD_ID;
       const guild = await interaction.client.guilds.fetch(guildId);
-      const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+      let channel = ticket.channelId && !ticket.channelDeleted
+        ? await guild.channels.fetch(ticket.channelId).catch(() => null)
+        : null;
 
       if (channel) {
+        // Kanal var — izinleri geri ver
         await channel.permissionOverwrites.edit(ticket.userId, {
-          ViewChannel: true,
-          SendMessages: true,
-          ReadMessageHistory: true,
+          ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
         });
-
         const reopenEmbed = new EmbedBuilder()
           .setTitle("🔓 Ticket Yeniden Açıldı")
           .setDescription(`<@${ticket.userId}> tarafından yeniden açıldı.`)
           .setColor(0x4ade80)
           .setTimestamp();
-
         const closeButton = buildCloseButton(ticketId);
         await channel.send({ embeds: [reopenEmbed], components: [closeButton] });
+      } else {
+        // Kanal silinmiş — her iki sunucuda yeniden oluştur
+        const targets = [
+          { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
+          { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+        ];
+        for (const target of targets) {
+          try {
+            const tGuild = await interaction.client.guilds.fetch(target.id).catch(() => null);
+            if (!tGuild) continue;
+            const permissionOverwrites = [
+              { id: tGuild.id, deny: [PF.ViewChannel] },
+              { id: ticket.userId, allow: [PF.ViewChannel, PF.SendMessages, PF.ReadMessageHistory, PF.AttachFiles, PF.EmbedLinks] },
+            ];
+            let parentId = null;
+            if (target.categoryId) {
+              const ch = await tGuild.channels.fetch(target.categoryId).catch(() => null);
+              if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
+              else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
+            }
+            if (!parentId) {
+              let cat = tGuild.channels.cache.find(ch => ch.name.toLowerCase() === "destek talepleri" && ch.type === ChannelType.GuildCategory);
+              if (!cat) cat = await tGuild.channels.create({ name: "DESTEK TALEPLERİ", type: ChannelType.GuildCategory });
+              parentId = cat.id;
+            }
+            const newCh = await tGuild.channels.create({
+              name: `ticket-${ticketId.toLowerCase()}`,
+              type: ChannelType.GuildText,
+              parent: parentId,
+              permissionOverwrites,
+            });
+            const closeButton = buildCloseButton(ticketId);
+            await newCh.send({
+              content: `<@${ticket.userId}> ticket'ın yeniden açıldı!`,
+              components: [closeButton],
+            });
+            if (!ticket.channelId || ticket.channelDeleted) {
+              ticket.channelId = newCh.id;
+              ticket.guildId = tGuild.id;
+              ticket.channelDeleted = false;
+              ticket.channelDeletedAt = null;
+            }
+          } catch (chErr) {
+            console.warn(`[reopen_ticket] ${target.id} kanalı açılamadı:`, chErr.message);
+          }
+        }
       }
 
       ticket.status = "open";

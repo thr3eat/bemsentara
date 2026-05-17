@@ -43,7 +43,6 @@ router.post("/api/tickets", async (req, res) => {
   if (!requireLogin(req, res)) return;
 
   const { category, subject, description, priority } = req.body;
-
   const s = (subject || "").trim();
   const d = (description || "").trim();
   const c = (category || "").trim();
@@ -51,15 +50,106 @@ router.post("/api/tickets", async (req, res) => {
   if (!c)  return res.status(400).json({ error: "Kategori seçiniz." });
   if (!s)  return res.status(400).json({ error: "Konu başlığı boş olamaz." });
   if (!d)  return res.status(400).json({ error: "Açıklama boş olamaz." });
-  if (s.length > 100)   return res.status(400).json({ error: "Konu en fazla 100 karakter olabilir." });
-  if (d.length > 2000)  return res.status(400).json({ error: "Açıklama en fazla 2000 karakter olabilir." });
+  if (s.length > 100)  return res.status(400).json({ error: "Konu en fazla 100 karakter olabilir." });
+  if (d.length > 2000) return res.status(400).json({ error: "Açıklama en fazla 2000 karakter olabilir." });
 
   const validPriorities = ["low", "normal", "medium", "high"];
   const prio = validPriorities.includes(priority) ? priority : "medium";
 
   try {
     const { generateTicketId } = require("../../utils/ticketId");
+    const {
+      TARGET_GUILD_ID, TARGET_CHANNEL_ID,
+      GUILD2_ID, GUILD2_TICKET_CATEGORY_ID,
+    } = require("../../config");
+    const { ChannelType, PermissionFlagsBits } = require("discord.js");
+    const { buildTicketEmbed, buildCloseButton } = require("../../bot/embeds");
+    const { getDiscordClient } = require("../../bot/discordClient");
+
     const ticketId = generateTicketId();
+
+    // ── Discord kanalı aç ──────────────────────────────────────────────────
+    let channelId = null;
+    let guildId = null;
+    let discordChannelMention = null;
+
+    const client = getDiscordClient();
+    if (client?.isReady()) {
+      // Her iki sunucuda da kanal aç
+      const targets = [
+        { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
+        { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+      ];
+
+      for (const target of targets) {
+        try {
+          const guild = await client.guilds.fetch(target.id).catch(() => null);
+          if (!guild) continue;
+
+          const permissionOverwrites = [
+            { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+            {
+              id: req.user.discordId,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
+                PermissionFlagsBits.EmbedLinks,
+              ],
+            },
+          ];
+
+          // Kategoriyi belirle
+          let parentId = null;
+          if (target.categoryId) {
+            const ch = await guild.channels.fetch(target.categoryId).catch(() => null);
+            if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
+            else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
+          }
+          if (!parentId) {
+            // "destek talepleri" kategorisini bul veya oluştur
+            let cat = guild.channels.cache.find(
+              ch => ch.name.toLowerCase() === "destek talepleri" && ch.type === ChannelType.GuildCategory
+            );
+            if (!cat) {
+              cat = await guild.channels.create({ name: "DESTEK TALEPLERİ", type: ChannelType.GuildCategory });
+            }
+            parentId = cat.id;
+          }
+
+          const ticketChannel = await guild.channels.create({
+            name: `ticket-${ticketId.toLowerCase()}`,
+            type: ChannelType.GuildText,
+            parent: parentId,
+            permissionOverwrites,
+          });
+
+          // İlk mesaj: embed + kapat butonu + kullanıcı etiketi
+          const fakeTicket = {
+            ticketId, userId: req.user.discordId, userName: req.user.discordUsername,
+            category: c, subject: s, description: d, priority: prio,
+            createdAt: new Date(),
+          };
+          const embed = buildTicketEmbed(fakeTicket);
+          const closeBtn = buildCloseButton(ticketId);
+          await ticketChannel.send({
+            content: `<@${req.user.discordId}> ticket'ın oluşturuldu! 🌐 Web üzerinden açıldı.`,
+            embeds: [embed],
+            components: [closeBtn],
+          });
+
+          // İlk sunucunun kanalını kaydet
+          if (!channelId) {
+            channelId = ticketChannel.id;
+            guildId = guild.id;
+            discordChannelMention = `<#${ticketChannel.id}>`;
+          }
+        } catch (chErr) {
+          console.warn(`[webTicket] ${target.id} kanalı açılamadı:`, chErr.message);
+        }
+      }
+    }
 
     const ticket = new Ticket({
       ticketId,
@@ -69,23 +159,167 @@ router.post("/api/tickets", async (req, res) => {
       subject: s,
       description: d,
       priority: prio,
-      channelId: null,   // Web'den açıldı, Discord kanalı yok
-      guildId: null,
+      channelId,
+      guildId,
       source: "web",
     });
 
     await ticket.save();
     saveStoreNow();
 
-    // Discord log kanalına bildir (bot hazırsa)
     try {
       const { logTicketCreated } = require("../../bot/services/ticketLog");
-      logTicketCreated(ticket, { source: "Web Panel", ticketChannelId: null });
+      logTicketCreated(ticket, { source: "Web Panel", ticketChannelId: channelId, guildId });
     } catch (_) {}
 
-    res.json({ success: true, ticket: { ticketId: ticket.ticketId, _id: ticket._id } });
+    res.json({
+      success: true,
+      ticket: { ticketId: ticket.ticketId, _id: ticket._id },
+      discordChannel: channelId ? `Discord kanalı oluşturuldu: ${discordChannelMention}` : null,
+    });
   } catch (err) {
     console.error("Web ticket create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Web'den ticket yeniden aç ────────────────────────────────────────────────
+router.post("/api/tickets/:ticketId/reopen", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  try {
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+    if (!ticket) return res.status(404).json({ error: "Ticket bulunamadı." });
+
+    if (ticket.userId !== req.user.discordId && !req.user.isStaff && !isSiteAdmin(req.user)) {
+      return res.status(403).json({ error: "Bu ticket size ait değil." });
+    }
+
+    if (ticket.status === "open") {
+      return res.status(400).json({ error: "Ticket zaten açık." });
+    }
+
+    const {
+      TARGET_GUILD_ID, TARGET_CHANNEL_ID,
+      GUILD2_ID, GUILD2_TICKET_CATEGORY_ID,
+    } = require("../../config");
+    const { ChannelType, PermissionFlagsBits } = require("discord.js");
+    const { buildCloseButton } = require("../../bot/embeds");
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const { cancelTicketDeletion } = require("../../bot/services/ticketCleanup");
+
+    // Silme kuyruğunu iptal et
+    cancelTicketDeletion(ticket.ticketId);
+
+    ticket.status = "open";
+    ticket.closedAt = null;
+    ticket.closeReason = null;
+
+    const client = getDiscordClient();
+    let channelRestored = false;
+
+    if (client?.isReady()) {
+      const guildId = ticket.guildId || TARGET_GUILD_ID;
+
+      // Mevcut kanal hâlâ var mı?
+      if (ticket.channelId && !ticket.channelDeleted) {
+        try {
+          const guild = await client.guilds.fetch(guildId);
+          const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+          if (channel) {
+            await channel.permissionOverwrites.edit(ticket.userId, {
+              ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+            });
+            const closeBtn = buildCloseButton(ticket.ticketId);
+            await channel.send({
+              content: `<@${ticket.userId}> ticket'ın yeniden açıldı! 🌐 Web üzerinden açıldı.`,
+              components: [closeBtn],
+            });
+            channelRestored = true;
+          }
+        } catch (_) {}
+      }
+
+      // Kanal silinmişse her iki sunucuda yeniden oluştur
+      if (!channelRestored) {
+        const targets = [
+          { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
+          { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+        ];
+
+        for (const target of targets) {
+          try {
+            const guild = await client.guilds.fetch(target.id).catch(() => null);
+            if (!guild) continue;
+
+            const permissionOverwrites = [
+              { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+              {
+                id: ticket.userId,
+                allow: [
+                  PermissionFlagsBits.ViewChannel,
+                  PermissionFlagsBits.SendMessages,
+                  PermissionFlagsBits.ReadMessageHistory,
+                  PermissionFlagsBits.AttachFiles,
+                  PermissionFlagsBits.EmbedLinks,
+                ],
+              },
+            ];
+
+            let parentId = null;
+            if (target.categoryId) {
+              const ch = await guild.channels.fetch(target.categoryId).catch(() => null);
+              if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
+              else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
+            }
+            if (!parentId) {
+              let cat = guild.channels.cache.find(
+                ch => ch.name.toLowerCase() === "destek talepleri" && ch.type === ChannelType.GuildCategory
+              );
+              if (!cat) {
+                cat = await guild.channels.create({ name: "DESTEK TALEPLERİ", type: ChannelType.GuildCategory });
+              }
+              parentId = cat.id;
+            }
+
+            const newChannel = await guild.channels.create({
+              name: `ticket-${ticket.ticketId.toLowerCase()}`,
+              type: ChannelType.GuildText,
+              parent: parentId,
+              permissionOverwrites,
+            });
+
+            const closeBtn = buildCloseButton(ticket.ticketId);
+            await newChannel.send({
+              content: `<@${ticket.userId}> ticket'ın yeniden açıldı! 🌐 Web üzerinden yeniden açıldı.`,
+              components: [closeBtn],
+            });
+
+            if (!channelRestored) {
+              ticket.channelId = newChannel.id;
+              ticket.guildId = guild.id;
+              ticket.channelDeleted = false;
+              ticket.channelDeletedAt = null;
+              channelRestored = true;
+            }
+          } catch (chErr) {
+            console.warn(`[reopenTicket] ${target.id} kanalı açılamadı:`, chErr.message);
+          }
+        }
+      }
+    }
+
+    await ticket.save();
+    saveStoreNow();
+
+    res.json({
+      success: true,
+      message: channelRestored
+        ? "Ticket yeniden açıldı ve Discord kanalı güncellendi."
+        : "Ticket yeniden açıldı.",
+    });
+  } catch (err) {
+    console.error("Reopen ticket error:", err);
     res.status(500).json({ error: err.message });
   }
 });
