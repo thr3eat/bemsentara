@@ -29,21 +29,63 @@ router.get("/api/tickets", async (req, res) => {
 
   try {
     const discordId = req.user.discordId;
-    console.log("Fetching tickets for user:", {
-      discordId,
-      userId: req.user._id,
-      username: req.user.discordUsername,
-      isAuthorized: req.user.isAuthorized,
-      robloxUsername: req.user.robloxUsername
-    });
-    
     const ticketsArray = await Ticket.find({ userId: discordId });
     const tickets = ticketsArray.sort({ createdAt: -1 });
-    console.log("Found tickets:", tickets.length);
-    
     res.json({ success: true, tickets });
   } catch (err) {
     console.error("Ticket fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Web'den yeni ticket oluştur ──────────────────────────────────────────────
+router.post("/api/tickets", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const { category, subject, description, priority } = req.body;
+
+  const s = (subject || "").trim();
+  const d = (description || "").trim();
+  const c = (category || "").trim();
+
+  if (!c)  return res.status(400).json({ error: "Kategori seçiniz." });
+  if (!s)  return res.status(400).json({ error: "Konu başlığı boş olamaz." });
+  if (!d)  return res.status(400).json({ error: "Açıklama boş olamaz." });
+  if (s.length > 100)   return res.status(400).json({ error: "Konu en fazla 100 karakter olabilir." });
+  if (d.length > 2000)  return res.status(400).json({ error: "Açıklama en fazla 2000 karakter olabilir." });
+
+  const validPriorities = ["low", "normal", "medium", "high"];
+  const prio = validPriorities.includes(priority) ? priority : "medium";
+
+  try {
+    const { generateTicketId } = require("../../utils/ticketId");
+    const ticketId = generateTicketId();
+
+    const ticket = new Ticket({
+      ticketId,
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      category: c,
+      subject: s,
+      description: d,
+      priority: prio,
+      channelId: null,   // Web'den açıldı, Discord kanalı yok
+      guildId: null,
+      source: "web",
+    });
+
+    await ticket.save();
+    saveStoreNow();
+
+    // Discord log kanalına bildir (bot hazırsa)
+    try {
+      const { logTicketCreated } = require("../../bot/services/ticketLog");
+      logTicketCreated(ticket, { source: "Web Panel", ticketChannelId: null });
+    } catch (_) {}
+
+    res.json({ success: true, ticket: { ticketId: ticket.ticketId, _id: ticket._id } });
+  } catch (err) {
+    console.error("Web ticket create error:", err);
     res.status(500).json({ error: err.message });
   }
 });

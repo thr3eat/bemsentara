@@ -35,6 +35,7 @@ function TicketConstructor(data) {
     channelDeleted: false,
     channelDeletedAt: null,
     guildId: null,
+    source: "discord",  // "discord" | "web"
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {
