@@ -5,22 +5,25 @@ const Economy = {
   findOne(query) {
     return Promise.resolve(economies.findOne(query));
   },
-
   findById(id) {
     return Promise.resolve(economies.findById(id));
   },
-
   find(query) {
     return Promise.resolve(economies.find(query));
   },
 };
 
-// Constructor-like: new Economy({...}) then .save()
 function EconomyConstructor(data) {
   const defaults = {
+    balance: 0,
     wallet: 0,
     bank: 0,
-    inventory: [],
+    inventory: [],          // [{ itemId, name, icon, acquiredAt }]
+    profileEffect: null,    // aktif profil efekti itemId
+    profileBadges: [],      // kazanılan rozet itemId'leri
+    profileFrame: null,     // aktif çerçeve itemId
+    totalEarned: 0,         // toplam kazanılan coin
+    totalSpent: 0,          // toplam harcanan coin
     lastDailyClaimAt: null,
     gamesPlayed: 0,
     gamesWon: 0,

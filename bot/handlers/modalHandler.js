@@ -289,12 +289,33 @@ async function handleRatingModal(interaction) {
   ticket.ratingNote = note;
   await ticket.save();
 
-  // Ticket'ı üstlenen kişiye DM gönder (closedBy veya claimedBy)
+  // Ticket'ı üstlenen kişiye DM gönder + bakiye ver
   const staffId = ticket.claimedBy || ticket.closedBy;
   if (staffId) {
+    // ── Bakiye ödülü: puan × 100 coin ──────────────────────────────────────
+    try {
+      const Economy = require("../../models/Economy");
+      const { saveStoreNow } = require("../../models/Store");
+      const COIN_PER_STAR = 100;
+      const earned = score * COIN_PER_STAR;
+
+      let eco = await Economy.findOne({ userId: staffId });
+      if (!eco) {
+        eco = new Economy({ userId: staffId });
+      }
+      eco.balance = (eco.balance || 0) + earned;
+      eco.totalEarned = (eco.totalEarned || 0) + earned;
+      await eco.save();
+      saveStoreNow();
+      console.log(`[rating] ${staffId} → +${earned} coin (${score} yıldız)`);
+    } catch (ecoErr) {
+      console.warn("[rating] Bakiye eklenemedi:", ecoErr.message);
+    }
+
     try {
       const staffUser = await interaction.client.users.fetch(staffId);
       const stars = "⭐".repeat(score) + "☆".repeat(5 - score);
+      const earned = score * 100;
 
       const ratingEmbed = new EmbedBuilder()
         .setColor(0xffd700)
@@ -303,6 +324,7 @@ async function handleRatingModal(interaction) {
           `**Ticket:** \`${ticket.ticketId}\`\n` +
             `**Konu:** ${ticket.subject}\n\n` +
             `**Puan:** ${stars} (${score}/5)\n` +
+            `**Kazanılan:** 💰 +${earned} coin\n` +
             (note ? `**Değerlendirme Notu:** ${note}` : "")
         )
         .setFooter({

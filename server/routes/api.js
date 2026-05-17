@@ -749,8 +749,7 @@ router.post("/api/settings", async (req, res) => {
 });
 
 // ── Moderatör puan sıralaması ────────────────────────────────────────────────
-router.get("/api/staff/ratings", async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+router.get("/api/staff/ratings", async (req, res) => {  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
 
   try {
     const { tickets: ticketStore, users: userStore } = require("../../models/Store");
