@@ -3,6 +3,8 @@ const {
   renderMainPage,
   renderDashboard,
   renderTicketsPage,
+  renderCreateTicketPage,
+  renderNotificationsPage,
   renderStaffPanel,
   renderDebugPage,
   renderProfilePage,
@@ -31,6 +33,13 @@ router.get("/dashboard", (req, res) => {
 router.get("/tickets", (req, res) => {
   if (!req.user) return res.redirect("/login");
   res.send(renderTicketsPage(req.user));
+});
+
+router.get("/tickets/new", (req, res) => {
+  if (!req.user) return res.redirect("/login");
+  const { SUPPORT_CATEGORIES } = require("../../config");
+  const cats = Object.values(SUPPORT_CATEGORIES).map(c => c.name);
+  res.send(renderCreateTicketPage(req.user, cats));
 });
 
 router.get("/staff", (req, res) => {
@@ -67,6 +76,12 @@ router.get("/profile", (req, res) => {
 router.get("/settings", (req, res) => {
   if (!req.user) return res.redirect("/login");
   res.send(renderSettingsPage(req.user));
+});
+
+router.get("/notifications", (req, res) => {
+  if (!req.user) return res.redirect("/login");
+  // Bildirimler şimdilik boş — ileride notification store eklenebilir
+  res.send(renderNotificationsPage(req.user, []));
 });
 
 router.get("/legal/tos", (req, res) => {

@@ -101,4 +101,27 @@ router.get("/logout", (req, res) => {
   });
 });
 
+// Roblox bağlantısını kaldır
+router.get("/auth/roblox/unlink", async (req, res) => {
+  if (!req.user) return res.redirect("/login");
+  try {
+    const User = require("../../models/User");
+    const { saveStoreNow } = require("../../models/Store");
+    const user = await User.findById(req.user._id);
+    if (user) {
+      user.robloxId = null;
+      user.robloxUsername = null;
+      user.isAuthorized = false;
+      await user.save();
+      saveStoreNow();
+      // Oturumu güncelle
+      req.user = user;
+    }
+    res.redirect("/settings?robloxUnlinked=true");
+  } catch (err) {
+    console.error("Roblox unlink error:", err);
+    res.redirect("/settings?error=true");
+  }
+});
+
 module.exports = router;
