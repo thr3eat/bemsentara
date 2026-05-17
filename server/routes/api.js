@@ -2,8 +2,10 @@ const express = require("express");
 const crypto = require("crypto");
 const Ticket = require("../../models/Ticket");
 const User = require("../../models/User");
+const Economy = require("../../models/Economy");
 const { wikiArticles, saveStoreNow } = require("../../models/Store");
 const { isSiteAdmin, isSiteStaff } = require("../../utils/adminCheck");
+const { SHOP_ITEMS, findItem } = require("../../bot/config/shopItems");
 
 const router = express.Router();
 
@@ -803,6 +805,117 @@ router.get("/api/staff/ratings", async (req, res) => {  if (!req.user) return re
     res.json({ success: true, staff: result });
   } catch (err) {
     console.error("[/api/staff/ratings]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Ekonomi: bakiye sorgula ──────────────────────────────────────────────────
+router.get("/api/economy/balance", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+  try {
+    let eco = await Economy.findOne({ userId: req.user.discordId });
+    if (!eco) eco = { balance: 0, inventory: [], profileEffect: null, profileFrame: null, profileBadges: [], totalEarned: 0, totalSpent: 0 };
+    res.json({
+      success: true,
+      balance: eco.balance || 0,
+      inventory: eco.inventory || [],
+      profileEffect: eco.profileEffect || null,
+      profileFrame: eco.profileFrame || null,
+      profileBadges: eco.profileBadges || [],
+      totalEarned: eco.totalEarned || 0,
+      totalSpent: eco.totalSpent || 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Mağaza: ürün listesi ─────────────────────────────────────────────────────
+router.get("/api/shop/items", (req, res) => {
+  res.json({ success: true, items: SHOP_ITEMS });
+});
+
+// ── Mağaza: satın al ─────────────────────────────────────────────────────────
+router.post("/api/shop/buy", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const { itemId } = req.body;
+  const item = findItem(itemId);
+  if (!item) return res.status(404).json({ error: "Ürün bulunamadı." });
+
+  try {
+    let eco = await Economy.findOne({ userId: req.user.discordId });
+    if (!eco) {
+      eco = new Economy({ userId: req.user.discordId });
+      await eco.save();
+    }
+
+    const balance = eco.balance || 0;
+    if (balance < item.price) {
+      return res.status(400).json({
+        error: `Yetersiz bakiye. Gerekli: ${item.price.toLocaleString("tr-TR")} coin, Mevcut: ${balance.toLocaleString("tr-TR")} coin.`,
+      });
+    }
+
+    const inventory = eco.inventory || [];
+    if (inventory.some(i => i.itemId === itemId)) {
+      return res.status(400).json({ error: "Bu ürüne zaten sahipsiniz." });
+    }
+
+    eco.balance = balance - item.price;
+    eco.totalSpent = (eco.totalSpent || 0) + item.price;
+    eco.inventory = [...inventory, {
+      itemId: item.id,
+      name: item.name,
+      icon: item.icon,
+      type: item.type,
+      acquiredAt: new Date(),
+    }];
+
+    if (item.type === "effect" && !eco.profileEffect) eco.profileEffect = item.id;
+    if (item.type === "frame"  && !eco.profileFrame)  eco.profileFrame  = item.id;
+    if (item.type === "badge") {
+      eco.profileBadges = [...(eco.profileBadges || []), item.id];
+    }
+    if (item.type === "color") {
+      const user = await User.findOne({ discordId: req.user.discordId });
+      if (user) { user.profileColor = item.value; await user.save(); }
+    }
+
+    await eco.save();
+    saveStoreNow();
+
+    res.json({ success: true, message: `${item.icon} ${item.name} satın alındı!`, newBalance: eco.balance });
+  } catch (err) {
+    console.error("[shop/buy]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Profil: aktif efekt/çerçeve değiştir ────────────────────────────────────
+router.post("/api/profile/equip", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const { itemId } = req.body;
+  const item = findItem(itemId);
+  if (!item) return res.status(404).json({ error: "Ürün bulunamadı." });
+
+  try {
+    const eco = await Economy.findOne({ userId: req.user.discordId });
+    if (!eco) return res.status(400).json({ error: "Envanter bulunamadı." });
+
+    const inventory = eco.inventory || [];
+    if (!inventory.some(i => i.itemId === itemId)) {
+      return res.status(400).json({ error: "Bu ürüne sahip değilsiniz." });
+    }
+
+    if (item.type === "effect") eco.profileEffect = itemId;
+    if (item.type === "frame")  eco.profileFrame  = itemId;
+
+    await eco.save();
+    saveStoreNow();
+    res.json({ success: true, message: `${item.icon} ${item.name} aktif edildi.` });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

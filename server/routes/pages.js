@@ -132,12 +132,8 @@ router.get("/leaderboard", (req, res) => {
 });
 
 router.get("/shop", (req, res) => {
-  const shopItems = [
-    { id: 'vip', name: 'VIP Rolü', desc: 'Sunucuda VIP rolüne sahip olursun.', price: 50000, icon: '🌟' },
-    { id: 'custom_color', name: 'Özel Renk', desc: 'İsmine özel bir renk ekle.', price: 25000, icon: '🎨' },
-    { id: 'ticket_priority', name: 'Öncelikli Destek', desc: 'Ticketların en üst sırada gözükür.', price: 100000, icon: '⚡' }
-  ];
-  res.send(renderShopPage(req.user, shopItems));
+  const { SHOP_ITEMS } = require("../../bot/config/shopItems");
+  res.send(renderShopPage(req.user, SHOP_ITEMS));
 });
 
 module.exports = router;

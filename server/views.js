@@ -1584,42 +1584,162 @@ function renderProfilePage(user) {
     : `linear-gradient(135deg, ${_esc(user.profileColor || '#7c6af7')}, #1a1a2e)`;
 
   const content = `
-    <!-- Banner -->
-    <div style="background:${banner};background-size:cover;background-position:center;
-                height:220px;border-radius:20px 20px 0 0;position:relative;
-                border:1px solid var(--border);border-bottom:none;">
-      <img src="${_esc(user.discordAvatar)}" alt="Avatar"
-           style="width:110px;height:110px;border-radius:50%;border:4px solid var(--bg);
-                  position:absolute;bottom:-55px;left:2rem;
-                  box-shadow:0 4px 20px rgba(0,0,0,0.6);">
-    </div>
+    <style>
+      /* ── Profil Efektleri ── */
+      @keyframes aurora { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+      @keyframes fire   { 0%,100%{filter:hue-rotate(0deg) brightness(1)} 50%{filter:hue-rotate(20deg) brightness(1.2)} }
+      @keyframes galaxy { 0%{background-position:0% 0%} 100%{background-position:100% 100%} }
+      @keyframes neon   { 0%,100%{box-shadow:0 0 10px #f953c6,0 0 20px #f953c6} 50%{box-shadow:0 0 20px #b91d73,0 0 40px #b91d73} }
+      @keyframes ocean  { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
 
-    <!-- Info Card -->
-    <div class="card" style="border-radius:0 0 20px 20px;padding-top:4rem;border-top:none;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-        <div>
-          <h1 style="font-size:2.2rem;font-weight:800;margin-bottom:0.3rem;">${_esc(user.discordUsername)}</h1>
-          <div style="color:var(--muted);font-size:0.9rem;">
-            Roblox: <span style="color:${user.robloxUsername ? 'var(--success)' : 'var(--muted)'};">${_esc(user.robloxUsername || 'Bağlı değil')}</span>
+      .effect-aurora .profile-banner { background:linear-gradient(270deg,#00c6ff,#0072ff,#7c6af7,#ff6bf7,#00c6ff) !important; background-size:400% 400% !important; animation:aurora 6s ease infinite; }
+      .effect-fire   .profile-banner { animation:fire 2s ease infinite; }
+      .effect-galaxy .profile-banner { background:linear-gradient(135deg,#0f0c29,#302b63,#24243e,#7c6af7,#0f0c29) !important; background-size:400% 400% !important; animation:galaxy 8s linear infinite; }
+      .effect-neon   .profile-card   { animation:neon 2s ease-in-out infinite; }
+      .effect-ocean  .profile-banner { background:linear-gradient(270deg,#1a6b8a,#00b4d8,#90e0ef,#1a6b8a) !important; background-size:400% 400% !important; animation:ocean 5s ease infinite; }
+
+      /* ── Çerçeveler ── */
+      .frame-gold    .profile-avatar { border-color:#fbbf24 !important; box-shadow:0 0 0 3px #fbbf24,0 0 20px rgba(251,191,36,0.5) !important; }
+      .frame-diamond .profile-avatar { border-color:transparent !important; background:linear-gradient(135deg,#a8edea,#fed6e3) !important; box-shadow:0 0 0 3px #a8edea,0 0 20px rgba(168,237,234,0.5) !important; }
+      .frame-fire    .profile-avatar { border-color:#ff4e00 !important; box-shadow:0 0 0 3px #ff4e00,0 0 20px rgba(255,78,0,0.6) !important; animation:fire 2s ease infinite; }
+    </style>
+
+    <div id="profile-wrapper">
+      <!-- Banner -->
+      <div class="profile-banner" style="background:${banner};background-size:cover;background-position:center;
+                  height:220px;border-radius:20px 20px 0 0;position:relative;
+                  border:1px solid var(--border);border-bottom:none;">
+        <img src="${_esc(user.discordAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png')}" alt="Avatar"
+             class="profile-avatar"
+             style="width:110px;height:110px;border-radius:50%;border:4px solid var(--bg);
+                    position:absolute;bottom:-55px;left:2rem;
+                    box-shadow:0 4px 20px rgba(0,0,0,0.6);">
+      </div>
+
+      <!-- Info Card -->
+      <div class="card profile-card" style="border-radius:0 0 20px 20px;padding-top:4rem;border-top:none;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+          <div>
+            <h1 style="font-size:2.2rem;font-weight:800;margin-bottom:0.3rem;">${_esc(user.discordUsername)}</h1>
+            <div style="color:var(--muted);font-size:0.9rem;margin-bottom:0.5rem;">
+              Roblox: <span style="color:${user.robloxUsername ? 'var(--success)' : 'var(--muted)'};">${_esc(user.robloxUsername || 'Bağlı değil')}</span>
+            </div>
+            <!-- Rozetler -->
+            <div id="profile-badges" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+              ${user.isAdmin ? '<span class="badge badge-admin">👑 Admin</span>' : ''}
+              ${user.isStaff && !user.isAdmin ? '<span class="badge" style="background:rgba(124,106,247,0.12);color:var(--accent);border:1px solid rgba(124,106,247,0.3);">🛡 Staff</span>' : ''}
+            </div>
           </div>
-          <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
-            ${user.isAdmin ? '<span class="badge badge-admin">👑 Admin</span>' : ''}
-            ${user.isStaff && !user.isAdmin ? '<span class="badge" style="background:rgba(124,106,247,0.12);color:var(--accent);border:1px solid rgba(124,106,247,0.3);">🛡 Staff</span>' : ''}
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <a href="/settings" class="btn btn-ghost btn-sm">✏️ Düzenle</a>
           </div>
         </div>
-        <a href="/settings" class="btn btn-ghost btn-sm">✏️ Düzenle</a>
-      </div>
 
-      <hr class="divider">
+        <!-- Bakiye -->
+        <div id="balance-bar" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+          <div style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.3);border-radius:12px;padding:0.75rem 1.25rem;display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.2rem;">💰</span>
+            <div>
+              <div style="font-size:0.75rem;color:var(--muted);">Bakiye</div>
+              <div id="balance-val" style="font-weight:800;font-size:1.1rem;">—</div>
+            </div>
+          </div>
+          <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:0.75rem 1.25rem;display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.2rem;">📈</span>
+            <div>
+              <div style="font-size:0.75rem;color:var(--muted);">Toplam Kazanılan</div>
+              <div id="earned-val" style="font-weight:800;font-size:1.1rem;color:var(--success);">—</div>
+            </div>
+          </div>
+        </div>
 
-      <!-- Bio -->
-      <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:15px;border:1px solid var(--border);">
-        <h3 style="margin-bottom:0.75rem;color:var(--accent);font-size:1rem;">📝 Hakkımda</h3>
-        <p style="line-height:1.7;white-space:pre-wrap;color:${user.profileBio ? 'var(--text)' : 'var(--muted)'};">
-          ${_esc(user.profileBio || 'Henüz bir biyografi eklenmemiş.')}
-        </p>
+        <hr class="divider">
+
+        <!-- Bio -->
+        <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:15px;border:1px solid var(--border);margin-bottom:1.5rem;">
+          <h3 style="margin-bottom:0.75rem;color:var(--accent);font-size:1rem;">📝 Hakkımda</h3>
+          <p style="line-height:1.7;white-space:pre-wrap;color:${user.profileBio ? 'var(--text)' : 'var(--muted)'};">
+            ${_esc(user.profileBio || 'Henüz bir biyografi eklenmemiş.')}
+          </p>
+        </div>
+
+        <!-- Envanter -->
+        <div>
+          <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem;">🎒 Envanter</h3>
+          <div id="inventory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;">
+            <div style="color:var(--muted);font-size:0.9rem;grid-column:1/-1;">Yükleniyor...</div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <script>
+      async function loadEconomy() {
+        try {
+          const res = await fetch('/api/economy/balance');
+          const d = await res.json();
+          if (!d.success) return;
+
+          document.getElementById('balance-val').textContent = (d.balance || 0).toLocaleString('tr-TR') + ' coin';
+          document.getElementById('earned-val').textContent  = '+' + (d.totalEarned || 0).toLocaleString('tr-TR') + ' coin';
+
+          // Rozetler
+          const badgeContainer = document.getElementById('profile-badges');
+          (d.profileBadges || []).forEach(bid => {
+            const BADGES = { badge_supporter:{emoji:'💜',label:'Destekçi'}, badge_veteran:{emoji:'⚔️',label:'Veteran'}, badge_star:{emoji:'⭐',label:'Yıldız'}, badge_crown:{emoji:'👑',label:'Kral'} };
+            const b = BADGES[bid];
+            if (b) {
+              const span = document.createElement('span');
+              span.className = 'badge';
+              span.style.cssText = 'background:rgba(255,215,0,0.12);color:#fbbf24;border:1px solid rgba(255,215,0,0.3);';
+              span.textContent = b.emoji + ' ' + b.label;
+              badgeContainer.appendChild(span);
+            }
+          });
+
+          // Efekt/çerçeve uygula
+          const wrapper = document.getElementById('profile-wrapper');
+          if (d.profileEffect) wrapper.classList.add(d.profileEffect.replace('effect_','effect-'));
+          if (d.profileFrame)  wrapper.classList.add(d.profileFrame.replace('frame_','frame-'));
+
+          // Envanter
+          const grid = document.getElementById('inventory-grid');
+          const inv = d.inventory || [];
+          if (!inv.length) {
+            grid.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;grid-column:1/-1;">Henüz hiçbir şey satın almadınız. <a href="/shop" style="color:var(--accent);">Mağazaya git →</a></div>';
+            return;
+          }
+
+          grid.innerHTML = inv.map(item => {
+            const isActiveEffect = d.profileEffect === item.itemId;
+            const isActiveFrame  = d.profileFrame  === item.itemId;
+            const isActive = isActiveEffect || isActiveFrame;
+            const canEquip = item.type === 'effect' || item.type === 'frame';
+            return \`<div style="background:rgba(0,0,0,0.35);border:1px solid \${isActive ? 'var(--accent)' : 'var(--border)'};border-radius:14px;padding:1rem;text-align:center;position:relative;">
+              \${isActive ? '<div style="position:absolute;top:6px;right:8px;font-size:0.65rem;background:var(--accent);color:white;padding:1px 6px;border-radius:10px;font-weight:700;">AKTİF</div>' : ''}
+              <div style="font-size:2rem;margin-bottom:0.4rem;">\${item.icon}</div>
+              <div style="font-size:0.8rem;font-weight:700;margin-bottom:0.5rem;">\${item.name}</div>
+              \${canEquip && !isActive ? \`<button onclick="equipItem('\${item.itemId}')" class="btn btn-sm" style="font-size:0.75rem;padding:0.3rem 0.75rem;">Tak</button>\` : ''}
+            </div>\`;
+          }).join('');
+        } catch (err) {
+          console.warn('Economy yüklenemedi:', err.message);
+        }
+      }
+
+      async function equipItem(itemId) {
+        const res = await fetch('/api/profile/equip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) { showToast(d.message || 'Aktif edildi!', 'success'); setTimeout(() => location.reload(), 600); }
+        else showToast(d.error || 'Hata', 'error');
+      }
+
+      loadEconomy();
+    </script>
   `;
   return _layout('Profil', user, content);
 }
