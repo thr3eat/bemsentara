@@ -2159,9 +2159,22 @@ function renderWikiArticlePage(user, article, canManage = false) {
 
 function renderAdminPage(user) {
   const content = `
-    <div class="card">
+    <!-- Sekme başlıkları -->
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border);">
+      <button class="adm-tab adm-tab-active" onclick="admTab('users',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        👥 Kullanıcılar
+      </button>
+      <button class="adm-tab" onclick="admTab('bans',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        🚫 Banlar
+      </button>
+    </div>
+
+    <!-- Kullanıcı yönetimi -->
+    <div id="adm-users" class="card">
       <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">⚙️ Admin Paneli</h1>
-      <p class="text-muted mb-3">Kullanıcılara admin veya staff yetkisi verin.</p>
+      <p class="text-muted mb-3">Kullanıcı yetkileri ve ban yönetimi.</p>
       <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
         <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;">
         <button type="button" class="btn" onclick="adminSearchUsers()">Ara</button>
@@ -2170,12 +2183,61 @@ function renderAdminPage(user) {
       <hr class="divider" style="margin-top:2rem;">
       <a href="/debug" style="color:var(--accent);">🔍 Debug sayfası</a>
     </div>
+
+    <!-- Ban yönetimi -->
+    <div id="adm-bans" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h1 style="font-size:2rem;font-weight:800;">🚫 Ban Yönetimi</h1>
+          <p class="text-muted" style="margin-top:.25rem;">Kullanıcıları site ve/veya Discord'dan yasaklayın.</p>
+        </div>
+        <button class="btn btn-sm" onclick="loadBans()">🔄 Yenile</button>
+      </div>
+
+      <!-- Yeni ban formu -->
+      <div style="background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:16px;padding:1.5rem;margin-bottom:2rem;">
+        <h3 style="font-size:1rem;font-weight:800;color:var(--danger);margin-bottom:1rem;">➕ Kullanıcı Yasakla</h3>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem;">
+          <input type="text" id="ban-id" placeholder="Discord ID veya kullanıcı adı" style="flex:1;min-width:200px;margin-bottom:0;">
+          <input type="text" id="ban-reason" placeholder="Sebep (isteğe bağlı)" style="flex:2;min-width:200px;margin-bottom:0;">
+        </div>
+        <div style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;color:var(--text);font-size:.9rem;">
+            <input type="checkbox" id="ban-discord" checked style="width:auto;margin:0;"> Discord'dan da yasakla
+          </label>
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;color:var(--text);font-size:.9rem;">
+            <input type="checkbox" id="ban-site" checked style="width:auto;margin:0;"> Siteden yasakla
+          </label>
+        </div>
+        <button class="btn btn-danger" onclick="banUser()">🚫 Yasakla</button>
+      </div>
+
+      <!-- Aktif banlar listesi -->
+      <h3 style="font-size:1rem;font-weight:800;margin-bottom:1rem;">📋 Aktif Banlar</h3>
+      <div id="ban-list"><div style="color:var(--muted);text-align:center;padding:2rem;">Yükleniyor...</div></div>
+    </div>
+
     <script>
+      // ── Sekme geçişi ──────────────────────────────────────────────────────
+      function admTab(name, btn) {
+        document.getElementById('adm-users').style.display = name === 'users' ? '' : 'none';
+        document.getElementById('adm-bans').style.display  = name === 'bans'  ? '' : 'none';
+        document.querySelectorAll('.adm-tab').forEach(t => {
+          t.style.borderBottomColor = 'transparent';
+          t.style.color = 'var(--muted)';
+        });
+        btn.style.borderBottomColor = 'var(--accent)';
+        btn.style.color = 'var(--text)';
+        if (name === 'bans') loadBans();
+      }
+
+      // ── Kullanıcı arama ───────────────────────────────────────────────────
       function adminEsc(s) {
         const el = document.createElement('div');
         el.textContent = s == null ? '' : String(s);
         return el.innerHTML;
       }
+
       async function adminSearchUsers() {
         const q = document.getElementById('admin-search').value.trim();
         const box = document.getElementById('admin-results');
@@ -2183,41 +2245,137 @@ function renderAdminPage(user) {
         try {
           const res = await fetch('/api/admin/users?q=' + encodeURIComponent(q));
           const d = await res.json();
-          if (!res.ok) {
-            box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>';
-            return;
-          }
-          if (!d.users || !d.users.length) {
-            box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>';
-            return;
-          }
+          if (!res.ok) { box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>'; return; }
+          if (!d.users || !d.users.length) { box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>'; return; }
           box.innerHTML = d.users.map(function(u) {
-            return '<div class="admin-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
-              '<div style="font-weight:800;margin-bottom:0.25rem;">' + adminEsc(u.discordUsername) + '</div>' +
-              '<div style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">ID: ' + adminEsc(u.discordId) + '</div>' +
-              '<label style="margin-right:1rem;cursor:pointer;"><input type="checkbox" class="admin-cb-admin" ' + (u.isAdmin ? 'checked' : '') + '> Admin</label>' +
-              '<label style="margin-right:1rem;cursor:pointer;"><input type="checkbox" class="admin-cb-staff" ' + (u.isStaff ? 'checked' : '') + '> Staff</label>' +
-              '<button type="button" class="btn btn-sm" onclick="adminSaveRoles(this)">Kaydet</button></div>';
+            const banBtn = u.isBanned
+              ? '<button type="button" class="btn btn-sm btn-success" onclick="quickUnban(\\''+adminEsc(u.discordId)+'\\')">✅ Banı Kaldır</button>'
+              : '<button type="button" class="btn btn-sm btn-danger" onclick="quickBan(\\''+adminEsc(u.discordId)+'\\',\\''+adminEsc(u.discordUsername)+'\\')">🚫 Yasakla</button>';
+            return '<div class="admin-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid '+(u.isBanned?'rgba(248,113,113,.4)':'var(--border)')+';border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
+              '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">' +
+              (u.discordAvatar ? '<img src="'+adminEsc(u.discordAvatar)+'" style="width:36px;height:36px;border-radius:50%;">' : '') +
+              '<div><div style="font-weight:800;">' + adminEsc(u.discordUsername) + (u.isBanned ? ' <span style="color:var(--danger);font-size:.75rem;">🚫 BANLANDI</span>' : '') + '</div>' +
+              '<div style="font-size:0.8rem;color:var(--muted);">ID: ' + adminEsc(u.discordId) + '</div></div></div>' +
+              '<div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">' +
+              '<label style="cursor:pointer;"><input type="checkbox" class="admin-cb-admin" ' + (u.isAdmin ? 'checked' : '') + '> Admin</label>' +
+              '<label style="cursor:pointer;"><input type="checkbox" class="admin-cb-staff" ' + (u.isStaff ? 'checked' : '') + '> Staff</label>' +
+              '<button type="button" class="btn btn-sm" onclick="adminSaveRoles(this)">💾 Kaydet</button>' +
+              banBtn + '</div></div>';
           }).join('');
         } catch (err) {
           box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
         }
       }
+
       async function adminSaveRoles(btn) {
         const row = btn.closest('.admin-user-row');
         const id = row.getAttribute('data-discord-id');
         const isAdmin = row.querySelector('.admin-cb-admin').checked;
         const isStaff = row.querySelector('.admin-cb-staff').checked;
         const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/roles', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isAdmin: isAdmin, isStaff: isStaff })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isAdmin, isStaff })
         });
-        const d = await res.json().catch(function() { return {}; });
-        if (res.ok) showToast('Kaydedildi: ' + (d.user && d.user.discordUsername ? d.user.discordUsername : id), 'success');
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) showToast('Kaydedildi: ' + (d.user?.discordUsername || id), 'success');
         else showToast(d.error || 'Kaydedilemedi', 'error');
       }
+
+      function quickBan(id, name) {
+        document.getElementById('ban-id').value = id;
+        admTab('bans', document.querySelectorAll('.adm-tab')[1]);
+      }
+
+      async function quickUnban(id) {
+        if (!confirm('Bu kullanıcının banını kaldırmak istiyor musun?')) return;
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/unban', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discordUnban: false })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) { showToast(d.message || 'Ban kaldırıldı.', 'success'); adminSearchUsers(); }
+        else showToast(d.error || 'Hata', 'error');
+      }
+
       adminSearchUsers();
+
+      // ── Ban işlemleri ─────────────────────────────────────────────────────
+      async function banUser() {
+        const idOrName = document.getElementById('ban-id').value.trim();
+        const reason   = document.getElementById('ban-reason').value.trim();
+        const discordBan = document.getElementById('ban-discord').checked;
+        const siteBan    = document.getElementById('ban-site').checked;
+
+        if (!idOrName) { showToast('Discord ID veya kullanıcı adı girin.', 'warning'); return; }
+        if (!discordBan && !siteBan) { showToast('En az bir ban türü seçin.', 'warning'); return; }
+
+        // Önce kullanıcıyı ara
+        const sr = await fetch('/api/admin/users?q=' + encodeURIComponent(idOrName));
+        const sd = await sr.json().catch(() => ({}));
+        const found = (sd.users || []).find(u => u.discordId === idOrName || u.discordUsername?.toLowerCase() === idOrName.toLowerCase());
+
+        if (!found) { showToast('Kullanıcı bulunamadı. Lütfen Discord ID girin.', 'error'); return; }
+
+        if (!confirm(found.discordUsername + ' kullanıcısını yasaklamak istiyor musun?')) return;
+
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(found.discordId) + '/ban', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason, discordBan, siteBan })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showToast(d.message || 'Yasaklandı.', 'success');
+          if (d.discordResult) showToast(d.discordResult, 'info');
+          document.getElementById('ban-id').value = '';
+          document.getElementById('ban-reason').value = '';
+          loadBans();
+        } else showToast(d.error || 'Hata', 'error');
+      }
+
+      async function loadBans() {
+        const box = document.getElementById('ban-list');
+        box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;">Yükleniyor...</div>';
+        try {
+          const res = await fetch('/api/admin/bans');
+          const d = await res.json().catch(() => ({}));
+          const bans = d.bans || [];
+          if (!bans.length) {
+            box.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);">Aktif ban yok.</div>';
+            return;
+          }
+          box.innerHTML = bans.map(b => {
+            const ts = b.bannedAt ? new Date(b.bannedAt).toLocaleString('tr-TR') : '—';
+            return \`<div style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);border-radius:14px;margin-bottom:.75rem;flex-wrap:wrap;">
+              \${b.discordAvatar ? \`<img src="\${b.discordAvatar}" style="width:42px;height:42px;border-radius:50%;flex-shrink:0;">\` : ''}
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:800;">\${b.discordUsername || '—'}</div>
+                <div style="font-size:.78rem;color:var(--muted);">ID: \${b.discordId} • \${ts}</div>
+                \${b.banReason ? \`<div style="font-size:.82rem;color:var(--danger);margin-top:.2rem;">Sebep: \${b.banReason}</div>\` : ''}
+              </div>
+              <div style="display:flex;gap:.5rem;flex-shrink:0;">
+                <button class="btn btn-sm btn-success" onclick="unbanUser('\${b.discordId}', true)">✅ Kaldır + Discord</button>
+                <button class="btn btn-sm btn-ghost" onclick="unbanUser('\${b.discordId}', false)">🔓 Sadece Site</button>
+              </div>
+            </div>\`;
+          }).join('');
+        } catch (err) {
+          box.innerHTML = '<div style="color:var(--danger);padding:1rem;">❌ ' + err.message + '</div>';
+        }
+      }
+
+      async function unbanUser(id, discordUnban) {
+        if (!confirm('Bu kullanıcının banını kaldırmak istiyor musun?')) return;
+        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/unban', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discordUnban })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showToast(d.message || 'Ban kaldırıldı.', 'success');
+          if (d.discordResult) showToast(d.discordResult, 'info');
+          loadBans();
+        } else showToast(d.error || 'Hata', 'error');
+      }
     <\/script>
   `;
   return _layout('Admin', user, content, '', '/admin');

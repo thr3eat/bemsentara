@@ -627,10 +627,13 @@ router.get("/api/admin/users", async (req, res) => {
     _id: u._id,
     discordId: u.discordId,
     discordUsername: u.discordUsername,
+    discordAvatar: u.discordAvatar,
     robloxUsername: u.robloxUsername,
     isAdmin: Boolean(u.isAdmin),
     isStaff: Boolean(u.isStaff),
     isAuthorized: Boolean(u.isAuthorized),
+    isBanned: Boolean(u.isBanned),
+    banReason: u.banReason || null,
   }));
 
   res.json({ success: true, users: list });
@@ -745,6 +748,132 @@ router.post("/api/settings", async (req, res) => {
       }
     }
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: kullanıcı ban ─────────────────────────────────────────────────────
+router.post("/api/admin/users/:discordId/ban", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const targetId = String(req.params.discordId);
+  if (targetId === String(req.user.discordId)) {
+    return res.status(400).json({ error: "Kendinizi banlayamazsınız." });
+  }
+
+  const { reason, discordBan } = req.body;
+  const banReason = (reason || "Belirtilmedi").trim().slice(0, 500);
+
+  try {
+    const user = await User.findOne({ discordId: targetId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    if (user.isAdmin) {
+      return res.status(403).json({ error: "Admin kullanıcılar banlanamaz." });
+    }
+
+    // Site ban
+    user.isBanned = true;
+    user.banReason = banReason;
+    user.bannedAt = new Date();
+    user.bannedBy = req.user.discordId;
+    await user.save();
+    saveStoreNow();
+
+    // Discord ban (isteğe bağlı)
+    let discordResult = null;
+    if (discordBan) {
+      try {
+        const { getDiscordClient } = require("../../bot/discordClient");
+        const { TARGET_GUILD_ID } = require("../../config");
+        const client = getDiscordClient();
+        if (client?.isReady()) {
+          const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+          await guild.members.ban(targetId, { reason: `[Web Panel] ${banReason} — Yetkili: ${req.user.discordUsername}` });
+          discordResult = "Discord ban uygulandı.";
+        } else {
+          discordResult = "Bot hazır değil, Discord ban uygulanamadı.";
+        }
+      } catch (dErr) {
+        discordResult = `Discord ban hatası: ${dErr.message}`;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${user.discordUsername} yasaklandı.`,
+      discordResult,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: kullanıcı ban kaldır ──────────────────────────────────────────────
+router.post("/api/admin/users/:discordId/unban", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const targetId = String(req.params.discordId);
+  const { discordUnban } = req.body;
+
+  try {
+    const user = await User.findOne({ discordId: targetId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    user.isBanned = false;
+    user.banReason = null;
+    user.bannedAt = null;
+    user.bannedBy = null;
+    await user.save();
+    saveStoreNow();
+
+    // Discord unban (isteğe bağlı)
+    let discordResult = null;
+    if (discordUnban) {
+      try {
+        const { getDiscordClient } = require("../../bot/discordClient");
+        const { TARGET_GUILD_ID } = require("../../config");
+        const client = getDiscordClient();
+        if (client?.isReady()) {
+          const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+          await guild.bans.remove(targetId, `[Web Panel] Ban kaldırıldı — Yetkili: ${req.user.discordUsername}`);
+          discordResult = "Discord ban kaldırıldı.";
+        } else {
+          discordResult = "Bot hazır değil, Discord ban kaldırılamadı.";
+        }
+      } catch (dErr) {
+        discordResult = `Discord unban hatası: ${dErr.message}`;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${user.discordUsername} yasağı kaldırıldı.`,
+      discordResult,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: banlı kullanıcı listesi ──────────────────────────────────────────
+router.get("/api/admin/bans", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const { users: userStore } = require("../../models/Store");
+    const banned = userStore.find({}).filter(u => u.isBanned);
+    res.json({
+      success: true,
+      bans: banned.map(u => ({
+        discordId: u.discordId,
+        discordUsername: u.discordUsername,
+        discordAvatar: u.discordAvatar,
+        banReason: u.banReason,
+        bannedAt: u.bannedAt,
+        bannedBy: u.bannedBy,
+      })),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

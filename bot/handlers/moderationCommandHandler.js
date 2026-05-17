@@ -84,11 +84,29 @@ async function handleModerationCommand(interaction) {
       try {
         await interaction.guild.members.ban(kullanici.id, { reason: sebep });
 
+        // Site ban da uygula
+        try {
+          const User = require("../../models/User");
+          const { saveStoreNow } = require("../../models/Store");
+          const dbUser = await User.findOne({ discordId: kullanici.id });
+          if (dbUser) {
+            dbUser.isBanned = true;
+            dbUser.banReason = sebep;
+            dbUser.bannedAt = new Date();
+            dbUser.bannedBy = interaction.user.id;
+            await dbUser.save();
+            saveStoreNow();
+          }
+        } catch (siteErr) {
+          console.warn("[yasakla] Site ban uygulanamadı:", siteErr.message);
+        }
+
         const embed = new EmbedBuilder()
           .setTitle("🚫 Kullanıcı Yasaklandı")
           .setColor(0xed4245)
           .addFields(
-            { name: "Kullanıcı", value: kullanici.toString(), inline: false },
+            { name: "Kullanıcı", value: `${kullanici.toString()} \`${kullanici.id}\``, inline: false },
+            { name: "Yetkili", value: `${interaction.user.toString()}`, inline: true },
             { name: "Sebep", value: sebep, inline: false }
           )
           .setTimestamp();
@@ -104,6 +122,23 @@ async function handleModerationCommand(interaction) {
 
       try {
         await interaction.guild.bans.remove(kullanici.id);
+
+        // Site ban da kaldır
+        try {
+          const User = require("../../models/User");
+          const { saveStoreNow } = require("../../models/Store");
+          const dbUser = await User.findOne({ discordId: kullanici.id });
+          if (dbUser && dbUser.isBanned) {
+            dbUser.isBanned = false;
+            dbUser.banReason = null;
+            dbUser.bannedAt = null;
+            dbUser.bannedBy = null;
+            await dbUser.save();
+            saveStoreNow();
+          }
+        } catch (siteErr) {
+          console.warn("[yasaklama_kaldir] Site ban kaldırılamadı:", siteErr.message);
+        }
 
         const embed = new EmbedBuilder()
           .setTitle("✅ Yasak Kaldırıldı")

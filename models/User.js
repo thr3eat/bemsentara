@@ -35,8 +35,17 @@ const User = {
 function UserConstructor(data) {
   const defaults = {
     isAuthorized: false,
-    isStaff: false,
     isAdmin: false,
+    isModerator: false,
+    isStaff: false,
+    isWikiEditor: false,
+    isEventManager: false,
+    isSupport: false,
+    isContentCreator: false,
+    isBanned: false,
+    banReason: null,
+    bannedAt: null,
+    bannedBy: null,
     groupRole: null,
     canSetRole: false,
     canManageMembers: false,
