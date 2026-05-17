@@ -15,6 +15,7 @@ const {
   renderAdminPage,
   renderLeaderboardPage,
   renderShopPage,
+  renderWebhookPage,
 } = require("../views");
 const { users, tickets, economies, wikiArticles } = require("../../models/Store");
 const { isSiteAdmin } = require("../../utils/adminCheck");
@@ -134,6 +135,10 @@ router.get("/leaderboard", (req, res) => {
 router.get("/shop", (req, res) => {
   const { SHOP_ITEMS } = require("../../bot/config/shopItems");
   res.send(renderShopPage(req.user, SHOP_ITEMS));
+});
+
+router.get("/webhook", (req, res) => {
+  res.send(renderWebhookPage(req.user));
 });
 
 module.exports = router;

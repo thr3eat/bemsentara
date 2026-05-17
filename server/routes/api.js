@@ -1149,4 +1149,106 @@ router.post("/api/profile/equip", async (req, res) => {
   }
 });
 
+// ── Webhook Proxy ────────────────────────────────────────────────────────────
+// Roblox → bu endpoint → Discord webhook
+// Roblox'tan: POST /api/webhook/proxy
+// Body: { webhookUrl, content, embeds, username, avatarUrl }
+// Güvenlik: isteğe bağlı secret header kontrolü
+
+router.post("/api/webhook/proxy", async (req, res) => {
+  // CORS — Roblox'tan gelen isteklere izin ver
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Webhook-Secret");
+
+  const { webhookUrl, content, embeds, username, avatar_url, tts, allowed_mentions } = req.body;
+
+  // webhookUrl zorunlu
+  if (!webhookUrl) {
+    return res.status(400).json({ success: false, error: "webhookUrl gerekli." });
+  }
+
+  // Sadece Discord webhook URL'lerine izin ver
+  const discordWebhookPattern = /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/.+/;
+  if (!discordWebhookPattern.test(webhookUrl)) {
+    return res.status(400).json({ success: false, error: "Sadece Discord webhook URL'leri desteklenir." });
+  }
+
+  // İçerik kontrolü
+  if (!content && (!embeds || !embeds.length)) {
+    return res.status(400).json({ success: false, error: "content veya embeds gerekli." });
+  }
+
+  // Payload oluştur
+  const payload = {};
+  if (content)          payload.content          = String(content).slice(0, 2000);
+  if (username)         payload.username         = String(username).slice(0, 80);
+  if (avatar_url)       payload.avatar_url       = String(avatar_url);
+  if (tts)              payload.tts              = Boolean(tts);
+  if (allowed_mentions) payload.allowed_mentions = allowed_mentions;
+  if (embeds && Array.isArray(embeds)) {
+    payload.embeds = embeds.slice(0, 10); // Discord max 10 embed
+  }
+
+  try {
+    const https = require("https");
+    const url = new URL(webhookUrl);
+    const body = JSON.stringify(payload);
+
+    const result = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          "User-Agent": "SentaraWebhookProxy/1.0",
+        },
+      };
+
+      const req2 = https.request(options, (r) => {
+        let data = "";
+        r.on("data", chunk => data += chunk);
+        r.on("end", () => resolve({ status: r.statusCode, body: data }));
+      });
+
+      req2.on("error", reject);
+      req2.setTimeout(5000, () => { req2.destroy(); reject(new Error("Timeout")); });
+      req2.write(body);
+      req2.end();
+    });
+
+    // Discord 204 = başarılı (içerik yok), 200 = başarılı (içerik var)
+    if (result.status === 204 || result.status === 200) {
+      return res.status(200).json({ success: true, message: "Webhook gönderildi." });
+    }
+
+    // Rate limit
+    if (result.status === 429) {
+      let retryAfter = 1;
+      try { retryAfter = JSON.parse(result.body).retry_after || 1; } catch (_) {}
+      return res.status(429).json({ success: false, error: "Rate limit. Tekrar dene.", retry_after: retryAfter });
+    }
+
+    return res.status(result.status).json({
+      success: false,
+      error: `Discord hata kodu: ${result.status}`,
+      discord_response: result.body,
+    });
+
+  } catch (err) {
+    console.error("[webhook-proxy]", err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// OPTIONS preflight (CORS)
+router.options("/api/webhook/proxy", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Webhook-Secret");
+  res.sendStatus(204);
+});
+
 module.exports = router;

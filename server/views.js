@@ -296,6 +296,7 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       ${navLink('/leaderboard', 'Sıralama')}
       ${navLink('/shop',      'Mağaza')}
       ${navLink('/wiki',      'Wiki')}
+      ${navLink('/webhook',   '🔗 Webhook')}
       ${navLink('/settings',  'Ayarlar')}
       ${staffLinks}
       ${adminLink}
@@ -2864,6 +2865,226 @@ function renderNotificationsPage(user, notifications = []) {
 
 
 // ─────────────────────────────────────────────
+// WEBHOOK PROXY PAGE
+// ─────────────────────────────────────────────
+function renderWebhookPage(user) {
+  const { BASE_URL } = require('../config');
+  const proxyUrl = `${BASE_URL}/api/webhook/proxy`;
+
+  const content = `
+    <div class="card" style="max-width:800px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:2rem;">
+        <div style="font-size:3rem;margin-bottom:.75rem;">🔗</div>
+        <h1 style="font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          Webhook Proxy
+        </h1>
+        <p class="text-muted" style="margin-top:.5rem;">Roblox'tan Discord webhook'larına mesaj gönderin</p>
+      </div>
+
+      <!-- Proxy URL -->
+      <div style="background:rgba(124,106,247,.08);border:1px solid rgba(124,106,247,.25);border-radius:16px;padding:1.5rem;margin-bottom:2rem;">
+        <div style="font-size:.8rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:.75rem;">📡 Proxy Endpoint URL</div>
+        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+          <code id="proxy-url" style="flex:1;background:rgba(0,0,0,.4);padding:.75rem 1rem;border-radius:10px;font-size:.9rem;color:var(--accent);word-break:break-all;border:1px solid var(--border);">${_esc(proxyUrl)}</code>
+          <button class="btn btn-sm" onclick="copyProxyUrl()">📋 Kopyala</button>
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:.75rem;">Bu URL'yi Roblox scriptinizde kullanın. <code style="color:var(--accent);">POST</code> isteği atın.</p>
+      </div>
+
+      <!-- Test aracı -->
+      <div style="margin-bottom:2rem;">
+        <h2 style="font-size:1.2rem;font-weight:800;margin-bottom:1rem;">🧪 Webhook Test Et</h2>
+
+        <label>Discord Webhook URL</label>
+        <input type="text" id="wh-url" placeholder="https://discord.com/api/webhooks/..." style="font-family:monospace;font-size:.85rem;">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+          <div>
+            <label>Bot Adı (isteğe bağlı)</label>
+            <input type="text" id="wh-username" placeholder="Sentara Bot" style="margin-bottom:0;">
+          </div>
+          <div>
+            <label>Bot Avatar URL (isteğe bağlı)</label>
+            <input type="text" id="wh-avatar" placeholder="https://..." style="margin-bottom:0;">
+          </div>
+        </div>
+
+        <label style="margin-top:1rem;">Mesaj İçeriği</label>
+        <textarea id="wh-content" rows="3" placeholder="Merhaba Discord! Bu Roblox'tan gelen bir test mesajıdır." style="resize:vertical;"></textarea>
+
+        <!-- Embed -->
+        <details style="margin-bottom:1rem;">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:700;font-size:.9rem;padding:.5rem 0;">➕ Embed Ekle (isteğe bağlı)</summary>
+          <div style="margin-top:1rem;background:rgba(0,0,0,.2);border-radius:12px;padding:1rem;border:1px solid var(--border);">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+              <div>
+                <label>Embed Başlık</label>
+                <input type="text" id="emb-title" placeholder="Başlık" style="margin-bottom:0;">
+              </div>
+              <div>
+                <label>Embed Renk (hex)</label>
+                <input type="color" id="emb-color" value="#7c6af7" style="height:46px;padding:.25rem;margin-bottom:0;">
+              </div>
+            </div>
+            <label style="margin-top:.75rem;">Embed Açıklama</label>
+            <textarea id="emb-desc" rows="2" placeholder="Embed açıklaması..." style="resize:vertical;margin-bottom:.5rem;"></textarea>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+              <div>
+                <label>Footer</label>
+                <input type="text" id="emb-footer" placeholder="Footer metni" style="margin-bottom:0;">
+              </div>
+              <div>
+                <label>Thumbnail URL</label>
+                <input type="text" id="emb-thumb" placeholder="https://..." style="margin-bottom:0;">
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <button class="btn" onclick="testWebhook()" id="test-btn">🚀 Gönder</button>
+        <div id="wh-result" style="margin-top:1rem;"></div>
+      </div>
+
+      <!-- Roblox kod örneği -->
+      <div>
+        <h2 style="font-size:1.2rem;font-weight:800;margin-bottom:1rem;">📜 Roblox Lua Kod Örneği</h2>
+        <div style="position:relative;">
+          <pre id="lua-code" style="background:rgba(0,0,0,.5);border:1px solid var(--border);border-radius:12px;padding:1.5rem;overflow-x:auto;font-size:.82rem;line-height:1.6;color:#e2e8f0;white-space:pre-wrap;word-break:break-all;"></pre>
+          <button class="btn btn-sm btn-ghost" onclick="copyLua()" style="position:absolute;top:.75rem;right:.75rem;">📋 Kopyala</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const PROXY_URL = ${JSON.stringify(proxyUrl)};
+
+      // Lua kod örneğini doldur
+      function updateLuaCode() {
+        const webhookUrl = document.getElementById('wh-url').value || 'WEBHOOK_URL_BURAYA';
+        const code = \`local HttpService = game:GetService("HttpService")
+
+-- Proxy URL (Discord webhook'larına Roblox'tan istek atmak için)
+local PROXY_URL = "\${PROXY_URL}"
+
+-- Webhook URL'nizi buraya yapıştırın
+local WEBHOOK_URL = "\${webhookUrl}"
+
+local function sendWebhook(message, embedTitle, embedDesc, embedColor)
+    local payload = {
+        webhookUrl = WEBHOOK_URL,
+        username = "Roblox Bot",
+        content = message,
+    }
+    
+    -- Embed eklemek istersen
+    if embedTitle or embedDesc then
+        payload.embeds = {
+            {
+                title = embedTitle or "",
+                description = embedDesc or "",
+                color = embedColor or 8077559, -- #7b6af7
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                footer = { text = "Sentara Webhook Proxy" }
+            }
+        }
+    end
+    
+    local success, err = pcall(function()
+        HttpService:PostAsync(
+            PROXY_URL,
+            HttpService:JSONEncode(payload),
+            Enum.HttpContentType.ApplicationJson,
+            false
+        )
+    end)
+    
+    if not success then
+        warn("Webhook gönderilemedi: " .. tostring(err))
+    end
+end
+
+-- Kullanım örneği:
+sendWebhook("Merhaba Discord! 👋", "Oyun Bildirimi", "Bir oyuncu sunucuya katıldı.", 5763719)\`;
+        document.getElementById('lua-code').textContent = code;
+      }
+
+      document.getElementById('wh-url').addEventListener('input', updateLuaCode);
+      updateLuaCode();
+
+      function copyProxyUrl() {
+        navigator.clipboard.writeText(PROXY_URL).then(() => showToast('URL kopyalandı!', 'success'));
+      }
+
+      function copyLua() {
+        const code = document.getElementById('lua-code').textContent;
+        navigator.clipboard.writeText(code).then(() => showToast('Lua kodu kopyalandı!', 'success'));
+      }
+
+      async function testWebhook() {
+        const webhookUrl = document.getElementById('wh-url').value.trim();
+        const content    = document.getElementById('wh-content').value.trim();
+        const username   = document.getElementById('wh-username').value.trim();
+        const avatarUrl  = document.getElementById('wh-avatar').value.trim();
+        const embTitle   = document.getElementById('emb-title').value.trim();
+        const embDesc    = document.getElementById('emb-desc').value.trim();
+        const embColor   = document.getElementById('emb-color').value;
+        const embFooter  = document.getElementById('emb-footer').value.trim();
+        const embThumb   = document.getElementById('emb-thumb').value.trim();
+        const resultBox  = document.getElementById('wh-result');
+        const btn        = document.getElementById('test-btn');
+
+        if (!webhookUrl) { showToast('Discord Webhook URL girin.', 'warning'); return; }
+        if (!content && !embTitle && !embDesc) { showToast('Mesaj içeriği veya embed girin.', 'warning'); return; }
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Gönderiliyor...';
+        resultBox.innerHTML = '';
+
+        const payload = { webhookUrl };
+        if (content)   payload.content    = content;
+        if (username)  payload.username   = username;
+        if (avatarUrl) payload.avatar_url = avatarUrl;
+
+        if (embTitle || embDesc) {
+          // hex rengi integer'a çevir
+          const colorInt = parseInt(embColor.replace('#', ''), 16);
+          const embed = { color: colorInt };
+          if (embTitle)  embed.title       = embTitle;
+          if (embDesc)   embed.description = embDesc;
+          if (embFooter) embed.footer      = { text: embFooter };
+          if (embThumb)  embed.thumbnail   = { url: embThumb };
+          embed.timestamp = new Date().toISOString();
+          payload.embeds = [embed];
+        }
+
+        try {
+          const res = await fetch('/api/webhook/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const d = await res.json().catch(() => ({}));
+
+          if (res.ok && d.success) {
+            resultBox.innerHTML = '<div style="color:var(--success);background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:10px;padding:.75rem 1rem;">✅ Webhook başarıyla gönderildi!</div>';
+            showToast('Webhook gönderildi!', 'success');
+          } else {
+            resultBox.innerHTML = \`<div style="color:var(--danger);background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:10px;padding:.75rem 1rem;">❌ Hata: \${d.error || 'Bilinmeyen hata'}\${d.discord_response ? '<br><small style=\\"opacity:.7\\">' + d.discord_response + '</small>' : ''}</div>\`;
+            showToast(d.error || 'Hata', 'error');
+          }
+        } catch (err) {
+          resultBox.innerHTML = \`<div style="color:var(--danger);">❌ Bağlantı hatası: \${err.message}</div>\`;
+        }
+
+        btn.disabled = false;
+        btn.textContent = '🚀 Gönder';
+      }
+    <\/script>
+  `;
+  return _layout('Webhook Proxy', user, content, '', '/webhook');
+}
+
+// ─────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────
 module.exports = {
@@ -2884,6 +3105,7 @@ module.exports = {
   renderAdminPage,
   renderLeaderboardPage,
   renderShopPage,
+  renderWebhookPage,
   renderErrorPage,
   // Internal helpers (exported for testing)
   _esc,
