@@ -1,5 +1,11 @@
 const { EmbedBuilder } = require("discord.js");
-const { TICKET_LOG_CHANNEL_ID, TARGET_GUILD_ID, SUPPORT_CATEGORIES } = require("../../config");
+const {
+  TICKET_LOG_CHANNEL_ID,
+  TARGET_GUILD_ID,
+  SUPPORT_CATEGORIES,
+  GUILD2_ID,
+  GUILD2_TICKET_LOG_ID,
+} = require("../../config");
 const { getDiscordClient } = require("../discordClient");
 
 function categoryLabel(category) {
@@ -12,22 +18,51 @@ function truncate(text, max = 1024) {
   return s.length > max ? s.slice(0, max - 3) + "..." : s;
 }
 
-async function sendTicketLog(embed) {
+/** Ticket'ın hangi sunucuya ait olduğunu belirle ve log kanalını döndür */
+async function resolveLogChannel(ticket) {
   const client = getDiscordClient();
-  if (!client?.isReady() || !TICKET_LOG_CHANNEL_ID) return;
+  if (!client?.isReady()) return null;
+
+  // guildId ticket'ta saklıysa kullan, yoksa ana sunucu
+  const guildId = ticket.guildId || TARGET_GUILD_ID;
+  const isGuild2 = guildId === GUILD2_ID;
+
+  const logChannelId = isGuild2
+    ? (GUILD2_TICKET_LOG_ID || null)
+    : TICKET_LOG_CHANNEL_ID;
+
+  if (!logChannelId) return null;
 
   try {
-    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
-    const channel = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID);
-    if (channel?.isSendable()) {
+    const guild = await client.guilds.fetch(guildId);
+    const channel = await guild.channels.fetch(logChannelId);
+    return channel?.isSendable() ? channel : null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendTicketLog(embed, ticket) {
+  try {
+    const channel = await resolveLogChannel(ticket || {});
+    if (channel) {
       await channel.send({ embeds: [embed] });
+      return;
     }
+    // Fallback: ana sunucu log kanalı
+    if (!TICKET_LOG_CHANNEL_ID) return;
+    const client = getDiscordClient();
+    if (!client?.isReady()) return;
+    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    const fallback = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID);
+    if (fallback?.isSendable()) await fallback.send({ embeds: [embed] });
   } catch (err) {
     console.warn("[ticketLog] Kanala yazılamadı:", err.message);
   }
 }
 
-function logTicketCreated(ticket, { source, ticketChannelId }) {
+function logTicketCreated(ticket, { source, ticketChannelId, guildId }) {
+  if (guildId && !ticket.guildId) ticket.guildId = guildId;
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setTitle("🎫 Ticket Oluşturuldu")
@@ -45,14 +80,10 @@ function logTicketCreated(ticket, { source, ticketChannelId }) {
     .setTimestamp(ticket.createdAt || new Date());
 
   if (ticketChannelId) {
-    embed.addFields({
-      name: "Ticket kanalı",
-      value: `<#${ticketChannelId}>`,
-      inline: false,
-    });
+    embed.addFields({ name: "Ticket kanalı", value: `<#${ticketChannelId}>`, inline: false });
   }
 
-  sendTicketLog(embed);
+  sendTicketLog(embed, ticket);
 }
 
 function logTicketClosed(ticket, { closedBy, closedByName, reason, source }) {
@@ -73,14 +104,10 @@ function logTicketClosed(ticket, { closedBy, closedByName, reason, source }) {
     .setTimestamp();
 
   if (ticket.channelId) {
-    embed.addFields({
-      name: "Ticket kanalı",
-      value: `<#${ticket.channelId}>`,
-      inline: false,
-    });
+    embed.addFields({ name: "Ticket kanalı", value: `<#${ticket.channelId}>`, inline: false });
   }
 
-  sendTicketLog(embed);
+  sendTicketLog(embed, ticket);
 }
 
 function logTicketMessage(ticket, { authorId, authorName, content, source }) {
@@ -96,7 +123,7 @@ function logTicketMessage(ticket, { authorId, authorName, content, source }) {
     .setFooter({ text: "Sentara • Bilet Kaydı" })
     .setTimestamp();
 
-  sendTicketLog(embed);
+  sendTicketLog(embed, ticket);
 }
 
 /**
@@ -106,12 +133,12 @@ function logTicketMessage(ticket, { authorId, authorName, content, source }) {
  */
 async function logTicketMessages(channel, ticket) {
   const client = getDiscordClient();
-  if (!client?.isReady() || !TICKET_LOG_CHANNEL_ID) return;
+  if (!client?.isReady()) return;
 
   try {
-    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
-    const logChannel = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID);
-    if (!logChannel?.isSendable()) return;
+    // Ticket'ın sunucusuna göre log kanalını bul
+    const logChannel = await resolveLogChannel(ticket);
+    if (!logChannel) return;
 
     // Tüm mesajları çek (Discord max 100/istek, birden fazla sayfa)
     let allMessages = [];
@@ -146,7 +173,6 @@ async function logTicketMessages(channel, ticket) {
       await logChannel.send({ embeds: [emptyEmbed] });
       return;
     }
-
     // Başlık embed'i
     const headerEmbed = new EmbedBuilder()
       .setColor(0x7c6af7)

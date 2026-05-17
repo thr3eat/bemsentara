@@ -34,6 +34,7 @@ function TicketConstructor(data) {
     ratingNote: null,
     channelDeleted: false,
     channelDeletedAt: null,
+    guildId: null,
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {

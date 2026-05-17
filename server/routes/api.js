@@ -143,6 +143,7 @@ router.get("/api/health", (req, res) => {
   });
 });
 
+// ── Wiki: Makale listesi ─────────────────────────────────────────────────────
 router.get("/api/wiki/articles", (req, res) => {
   const list = wikiArticles
     .find({})
@@ -154,27 +155,28 @@ router.get("/api/wiki/articles", (req, res) => {
       imageUrl: a.imageUrl,
       authorName: a.authorName,
       authorAvatar: a.authorAvatar,
+      editedByName: a.editedByName || null,
+      editedAt: a.editedAt || null,
       commentCount: (a.comments || []).length,
+      views: a.views || 0,
+      reactions: a.reactions || {},
       createdAt: a.createdAt,
     }));
   res.json({ success: true, articles: list });
 });
 
+// ── Wiki: Makale oluştur ─────────────────────────────────────────────────────
 router.post("/api/wiki/articles", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const { title, body, imageUrl } = req.body;
   const t = (title || "").trim();
   const b = (body || "").trim();
-  if (!t || t.length < 2) {
-    return res.status(400).json({ error: "Başlık en az 2 karakter olmalı." });
-  }
+  if (!t || t.length < 2) return res.status(400).json({ error: "Başlık en az 2 karakter olmalı." });
   if (!b) return res.status(400).json({ error: "Metin boş olamaz." });
 
   let img = (imageUrl || "").trim();
-  if (img && !/^https?:\/\//i.test(img)) {
-    return res.status(400).json({ error: "Geçerli bir resim URL'si girin (https://...)." });
-  }
+  if (img && !/^https?:\/\//i.test(img)) return res.status(400).json({ error: "Geçerli bir resim URL'si girin (https://...)." });
   if (!img) img = null;
 
   try {
@@ -186,6 +188,11 @@ router.post("/api/wiki/articles", async (req, res) => {
       authorName: req.user.discordUsername,
       authorAvatar: req.user.discordAvatar,
       comments: [],
+      reactions: {},
+      views: 0,
+      editedByName: null,
+      editedById: null,
+      editedAt: null,
     });
     saveStoreNow();
     res.json({ success: true, article });
@@ -194,6 +201,30 @@ router.post("/api/wiki/articles", async (req, res) => {
   }
 });
 
+// ── Wiki: Makale düzenle ─────────────────────────────────────────────────────
+router.patch("/api/wiki/articles/:id", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+
+  const { title, body, imageUrl } = req.body;
+  if (title !== undefined) article.title = String(title).trim().slice(0, 120);
+  if (body  !== undefined) article.body  = String(body).trim().slice(0, 20000);
+  if (imageUrl !== undefined) {
+    const img = String(imageUrl).trim();
+    article.imageUrl = img && /^https?:\/\//i.test(img) ? img : null;
+  }
+  article.editedById   = req.user.discordId;
+  article.editedByName = req.user.discordUsername;
+  article.editedAt     = new Date();
+
+  await article.save();
+  saveStoreNow();
+  res.json({ success: true, article });
+});
+
+// ── Wiki: Makale sil ─────────────────────────────────────────────────────────
 router.delete("/api/wiki/articles/:id", async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const article = wikiArticles.findById(req.params.id);
@@ -204,12 +235,55 @@ router.delete("/api/wiki/articles/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Wiki: Görüntülenme sayısını artır ────────────────────────────────────────
+router.post("/api/wiki/articles/:id/view", (req, res) => {
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+  article.views = (article.views || 0) + 1;
+  article.save();
+  res.json({ success: true, views: article.views });
+});
+
+// ── Wiki: Tepki ekle/kaldır ──────────────────────────────────────────────────
+router.post("/api/wiki/articles/:id/react", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const { emoji } = req.body;
+  const ALLOWED = ["👍", "❤️", "🔥", "😂", "😮", "👏"];
+  if (!ALLOWED.includes(emoji)) return res.status(400).json({ error: "Geçersiz tepki." });
+
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+
+  article.reactions = article.reactions || {};
+  article.reactions[emoji] = article.reactions[emoji] || { count: 0, users: [] };
+
+  const users = article.reactions[emoji].users;
+  const idx = users.indexOf(req.user.discordId);
+  if (idx === -1) {
+    // Ekle
+    users.push(req.user.discordId);
+    article.reactions[emoji].count = users.length;
+  } else {
+    // Kaldır (toggle)
+    users.splice(idx, 1);
+    article.reactions[emoji].count = users.length;
+    if (users.length === 0) delete article.reactions[emoji];
+  }
+
+  await article.save();
+  saveStoreNow();
+  res.json({ success: true, reactions: article.reactions });
+});
+
+// ── Wiki: Yorum ekle ─────────────────────────────────────────────────────────
 router.post("/api/wiki/articles/:id/comments", async (req, res) => {
   if (!requireLogin(req, res)) return;
 
   const { content } = req.body;
   const text = (content || "").trim();
   if (!text) return res.status(400).json({ error: "Yorum boş olamaz." });
+  if (text.length > 2000) return res.status(400).json({ error: "Yorum en fazla 2000 karakter olabilir." });
 
   const article = wikiArticles.findById(req.params.id);
   if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
@@ -220,7 +294,7 @@ router.post("/api/wiki/articles/:id/comments", async (req, res) => {
       userId: req.user.discordId,
       username: req.user.discordUsername,
       avatar: req.user.discordAvatar,
-      content: text.slice(0, 2000),
+      content: text,
       createdAt: new Date(),
     };
     article.comments = article.comments || [];
@@ -231,6 +305,28 @@ router.post("/api/wiki/articles/:id/comments", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Wiki: Yorum sil ──────────────────────────────────────────────────────────
+router.delete("/api/wiki/articles/:id/comments/:commentId", async (req, res) => {
+  if (!requireLogin(req, res)) return;
+
+  const article = wikiArticles.findById(req.params.id);
+  if (!article) return res.status(404).json({ error: "Makale bulunamadı." });
+
+  const idx = (article.comments || []).findIndex(c => c._id === req.params.commentId);
+  if (idx === -1) return res.status(404).json({ error: "Yorum bulunamadı." });
+
+  const comment = article.comments[idx];
+  // Sadece yorum sahibi veya admin silebilir
+  if (comment.userId !== req.user.discordId && !isSiteAdmin(req.user)) {
+    return res.status(403).json({ error: "Bu yorumu silme yetkiniz yok." });
+  }
+
+  article.comments.splice(idx, 1);
+  await article.save();
+  saveStoreNow();
+  res.json({ success: true });
 });
 
 router.get("/api/admin/users", async (req, res) => {

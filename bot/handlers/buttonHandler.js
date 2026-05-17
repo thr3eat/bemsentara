@@ -75,9 +75,9 @@ async function handleButtonInteraction(interaction) {
 
     // Kanalı bul ve izinleri geri ver
     try {
-      const guild = await interaction.client.guilds.fetch(
-        require("../../config").TARGET_GUILD_ID
-      );
+      const { TARGET_GUILD_ID } = require("../../config");
+      const guildId = ticket.guildId || TARGET_GUILD_ID;
+      const guild = await interaction.client.guilds.fetch(guildId);
       const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
 
       if (channel) {

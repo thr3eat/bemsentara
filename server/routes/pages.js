@@ -85,9 +85,16 @@ router.get("/wiki", (req, res) => {
 router.get("/wiki/:id", (req, res) => {
   const article = wikiArticles.findById(req.params.id);
   if (!article) return res.redirect("/wiki");
-  res.send(
-    renderWikiArticlePage(req.user, article, isSiteAdmin(req.user))
-  );
+
+  // Görüntülenme sayısını artır (session başına bir kez)
+  const viewKey = `wiki_viewed_${req.params.id}`;
+  if (!req.session[viewKey]) {
+    req.session[viewKey] = true;
+    article.views = (article.views || 0) + 1;
+    article.save().catch(() => {});
+  }
+
+  res.send(renderWikiArticlePage(req.user, article, isSiteAdmin(req.user)));
 });
 
 router.get("/admin", (req, res) => {

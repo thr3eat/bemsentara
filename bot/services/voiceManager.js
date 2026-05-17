@@ -1,13 +1,28 @@
+const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const {
-  ChannelType,
-  PermissionFlagsBits,
-} = require("discord.js");
-const { VOICE_CATEGORY_ID, VOICE_JOIN_CHANNEL_ID } = require("../../config");
+  VOICE_CATEGORY_ID,
+  VOICE_JOIN_CHANNEL_ID,
+  GUILD2_ID,
+  GUILD2_VOICE_JOIN_ID,
+  GUILD2_VOICE_CATEGORY_ID,
+} = require("../../config");
 
 /** userId → channelId */
 const ownerChannels = new Map();
 /** channelId → userId */
 const channelOwners = new Map();
+
+// ── Sunucuya göre join-to-create kanalını döndür ─────────────────────────────
+function getJoinChannelId(guildId) {
+  if (guildId === GUILD2_ID) return GUILD2_VOICE_JOIN_ID;
+  return VOICE_JOIN_CHANNEL_ID;
+}
+
+// ── Sunucuya göre ses kategorisini döndür ────────────────────────────────────
+function getVoiceCategoryId(guildId) {
+  if (guildId === GUILD2_ID) return GUILD2_VOICE_CATEGORY_ID || null;
+  return VOICE_CATEGORY_ID;
+}
 
 function sanitizeName(username) {
   const base = (username || "oda")
@@ -24,9 +39,7 @@ function getOwnerChannelId(userId) {
 
 function registerChannel(channelId, userId) {
   const old = ownerChannels.get(userId);
-  if (old && old !== channelId) {
-    channelOwners.delete(old);
-  }
+  if (old && old !== channelId) channelOwners.delete(old);
   ownerChannels.set(userId, channelId);
   channelOwners.set(channelId, userId);
 }
@@ -62,10 +75,7 @@ async function getManagedChannel(member, guild) {
 
 function defaultOverwrites(guild, ownerId) {
   return [
-    {
-      id: guild.id,
-      deny: [PermissionFlagsBits.Connect],
-    },
+    { id: guild.id, deny: [PermissionFlagsBits.Connect] },
     {
       id: ownerId,
       allow: [
@@ -81,7 +91,8 @@ function defaultOverwrites(guild, ownerId) {
 }
 
 async function createPrivateChannel(guild, member) {
-  const categoryId = VOICE_CATEGORY_ID;
+  const categoryId = getVoiceCategoryId(guild.id);
+
   const existingId = ownerChannels.get(member.id);
   if (existingId) {
     const existing = guild.channels.cache.get(existingId);
@@ -94,23 +105,20 @@ async function createPrivateChannel(guild, member) {
 
   let name = sanitizeName(member.user.username);
   let channel;
+
+  const createOptions = {
+    name,
+    type: ChannelType.GuildVoice,
+    permissionOverwrites: defaultOverwrites(guild, member.id),
+    reason: `Özel ses: ${member.user.tag}`,
+  };
+  if (categoryId) createOptions.parent = categoryId;
+
   try {
-    channel = await guild.channels.create({
-      name,
-      type: ChannelType.GuildVoice,
-      parent: categoryId,
-      permissionOverwrites: defaultOverwrites(guild, member.id),
-      reason: `Özel ses: ${member.user.tag}`,
-    });
+    channel = await guild.channels.create(createOptions);
   } catch {
-    name = member.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32) || "oda";
-    channel = await guild.channels.create({
-      name,
-      type: ChannelType.GuildVoice,
-      parent: categoryId,
-      permissionOverwrites: defaultOverwrites(guild, member.id),
-      reason: `Özel ses: ${member.user.tag}`,
-    });
+    const fallbackName = member.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32) || "oda";
+    channel = await guild.channels.create({ ...createOptions, name: fallbackName });
   }
 
   registerChannel(channel.id, member.id);
@@ -127,11 +135,13 @@ async function deleteChannelIfEmpty(channel) {
 }
 
 async function handleJoinToCreate(oldState, newState) {
-  if (!newState.channelId || newState.channelId !== VOICE_JOIN_CHANNEL_ID) return;
+  if (!newState.channelId) return;
   if (newState.member.user.bot) return;
 
-  const guild = newState.guild;
-  await createPrivateChannel(guild, newState.member);
+  const joinChannelId = getJoinChannelId(newState.guild.id);
+  if (newState.channelId !== joinChannelId) return;
+
+  await createPrivateChannel(newState.guild, newState.member);
 }
 
 async function handleVoiceLeave(oldState, newState) {
@@ -157,5 +167,7 @@ module.exports = {
   deleteChannelIfEmpty,
   handleJoinToCreate,
   handleVoiceLeave,
+  getJoinChannelId,
+  // Eski compat export
   VOICE_JOIN_CHANNEL_ID,
 };

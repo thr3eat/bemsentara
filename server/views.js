@@ -1672,49 +1672,332 @@ function renderLegalPage(title, text) {
 // ─────────────────────────────────────────────
 function renderWikiListPage(user, articles = [], canManage = false) {
   const adminForm = canManage ? `
-    <details style="margin-bottom:2rem;background:rgba(124,106,247,0.06);border:1px solid var(--border);border-radius:16px;padding:1.25rem;">
-      <summary style="cursor:pointer;font-weight:700;color:var(--accent);">➕ Yeni wiki makalesi (Admin)</summary>
-      <div style="margin-top:1.25rem;display:flex;flex-direction:column;gap:1rem;">
-        <div><label>Başlık</label><input type="text" id="wa-title" maxlength="120"></div>
-        <div><label>Resim URL</label><input type="url" id="wa-image" placeholder="https://..."></div>
-        <div><label>Metin</label><textarea id="wa-body" rows="8" maxlength="20000"></textarea></div>
-        <button class="btn" id="wa-create-btn" onclick="createWikiArticle()">📖 Yayınla</button>
+    <div id="wa-form" style="display:none;background:rgba(124,106,247,0.06);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-bottom:2rem;">
+      <h3 style="margin-bottom:1rem;color:var(--accent);">➕ Yeni Makale</h3>
+      <label>Başlık <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="wa-title" maxlength="120" placeholder="Makale başlığı">
+      <label>Kapak Resmi URL</label>
+      <input type="url" id="wa-image" placeholder="https://...">
+      <label>İçerik <span style="color:var(--danger);">*</span></label>
+      <textarea id="wa-body" rows="10" maxlength="20000" placeholder="Makale içeriğini buraya yazın..."></textarea>
+      <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;"><span id="wa-count">0</span>/20000</div>
+      <div style="display:flex;gap:0.75rem;">
+        <button class="btn" id="wa-create-btn" onclick="createWikiArticle()" style="flex:1;">📖 Yayınla</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('wa-form').style.display='none'" style="flex:1;">İptal</button>
       </div>
-    </details>
+    </div>` : '';
+
+  const listHtml = articles.length ? articles.map(a => {
+    const preview = (a.body || '').replace(/\n/g, ' ').slice(0, 160);
+    const img = a.imageUrl
+      ? `<div style="width:100%;height:160px;background:url('${_esc(a.imageUrl)}') center/cover;border-radius:12px 12px 0 0;flex-shrink:0;"></div>`
+      : `<div style="width:100%;height:80px;background:linear-gradient(135deg,rgba(124,106,247,0.15),rgba(255,107,247,0.1));border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:center;font-size:2rem;">📖</div>`;
+    const authorAvatar = a.authorAvatar
+      ? `<img src="${_esc(a.authorAvatar)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;">`
+      : '';
+    const ts = a.createdAt ? `<t:${Math.floor(new Date(a.createdAt).getTime()/1000)}:d>` : '';
+    return `
+      <a href="/wiki/${_esc(a._id)}" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;
+              background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:16px;overflow:hidden;
+              transition:transform 0.25s,border-color 0.25s,box-shadow 0.25s;"
+         onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='var(--accent)';this.style.boxShadow='0 12px 30px rgba(0,0,0,0.5)'"
+         onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+        ${img}
+        <div style="padding:1.25rem;flex:1;display:flex;flex-direction:column;gap:0.5rem;">
+          <h3 style="font-weight:800;font-size:1.1rem;line-height:1.3;">${_esc(a.title)}</h3>
+          <p style="color:var(--muted);font-size:0.88rem;line-height:1.5;flex:1;">${_esc(preview)}${preview.length >= 160 ? '…' : ''}</p>
+          <div style="display:flex;gap:1rem;font-size:0.78rem;color:var(--muted);margin-top:0.5rem;flex-wrap:wrap;">
+            <span>${authorAvatar}${_esc(a.authorName || '—')}</span>
+            <span>👁 ${(a.views || 0).toLocaleString('tr-TR')}</span>
+            <span>💬 ${(a.commentCount || 0)}</span>
+          </div>
+        </div>
+      </a>`;
+  }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:4rem;color:var(--muted);"><div style="font-size:3rem;margin-bottom:1rem;">📭</div><div>Henüz makale yok.</div></div>';
+
+  const content = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h1 style="font-size:2.2rem;font-weight:800;">📖 Wiki</h1>
+          <p style="color:var(--muted);margin-top:0.25rem;">${articles.length} makale</p>
+        </div>
+        ${canManage ? `<button class="btn" onclick="document.getElementById('wa-form').style.display=document.getElementById('wa-form').style.display==='none'?'block':'none'">➕ Yeni Makale</button>` : ''}
+      </div>
+      <hr class="divider">
+      ${adminForm}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
+        ${listHtml}
+      </div>
+    </div>
+
     <script>
+      const waBody = document.getElementById('wa-body');
+      const waCount = document.getElementById('wa-count');
+      if (waBody) waBody.addEventListener('input', () => { waCount.textContent = waBody.value.length; });
+
       async function createWikiArticle() {
         const btn = document.getElementById('wa-create-btn');
-        const res = await fetch('/api/wiki/articles', { method:'POST', headers:{'Content-Type':'application/json'},
+        btn.disabled = true; btn.textContent = 'Yayınlanıyor...';
+        const res = await fetch('/api/wiki/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: document.getElementById('wa-title').value.trim(),
-            body: document.getElementById('wa-body').value.trim(),
+            body: waBody.value.trim(),
             imageUrl: document.getElementById('wa-image').value.trim() || null
-          }) });
-        const d = await res.json().catch(()=>({}));
-        if (res.ok) location.href='/wiki/'+d.article._id;
-        else { showToast(d.error||'Hata','error'); btn.disabled=false; }
+          })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) { location.href = '/wiki/' + d.article._id; }
+        else { showToast(d.error || 'Hata', 'error'); btn.disabled = false; btn.textContent = '📖 Yayınla'; }
       }
-    <\/script>` : '';
-  const listHtml = articles.length ? articles.map(a => {
-    const p = (a.body||'').slice(0,160);
-    const img = a.imageUrl ? '<img src="'+_esc(a.imageUrl)+'" style="width:100%;max-height:140px;object-fit:cover;border-radius:12px;margin-bottom:0.75rem;">' : '';
-    return '<a href="/wiki/'+_esc(a._id)+'" style="display:block;text-decoration:none;color:inherit;background:rgba(0,0,0,0.3);padding:1.25rem;border-radius:16px;border:1px solid var(--border);margin-bottom:1rem;">'+img+
-      '<h3 style="font-weight:800;">'+_esc(a.title)+'</h3><p style="color:var(--muted);">'+_esc(p)+'</p><span style="font-size:0.8rem;color:var(--muted);">💬 '+(a.comments||[]).length+' yorum</span></a>';
-  }).join('') : '<p style="text-align:center;color:var(--muted);">Henüz makale yok.</p>';
-  return _layout('Wiki', user, '<div class="card"><h1>📖 Wiki</h1><p class="text-muted mb-3">Makaleler ve yorumlar.</p>'+adminForm+'<hr class="divider">'+listHtml+'</div>', '', '/wiki');
+    </script>
+  `;
+  return _layout('Wiki', user, content, '', '/wiki');
 }
 
 function renderWikiArticlePage(user, article, canManage = false) {
-  const comments = (article.comments||[]).slice().sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-  const img = article.imageUrl ? '<img src="'+_esc(article.imageUrl)+'" style="width:100%;max-height:420px;object-fit:cover;border-radius:16px;margin-bottom:1.5rem;">' : '';
-  const ch = comments.map(c=>'<div style="display:flex;gap:1rem;margin-bottom:0.75rem;padding:1rem;background:rgba(0,0,0,0.25);border-radius:12px;border:1px solid var(--border);">'+
-    '<img src="'+_esc(c.avatar||'')+'" style="width:40px;height:40px;border-radius:50%;"><div><b style="color:var(--accent);">'+_esc(c.username)+'</b><div style="white-space:pre-wrap;">'+_esc(c.content)+'</div></div></div>').join('');
-  const cf = user ? '<textarea id="comment-body" rows="3" style="width:100%;margin-bottom:0.75rem;"></textarea><button class="btn" onclick="postComment()">💬 Yorum</button>' : '<a href="/login">Giriş yap</a>';
-  const del = canManage ? '<button class="btn" style="background:var(--danger);" onclick="deleteArticle()">Sil</button>' : '';
+  const comments = (article.comments || []).slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const reactions = article.reactions || {};
+  const EMOJIS = ["👍", "❤️", "🔥", "😂", "😮", "👏"];
+  const currentUserId = user ? _esc(user.discordId || '') : '';
+
+  // ── Kapak resmi ──
+  const coverImg = article.imageUrl
+    ? `<div style="width:100%;max-height:380px;overflow:hidden;border-radius:16px;margin-bottom:2rem;">
+         <img src="${_esc(article.imageUrl)}" alt="" style="width:100%;object-fit:cover;display:block;">
+       </div>`
+    : '';
+
+  // ── Yazar satırı ──
+  const authorAvatar = article.authorAvatar
+    ? `<img src="${_esc(article.authorAvatar)}" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;">`
+    : `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;">
+         ${_esc((article.authorName || '?')[0].toUpperCase())}
+       </div>`;
+  const createdTs = article.createdAt
+    ? `<time title="${new Date(article.createdAt).toLocaleString('tr-TR')}">${new Date(article.createdAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>`
+    : '';
+  const editedLine = article.editedByName && article.editedAt
+    ? `<span style="color:var(--muted);font-size:0.8rem;margin-left:0.75rem;">
+         • Düzenleyen: <b>${_esc(article.editedByName)}</b>
+         <time title="${new Date(article.editedAt).toLocaleString('tr-TR')}">${new Date(article.editedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>
+       </span>`
+    : '';
+
+  // ── Tepkiler ──
+  const reactionHtml = EMOJIS.map(e => {
+    const r = reactions[e];
+    const count = r ? r.count : 0;
+    const reacted = r && user && (r.users || []).includes(user.discordId || '');
+    return `<button onclick="reactTo('${e}')" data-emoji="${e}"
+      style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.4rem 0.85rem;
+             border-radius:20px;border:1px solid ${reacted ? 'var(--accent)' : 'var(--border)'};
+             background:${reacted ? 'rgba(124,106,247,0.15)' : 'rgba(0,0,0,0.25)'};
+             color:${reacted ? 'var(--accent)' : 'var(--text)'};
+             font-family:inherit;font-size:0.9rem;cursor:pointer;transition:all 0.2s;"
+      onmouseover="this.style.borderColor='var(--accent)'"
+      onmouseout="this.style.borderColor='${reacted ? 'var(--accent)' : 'var(--border)'}'">
+      ${e} ${count > 0 ? `<span style="font-size:0.8rem;font-weight:700;">${count}</span>` : ''}
+    </button>`;
+  }).join('');
+
+  // ── Yorumlar ──
+  const commentsHtml = comments.map(c => {
+    const isOwner = user && (user.discordId === c.userId || canManage);
+    const delBtn = isOwner
+      ? `<button onclick="deleteComment('${_esc(c._id)}')"
+           style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;padding:0.2rem 0.5rem;border-radius:6px;transition:color 0.2s;"
+           onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">🗑</button>`
+      : '';
+    const cAvatar = c.avatar
+      ? `<img src="${_esc(c.avatar)}" style="width:36px;height:36px;border-radius:50%;flex-shrink:0;">`
+      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;">${_esc((c.username||'?')[0].toUpperCase())}</div>`;
+    const cTime = c.createdAt
+      ? `<span style="font-size:0.75rem;color:var(--muted);">${new Date(c.createdAt).toLocaleString('tr-TR')}</span>`
+      : '';
+    return `
+      <div id="comment-${_esc(c._id)}" style="display:flex;gap:0.75rem;padding:1rem;background:rgba(0,0,0,0.25);border-radius:14px;border:1px solid var(--border);">
+        ${cAvatar}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap;">
+            <span style="font-weight:700;color:var(--accent);">${_esc(c.username || '—')}</span>
+            ${cTime}
+            ${delBtn}
+          </div>
+          <div style="white-space:pre-wrap;line-height:1.6;word-break:break-word;">${_esc(c.content)}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const commentForm = user
+    ? `<div style="margin-top:1.5rem;">
+         <textarea id="comment-body" rows="3" placeholder="Yorumunuzu yazın..." maxlength="2000"
+           style="resize:vertical;" oninput="document.getElementById('c-count').textContent=this.value.length"></textarea>
+         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">
+           <span style="font-size:0.8rem;color:var(--muted);"><span id="c-count">0</span>/2000</span>
+           <button class="btn btn-sm" onclick="postComment()">💬 Yorum Yap</button>
+         </div>
+       </div>`
+    : `<div style="text-align:center;padding:1.5rem;color:var(--muted);">
+         Yorum yapmak için <a href="/login" style="color:var(--accent);">giriş yapın</a>.
+       </div>`;
+
+  // ── Admin düzenleme formu ──
+  const editForm = canManage ? `
+    <div id="edit-form" style="display:none;background:rgba(124,106,247,0.06);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-top:1.5rem;">
+      <h3 style="margin-bottom:1rem;color:var(--accent);">✏️ Makaleyi Düzenle</h3>
+      <label>Başlık</label>
+      <input type="text" id="edit-title" value="${_esc(article.title)}" maxlength="120">
+      <label>Kapak Resmi URL</label>
+      <input type="url" id="edit-image" value="${_esc(article.imageUrl || '')}" placeholder="https://...">
+      <label>İçerik</label>
+      <textarea id="edit-body" rows="12" maxlength="20000">${_esc(article.body || '')}</textarea>
+      <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
+        <button class="btn" onclick="saveEdit()" style="flex:1;">💾 Kaydet</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('edit-form').style.display='none'" style="flex:1;">İptal</button>
+      </div>
+    </div>` : '';
+
   const aid = JSON.stringify(article._id);
-  return _layout(article.title, user, '<div class="card"><a href="/wiki">← Liste</a><h1 style="margin:1rem 0;">'+_esc(article.title)+'</h1>'+del+img+
-    '<div style="white-space:pre-wrap;line-height:1.8;margin:1.5rem 0;">'+_esc(article.body)+'</div><h3>Yorumlar</h3>'+ch+cf+'</div><script>const articleId='+aid+
-    ';async function postComment(){const c=document.getElementById("comment-body").value.trim();if(!c)return;const r=await fetch("/api/wiki/articles/"+articleId+"/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:c})});if(r.ok)location.reload();}async function deleteArticle(){if(confirm("Silinsin mi?")){const r=await fetch("/api/wiki/articles/"+articleId,{method:"DELETE"});if(r.ok)location.href="/wiki";}}<\/script>', '', '/wiki');
+
+  const content = `
+    <div style="max-width:780px;margin:0 auto;">
+
+      <!-- Geri butonu -->
+      <a href="/wiki" style="display:inline-flex;align-items:center;gap:0.4rem;color:var(--muted);text-decoration:none;font-size:0.9rem;margin-bottom:1.5rem;transition:color 0.2s;"
+         onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">
+        ← Wiki'ye Dön
+      </a>
+
+      <div class="card">
+        <!-- Kapak -->
+        ${coverImg}
+
+        <!-- Başlık + meta -->
+        <div style="margin-bottom:1.5rem;">
+          <h1 style="font-size:2rem;font-weight:800;line-height:1.2;margin-bottom:1rem;">${_esc(article.title)}</h1>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;font-size:0.88rem;color:var(--muted);">
+            ${authorAvatar}
+            <span style="color:var(--text);font-weight:600;">${_esc(article.authorName || '—')}</span>
+            <span>Geliştirici</span>
+            <span>—</span>
+            ${createdTs}
+            ${editedLine}
+            <span style="margin-left:auto;display:flex;gap:1rem;">
+              <span>👁 ${(article.views || 0).toLocaleString('tr-TR')} görüntülenme</span>
+              <span>💬 ${comments.length} yorum</span>
+            </span>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- İçerik -->
+        <div style="line-height:1.85;font-size:1rem;white-space:pre-wrap;word-break:break-word;margin-bottom:2rem;">${_esc(article.body || '')}</div>
+
+        <!-- Tepkiler -->
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+          ${reactionHtml}
+        </div>
+
+        <!-- Admin butonları -->
+        ${canManage ? `
+        <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+          <button class="btn btn-sm btn-ghost" onclick="document.getElementById('edit-form').style.display=document.getElementById('edit-form').style.display==='none'?'block':'none'">✏️ Düzenle</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteArticle()">🗑 Sil</button>
+        </div>
+        ${editForm}` : ''}
+
+        <hr class="divider">
+
+        <!-- Yorumlar -->
+        <div>
+          <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.25rem;">💬 Yorumlar <span style="color:var(--muted);font-size:0.9rem;font-weight:400;">(${comments.length})</span></h2>
+          <div id="comments-list" style="display:flex;flex-direction:column;gap:0.75rem;">
+            ${commentsHtml || `<div style="text-align:center;padding:2rem;color:var(--muted);">Henüz yorum yok. İlk yorumu sen yap!</div>`}
+          </div>
+          ${commentForm}
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const articleId = ${aid};
+
+      // ── Tepki ──
+      async function reactTo(emoji) {
+        ${user ? `
+        const res = await fetch('/api/wiki/articles/' + articleId + '/react', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji })
+        });
+        if (res.ok) location.reload();
+        else { const d = await res.json().catch(()=>({})); showToast(d.error || 'Hata', 'error'); }
+        ` : `showToast('Tepki eklemek için giriş yapın.', 'warning');`}
+      }
+
+      // ── Yorum gönder ──
+      async function postComment() {
+        const body = document.getElementById('comment-body');
+        const text = body.value.trim();
+        if (!text) return;
+        const btn = body.nextElementSibling.querySelector('button');
+        btn.disabled = true; btn.textContent = 'Gönderiliyor...';
+        const res = await fetch('/api/wiki/articles/' + articleId + '/comments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text })
+        });
+        if (res.ok) location.reload();
+        else {
+          const d = await res.json().catch(() => ({}));
+          showToast(d.error || 'Hata', 'error');
+          btn.disabled = false; btn.textContent = '💬 Yorum Yap';
+        }
+      }
+
+      // ── Yorum sil ──
+      async function deleteComment(commentId) {
+        if (!confirm('Bu yorumu silmek istediğine emin misin?')) return;
+        const res = await fetch('/api/wiki/articles/' + articleId + '/comments/' + commentId, { method: 'DELETE' });
+        if (res.ok) {
+          const el = document.getElementById('comment-' + commentId);
+          if (el) el.remove();
+          showToast('Yorum silindi.', 'success');
+        } else {
+          const d = await res.json().catch(() => ({}));
+          showToast(d.error || 'Silinemedi.', 'error');
+        }
+      }
+
+      // ── Makale sil ──
+      async function deleteArticle() {
+        if (!confirm('Bu makaleyi kalıcı olarak silmek istediğine emin misin?')) return;
+        const res = await fetch('/api/wiki/articles/' + articleId, { method: 'DELETE' });
+        if (res.ok) location.href = '/wiki';
+        else showToast('Silinemedi.', 'error');
+      }
+
+      // ── Makale düzenle ──
+      async function saveEdit() {
+        const res = await fetch('/api/wiki/articles/' + articleId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: document.getElementById('edit-title').value.trim(),
+            body: document.getElementById('edit-body').value.trim(),
+            imageUrl: document.getElementById('edit-image').value.trim() || null
+          })
+        });
+        if (res.ok) { showToast('Kaydedildi!', 'success'); setTimeout(() => location.reload(), 600); }
+        else { const d = await res.json().catch(() => ({})); showToast(d.error || 'Hata', 'error'); }
+      }
+    </script>
+  `;
+  return _layout(article.title, user, content, '', '/wiki');
 }
 
 function renderAdminPage(user) {

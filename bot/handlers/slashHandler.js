@@ -67,7 +67,10 @@ async function handleSlashCommand(interaction) {
 
       // Kanal mesajlarını logla
       const { logTicketClosed, logTicketMessages } = require("../services/ticketLog");
-      const channel = interaction.guild.channels.cache.get(ticket.channelId);
+      const { TARGET_GUILD_ID } = require("../../config");
+      const guildId = ticket.guildId || TARGET_GUILD_ID;
+      const guild = await interaction.client.guilds.fetch(guildId);
+      const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
 
       if (channel) {
         await logTicketMessages(channel, ticket);

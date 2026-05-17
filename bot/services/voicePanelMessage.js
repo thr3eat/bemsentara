@@ -4,7 +4,12 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const { TARGET_GUILD_ID, VOICE_PANEL_CHANNEL_ID } = require("../../config");
+const {
+  TARGET_GUILD_ID,
+  VOICE_PANEL_CHANNEL_ID,
+  GUILD2_ID,
+  GUILD2_VOICE_PANEL_ID,
+} = require("../../config");
 
 const VOICE_PANEL_MARKER = "Sentara-Voice-Panel-v1";
 
@@ -70,13 +75,16 @@ function isVoicePanelMessage(message, botId) {
   );
 }
 
-async function ensureVoicePanelMessage(client) {
+/**
+ * Belirtilen sunucu + kanala ses paneli gönderir (yoksa).
+ */
+async function ensureVoicePanelForGuild(client, guildId, channelId) {
   const logger = require("../../utils/logger");
-  if (!VOICE_PANEL_CHANNEL_ID) return;
+  if (!channelId) return;
 
   try {
-    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
-    const channel = await guild.channels.fetch(VOICE_PANEL_CHANNEL_ID);
+    const guild = await client.guilds.fetch(guildId);
+    const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) return;
 
     let existing = null;
@@ -91,7 +99,7 @@ async function ensureVoicePanelMessage(client) {
     }
 
     if (existing) {
-      logger.info(`Ses paneli zaten var (${existing.id})`);
+      logger.info(`[${guild.name}] Ses paneli zaten var (${existing.id})`);
       return;
     }
 
@@ -99,14 +107,27 @@ async function ensureVoicePanelMessage(client) {
       embeds: [getVoicePanelEmbed()],
       components: getVoicePanelComponents(),
     });
-    logger.success("Ses sistemi paneli gönderildi");
+    logger.success(`[${guild.name}] Ses sistemi paneli gönderildi → #${channel.name}`);
   } catch (err) {
-    logger.error("Ses paneli gönderilemedi:", err.message);
+    logger.error(`[voicePanel] ${guildId} için panel gönderilemedi:`, err.message);
+  }
+}
+
+/**
+ * Tüm sunuculara ses paneli gönderir.
+ */
+async function ensureVoicePanelMessage(client) {
+  // Ana sunucu
+  await ensureVoicePanelForGuild(client, TARGET_GUILD_ID, VOICE_PANEL_CHANNEL_ID);
+  // İkinci sunucu
+  if (GUILD2_ID && GUILD2_VOICE_PANEL_ID) {
+    await ensureVoicePanelForGuild(client, GUILD2_ID, GUILD2_VOICE_PANEL_ID);
   }
 }
 
 module.exports = {
   ensureVoicePanelMessage,
+  ensureVoicePanelForGuild,
   getVoicePanelEmbed,
   getVoicePanelComponents,
 };

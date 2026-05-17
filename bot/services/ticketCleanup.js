@@ -7,7 +7,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { TARGET_GUILD_ID, TICKET_LOG_CHANNEL_ID } = require("../../config");
 const { getDiscordClient } = require("../discordClient");
-
 const CLEANUP_DELAY_MS = 5 * 60 * 1000; // 5 dakika
 const CHECK_INTERVAL_MS = 30 * 1000;     // 30 saniyede bir kontrol
 
@@ -95,10 +94,10 @@ async function runCleanupCheck() {
 async function deleteTicketChannel(ticketId) {
   const Ticket = require("../../models/Ticket");
   const client = getDiscordClient();
+  const { TARGET_GUILD_ID, GUILD2_ID } = require("../../config");
 
   if (!client?.isReady()) {
     console.warn(`[ticketCleanup] ${ticketId} → bot hazır değil, silme ertelendi.`);
-    // 1 dakika sonra tekrar dene
     setTimeout(() => deleteTicketChannel(ticketId), 60_000);
     return;
   }
@@ -106,17 +105,15 @@ async function deleteTicketChannel(ticketId) {
   try {
     const ticket = await Ticket.findOne({ ticketId });
     if (!ticket) return;
-
-    // Yeniden açılmışsa iptal
     if (ticket.status === "open") {
       console.log(`[ticketCleanup] ${ticketId} → yeniden açılmış, silme iptal.`);
       return;
     }
-
-    // Zaten silinmişse atla
     if (ticket.channelDeleted) return;
 
-    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    // Ticket'ın hangi sunucuda olduğunu belirle
+    const guildId = ticket.guildId || TARGET_GUILD_ID;
+    const guild = await client.guilds.fetch(guildId);
 
     // Kanalı sil
     let channelDeleted = false;
@@ -135,8 +132,13 @@ async function deleteTicketChannel(ticketId) {
     await ticket.save();
 
     // Log kanalına bildirim gönder
-    if (TICKET_LOG_CHANNEL_ID) {
-      const logChannel = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
+    const { TICKET_LOG_CHANNEL_ID, GUILD2_TICKET_LOG_ID } = require("../../config");
+    const logChannelId = (guildId === GUILD2_ID && GUILD2_TICKET_LOG_ID)
+      ? GUILD2_TICKET_LOG_ID
+      : TICKET_LOG_CHANNEL_ID;
+
+    if (logChannelId) {
+      const logChannel = await guild.channels.fetch(logChannelId).catch(() => null);
       if (logChannel?.isSendable()) {
         const embed = new EmbedBuilder()
           .setColor(0x6b7280)
