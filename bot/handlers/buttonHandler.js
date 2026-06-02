@@ -34,21 +34,23 @@ async function handleButtonInteraction(interaction) {
   // ── Ticket kapat butonu → sebep modal'ı aç ──────────────────────────────
   if (interaction.customId.startsWith("close_ticket_")) {
     const ticketId = interaction.customId.replace("close_ticket_", "");
+
+    // Fresh veri çek — cache'deki stale veriyi önle
     const ticket = await Ticket.findOne({ ticketId });
 
     if (!ticket) {
-      return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
+      return interaction.reply({ content: "❌ Ticket bulunamadı.", ephemeral: true });
     }
 
     if (ticket.status === "closed") {
-      return interaction.reply({ content: "❌ Bu ticket zaten kapalı", ephemeral: true });
+      return interaction.reply({ content: "ℹ️ Bu ticket zaten kapatılmış.", ephemeral: true });
     }
 
     if (
       ticket.userId !== interaction.user.id &&
       !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)
     ) {
-      return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz", ephemeral: true });
+      return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz.", ephemeral: true });
     }
 
     // Kapatma sebebini soran modal'ı göster

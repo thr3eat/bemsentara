@@ -139,6 +139,14 @@ async function handleSupportModal(interaction) {
     const closeButton = buildCloseButton(ticketId);
     await ticketChannel.send({ embeds: [ticketEmbed], components: [closeButton] });
 
+    // ── AI karşılama konuşmasını başlat ──────────────────────────────────
+    try {
+      const { startAIConversation } = require('../services/ticketAI');
+      await startAIConversation(ticketChannel, ticket, interaction.client);
+    } catch (aiErr) {
+      console.warn('[modal] AI başlatılamadı:', aiErr.message);
+    }
+
     const { logTicketCreated } = require("../services/ticketLog");
     logTicketCreated(ticket, {
       source: "Discord Destek Menüsü",
@@ -176,6 +184,12 @@ async function handleCloseReasonModal(interaction) {
   ticket.closedBy = interaction.user.id;
   ticket.closedByName = interaction.user.username;
   await ticket.save();
+
+  // AI durumunu temizle
+  try {
+    const { cleanupTicketAI } = require('../services/ticketAI');
+    cleanupTicketAI(ticketId);
+  } catch (_) {}
 
   // Önce etkileşimi onayla
   await interaction.reply({ content: "✅ Ticket kapatılıyor...", ephemeral: true });

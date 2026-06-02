@@ -43,6 +43,15 @@ function initializeDiscordHandlers(client) {
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guild) return;
 
+    // ── Ticket AI: kullanıcı mesajını işle ──────────────────────────────────
+    try {
+      const { handleUserMessage } = require('../services/ticketAI');
+      const handled = await handleUserMessage(message, client);
+      if (handled) return; // AI yanıtladı, devam etme
+    } catch (aiErr) {
+      console.warn('[messageCreate] AI handler hata:', aiErr.message);
+    }
+
     if (message.content === "!tumrollerveidleriveisimleri") {
       const roles = message.guild.roles.cache.sort((a, b) => b.position - a.position);
       let replyText = "**Sunucudaki Rollerdir:**\n\n";
