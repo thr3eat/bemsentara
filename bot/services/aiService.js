@@ -3,19 +3,14 @@
 const https = require('https');
 const http  = require('http');
 
-const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
+const OLLAMA_BASE = 'https://api.groq.com/openai/v1';
 const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
                  || process.env.OLLAMA_API_KEY
-                 || '';  // Render'da OPENROUTER_API_KEY env değişkeni olarak ekle
-// Birden fazla model dene — ilki başarısız olursa sonrakine geç
-const MODELS = (process.env.AI_MODEL
+                 || process.env.GROQ_API_KEY
+                 || '';
+const MODELS = process.env.AI_MODEL
   ? [process.env.AI_MODEL]
-  : [
-    'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free',
-    'google/gemma-3-4b-it:free',
-  ]
-);
+  : ['llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it'];
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
