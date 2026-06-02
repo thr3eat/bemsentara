@@ -1579,13 +1579,214 @@ function renderDebugPage(user, stats = {}, logs = []) {
 // ─────────────────────────────────────────────
 // PROFILE PAGE  (guns.lol style)
 // ─────────────────────────────────────────────
-function renderProfilePage(user) {
-  const accent = _esc(user.profileColor || '#7c6af7');
-  const bannerBg = user.discordBanner
-    ? `url(${_esc(user.discordBanner)}) center/cover no-repeat`
+function renderProfilePage(user, profileUser, isOwn = false) {
+  // profileUser = profilini gösterdiğimiz kişi, user = oturum sahibi
+  if (!profileUser) profileUser = user;
+  const accent = _esc(profileUser.profileColor || '#7c6af7');
+  const bannerBg = profileUser.discordBanner
+    ? `url(${_esc(profileUser.discordBanner)}) center/cover no-repeat`
     : `linear-gradient(135deg,${accent}cc 0%,#0d0d1a 100%)`;
-  const avatarSrc = _esc(user.discordAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png');
-  const PLACEHOLDER = '<!-- PROFILE_CONTENT -->';
+  const avatarSrc = _esc(profileUser.discordAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png');
+
+  // Rütbe renk haritası
+  const ROLE_COLORS = {
+    wiki_editor:      { name:'📝 Wiki Editörü',        color:'#7c6af7', bg:'rgba(124,106,247,.15)', border:'rgba(124,106,247,.35)' },
+    moderator:        { name:'🛡️ Moderatör',            color:'#4ade80', bg:'rgba(74,222,128,.12)',  border:'rgba(74,222,128,.3)'  },
+    support_lead:     { name:'⭐ Destek Lideri',        color:'#fbbf24', bg:'rgba(251,191,36,.12)',  border:'rgba(251,191,36,.3)'  },
+    content_creator:  { name:'🎬 İçerik Yaratıcısı',   color:'#ff6bf7', bg:'rgba(255,107,247,.12)', border:'rgba(255,107,247,.3)' },
+    translator:       { name:'🌐 Çevirmen',             color:'#06b6d4', bg:'rgba(6,182,212,.12)',   border:'rgba(6,182,212,.3)'   },
+    event_manager:    { name:'🎉 Etkinlik Yöneticisi',  color:'#f97316', bg:'rgba(249,115,22,.12)',  border:'rgba(249,115,22,.3)'  },
+    community_helper: { name:'🤝 Topluluk Yardımcısı', color:'#a3e635', bg:'rgba(163,230,53,.12)',  border:'rgba(163,230,53,.3)'  },
+    media_team:       { name:'📸 Medya Ekibi',          color:'#e879f9', bg:'rgba(232,121,249,.12)', border:'rgba(232,121,249,.3)' },
+    developer:        { name:'💻 Geliştirici',          color:'#38bdf8', bg:'rgba(56,189,248,.12)',  border:'rgba(56,189,248,.3)'  },
+    vip:              { name:'👑 VIP',                  color:'#facc15', bg:'rgba(250,204,21,.12)',  border:'rgba(250,204,21,.3)'  },
+  };
+
+  // Site rütbeleri HTML
+  const siteRoles = (profileUser.roles || []);
+  const roleBadgesHtml = [
+    ...(profileUser.isAdmin ? [{ name:'👑 Admin', color:'var(--accent2)', bg:'rgba(255,107,247,.12)', border:'rgba(255,107,247,.35)' }] : []),
+    ...(profileUser.isStaff && !profileUser.isAdmin ? [{ name:'🛡 Staff', color:'var(--accent)', bg:'rgba(124,106,247,.12)', border:'rgba(124,106,247,.35)' }] : []),
+    ...siteRoles.map(r => ROLE_COLORS[r]).filter(Boolean),
+  ].map(r => `<span class="p-badge" style="background:${r.bg};color:${r.color};border-color:${r.border};">${r.name}</span>`).join('');
+
+  // Grup rolü (Roblox)
+  const groupRoleHtml = profileUser.groupRole
+    ? `<div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:20px;padding:.25rem .8rem;font-size:.8rem;font-weight:700;color:#4ade80;margin-top:.4rem;">
+        🎮 ${_esc(profileUser.groupRole)}
+       </div>`
+    : '';
+
+  const css = `<style>
+    main{max-width:100%!important;padding:0!important}
+    @keyframes aurora{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    @keyframes fireAni{0%,100%{filter:hue-rotate(0deg) brightness(1)}50%{filter:hue-rotate(25deg) brightness(1.25)}}
+    @keyframes galaxy{0%{background-position:0% 0%}100%{background-position:200% 200%}}
+    @keyframes neonPulse{0%,100%{box-shadow:0 0 12px ${accent},0 0 24px ${accent}44}50%{box-shadow:0 0 24px #f953c6,0 0 48px #f953c644}}
+    @keyframes ocean{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+    .eff-aurora .p-banner{background:linear-gradient(270deg,#00c6ff,#0072ff,#7c6af7,#ff6bf7,#00c6ff)!important;background-size:400% 400%!important;animation:aurora 6s ease infinite}
+    .eff-fire .p-banner{animation:fireAni 2s ease infinite}
+    .eff-galaxy .p-banner{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e,#7c6af7,#0f0c29)!important;background-size:400% 400%!important;animation:galaxy 10s linear infinite}
+    .eff-neon .p-card{animation:neonPulse 2.5s ease-in-out infinite}
+    .eff-ocean .p-banner{background:linear-gradient(270deg,#1a6b8a,#00b4d8,#90e0ef,#1a6b8a)!important;background-size:400% 400%!important;animation:ocean 5s ease infinite}
+    .frm-gold .p-avatar{border-color:#fbbf24!important;box-shadow:0 0 0 4px #fbbf2466,0 0 24px #fbbf2488!important}
+    .frm-diamond .p-avatar{box-shadow:0 0 0 4px #a8edea66,0 0 24px #a8edea88!important}
+    .frm-fire .p-avatar{border-color:#ff4e00!important;box-shadow:0 0 0 4px #ff4e0066,0 0 24px #ff4e0088!important;animation:fireAni 2s ease infinite}
+    .p-root{max-width:860px;margin:0 auto;padding:2rem 1rem 4rem;animation:fadeUp .5s ease}
+    .p-banner{width:100%;height:280px;border-radius:20px;position:relative;overflow:hidden;background:${bannerBg};box-shadow:0 8px 40px rgba(0,0,0,.6)}
+    .p-banner-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,rgba(5,5,8,.85) 100%)}
+    .p-avatar-wrap{position:absolute;bottom:-52px;left:2.5rem;filter:drop-shadow(0 4px 16px rgba(0,0,0,.7))}
+    .p-avatar{width:120px;height:120px;border-radius:50%;border:5px solid #050508;display:block;transition:transform .3s}
+    .p-avatar:hover{transform:scale(1.05)}
+    .p-body{padding:4.5rem 2.5rem 2rem}
+    .p-name-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:.75rem}
+    .p-name{font-size:2rem;font-weight:800;line-height:1.1}
+    .p-sub{color:var(--muted);font-size:.9rem;margin-top:.2rem}
+    .p-badges{display:flex;gap:.4rem;flex-wrap:wrap;margin:.75rem 0}
+    .p-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .7rem;border-radius:20px;font-size:.78rem;font-weight:700;border:1px solid;backdrop-filter:blur(4px)}
+    .p-bio{font-size:.95rem;line-height:1.75;color:var(--muted);white-space:pre-wrap;word-break:break-word;margin:1rem 0 1.5rem;padding:1rem 1.25rem;background:rgba(255,255,255,.03);border-left:3px solid ${accent};border-radius:0 10px 10px 0}
+    .p-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;margin:1.5rem 0}
+    .p-stat{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:1rem;text-align:center;transition:border-color .25s,transform .25s}
+    .p-stat:hover{border-color:${accent}88;transform:translateY(-3px)}
+    .p-stat-val{font-size:1.5rem;font-weight:800}
+    .p-stat-lbl{font-size:.72rem;color:var(--muted);margin-top:.2rem;text-transform:uppercase;letter-spacing:.5px}
+    .p-coin-bar{display:flex;align-items:center;gap:.75rem;background:rgba(124,106,247,.08);border:1px solid rgba(124,106,247,.25);border-radius:14px;padding:.9rem 1.25rem;margin-bottom:1.5rem}
+    .p-coin-icon{font-size:1.6rem;animation:float 3s ease-in-out infinite}
+    .p-coin-val{font-size:1.4rem;font-weight:800}
+    .p-coin-lbl{font-size:.75rem;color:var(--muted)}
+    .p-inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.75rem}
+    .p-inv-item{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:14px;padding:.9rem .5rem;text-align:center;position:relative;transition:border-color .25s,transform .25s}
+    .p-inv-item:hover{border-color:${accent}88;transform:translateY(-3px)}
+    .p-inv-item.active{border-color:${accent};background:rgba(124,106,247,.08)}
+    .p-inv-active-tag{position:absolute;top:5px;right:5px;font-size:.6rem;font-weight:800;text-transform:uppercase;background:${accent};color:#fff;padding:1px 5px;border-radius:8px}
+    .p-inv-icon{font-size:1.8rem;margin-bottom:.35rem}
+    .p-inv-name{font-size:.72rem;font-weight:700;line-height:1.2}
+    .p-section{margin:2rem 0 1rem;display:flex;align-items:center;gap:.5rem}
+    .p-section-title{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+    .p-section-line{flex:1;height:1px;background:var(--border)}
+    @media(max-width:600px){.p-banner{height:180px}.p-avatar{width:90px;height:90px}.p-avatar-wrap{bottom:-40px;left:1.25rem}.p-body{padding:3.5rem 1.25rem 1.5rem}.p-name{font-size:1.5rem}}
+  </style>`;
+
+  const profileDiscordId = _esc(profileUser.discordId || '');
+
+  const html = `
+    <div class="p-root" id="p-root">
+      <div class="p-banner" id="p-banner">
+        <div class="p-banner-overlay"></div>
+        <div class="p-avatar-wrap">
+          <img src="${avatarSrc}" class="p-avatar" id="p-avatar" alt="avatar">
+        </div>
+      </div>
+      <div class="card p-card p-body" style="border-radius:0 0 20px 20px;border-top:none;margin-top:0;">
+        <div class="p-name-row">
+          <div>
+            <div class="p-name">${_esc(profileUser.discordUsername)}</div>
+            <div class="p-sub">${profileUser.robloxUsername ? `🎮 <span style="color:var(--success);">${_esc(profileUser.robloxUsername)}</span>` : `<span style="color:var(--muted);">Roblox bağlı değil</span>`}</div>
+            ${groupRoleHtml}
+          </div>
+          ${isOwn ? `<a href="/settings" class="btn btn-ghost btn-sm" style="flex-shrink:0;">✏️ Düzenle</a>` : ''}
+        </div>
+        <div class="p-badges" id="p-badges">
+          ${roleBadgesHtml}
+        </div>
+        <div class="p-bio">${_esc(profileUser.profileBio || 'Henüz bir biyografi eklenmemiş.')}</div>
+        <div class="p-coin-bar">
+          <div class="p-coin-icon">💰</div>
+          <div><div class="p-coin-val" id="p-balance">—</div><div class="p-coin-lbl">Bakiye</div></div>
+          <div style="margin-left:auto;text-align:right;">
+            <div style="font-size:.85rem;font-weight:700;color:var(--success);" id="p-earned">—</div>
+            <div class="p-coin-lbl">Toplam kazanılan</div>
+          </div>
+          ${isOwn ? `<a href="/shop" class="btn btn-sm" style="margin-left:1rem;flex-shrink:0;">🛒 Mağaza</a>` : ''}
+        </div>
+        <div class="p-section"><span class="p-section-title">İstatistikler</span><div class="p-section-line"></div></div>
+        <div class="p-stats">
+          <div class="p-stat"><div class="p-stat-val" id="stat-tickets">—</div><div class="p-stat-lbl">Ticket</div></div>
+          <div class="p-stat"><div class="p-stat-val" id="stat-closed">—</div><div class="p-stat-lbl">Çözülen</div></div>
+          <div class="p-stat"><div class="p-stat-val" id="stat-items">—</div><div class="p-stat-lbl">Ürün</div></div>
+          <div class="p-stat"><div class="p-stat-val" id="stat-spent">—</div><div class="p-stat-lbl">Harcanan</div></div>
+        </div>
+        <div class="p-section"><span class="p-section-title">Envanter</span><div class="p-section-line"></div></div>
+        <div class="p-inv-grid" id="p-inv"><div style="grid-column:1/-1;color:var(--muted);font-size:.85rem;">Yükleniyor...</div></div>
+      </div>
+    </div>`;
+
+  const script = `<script>
+    const TARGET_ID = ${JSON.stringify(profileUser.discordId || '')};
+    const IS_OWN = ${isOwn ? 'true' : 'false'};
+    const BADGE_MAP={badge_supporter:{emoji:'💜',label:'Destekçi',color:'rgba(168,85,247,.15)',border:'rgba(168,85,247,.4)',text:'#c084fc'},badge_veteran:{emoji:'⚔️',label:'Veteran',color:'rgba(251,191,36,.1)',border:'rgba(251,191,36,.4)',text:'#fbbf24'},badge_star:{emoji:'⭐',label:'Yıldız',color:'rgba(251,191,36,.1)',border:'rgba(251,191,36,.3)',text:'#fde68a'},badge_crown:{emoji:'👑',label:'Kral',color:'rgba(255,107,247,.1)',border:'rgba(255,107,247,.4)',text:'var(--accent2)'}};
+
+    async function loadProfile(){
+      try{
+        // Ekonomi verisi — herkese açık endpoint (targetId ile)
+        const eRes = await fetch('/api/economy/public/' + TARGET_ID);
+        const ed = await eRes.json().catch(()=>({}));
+
+        // Ticket istatistikleri — sadece kendi profilinde
+        if(IS_OWN){
+          const tRes = await fetch('/api/tickets');
+          const td = await tRes.json().catch(()=>({}));
+          const tickets=td.tickets||[];
+          document.getElementById('stat-tickets').textContent=tickets.length;
+          document.getElementById('stat-closed').textContent=tickets.filter(t=>t.status==='closed').length;
+        } else {
+          document.getElementById('stat-tickets').textContent='—';
+          document.getElementById('stat-closed').textContent='—';
+        }
+
+        if(ed.success){
+          document.getElementById('p-balance').textContent=(ed.balance||0).toLocaleString('tr-TR')+' coin';
+          document.getElementById('p-earned').textContent='+'+(ed.totalEarned||0).toLocaleString('tr-TR')+' coin';
+          document.getElementById('stat-items').textContent=(ed.inventory||[]).length;
+          document.getElementById('stat-spent').textContent=(ed.totalSpent||0).toLocaleString('tr-TR');
+
+          // Rozet ekle
+          const br=document.getElementById('p-badges');
+          (ed.profileBadges||[]).forEach(bid=>{const b=BADGE_MAP[bid];if(!b)return;const s=document.createElement('span');s.className='p-badge';s.style.cssText='background:'+b.color+';color:'+b.text+';border-color:'+b.border+';';s.textContent=b.emoji+' '+b.label;br.appendChild(s);});
+
+          // Efekt/frame uygula
+          const root=document.getElementById('p-root');
+          if(ed.profileEffect)root.classList.add('eff-'+ed.profileEffect.replace('effect_',''));
+          if(ed.profileFrame)root.classList.add('frm-'+ed.profileFrame.replace('frame_',''));
+
+          // Envanter
+          const inv=ed.inventory||[];
+          const grid=document.getElementById('p-inv');
+          if(!inv.length){
+            grid.innerHTML=IS_OWN
+              ? '<div style="grid-column:1/-1;color:var(--muted);font-size:.85rem;">Henüz hiçbir şey satın almadınız. <a href=\\"/shop\\" style=\\"color:var(--accent)\\">Mağazaya git →</a></div>'
+              : '<div style="grid-column:1/-1;color:var(--muted);font-size:.85rem;">Envanter boş.</div>';
+          } else {
+            grid.innerHTML=inv.map(item=>{
+              const isActive=ed.profileEffect===item.itemId||ed.profileFrame===item.itemId;
+              const canEquip=IS_OWN&&(item.type==='effect'||item.type==='frame');
+              return '<div class="p-inv-item'+(isActive?' active':'')+'">'+
+                (isActive?'<div class="p-inv-active-tag">Aktif</div>':'')+
+                '<div class="p-inv-icon">'+item.icon+'</div>'+
+                '<div class="p-inv-name">'+item.name+'</div>'+
+                (canEquip&&!isActive?'<button onclick="equipItem(\\''+item.itemId+'\\')" style="margin-top:.4rem;background:rgba(124,106,247,.2);border:1px solid rgba(124,106,247,.4);color:var(--accent);border-radius:8px;padding:2px 10px;font-size:.7rem;cursor:pointer;font-family:inherit;font-weight:700;">Tak</button>':'')+
+                '</div>';
+            }).join('');
+          }
+        }
+      }catch(err){console.warn('Profil yüklenemedi:',err.message);}
+    }
+
+    async function equipItem(itemId){
+      const res=await fetch('/api/profile/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId})});
+      const d=await res.json().catch(()=>({}));
+      if(res.ok){showToast(d.message||'Aktif edildi!','success');setTimeout(()=>location.reload(),700);}
+      else showToast(d.error||'Hata','error');
+    }
+    loadProfile();
+  <\/script>`;
+
+  const pageTitle = isOwn ? 'Profil' : _esc(profileUser.discordUsername) + ' — Profil';
+  const content = css + html + script;
+  return _layout(pageTitle, user, content);
+}
 
   const css = `<style>
     main{max-width:100%!important;padding:0!important}
@@ -1710,11 +1911,6 @@ function renderProfilePage(user) {
     }
     async function equipItem(itemId){const res=await fetch('/api/profile/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId})});const d=await res.json().catch(()=>({}));if(res.ok){showToast(d.message||'Aktif edildi!','success');setTimeout(()=>location.reload(),700);}else showToast(d.error||'Hata','error');}
     loadProfile();
-  <\/script>`;
-
-  const content = css + html + script;
-  return _layout('Profil', user, content);
-}
 
 
 // ─────────────────────────────────────────────
@@ -1941,12 +2137,20 @@ function renderWikiArticlePage(user, article, canManage = false) {
     : `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;">
          ${_esc((article.authorName || '?')[0].toUpperCase())}
        </div>`;
+  const authorLink = article.authorId
+    ? `/profile/${_esc(article.authorId)}`
+    : null;
+  const authorNameHtml = authorLink
+    ? `<a href="${authorLink}" style="color:var(--text);font-weight:600;text-decoration:none;transition:color .2s;"
+          onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${_esc(article.authorName || '—')}</a>`
+    : `<span style="color:var(--text);font-weight:600;">${_esc(article.authorName || '—')}</span>`;
   const createdTs = article.createdAt
     ? `<time title="${new Date(article.createdAt).toLocaleString('tr-TR')}">${new Date(article.createdAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>`
     : '';
   const editedLine = article.editedByName && article.editedAt
     ? `<span style="color:var(--muted);font-size:0.8rem;margin-left:0.75rem;">
-         • Düzenleyen: <b>${_esc(article.editedByName)}</b>
+         • Düzenleyen: <a href="/profile/${_esc(article.editedById || '')}" style="color:var(--muted);font-weight:700;text-decoration:none;"
+             onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">${_esc(article.editedByName)}</a>
          <time title="${new Date(article.editedAt).toLocaleString('tr-TR')}">${new Date(article.editedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>
        </span>`
     : '';
@@ -1987,7 +2191,8 @@ function renderWikiArticlePage(user, article, canManage = false) {
         ${cAvatar}
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap;">
-            <span style="font-weight:700;color:var(--accent);">${_esc(c.username || '—')}</span>
+            <a href="/profile/${_esc(c.userId || '')}" style="font-weight:700;color:var(--accent);text-decoration:none;"
+               onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${_esc(c.username || '—')}</a>
             ${cTime}
             ${delBtn}
           </div>
@@ -2045,8 +2250,7 @@ function renderWikiArticlePage(user, article, canManage = false) {
           <h1 style="font-size:2rem;font-weight:800;line-height:1.2;margin-bottom:1rem;">${_esc(article.title)}</h1>
           <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;font-size:0.88rem;color:var(--muted);">
             ${authorAvatar}
-            <span style="color:var(--text);font-weight:600;">${_esc(article.authorName || '—')}</span>
-            <span>Geliştirici</span>
+            ${authorNameHtml}
             <span>—</span>
             ${createdTs}
             ${editedLine}

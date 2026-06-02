@@ -1038,6 +1038,28 @@ router.get("/api/staff/ratings", async (req, res) => {  if (!req.user) return re
   }
 });
 
+// ── Ekonomi: herkese açık profil bakiyesi ───────────────────────────────────
+router.get("/api/economy/public/:discordId", async (req, res) => {
+  try {
+    const targetId = String(req.params.discordId);
+    let eco = await Economy.findOne({ userId: targetId });
+    if (!eco) eco = { balance: 0, inventory: [], profileEffect: null, profileFrame: null, profileBadges: [], totalEarned: 0, totalSpent: 0 };
+    // Herkese göster ama hassas bilgileri sınırla
+    res.json({
+      success: true,
+      balance: eco.balance || 0,
+      inventory: (eco.inventory || []),
+      profileEffect: eco.profileEffect || null,
+      profileFrame: eco.profileFrame || null,
+      profileBadges: eco.profileBadges || [],
+      totalEarned: eco.totalEarned || 0,
+      totalSpent: eco.totalSpent || 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Ekonomi: bakiye sorgula ──────────────────────────────────────────────────
 router.get("/api/economy/balance", async (req, res) => {
   if (!requireLogin(req, res)) return;

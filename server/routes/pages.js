@@ -71,7 +71,17 @@ router.get("/debug", (req, res) => {
 
 router.get("/profile", (req, res) => {
   if (!req.user) return res.redirect("/login");
-  res.send(renderProfilePage(req.user));
+  res.send(renderProfilePage(req.user, req.user, true));
+});
+
+// Herkese açık profil sayfası
+router.get("/profile/:discordId", (req, res) => {
+  const targetUser = users.findOne({ discordId: String(req.params.discordId) });
+  if (!targetUser) {
+    return res.status(404).send(renderLegalPage('Profil Bulunamadı', '<p>Bu kullanıcı bulunamadı veya profilini gizledi.</p>'));
+  }
+  const isOwn = req.user && String(req.user.discordId) === String(targetUser.discordId);
+  res.send(renderProfilePage(req.user, targetUser, isOwn));
 });
 
 router.get("/settings", (req, res) => {
