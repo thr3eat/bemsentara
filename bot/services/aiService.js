@@ -6,7 +6,7 @@ const http  = require('http');
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
 const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
                  || process.env.OLLAMA_API_KEY
-                 || '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';
+                 || '';  // Render'da OPENROUTER_API_KEY env değişkeni olarak ekle
 // Birden fazla model dene — ilki başarısız olursa sonrakine geç
 const MODELS = (process.env.AI_MODEL
   ? [process.env.AI_MODEL]
