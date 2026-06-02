@@ -23,10 +23,30 @@ Görevin: Kullanıcıyla DM üzerinden konuşarak destek talebini anlamak.
 Kurallar:
 - Türkçe konuş, samimi ve yardımsever ol.
 - Kullanıcının sorununu 2-3 mesajda net olarak anla.
-- Sorun net olduğunda cevabının başına tam olarak [HAZIR] yaz ve sorunu 1-2 cümleyle özetle.
+- Sorun net olduğunda cevabının en başına tam olarak şunu yaz (başka hiçbir şey ekleme önce): [HAZIR]
+- Ardından sorunu 1-2 cümleyle özetle.
 - Asla kendin çözüm önerme, yetkililere ilet.
 - Kısa ve net mesajlar yaz (max 150 karakter).
-- İlk mesajda: "Merhaba! Nasıl yardımcı olabilirim?" diye sor.`;
+- İlk mesajda mutlaka "Merhaba! Nasıl yardımcı olabilirim?" diye sor.
+- ÖNEMLI: Hazır olduğunda cevabın tam olarak [HAZIR] ile başlamalı, HAZIR: veya başka format kullanma.`;
+
+/**
+ * [HAZIR] veya farklı formatları tespit et
+ */
+function isReady(text) {
+  return /\[HAZIR\]|HAZIR:|^\s*HAZIR\s/i.test(text);
+}
+
+/**
+ * AI yanıtından [HAZIR]/HAZIR: etiketini ve think bloklarını temizle
+ */
+function cleanAI(text) {
+  return text
+    .replace(/\[HAZIR\]/gi, '')
+    .replace(/^HAZIR:/gim, '')
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .trim();
+}
 
 /**
  * Bot'a DM gelen mesajı işle
@@ -42,35 +62,12 @@ async function handleDMMessage(message, client) {
 
   // Yeni veya devam eden AI konuşması
   if (!dmConversations.has(userId)) {
-    // İlk mesaj — karşılama
     dmConversations.set(userId, []);
-    
-    try {
-      const dmChannel = await message.author.createDM().catch(() => null);
-      if (dmChannel) await dmChannel.sendTyping().catch(() => {});
-      const history = dmConversations.get(userId);
-      history.push({ role: 'user', content: message.content });
-
-      const aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
-      history.push({ role: 'assistant', content: aiReply });
-
-      const cleanReply = aiReply.replace('[HAZIR]', '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-      if (aiReply.includes('[HAZIR]')) {
-        await createDMTicket(message.author, cleanReply, history, client);
-      } else {
-        await message.author.send(cleanReply);
-      }
-    } catch (err) {
-      console.error('[dmTicket] İlk mesaj hatası:', err.message);
-      await message.author.send('Merhaba! Destek sistemine hoş geldiniz. Sorununuzu anlatın, yetkiliye aktaracağım.').catch(() => {});
-    }
-    return;
   }
 
-  // Devam eden AI konuşması
   const history = dmConversations.get(userId);
-  if (history.length >= 10) {
+
+  if (history.length >= 12) {
     // Çok uzadı — direkt ticket aç
     await createDMTicket(message.author, 'Kullanıcı destek talep etti.', history, client);
     return;
@@ -81,20 +78,22 @@ async function handleDMMessage(message, client) {
   try {
     const dmChannel = await message.author.createDM().catch(() => null);
     if (dmChannel) await dmChannel.sendTyping().catch(() => {});
+
     const aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
     history.push({ role: 'assistant', content: aiReply });
 
-    const cleanReply = aiReply.replace('[HAZIR]', '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const cleanReply = cleanAI(aiReply);
 
-    if (aiReply.includes('[HAZIR]')) {
+    if (isReady(aiReply)) {
+      // Ticket aç
       await createDMTicket(message.author, cleanReply, history, client);
     } else {
-      await message.author.send(cleanReply);
+      await message.author.send(cleanReply || aiReply).catch(() => {});
     }
   } catch (err) {
     console.error('[dmTicket] AI yanıt hatası:', err.message);
     await message.author.send('Bir sorun oluştu, sizi hemen yetkililere bağlıyorum...').catch(() => {});
-    await createDMTicket(message.author, 'AI hatası nedeniyle direkt aktarım.', history || [], client);
+    await createDMTicket(message.author, 'AI hatası nedeniyle direkt aktarım.', history, client);
   }
 }
 
