@@ -11,7 +11,7 @@ const http  = require('http');
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
 const OLLAMA_KEY  = process.env.OLLAMA_API_KEY  || '21f0ab1e253946cdbbe973ce949ec975.xESwoaOi96hNap_ELAGXpdvE';
-const AI_MODEL    = process.env.AI_MODEL        || 'qwen/qwen3-6b';
+const AI_MODEL    = process.env.AI_MODEL        || 'google/gemma-3-4b-it:free';
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
@@ -41,7 +41,17 @@ async function chatWithAI(messages) {
   });
 
   return new Promise((resolve, reject) => {
-    const url = new URL(`${OLLAMA_BASE}/chat/completions`);
+    // Base URL'nin sonundaki slash'ı temizle
+    const base = OLLAMA_BASE.replace(/\/+$/, '');
+    const fullUrl = `${base}/chat/completions`;
+    
+    let url;
+    try {
+      url = new URL(fullUrl);
+    } catch (e) {
+      return reject(new Error(`Geçersiz AI URL: ${fullUrl}`));
+    }
+    
     const isHttps = url.protocol === 'https:';
     const lib = isHttps ? https : http;
 
