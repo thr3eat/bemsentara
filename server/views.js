@@ -1808,16 +1808,23 @@ function renderSettingsPage(user) {
 // ─────────────────────────────────────────────
 // LEGAL PAGE
 // ─────────────────────────────────────────────
-function renderLegalPage(title, text) {
+function renderLegalPage(title, text, lang = 'tr') {
   const content = `
-    <div class="card">
-      <h1 style="font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:2rem;">${_esc(title)}</h1>
-      <div style="line-height:1.9;color:var(--muted);">${text}</div>
+    <div class="card" style="max-width:860px;margin:0 auto;">
+      <!-- Dil seçici -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;">
+        <h1 style="font-size:2rem;font-weight:800;color:var(--accent);">${_esc(title)}</h1>
+        <div style="display:flex;gap:.5rem;">
+          <a href="?lang=tr" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang==='tr'?'var(--accent)':'rgba(255,255,255,.07)'};color:${lang==='tr'?'#fff':'var(--muted)'};border:1px solid ${lang==='tr'?'transparent':'var(--border)'};">🇹🇷 TR</a>
+          <a href="?lang=en" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang==='en'?'var(--accent)':'rgba(255,255,255,.07)'};color:${lang==='en'?'#fff':'var(--muted)'};border:1px solid ${lang==='en'?'transparent':'var(--border)'};">🇬🇧 EN</a>
+        </div>
+      </div>
+      <div style="line-height:2;color:var(--muted);font-size:.97rem;">${text}</div>
       <hr class="divider">
       <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
-        <a href="/legal/tos"     style="color:var(--accent);text-decoration:none;font-weight:600;">Hizmet Koşulları</a>
-        <a href="/legal/privacy" style="color:var(--accent);text-decoration:none;font-weight:600;">Gizlilik Politikası</a>
-        <a href="/"              style="color:var(--muted); text-decoration:none;">Ana Sayfa</a>
+        <a href="/legal/tos"     style="color:var(--accent);text-decoration:none;font-weight:600;">📄 Terms of Service / Hizmet Koşulları</a>
+        <a href="/legal/privacy" style="color:var(--accent);text-decoration:none;font-weight:600;">🔒 Privacy Policy / Gizlilik Politikası</a>
+        <a href="/"              style="color:var(--muted);text-decoration:none;">← Ana Sayfa</a>
       </div>
     </div>
   `;
