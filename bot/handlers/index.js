@@ -41,13 +41,35 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    // ── DM mesajları ────────────────────────────────────────────────────────
+    if (!message.guild && !message.author.bot) {
+      try {
+        const { handleDMMessage } = require('../services/dmTicket');
+        await handleDMMessage(message, client);
+      } catch (err) {
+        console.error('[messageCreate] DM handler hata:', err.message);
+      }
+      return;
+    }
+
     if (message.author.bot || !message.guild) return;
+
+    // ── dm- kanalından yetkili mesajını kullanıcıya ilet ────────────────────
+    if (message.channel.name?.startsWith('dm-') && !message.author.bot) {
+      try {
+        const { forwardChannelToDM } = require('../services/dmTicket');
+        const forwarded = await forwardChannelToDM(message, client);
+        if (forwarded) return;
+      } catch (err) {
+        console.warn('[messageCreate] forwardChannelToDM hata:', err.message);
+      }
+    }
 
     // ── Ticket AI: kullanıcı mesajını işle ──────────────────────────────────
     try {
       const { handleUserMessage } = require('../services/ticketAI');
       const handled = await handleUserMessage(message, client);
-      if (handled) return; // AI yanıtladı, devam etme
+      if (handled) return;
     } catch (aiErr) {
       console.warn('[messageCreate] AI handler hata:', aiErr.message);
     }
@@ -55,16 +77,12 @@ function initializeDiscordHandlers(client) {
     if (message.content === "!tumrollerveidleriveisimleri") {
       const roles = message.guild.roles.cache.sort((a, b) => b.position - a.position);
       let replyText = "**Sunucudaki Rollerdir:**\n\n";
-      
       roles.forEach((role) => {
         replyText += `**İsim:** ${role.name} | **ID:** ${role.id}\n`;
       });
-
       if (replyText.length > 2000) {
         const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];
-        for (const chunk of chunks) {
-          await message.reply(chunk);
-        }
+        for (const chunk of chunks) await message.reply(chunk);
       } else {
         await message.reply(replyText);
       }

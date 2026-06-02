@@ -25,11 +25,11 @@ Kurallar:
 /**
  * Tek bir modele istek at
  */
-function requestModel(model, messages) {
+function requestModel(model, messages, systemContent) {
   const body = JSON.stringify({
     model,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemContent },
       ...messages,
     ],
     stream: false,
@@ -101,13 +101,16 @@ function requestModel(model, messages) {
 
 /**
  * Model listesini sırayla dener, ilk başarılı yanıtı döner
+ * @param {Array} messages - [{role, content}]
+ * @param {string} [customSystemPrompt] - Özel system prompt (opsiyonel)
  */
-async function chatWithAI(messages) {
+async function chatWithAI(messages, customSystemPrompt) {
+  const systemContent = customSystemPrompt || SYSTEM_PROMPT;
   let lastErr;
   for (const model of MODELS) {
     try {
       console.log(`[aiService] Deneniyor: ${model}`);
-      const result = await requestModel(model, messages);
+      const result = await requestModel(model, messages, systemContent);
       console.log(`[aiService] Başarılı: ${model}`);
       return result;
     } catch (err) {
