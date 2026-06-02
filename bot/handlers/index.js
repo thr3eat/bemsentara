@@ -74,6 +74,17 @@ function initializeDiscordHandlers(client) {
       console.warn('[messageCreate] AI handler hata:', aiErr.message);
     }
 
+    // ── Ticket inaktivite uyarısını iptal et (kullanıcı yazdı) ───────────────
+    try {
+      if (message.channel.name?.startsWith('ticket-')) {
+        const Ticket = require('../../models/Ticket');
+        const { cancelInactivityWarning } = require('../services/ticketCleanup');
+        const ticket = await Ticket.findOne({ channelId: message.channel.id, status: 'open' });
+        if (ticket && message.author.id === ticket.userId) {
+          cancelInactivityWarning(ticket.ticketId);
+        }
+      }
+    } catch (_) {}
     if (message.content === "!tumrollerveidleriveisimleri") {
       const roles = message.guild.roles.cache.sort((a, b) => b.position - a.position);
       let replyText = "**Sunucudaki Rollerdir:**\n\n";
