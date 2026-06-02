@@ -41,13 +41,20 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    // Partial mesajları fetch et (DM için zorunlu)
+    if (message.partial) {
+      try { await message.fetch(); } catch (_) { return; }
+    }
+
     // ── DM mesajları ────────────────────────────────────────────────────────
-    if (!message.guild && !message.author.bot) {
+    if (!message.guild && !message.author?.bot) {
+      console.log(`[DM] ${message.author?.tag}: ${message.content?.slice(0, 50)}`);
       try {
         const { handleDMMessage } = require('../services/dmTicket');
         await handleDMMessage(message, client);
       } catch (err) {
         console.error('[messageCreate] DM handler hata:', err.message);
+        await message.author?.send('Bir hata oluştu. Lütfen daha sonra tekrar deneyin.').catch(() => {});
       }
       return;
     }

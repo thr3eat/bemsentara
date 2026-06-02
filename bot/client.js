@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, Partials } = require("discord.js");
 
 function createDiscordClient() {
   return new Client({
@@ -10,6 +10,13 @@ function createDiscordClient() {
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildModeration,
+      GatewayIntentBits.GuildPresences,
+    ],
+    // DM mesajları için partials zorunlu
+    partials: [
+      Partials.Channel,
+      Partials.Message,
+      Partials.User,
     ],
   });
 }
