@@ -5,7 +5,7 @@ const http  = require('http');
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
 const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY || process.env.OLLAMA_API_KEY || '';
-const AI_MODEL    = process.env.AI_MODEL || 'moonshotai/kimi-k2:free';  // ← Düzeltildi
+const AI_MODEL = process.env.AI_MODEL || 'moonshotai/kimi-k2.6:free';
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
