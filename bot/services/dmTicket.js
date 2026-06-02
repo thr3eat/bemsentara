@@ -46,7 +46,8 @@ async function handleDMMessage(message, client) {
     dmConversations.set(userId, []);
     
     try {
-      await message.author.sendTyping();
+      const dmChannel = await message.author.createDM().catch(() => null);
+      if (dmChannel) await dmChannel.sendTyping().catch(() => {});
       const history = dmConversations.get(userId);
       history.push({ role: 'user', content: message.content });
 
@@ -78,7 +79,8 @@ async function handleDMMessage(message, client) {
   history.push({ role: 'user', content: message.content });
 
   try {
-    await message.author.sendTyping();
+    const dmChannel = await message.author.createDM().catch(() => null);
+    if (dmChannel) await dmChannel.sendTyping().catch(() => {});
     const aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
     history.push({ role: 'assistant', content: aiReply });
 
