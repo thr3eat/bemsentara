@@ -108,6 +108,12 @@ function initializeDiscordHandlers(client) {
         await handleDMCloseButton(interaction, client);
         return;
       }
+      // ── DM Ticket Evet/Hayır butonu ────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('dm_confirm_')) {
+        const { handleDMConfirmButton } = require('../services/dmTicket');
+        await handleDMConfirmButton(interaction, client);
+        return;
+      }
       await handleInteraction(interaction);
     } catch (err) {
       console.error("[interactionCreate]", err);

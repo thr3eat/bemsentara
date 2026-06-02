@@ -16,6 +16,8 @@ const {
 const dmConversations = new Map();
 // userId → { ticketId, channelId, guildId }
 const activeDMTickets = new Map();
+// Onay bekleyen kullanıcılar: userId → true
+const pendingConfirmation = new Map();
 
 const DM_SYSTEM_PROMPT = `Sen Sentara destek botunun yapay zeka asistanısın.
 Kullanıcıyla kısa bir sohbet yap ve destek talebini anla.
@@ -58,13 +60,53 @@ async function handleDMMessage(message, client) {
     return;
   }
 
-  // Konuşma geçmişini başlat / devam ettir
-  if (!dmConversations.has(userId)) {
-    dmConversations.set(userId, []);
+  // Onay bekleniyor → mesaj yazarsa tekrar sor (buton beklesin)
+  if (pendingConfirmation.has(userId)) {
+    await message.author.send(
+      '👆 Lütfen yukarıdaki butonlardan birini seçin.'
+    ).catch(() => {});
+    return;
   }
+
+  // İlk kez yazıyor → Evet/Hayır sor
+  if (!dmConversations.has(userId)) {
+    pendingConfirmation.set(userId, true);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x7c6af7)
+      .setTitle('👋 Merhaba!')
+      .setDescription(
+        'Sentara Destek sistemine hoş geldiniz.\n\n' +
+        '**Destek talebi açmak istiyor musunuz?**'
+      )
+      .setFooter({ text: 'Sentara Destek' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`dm_confirm_yes_${userId}`)
+        .setLabel('✅ Evet, destek istiyorum')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`dm_confirm_no_${userId}`)
+        .setLabel('❌ Hayır')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await message.author.send({ embeds: [embed], components: [row] }).catch((err) => {
+      console.error('[dmTicket] Karşılama gönderilemedi:', err.message);
+    });
+    return;
+  }
+
+  // Devam eden AI konuşması
+  await continueAIConversation(message, client);
+}
+
+// ── AI konuşmasını devam ettir ──────────────────────────────────────────────
+async function continueAIConversation(message, client) {
+  const userId = message.author.id;
   const history = dmConversations.get(userId);
 
-  // Çok uzun konuşma → direkt ticket
   if (history.length >= 14) {
     await createDMTicket(message.author, 'Kullanıcı destek talep etti.', history, client);
     return;
@@ -72,29 +114,21 @@ async function handleDMMessage(message, client) {
 
   history.push({ role: 'user', content: message.content });
 
-  // Typing göstergesi
   try {
     const dmCh = await message.author.createDM().catch(() => null);
     if (dmCh) await dmCh.sendTyping().catch(() => {});
   } catch (_) {}
 
-  // AI'dan yanıt al
   let aiReply;
   try {
     aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
     history.push({ role: 'assistant', content: aiReply });
   } catch (err) {
     console.error('[dmTicket] AI hata:', err.message);
-    // AI çalışmıyorsa direkt ticket aç
     await message.author.send(
-      '⚠️ Şu an otomatik asistan çevrimdışı. Sizi direkt yetkililere bağlıyorum...'
+      '⚠️ Asistan şu an çevrimdışı. Sizi direkt yetkililere bağlıyorum...'
     ).catch(() => {});
-    await createDMTicket(
-      message.author,
-      message.content.slice(0, 200),
-      history,
-      client
-    );
+    await createDMTicket(message.author, message.content.slice(0, 200), history, client);
     return;
   }
 
@@ -105,6 +139,38 @@ async function handleDMMessage(message, client) {
     const cleanReply = cleanAI(aiReply) || aiReply;
     await message.author.send(cleanReply).catch(() => {});
   }
+}
+
+// ── Evet/Hayır buton işleyici ────────────────────────────────────────────────
+async function handleDMConfirmButton(interaction, client) {
+  const customId = interaction.customId;
+
+  if (!customId.startsWith('dm_confirm_yes_') && !customId.startsWith('dm_confirm_no_')) {
+    return false;
+  }
+
+  const userId = interaction.user.id;
+  pendingConfirmation.delete(userId);
+
+  if (customId.startsWith('dm_confirm_no_')) {
+    await interaction.update({
+      content: '👍 Tamam! İstediğiniz zaman tekrar yazabilirsiniz.',
+      embeds: [],
+      components: [],
+    }).catch(() => {});
+    return true;
+  }
+
+  // Evet — AI konuşmasını başlat
+  dmConversations.set(userId, []);
+
+  await interaction.update({
+    content: '✅ Harika! Sorununuzu anlatın, size yardımcı olmaya çalışacağım.',
+    embeds: [],
+    components: [],
+  }).catch(() => {});
+
+  return true;
 }
 
 // ── DM ticket kanalı oluştur ────────────────────────────────────────────────
@@ -379,6 +445,7 @@ async function handleDMCloseButton(interaction, client) {
 
 module.exports = {
   handleDMMessage,
+  handleDMConfirmButton,
   forwardChannelToDM,
   handleDMCloseButton,
   activeDMTickets,
