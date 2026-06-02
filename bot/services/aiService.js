@@ -4,8 +4,11 @@ const https = require('https');
 const http  = require('http');
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
-const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY || process.env.OLLAMA_API_KEY || '';
-const AI_MODEL = process.env.AI_MODEL || 'moonshotai/kimi-k2.6:free';
+// Render'da OPENROUTER_API_KEY veya OLLAMA_API_KEY adıyla eklenebilir
+const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
+                 || process.env.OLLAMA_API_KEY
+                 || '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';
+const AI_MODEL = 'moonshotai/kimi-k2:free';
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
@@ -42,14 +45,12 @@ async function chatWithAI(messages) {
 
     const isHttps = url.protocol === 'https:';
     const lib = isHttps ? https : http;
-
-    // pathname + search birlikte (query string varsa kaybetmemek için)
     const path = url.pathname + (url.search || '');
 
     const options = {
       hostname: url.hostname,
       port: url.port || (isHttps ? 443 : 80),
-      path,                                         // ← Düzeltildi
+      path,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,34 +61,43 @@ async function chatWithAI(messages) {
       },
     };
 
+    console.log(`[aiService] İstek → model:${AI_MODEL} key:${OLLAMA_KEY ? OLLAMA_KEY.slice(0,12)+'...' : 'BOŞ!'}`);
+
     const req = lib.request(options, (res) => {
       let data = '';
       res.on('data', chunk => (data += chunk));
       res.on('end', () => {
+        console.log(`[aiService] HTTP ${res.statusCode} yanıtı:`, data.slice(0, 300));
         try {
           const parsed = JSON.parse(data);
 
-          // Hata bloğunu önce kontrol et
           if (parsed?.error) {
-            return reject(new Error(parsed.error.message || 'AI hatası'));
+            const msg = typeof parsed.error === 'string'
+              ? parsed.error
+              : parsed.error.message || JSON.stringify(parsed.error);
+            return reject(new Error(msg));
           }
 
           const content = parsed?.choices?.[0]?.message?.content;
           if (content) return resolve(content.trim());
 
-          reject(new Error('AI boş yanıt döndürdü. Ham yanıt: ' + data.slice(0, 200)));
+          reject(new Error('AI boş yanıt. Ham: ' + data.slice(0, 200)));
         } catch (e) {
-          reject(new Error('AI yanıtı parse edilemedi: ' + data.slice(0, 200)));
+          reject(new Error('Parse hatası: ' + data.slice(0, 200)));
         }
       });
     });
 
-    req.setTimeout(30000, () => {       // ← 15s → 30s (free tier yavaş olabilir)
+    req.setTimeout(30000, () => {
       req.destroy();
-      reject(new Error('AI isteği zaman aşımına uğradı'));
+      reject(new Error('AI timeout (30s)'));
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      console.error('[aiService] Ağ hatası:', err.message);
+      reject(err);
+    });
+
     req.write(body);
     req.end();
   });
