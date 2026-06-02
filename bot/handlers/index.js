@@ -114,6 +114,12 @@ function initializeDiscordHandlers(client) {
         await handleDMConfirmButton(interaction, client);
         return;
       }
+      // ── Ban onayla/reddet butonu ───────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('ban_approve_') || interaction.customId?.startsWith('ban_reject_'))) {
+        const { handleBanButton } = require('../services/ticketAI');
+        await handleBanButton(interaction, client);
+        return;
+      }
       await handleInteraction(interaction);
     } catch (err) {
       console.error("[interactionCreate]", err);
