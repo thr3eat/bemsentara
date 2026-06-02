@@ -127,6 +127,18 @@ function initializeDiscordHandlers(client) {
         await handleBanButton(interaction, client);
         return;
       }
+      // ── Reklam link butonu ────────────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('ad_link_')) {
+        const { handleAdLinkButton } = require('../services/ticketAI');
+        await handleAdLinkButton(interaction, client);
+        return;
+      }
+      // ── Reklam link modal submit ──────────────────────────────────────────
+      if (interaction.isModalSubmit() && interaction.customId?.startsWith('ad_link_modal_')) {
+        const { handleAdLinkModal } = require('../services/ticketAI');
+        await handleAdLinkModal(interaction, client);
+        return;
+      }
       await handleInteraction(interaction);
     } catch (err) {
       console.error("[interactionCreate]", err);

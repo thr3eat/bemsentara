@@ -1,71 +1,66 @@
 'use strict';
 
-/**
- * Ticket AI Yöneticisi
- * - Ticket açılınca AI sorunu çözmeye çalışır
- * - Ban talebi: kanıt ister, resim varsa kanıt kanalına atar, Evet/Hayır sorar
- * - Reklam fiyatı soruları: bilgi verir
- * - "Canlı temsilci" isterse yetkililere aktarır
- * - [HAZIR] → yetkililere aktar
- */
-
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
+} = require('discord.js');
 const { chatWithAI } = require('./aiService');
 const Ticket = require('../../models/Ticket');
-const { buildCloseButton } = require('../embeds');
 
 const conversationHistory = new Map();
 const inactivityTimers    = new Map();
 const activeAITickets     = new Map();
-// Bekleyen ban talepleri: ticketId → { targetUserId, evidence[] }
 const pendingBanRequests  = new Map();
+const pendingAdRequests   = new Map(); // ticketId → { adType, price, topic, channelId, guildId, userId }
+const pendingAdEvidence   = new Map(); // ticketId → { ...adInfo, link }
 
-const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
-const MAX_AI_TURNS = 8;
+const INACTIVITY_TIMEOUT  = 10 * 60 * 1000;
+const MAX_AI_TURNS        = 10;
 
-// Kanıt kanalı ID
 const EVIDENCE_CHANNEL_ID = process.env.EVIDENCE_CHANNEL_ID || '1511411777521455256';
 const EVIDENCE_GUILD_ID   = process.env.EVIDENCE_GUILD_ID   || '1367646464804655104';
+const AD_SALES_CHANNEL_ID = process.env.AD_SALES_CHANNEL_ID || '1511411777521455256';
+const AD_SALES_GUILD_ID   = process.env.AD_SALES_GUILD_ID   || '1367646464804655104';
 
-const TICKET_AI_SYSTEM = `Sen Sentara/EkoYıldız destek botunun yapay zeka asistanısın.
-Görevlerin:
-1. Kullanıcının sorununu anla ve mümkünse kendin çöz.
-2. Çözemezsen [HAZIR] etiketiyle yetkililere aktar.
-3. "Canlı temsilci" veya "yetkili" isterse hemen [HAZIR] yaz.
+const SYSTEM = `Sen Sentara/EkoYıldız destek botunun yapay zeka asistanısın.
+Kullanıcıyla konuş ve sorununu çöz. Çözemezsen [HAZIR] ile yetkililere aktar.
 
-Çözebileceğin durumlar:
-- Ban talebi: Kullanıcıdan küfür eden kişinin kullanıcı adı/ID'sini ve kanıt iste.
-  Kanıt aldıktan sonra: [BAN_ONAY] <hedef_kullanıcı_adı_veya_id>
-- Reklam fiyatları sorusu:
-  💰 Reklam Fiyat Listesi:
-  • 30₺ — Shorts (kısa video)
-  • 50₺ — Uzun video alt kısım sponsor yazısı
-  • 100₺ — Uzun video sponsor yazısı + orta bölme
-  Bu sistem 2 ay önce finansal destek için açıldı.
-- Genel sorular: Kısa ve net yanıt ver.
-- Teknik/hesap/grup sorunları: Kısa yardım et, çözemezsen [HAZIR] aktar.
+Yapabileceklerin:
+- BAN TALEBİ: Hedef kişiyi ve kanıt iste. Kanıt alınca: [BAN_ONAY] <hedef>
+- REKLAM: Fiyat listesi ver, tür ve konuyu öğren, sonra: [REKLAM_ONAY] <tür>|<fiyat>|<konu>
+  Fiyatlar: 30₺=Shorts, 50₺=Uzun video alt sponsor, 100₺=Uzun video orta bölme+sponsor
+  Not: 2 ay önce finansal destek için açıldı.
+- GENEL SORULAR: Kısa yanıt ver.
+- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz.
 
-Kurallar:
-- Türkçe konuş, samimi ve profesyonel ol.
-- Max 300 karakter yanıt ver.
-- Asla hakaret etme.
-- [HAZIR] veya [BAN_ONAY] etiketleri dışında başka köşeli parantez kullanma.`;
+Kurallar: Türkçe, max 300 karakter, [HAZIR]/[BAN_ONAY]/[REKLAM_ONAY] dışında köşeli parantez kullanma.`;
 
-function isReady(text)   { return /\[HAZIR\]/i.test(text); }
-function isBanReady(text){ return /\[BAN_ONAY\]/i.test(text); }
-function cleanMsg(text) {
-  return text
+function isReady(t)   { return /\[HAZIR\]/i.test(t); }
+function isBan(t)     { return /\[BAN_ONAY\]/i.test(t); }
+function isAd(t)      { return /\[REKLAM_ONAY\]/i.test(t); }
+
+function cleanMsg(t) {
+  return t
     .replace(/\[HAZIR\]/gi, '')
     .replace(/\[BAN_ONAY\][^\n]*/gi, '')
+    .replace(/\[REKLAM_ONAY\][^\n]*/gi, '')
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .trim();
 }
-function extractBanTarget(text) {
-  const m = text.match(/\[BAN_ONAY\]\s*(.+)/i);
+
+function extractBanTarget(t) {
+  const m = t.match(/\[BAN_ONAY\]\s*(.+)/i);
   return m ? m[1].trim() : null;
 }
 
-// ── Ticket açılınca AI karşılar ─────────────────────────────────────────────
+function extractAdInfo(t) {
+  const m = t.match(/\[REKLAM_ONAY\]\s*(.+)/i);
+  if (!m) return null;
+  const parts = m[1].split('|').map(s => s.trim());
+  return { adType: parts[0] || '?', price: parts[1] || '?', topic: parts[2] || '?' };
+}
+
+// ── Ticket açılınca AI başlar ────────────────────────────────────────────────
 async function startAIConversation(channel, ticket, client) {
   try {
     conversationHistory.set(ticket.ticketId, []);
@@ -76,329 +71,392 @@ async function startAIConversation(channel, ticket, client) {
       turns: 0,
     });
 
-    const userContext = `Ticket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"`;
+    const ctx = `Ticket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"`;
     const history = conversationHistory.get(ticket.ticketId);
-    history.push({ role: 'user', content: userContext });
+    history.push({ role: 'user', content: ctx });
 
-    const aiReply = await chatWithAI(history, TICKET_AI_SYSTEM);
-    history.push({ role: 'assistant', content: aiReply });
+    const reply = await chatWithAI(history, SYSTEM);
+    history.push({ role: 'assistant', content: reply });
 
-    const info = activeAITickets.get(ticket.ticketId);
-
-    if (isBanReady(aiReply)) {
-      const target = extractBanTarget(aiReply);
-      await handleBanRequest(channel, ticket, target, [], client, aiReply);
+    if (isBan(reply)) {
+      await handleBanRequest(channel, ticket, extractBanTarget(reply), [], client);
       return;
     }
-
-    if (isReady(aiReply)) {
-      info.turns = MAX_AI_TURNS;
-      await notifyStaff(channel, ticket, aiReply, client);
+    if (isAd(reply)) {
+      const info = extractAdInfo(reply);
+      await handleAdRequest(channel, ticket, info, client);
+      return;
+    }
+    if (isReady(reply)) {
+      activeAITickets.get(ticket.ticketId).turns = MAX_AI_TURNS;
+      await notifyStaff(channel, ticket, reply, client);
       return;
     }
 
     const embed = new EmbedBuilder()
       .setColor(0x7c6af7)
       .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
-      .setDescription(cleanMsg(aiReply))
-      .setFooter({ text: 'Sorun çözülmezse yetkililere aktarılırsınız.' });
+      .setDescription(cleanMsg(reply))
+      .setFooter({ text: 'Çözülmezse yetkililere aktarılırsınız.' });
 
     await channel.send({ content: `<@${ticket.userId}>`, embeds: [embed] });
     resetInactivityTimer(ticket.ticketId, channel, ticket, client);
-
   } catch (err) {
-    console.error('[ticketAI] startAIConversation hata:', err.message, err.stack?.split('\n')[1] || '');
-    await fallbackNotifyStaff(channel, ticket, client);
+    console.error('[ticketAI] startAI hata:', err.message);
+    await fallbackNotify(channel, ticket);
   }
 }
 
-// ── Kullanıcı mesaj attığında ───────────────────────────────────────────────
+// ── Kullanıcı mesaj attığında ────────────────────────────────────────────────
 async function handleUserMessage(message, client) {
   const channelId = message.channel.id;
-
-  let matchedTicketId = null;
+  let matchedId = null;
   for (const [tid, info] of activeAITickets.entries()) {
     if (info.channelId === channelId && info.userId === message.author.id) {
-      matchedTicketId = tid;
-      break;
+      matchedId = tid; break;
     }
   }
-  if (!matchedTicketId) return false;
+  if (!matchedId) return false;
 
-  const info    = activeAITickets.get(matchedTicketId);
-  const history = conversationHistory.get(matchedTicketId);
+  const info = activeAITickets.get(matchedId);
+  const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
 
-  resetInactivityTimer(matchedTicketId, message.channel, null, client);
+  resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
 
-  // Resim/dosya varsa kanıt kanalına gönder
+  // Resim/dosya → kanıt kanalına gönder
   const attachments = [...message.attachments.values()];
-  if (attachments.length > 0) {
-    await handleEvidence(message, matchedTicketId, attachments, client);
+  if (attachments.length) await sendEvidence(message, matchedId, attachments, client);
+
+  // Reklam kanıt bekleniyor mu?
+  if (pendingAdEvidence.has(matchedId) && attachments.length) {
+    await finalizeAdWithEvidence(message, matchedId, attachments, client);
+    return true;
   }
 
-  const userContent = message.content || (attachments.length > 0 ? '[Görsel/Dosya paylaşıldı]' : '');
-  history.push({ role: 'user', content: userContent });
+  const content = message.content || (attachments.length ? '[Görsel paylaşıldı]' : '');
+  history.push({ role: 'user', content });
 
   try {
     await message.channel.sendTyping();
-    const aiReply = await chatWithAI(history, TICKET_AI_SYSTEM);
-    history.push({ role: 'assistant', content: aiReply });
+    const reply = await chatWithAI(history, SYSTEM);
+    history.push({ role: 'assistant', content: reply });
 
-    if (isBanReady(aiReply)) {
-      const target = extractBanTarget(aiReply);
-      const ticket = await Ticket.findOne({ ticketId: matchedTicketId });
-      clearInactivityTimer(matchedTicketId);
-      await handleBanRequest(message.channel, ticket, target, attachments, client, aiReply);
-      activeAITickets.delete(matchedTicketId);
-      conversationHistory.delete(matchedTicketId);
+    if (isBan(reply)) {
+      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      clearInactivityTimer(matchedId);
+      await handleBanRequest(message.channel, ticket, extractBanTarget(reply), attachments, client);
+      activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
+      return true;
+    }
+    if (isAd(reply)) {
+      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      clearInactivityTimer(matchedId);
+      await handleAdRequest(message.channel, ticket, extractAdInfo(reply), client);
+      activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
+      return true;
+    }
+    if (isReady(reply) || info.turns >= MAX_AI_TURNS) {
+      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      clearInactivityTimer(matchedId);
+      await notifyStaff(message.channel, ticket, reply, client);
+      activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
 
-    if (isReady(aiReply) || info.turns >= MAX_AI_TURNS) {
-      const ticket = await Ticket.findOne({ ticketId: matchedTicketId });
-      clearInactivityTimer(matchedTicketId);
-      await notifyStaff(message.channel, ticket, aiReply, client);
-      activeAITickets.delete(matchedTicketId);
-      conversationHistory.delete(matchedTicketId);
-      return true;
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor(0x7c6af7)
-      .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
-      .setDescription(cleanMsg(aiReply));
-
-    await message.channel.send({ embeds: [embed] });
+    await message.channel.send({
+      embeds: [new EmbedBuilder().setColor(0x7c6af7)
+        .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
+        .setDescription(cleanMsg(reply))],
+    });
     return true;
-
   } catch (err) {
     console.error('[ticketAI] handleUserMessage hata:', err.message);
-    const ticket = await Ticket.findOne({ ticketId: matchedTicketId });
-    clearInactivityTimer(matchedTicketId);
-    await fallbackNotifyStaff(message.channel, ticket, client);
-    activeAITickets.delete(matchedTicketId);
-    conversationHistory.delete(matchedTicketId);
+    const ticket = await Ticket.findOne({ ticketId: matchedId });
+    clearInactivityTimer(matchedId);
+    await fallbackNotify(message.channel, ticket);
+    activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
     return true;
   }
 }
 
-// ── Kanıt kanalına resim gönder ─────────────────────────────────────────────
-async function handleEvidence(message, ticketId, attachments, client) {
-  try {
-    const guild = await client.guilds.fetch(EVIDENCE_GUILD_ID).catch(() => null);
-    if (!guild) return;
-    const evCh = await guild.channels.fetch(EVIDENCE_CHANNEL_ID).catch(() => null);
-    if (!evCh?.isSendable()) return;
+// ── Reklam akışı ─────────────────────────────────────────────────────────────
+async function handleAdRequest(channel, ticket, adInfo, client) {
+  if (!adInfo) { await fallbackNotify(channel, ticket); return; }
 
-    const ticket = await Ticket.findOne({ ticketId });
-    const embed = new EmbedBuilder()
-      .setColor(0xff6b6b)
-      .setTitle(`🔍 Kanıtlar — ${ticketId}`)
-      .setDescription(
-        `**Kullanıcı:** <@${message.author.id}> (${message.author.tag})\n` +
-        `**Ticket:** \`${ticketId}\`\n` +
-        `**Konu:** ${ticket?.subject || '—'}\n\n` +
-        `Kanıtlar bunlar:`
-      )
-      .setTimestamp();
-
-    const files = attachments.map(a => a.url);
-    await evCh.send({ embeds: [embed], files: files.slice(0, 10) });
-    await message.channel.send('📎 Kanıtlarınız ilgili kanala iletildi.').catch(() => {});
-  } catch (err) {
-    console.warn('[ticketAI] handleEvidence hata:', err.message);
-  }
-}
-
-// ── Ban talep akışı ─────────────────────────────────────────────────────────
-async function handleBanRequest(channel, ticket, target, attachments, client, aiSummary) {
+  const { adType, price, topic } = adInfo;
   const ticketId = ticket?.ticketId || 'bilinmiyor';
 
-  // Kullanıcının isteği: Banlama gerçekleşsin mi?
-  const embed = new EmbedBuilder()
-    .setColor(0xff6b6b)
-    .setTitle('🚨 Ban Talebi')
-    .setDescription(
-      `**Hedef:** ${target || 'Belirsiz'}\n` +
-      `**Talep eden:** <@${ticket?.userId || '?'}>\n\n` +
-      `**Kullanıcının isteği:** Banlama gerçekleşsin mi?`
-    )
-    .setFooter({ text: 'Yetkililer bu isteği değerlendirecek.' })
-    .setTimestamp();
+  // Özel kanala bildir
+  try {
+    const guild = await client.guilds.fetch(AD_SALES_GUILD_ID).catch(() => null);
+    if (guild) {
+      const adCh = await guild.channels.fetch(AD_SALES_CHANNEL_ID).catch(() => null);
+      if (adCh?.isSendable()) {
+        await adCh.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0xfbbf24)
+            .setTitle('💰 İTEM SATIŞ: REKLAM')
+            .addFields(
+              { name: 'KONU',           value: topic,   inline: true },
+              { name: 'HANGİ TÜR',      value: adType,  inline: true },
+              { name: 'FİYAT',          value: `${price}₺`, inline: true },
+              { name: 'KULLANICI',      value: `<@${ticket?.userId}>`, inline: true },
+              { name: 'TİCKET',        value: `\`${ticketId}\``, inline: true },
+            )
+            .setDescription('LÜTFEN LİNK GİRİN')
+            .setTimestamp()],
+        });
+      }
+    }
+  } catch (_) {}
+
+  // Ticket kanalında "Link Girin" butonu
+  pendingAdRequests.set(ticketId, {
+    adType, price, topic,
+    channelId: channel.id,
+    guildId: channel.guild?.id,
+    userId: ticket?.userId,
+  });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`ban_approve_${ticketId}`)
-      .setLabel('✅ Evet, Banla')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(`ban_reject_${ticketId}`)
-      .setLabel('❌ Hayır, Reddet')
-      .setStyle(ButtonStyle.Secondary)
+      .setCustomId(`ad_link_${ticketId}`)
+      .setLabel('🔗 Link Girin')
+      .setStyle(ButtonStyle.Primary)
   );
 
-  await channel.send({ embeds: [embed], components: [row] });
-
-  pendingBanRequests.set(ticketId, {
-    target,
-    userId: ticket?.userId,
-    channelId: channel.id,
-    guildId: channel.guild?.id,
-  });
-}
-
-// ── Ban onayla/reddet butonu ─────────────────────────────────────────────────
-async function handleBanButton(interaction, client) {
-  const cid = interaction.customId;
-  if (!cid.startsWith('ban_approve_') && !cid.startsWith('ban_reject_')) return false;
-
-  const ticketId = cid.replace('ban_approve_', '').replace('ban_reject_', '');
-  const banInfo  = pendingBanRequests.get(ticketId);
-
-  if (!banInfo) {
-    await interaction.reply({ content: '❌ Ban talebi bulunamadı.', ephemeral: true });
-    return true;
-  }
-
-  if (cid.startsWith('ban_reject_')) {
-    pendingBanRequests.delete(ticketId);
-    await interaction.update({
-      content: '❌ Ban talebi reddedildi.',
-      embeds: [],
-      components: [],
-    }).catch(() => {});
-
-    // Kullanıcıya bildir
-    try {
-      const u = await client.users.fetch(banInfo.userId);
-      await u.send('❌ Ban talebiniz reddedildi. Başka bir isteğiniz varsa bize yazın.');
-    } catch (_) {}
-    return true;
-  }
-
-  // Onayla — ban uygula
-  await interaction.deferUpdate().catch(() => {});
-
-  try {
-    const guild = await client.guilds.fetch(banInfo.guildId).catch(() => null);
-    let banned = false;
-    let bannedTag = banInfo.target;
-
-    if (guild && banInfo.target) {
-      try {
-        // ID mi yoksa username mı?
-        const isId = /^\d{17,20}$/.test(banInfo.target.trim());
-        let memberId = null;
-
-        if (isId) {
-          memberId = banInfo.target.trim();
-        } else {
-          const members = await guild.members.fetch().catch(() => null);
-          const found = members?.find(m =>
-            m.user.username.toLowerCase() === banInfo.target.toLowerCase() ||
-            m.user.tag.toLowerCase() === banInfo.target.toLowerCase()
-          );
-          if (found) memberId = found.id;
-        }
-
-        if (memberId) {
-          await guild.members.ban(memberId, {
-            reason: `Ticket ${ticketId} — Yetkili: ${interaction.user.tag}`,
-          });
-          banned = true;
-          bannedTag = `<@${memberId}>`;
-        }
-      } catch (banErr) {
-        console.warn('[ticketAI] Ban uygulanamadı:', banErr.message);
-      }
-    }
-
-    pendingBanRequests.delete(ticketId);
-
-    const resultEmbed = new EmbedBuilder()
-      .setColor(banned ? 0x4ade80 : 0xfbbf24)
-      .setTitle(banned ? '✅ Ban Uygulandı' : '⚠️ Ban Uygulanamadı')
-      .setDescription(
-        banned
-          ? `${bannedTag} başarıyla banlandı.`
-          : `Kullanıcı bulunamadı veya banlanamadı: \`${banInfo.target}\``
-      )
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [resultEmbed], components: [] }).catch(() => {});
-
-    // Kullanıcıya bildir
-    try {
-      const u = await client.users.fetch(banInfo.userId);
-      await u.send(
-        banned
-          ? `✅ **Sorununuz çözüldü!** Kişi banlandı.\n\n` +
-            `Başka bir isteğiniz var mı?\n` +
-            `⭐ Hizmeti değerlendirmeyi unutmayın! 5 yıldız verirseniz çok mutlu oluruz 😊`
-          : `⚠️ Hedef kullanıcı bulunamadı. Yetkililere aktarılıyorsunuz.`
-      );
-    } catch (_) {}
-
-  } catch (err) {
-    console.error('[ticketAI] handleBanButton hata:', err.message);
-    await interaction.editReply({ content: '❌ Ban işlemi sırasında hata oluştu.', components: [] }).catch(() => {});
-  }
-
-  return true;
-}
-
-// ── Yetkililere aktar ───────────────────────────────────────────────────────
-async function notifyStaff(channel, ticket, aiSummary, client) {
-  try {
-    const summary = cleanMsg(aiSummary).slice(0, 800) || 'Kullanıcı sorunu açıkladı.';
-    if (ticket) { ticket.aiSummary = summary; await ticket.save(); }
-
-    const guild = channel.guild;
-    const staffMentions = [];
-    try {
-      const members = await guild.members.fetch();
-      members
-        .filter(m => !m.user.bot && m.permissions.has('ManageMessages') && m.presence?.status !== 'offline')
-        .first(3)
-        .forEach(m => staffMentions.push(`<@${m.id}>`));
-    } catch (_) {}
-
-    const embed = new EmbedBuilder()
-      .setColor(0xfbbf24)
-      .setTitle('👨‍💼 Yetkili Gerekiyor')
-      .setDescription(
-        `**🤖 AI Özeti:** ${summary}\n\n` +
-        `**Ticket:** \`${ticket?.ticketId || '—'}\`\n` +
-        `**Kullanıcı:** <@${ticket?.userId || '?'}>\n` +
-        `**Konu:** ${ticket?.subject || '—'}`
-      )
-      .setFooter({ text: 'Sentara AI • Yetkili bekleniyor' })
-      .setTimestamp();
-
-    await channel.send({
-      content: staffMentions.length
-        ? `${staffMentions.join(' ')} — Destek talebi!`
-        : '📢 Aktif yetkili bulunamadı.',
-      embeds: [embed],
-    });
-  } catch (err) {
-    console.error('[ticketAI] notifyStaff hata:', err.message);
-  }
-}
-
-async function fallbackNotifyStaff(channel, ticket, client) {
   await channel.send({
     embeds: [new EmbedBuilder()
       .setColor(0xfbbf24)
-      .setTitle('👨‍💼 Yetkili Gerekiyor')
-      .setDescription(`**Kullanıcı:** <@${ticket?.userId || '?'}>\n**Konu:** ${ticket?.subject || '—'}\n\nAI yanıt veremiyor. Lütfen doğrudan ilgilenin.`)
+      .setTitle('✅ Reklam Talebi Alındı')
+      .setDescription(
+        `**Tür:** ${adType}\n**Fiyat:** ${price}₺\n**Konu:** ${topic}\n\n` +
+        `Lütfen aşağıdaki butona basarak **reklam linkini** girin.`
+      )],
+    components: [row],
+  });
+}
+
+// ── "Link Girin" butona basınca modal aç ─────────────────────────────────────
+async function handleAdLinkButton(interaction, client) {
+  if (!interaction.customId?.startsWith('ad_link_')) return false;
+  const ticketId = interaction.customId.replace('ad_link_', '');
+
+  const modal = new ModalBuilder()
+    .setCustomId(`ad_link_modal_${ticketId}`)
+    .setTitle('Reklam Linki')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('ad_link_input')
+          .setLabel('Reklamı yapılacak linki girin')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('https://...')
+          .setRequired(true)
+      )
+    );
+
+  await interaction.showModal(modal);
+  return true;
+}
+
+// ── Modal submit: link girildi ────────────────────────────────────────────────
+async function handleAdLinkModal(interaction, client) {
+  if (!interaction.customId?.startsWith('ad_link_modal_')) return false;
+  const ticketId = interaction.customId.replace('ad_link_modal_', '');
+  const link = interaction.fields.getTextInputValue('ad_link_input').trim();
+
+  const adInfo = pendingAdRequests.get(ticketId);
+  pendingAdRequests.delete(ticketId);
+
+  if (!adInfo) {
+    await interaction.reply({ content: '❌ Reklam talebi bulunamadı.', ephemeral: true });
+    return true;
+  }
+
+  // Kanıt bekleme moduna geç
+  pendingAdEvidence.set(ticketId, { ...adInfo, link });
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x4ade80)
+      .setTitle('🔗 Link Alındı')
+      .setDescription(
+        `**Link:** ${link}\n\n` +
+        `✅ Ödeme yaptıktan sonra **ekran görüntüsü (SSI)** atın.\n` +
+        `SSI alındıktan sonra yetkililere yönlendirileceksiniz.`
+      )],
+    ephemeral: false,
+  });
+  return true;
+}
+
+// ── SSI (kanıt) gelince yetkililere aktar ─────────────────────────────────────
+async function finalizeAdWithEvidence(message, ticketId, attachments, client) {
+  const adInfo = pendingAdEvidence.get(ticketId);
+  if (!adInfo) return;
+  pendingAdEvidence.delete(ticketId);
+
+  const ticket = await Ticket.findOne({ ticketId });
+
+  // Kanıt kanalına gönder
+  try {
+    const guild = await client.guilds.fetch(AD_SALES_GUILD_ID).catch(() => null);
+    if (guild) {
+      const evCh = await guild.channels.fetch(AD_SALES_CHANNEL_ID).catch(() => null);
+      if (evCh?.isSendable()) {
+        await evCh.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0x4ade80)
+            .setTitle(`✅ Reklam Ödeme Kanıtı — ${ticketId}`)
+            .addFields(
+              { name: 'TÜR',    value: adInfo.adType, inline: true },
+              { name: 'FİYAT',  value: `${adInfo.price}₺`, inline: true },
+              { name: 'KONU',   value: adInfo.topic,   inline: true },
+              { name: 'LİNK',   value: adInfo.link,    inline: false },
+              { name: 'KULLANICI', value: `<@${adInfo.userId}>`, inline: true },
+            )],
+          files: attachments.map(a => a.url).slice(0, 5),
+        });
+      }
+    }
+  } catch (_) {}
+
+  // Yetkililere aktar
+  await notifyStaff(message.channel, ticket, `Reklam ödeme kanıtı alındı. Tür: ${adInfo.adType}, Fiyat: ${adInfo.price}₺`, client);
+  await message.channel.send('✅ Kanıtınız alındı! Yetkili ekibimiz en kısa sürede sizinle ilgilenecek.').catch(() => {});
+}
+
+// ── Ban akışı ─────────────────────────────────────────────────────────────────
+async function handleBanRequest(channel, ticket, target, attachments, client) {
+  const ticketId = ticket?.ticketId || 'bilinmiyor';
+  pendingBanRequests.set(ticketId, {
+    target, userId: ticket?.userId,
+    channelId: channel.id, guildId: channel.guild?.id,
+  });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ban_approve_${ticketId}`).setLabel('✅ Evet, Banla').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`ban_reject_${ticketId}`).setLabel('❌ Hayır, Reddet').setStyle(ButtonStyle.Secondary)
+  );
+
+  await channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0xff6b6b).setTitle('🚨 Ban Talebi')
+      .setDescription(`**Hedef:** ${target || 'Belirsiz'}\n**Talep eden:** <@${ticket?.userId}>\n\n**Banlama gerçekleşsin mi?'`)
+      .setTimestamp()],
+    components: [row],
+  });
+}
+
+async function handleBanButton(interaction, client) {
+  const cid = interaction.customId;
+  if (!cid.startsWith('ban_approve_') && !cid.startsWith('ban_reject_')) return false;
+  const ticketId = cid.replace('ban_approve_', '').replace('ban_reject_', '');
+  const info = pendingBanRequests.get(ticketId);
+  if (!info) { await interaction.reply({ content: '❌ Ban talebi bulunamadı.', ephemeral: true }); return true; }
+
+  if (cid.startsWith('ban_reject_')) {
+    pendingBanRequests.delete(ticketId);
+    await interaction.update({ content: '❌ Ban talebi reddedildi.', embeds: [], components: [] }).catch(() => {});
+    try { const u = await client.users.fetch(info.userId); await u.send('❌ Ban talebiniz reddedildi.'); } catch (_) {}
+    return true;
+  }
+
+  await interaction.deferUpdate().catch(() => {});
+  let banned = false;
+  let bannedTag = info.target;
+  try {
+    const guild = await client.guilds.fetch(info.guildId).catch(() => null);
+    if (guild && info.target) {
+      const isId = /^\d{17,20}$/.test(info.target.trim());
+      let memberId = isId ? info.target.trim() : null;
+      if (!memberId) {
+        const members = await guild.members.fetch().catch(() => null);
+        const found = members?.find(m =>
+          m.user.username.toLowerCase() === info.target.toLowerCase() ||
+          m.user.tag.toLowerCase() === info.target.toLowerCase()
+        );
+        if (found) memberId = found.id;
+      }
+      if (memberId) {
+        await guild.members.ban(memberId, { reason: `Ticket ${ticketId} — ${interaction.user.tag}` });
+        banned = true; bannedTag = `<@${memberId}>`;
+      }
+    }
+  } catch (err) { console.warn('[ticketAI] ban hata:', err.message); }
+
+  pendingBanRequests.delete(ticketId);
+  await interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setColor(banned ? 0x4ade80 : 0xfbbf24)
+      .setTitle(banned ? '✅ Ban Uygulandı' : '⚠️ Ban Uygulanamadı')
+      .setDescription(banned ? `${bannedTag} banlandı.` : `Kullanıcı bulunamadı: \`${info.target}\``)
+      .setTimestamp()],
+    components: [],
+  }).catch(() => {});
+
+  try {
+    const u = await client.users.fetch(info.userId);
+    await u.send(banned
+      ? '✅ **Sorununuz çözüldü!** Kişi banlandı.\n\nBaşka bir isteğiniz var mı? ⭐ 5 yıldız vermeyi unutmayın! 😊'
+      : '⚠️ Hedef kullanıcı bulunamadı. Yetkililere aktarılıyorsunuz.'
+    );
+  } catch (_) {}
+  return true;
+}
+
+// ── Kanıt kanalına resim gönder ───────────────────────────────────────────────
+async function sendEvidence(message, ticketId, attachments, client) {
+  try {
+    const guild = await client.guilds.fetch(EVIDENCE_GUILD_ID).catch(() => null);
+    if (!guild) return;
+    const ch = await guild.channels.fetch(EVIDENCE_CHANNEL_ID).catch(() => null);
+    if (!ch?.isSendable()) return;
+    const ticket = await Ticket.findOne({ ticketId });
+    await ch.send({
+      embeds: [new EmbedBuilder().setColor(0xff6b6b)
+        .setTitle(`🔍 Kanıtlar — ${ticketId}`)
+        .setDescription(`**Kullanıcı:** <@${message.author.id}>\n**Konu:** ${ticket?.subject || '—'}\nKanıtlar bunlar:`)
+        .setTimestamp()],
+      files: attachments.map(a => a.url).slice(0, 10),
+    });
+    await message.channel.send('📎 Kanıtlarınız ilgili kanala iletildi.').catch(() => {});
+  } catch (err) { console.warn('[ticketAI] sendEvidence hata:', err.message); }
+}
+
+// ── Yetkililere aktar ─────────────────────────────────────────────────────────
+async function notifyStaff(channel, ticket, summary, client) {
+  try {
+    const clean = cleanMsg(summary).slice(0, 800) || '—';
+    if (ticket) { ticket.aiSummary = clean; await ticket.save(); }
+    const guild = channel.guild;
+    const mentions = [];
+    try {
+      const members = await guild.members.fetch();
+      members.filter(m => !m.user.bot && m.permissions.has('ManageMessages') && m.presence?.status !== 'offline')
+        .first(3).forEach(m => mentions.push(`<@${m.id}>`));
+    } catch (_) {}
+    await channel.send({
+      content: mentions.length ? `${mentions.join(' ')} — Destek talebi!` : '📢 Aktif yetkili bulunamadı.',
+      embeds: [new EmbedBuilder().setColor(0xfbbf24).setTitle('👨‍💼 Yetkili Gerekiyor')
+        .setDescription(`**Özet:** ${clean}\n**Ticket:** \`${ticket?.ticketId || '—'}\`\n**Kullanıcı:** <@${ticket?.userId || '?'}>`)
+        .setTimestamp()],
+    });
+  } catch (err) { console.error('[ticketAI] notifyStaff hata:', err.message); }
+}
+
+async function fallbackNotify(channel, ticket) {
+  await channel.send({
+    embeds: [new EmbedBuilder().setColor(0xfbbf24).setTitle('👨‍💼 Yetkili Gerekiyor')
+      .setDescription(`**Kullanıcı:** <@${ticket?.userId || '?'}>\n**Konu:** ${ticket?.subject || '—'}\nAI yanıt veremiyor.`)
       .setTimestamp()],
   }).catch(() => {});
 }
 
-// ── Timer ───────────────────────────────────────────────────────────────────
+// ── İnaktivite timer ──────────────────────────────────────────────────────────
 function resetInactivityTimer(ticketId, channel, ticket, client) {
   clearInactivityTimer(ticketId);
   const timer = setTimeout(async () => {
@@ -406,26 +464,18 @@ function resetInactivityTimer(ticketId, channel, ticket, client) {
       const t = ticket || await Ticket.findOne({ ticketId });
       if (!t || t.status === 'closed') return;
       try {
-        const user = await client.users.fetch(t.userId);
-        await user.send({
-          embeds: [new EmbedBuilder()
-            .setColor(0xed4245).setTitle('⏰ Ticket Kapatıldı')
-            .setDescription('10 dakika aktif olmadığınız için ticket kapatıldı. İstediğiniz zaman tekrar açabilirsiniz.')
-            .setTimestamp()],
-        });
+        const u = await client.users.fetch(t.userId);
+        await u.send({ embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('⏰ Ticket Kapatıldı')
+          .setDescription('10 dakika aktif olmadığınız için ticket kapatıldı.').setTimestamp()] });
       } catch (_) {}
       t.status = 'closed'; t.closedAt = new Date();
-      t.closeReason = 'İnaktivite'; t.closedBy = 'AI';
-      await t.save();
-      await channel.send('⏰ İnaktivite nedeniyle kapatıldı.').catch(() => {});
+      t.closeReason = 'İnaktivite'; t.closedBy = 'AI'; await t.save();
+      await channel.send('⏰ İnaktivite — ticket kapatıldı.').catch(() => {});
       await channel.permissionOverwrites.edit(t.userId, { ViewChannel: false, SendMessages: false }).catch(() => {});
       const { scheduleTicketDeletion } = require('./ticketCleanup');
       scheduleTicketDeletion(ticketId);
-    } catch (err) {
-      console.error('[ticketAI] inactivity timer hata:', err.message);
-    }
-    activeAITickets.delete(ticketId);
-    conversationHistory.delete(ticketId);
+    } catch (err) { console.error('[ticketAI] inactivity hata:', err.message); }
+    activeAITickets.delete(ticketId); conversationHistory.delete(ticketId);
   }, INACTIVITY_TIMEOUT);
   inactivityTimers.set(ticketId, timer);
 }
@@ -440,11 +490,15 @@ function cleanupTicketAI(ticketId) {
   activeAITickets.delete(ticketId);
   conversationHistory.delete(ticketId);
   pendingBanRequests.delete(ticketId);
+  pendingAdRequests.delete(ticketId);
+  pendingAdEvidence.delete(ticketId);
 }
 
 module.exports = {
   startAIConversation,
   handleUserMessage,
   handleBanButton,
+  handleAdLinkButton,
+  handleAdLinkModal,
   cleanupTicketAI,
 };
