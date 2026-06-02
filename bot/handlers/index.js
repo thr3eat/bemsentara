@@ -91,6 +91,12 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     try {
+      // ── DM Ticket kapat butonu ─────────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('dm_close_')) {
+        const { handleDMCloseButton } = require('../services/dmTicket');
+        await handleDMCloseButton(interaction, client);
+        return;
+      }
       await handleInteraction(interaction);
     } catch (err) {
       console.error("[interactionCreate]", err);

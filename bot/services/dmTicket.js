@@ -1,326 +1,385 @@
 'use strict';
 
-/**
- * DM Ticket Sistemi
- * - Kullanıcı bot'a DM yazar → AI sorunu anlar → Ticket kanalı açar (sadece yetkililer)
- * - Yetkili kanaldan yazar → bot kullanıcıya DM atar
- * - Kullanıcı DM'den yazar → bot kanalda gösterir
- */
-
-const { EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
+const {
+  EmbedBuilder, ChannelType, PermissionFlagsBits,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+} = require('discord.js');
 const { chatWithAI } = require('./aiService');
 const Ticket = require('../../models/Ticket');
 const { generateTicketId } = require('../../utils/ticketId');
-const { TARGET_GUILD_ID, TARGET_CHANNEL_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID } = require('../../config');
+const {
+  TARGET_GUILD_ID, TARGET_CHANNEL_ID,
+  GUILD2_ID, GUILD2_TICKET_CATEGORY_ID,
+} = require('../../config');
 
-// DM konuşma geçmişi: userId → [{role, content}]
+// userId → [{role, content}]
 const dmConversations = new Map();
-// Aktif DM ticket'ları: userId → { ticketId, channelId, guildId }
+// userId → { ticketId, channelId, guildId }
 const activeDMTickets = new Map();
 
-const DM_SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
-Görevin: Kullanıcıyla DM üzerinden konuşarak destek talebini anlamak.
+const DM_SYSTEM_PROMPT = `Sen Sentara destek botunun yapay zeka asistanısın.
+Kullanıcıyla kısa bir sohbet yap ve destek talebini anla.
 Kurallar:
-- Türkçe konuş, samimi ve yardımsever ol.
-- Kullanıcının sorununu 2-3 mesajda net olarak anla.
-- Sorun net olduğunda cevabının en başına tam olarak şunu yaz (başka hiçbir şey ekleme önce): [HAZIR]
-- Ardından sorunu 1-2 cümleyle özetle.
-- Asla kendin çözüm önerme, yetkililere ilet.
-- Kısa ve net mesajlar yaz (max 150 karakter).
-- İlk mesajda mutlaka "Merhaba! Nasıl yardımcı olabilirim?" diye sor.
-- ÖNEMLI: Hazır olduğunda cevabın tam olarak [HAZIR] ile başlamalı, HAZIR: veya başka format kullanma.`;
+- Türkçe konuş, samimi ve nazik ol.
+- 2-3 mesajda sorunu öğren.
+- Sorunu anladıktan sonra YALNIZCA şu formatta yanıt ver (başka hiçbir şey yazma):
+  [HAZIR] <sorunun özeti tek cümle>
+- Çözüm önerme, yetkililere ilet.
+- Yanıtlar maksimum 200 karakter olsun.`;
 
-/**
- * [HAZIR] veya farklı formatları tespit et
- */
 function isReady(text) {
-  return /\[HAZIR\]|HAZIR:|^\s*HAZIR\s/i.test(text);
+  return /^\s*\[HAZIR\]/i.test(text.trim());
 }
 
-/**
- * AI yanıtından [HAZIR]/HAZIR: etiketini ve think bloklarını temizle
- */
 function cleanAI(text) {
   return text
-    .replace(/\[HAZIR\]/gi, '')
-    .replace(/^HAZIR:/gim, '')
+    .replace(/^\s*\[HAZIR\]\s*/i, '')
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .trim();
 }
 
-/**
- * Bot'a DM gelen mesajı işle
- */
+// ── Kapatma butonu ──────────────────────────────────────────────────────────
+function buildDMCloseButton(ticketId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`dm_close_${ticketId}`)
+      .setLabel('🔒 DM Ticket\'ı Kapat')
+      .setStyle(ButtonStyle.Danger)
+  );
+}
+
+// ── Bot'a DM gelen mesajı işle ──────────────────────────────────────────────
 async function handleDMMessage(message, client) {
   const userId = message.author.id;
 
-  // Zaten aktif ticket'ı var mı? → Kanaldan devam
+  // Aktif ticket varsa → kanala ilet
   if (activeDMTickets.has(userId)) {
     await forwardDMToChannel(message, client);
     return;
   }
 
-  // Yeni veya devam eden AI konuşması
+  // Konuşma geçmişini başlat / devam ettir
   if (!dmConversations.has(userId)) {
     dmConversations.set(userId, []);
   }
-
   const history = dmConversations.get(userId);
 
-  if (history.length >= 12) {
-    // Çok uzadı — direkt ticket aç
+  // Çok uzun konuşma → direkt ticket
+  if (history.length >= 14) {
     await createDMTicket(message.author, 'Kullanıcı destek talep etti.', history, client);
     return;
   }
 
   history.push({ role: 'user', content: message.content });
 
+  // Typing göstergesi
   try {
-    const dmChannel = await message.author.createDM().catch(() => null);
-    if (dmChannel) await dmChannel.sendTyping().catch(() => {});
+    const dmCh = await message.author.createDM().catch(() => null);
+    if (dmCh) await dmCh.sendTyping().catch(() => {});
+  } catch (_) {}
 
-    const aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
+  // AI'dan yanıt al
+  let aiReply;
+  try {
+    aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
     history.push({ role: 'assistant', content: aiReply });
-
-    const cleanReply = cleanAI(aiReply);
-
-    if (isReady(aiReply)) {
-      // Ticket aç
-      await createDMTicket(message.author, cleanReply, history, client);
-    } else {
-      await message.author.send(cleanReply || aiReply).catch(() => {});
-    }
   } catch (err) {
-    console.error('[dmTicket] AI yanıt hatası:', err.message);
-    await message.author.send('Bir sorun oluştu, sizi hemen yetkililere bağlıyorum...').catch(() => {});
-    await createDMTicket(message.author, 'AI hatası nedeniyle direkt aktarım.', history, client);
+    console.error('[dmTicket] AI hata:', err.message);
+    // AI çalışmıyorsa direkt ticket aç
+    await message.author.send(
+      '⚠️ Şu an otomatik asistan çevrimdışı. Sizi direkt yetkililere bağlıyorum...'
+    ).catch(() => {});
+    await createDMTicket(
+      message.author,
+      message.content.slice(0, 200),
+      history,
+      client
+    );
+    return;
+  }
+
+  if (isReady(aiReply)) {
+    const summary = cleanAI(aiReply);
+    await createDMTicket(message.author, summary, history, client);
+  } else {
+    const cleanReply = cleanAI(aiReply) || aiReply;
+    await message.author.send(cleanReply).catch(() => {});
   }
 }
 
-/**
- * DM ticket kanalı oluştur — sadece yetkililer görür
- */
+// ── DM ticket kanalı oluştur ────────────────────────────────────────────────
 async function createDMTicket(user, summary, history, client) {
   const userId = user.id;
   dmConversations.delete(userId);
 
-  try {
-    // Kullanıcıya bildir
-    await user.send(
-      '⏳ **Yetkiliye aktarılıyorsunuz...**\n\nBekleyin, yetkili size yazdığında DM üzerinden bildirim alacaksınız.'
-    ).catch(() => {});
+  // Kullanıcıya bildir
+  await user.send(
+    '⏳ **Yetkiliye aktarılıyorsunuz...**\n\n' +
+    'Bekleyin — yetkili size yazdığında DM üzerinden bildirim alacaksınız.'
+  ).catch(() => {});
 
-    const ticketId = generateTicketId();
+  const ticketId = generateTicketId();
 
-    // Her iki sunucuda kanal aç — sadece yetkililer görür
-    const targets = [
-      { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
-      { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
-    ];
+  const targets = [
+    { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
+    { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+  ];
 
-    let createdChannel = null;
-    let createdGuildId = null;
+  let createdChannel = null;
+  let createdGuildId  = null;
 
-    for (const target of targets) {
-      try {
-        const guild = await client.guilds.fetch(target.id).catch(() => null);
-        if (!guild) continue;
+  for (const target of targets) {
+    try {
+      const guild = await client.guilds.fetch(target.id).catch(() => null);
+      if (!guild) continue;
 
-        // İzinler: @everyone göremez, ManageMessages'a sahip olanlar görebilir
-        const permissionOverwrites = [
-          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-        ];
+      // İzinler: @everyone göremez, ManageMessages'lı roller görebilir
+      const permissionOverwrites = [
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      ];
+      guild.roles.cache
+        .filter(r => r.permissions.has(PermissionFlagsBits.ManageMessages) && !r.managed)
+        .forEach(r => permissionOverwrites.push({
+          id: r.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        }));
 
-        // ManageMessages iznine sahip rolleri ekle
-        const manageRoles = guild.roles.cache.filter(r =>
-          r.permissions.has(PermissionFlagsBits.ManageMessages) && !r.managed
-        );
-        manageRoles.forEach(r => {
-          permissionOverwrites.push({
-            id: r.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-          });
-        });
-
-        // Kategori bul
-        let parentId = null;
-        if (target.categoryId) {
-          const ch = await guild.channels.fetch(target.categoryId).catch(() => null);
-          if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
-          else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
-        }
-        if (!parentId) {
-          let cat = guild.channels.cache.find(c => c.name.toLowerCase().includes('destek') && c.type === ChannelType.GuildCategory);
-          if (!cat) cat = await guild.channels.create({ name: 'DM TİCKETLAR', type: ChannelType.GuildCategory });
-          parentId = cat.id;
-        }
-
-        const channel = await guild.channels.create({
-          name: `dm-${ticketId.toLowerCase()}`,
-          type: ChannelType.GuildText,
-          parent: parentId,
-          permissionOverwrites,
-          topic: `DM Ticket | Kullanıcı: ${user.tag} (${userId})`,
-        });
-
-        // Konuşma geçmişini özet olarak gönder
-        const conversationText = history
-          .filter(m => m.role === 'user')
-          .map(m => `> ${m.content}`)
-          .join('\n')
-          .slice(0, 800) || 'Mesaj yok.';
-
-        const embed = new EmbedBuilder()
-          .setColor(0x7c6af7)
-          .setTitle(`📩 DM Ticket — ${ticketId}`)
-          .setDescription(
-            `**Kullanıcı:** <@${userId}> (${user.tag})\n` +
-            `**AI Özeti:** ${summary}\n\n` +
-            `**Konuşma Geçmişi:**\n${conversationText}`
-          )
-          .addFields(
-            { name: '📌 Nasıl çalışır?', value: 'Bu kanala yazdığınız mesajlar kullanıcıya DM olarak iletilir.\nKullanıcının DM yanıtları da bu kanala düşer.', inline: false }
-          )
-          .setFooter({ text: `DM Ticket Sistemi • ${user.tag}` })
-          .setTimestamp();
-
-        await channel.send({ embeds: [embed] });
-
-        if (!createdChannel) {
-          createdChannel = channel;
-          createdGuildId = guild.id;
-        }
-      } catch (chErr) {
-        console.warn(`[dmTicket] ${target.id} kanalı açılamadı:`, chErr.message);
+      // Kategori
+      let parentId = null;
+      if (target.categoryId) {
+        const ch = await guild.channels.fetch(target.categoryId).catch(() => null);
+        if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
+        else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
       }
+      if (!parentId) {
+        let cat = guild.channels.cache.find(
+          c => c.name.toLowerCase().includes('destek') && c.type === ChannelType.GuildCategory
+        );
+        if (!cat) cat = await guild.channels.create({ name: 'DM TİCKETLAR', type: ChannelType.GuildCategory });
+        parentId = cat.id;
+      }
+
+      const channel = await guild.channels.create({
+        name: `dm-${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: parentId,
+        permissionOverwrites,
+        topic: `DM Ticket | ${user.tag} (${userId})`,
+      });
+
+      // Konuşma geçmişi
+      const convText = history
+        .filter(m => m.role === 'user')
+        .map(m => `> ${m.content}`)
+        .join('\n')
+        .slice(0, 900) || 'Mesaj yok.';
+
+      const embed = new EmbedBuilder()
+        .setColor(0x7c6af7)
+        .setTitle(`📩 DM Ticket — ${ticketId}`)
+        .setDescription(
+          `**Kullanıcı:** <@${userId}> (${user.tag})\n` +
+          `**Özet:** ${summary || '—'}\n\n` +
+          `**DM Konuşması:**\n${convText}`
+        )
+        .addFields({
+          name: '📌 Nasıl çalışır?',
+          value:
+            '• Bu kanala yazdığınız mesajlar kullanıcıya **DM** olarak iletilir.\n' +
+            '• Kullanıcının DM yanıtları bu kanala düşer.\n' +
+            '• Kapatmak için 🔒 butonuna basın.',
+        })
+        .setFooter({ text: `DM Ticket • ${user.tag}` })
+        .setTimestamp();
+
+      const closeBtn = buildDMCloseButton(ticketId);
+      await channel.send({ embeds: [embed], components: [closeBtn] });
+
+      if (!createdChannel) {
+        createdChannel = channel;
+        createdGuildId  = guild.id;
+      }
+    } catch (err) {
+      console.warn(`[dmTicket] ${target.id} kanalı açılamadı:`, err.message);
     }
-
-    if (!createdChannel) {
-      await user.send('❌ Ticket kanalı oluşturulamadı. Lütfen Discord sunucusundan destek alın.').catch(() => {});
-      return;
-    }
-
-    // Ticket kaydet
-    const ticket = new Ticket({
-      ticketId,
-      userId,
-      userName: user.username,
-      category: 'dm',
-      subject: summary.slice(0, 100),
-      description: summary,
-      priority: 'medium',
-      channelId: createdChannel.id,
-      guildId: createdGuildId,
-      source: 'dm',
-    });
-    await ticket.save();
-
-    // Aktif DM ticket'a kaydet
-    activeDMTickets.set(userId, {
-      ticketId,
-      channelId: createdChannel.id,
-      guildId: createdGuildId,
-    });
-
-    console.log(`[dmTicket] ${user.tag} → DM ticket oluşturuldu: ${ticketId}`);
-
-  } catch (err) {
-    console.error('[dmTicket] createDMTicket hata:', err.message);
-    await user.send('Bir hata oluştu. Lütfen sunucudan destek talep edin.').catch(() => {});
   }
+
+  if (!createdChannel) {
+    await user.send('❌ Ticket kanalı oluşturulamadı. Sunucudan destek alın.').catch(() => {});
+    return;
+  }
+
+  // Ticket DB'ye kaydet
+  const ticket = new Ticket({
+    ticketId,
+    userId,
+    userName: user.username,
+    category: 'dm',
+    subject: (summary || 'DM destek talebi').slice(0, 100),
+    description: summary || 'DM destek talebi',
+    priority: 'medium',
+    channelId: createdChannel.id,
+    guildId: createdGuildId,
+    source: 'dm',
+  });
+  await ticket.save();
+
+  activeDMTickets.set(userId, {
+    ticketId,
+    channelId: createdChannel.id,
+    guildId: createdGuildId,
+  });
+
+  console.log(`[dmTicket] ${user.tag} → DM ticket: ${ticketId}`);
 }
 
-/**
- * DM'den gelen mesajı ticket kanalına ilet
- */
+// ── DM → Kanal iletimi ──────────────────────────────────────────────────────
 async function forwardDMToChannel(message, client) {
   const userId = message.author.id;
   const dmInfo = activeDMTickets.get(userId);
   if (!dmInfo) return;
 
-  try {
-    const guild = await client.guilds.fetch(dmInfo.guildId).catch(() => null);
-    if (!guild) return;
-    const channel = await guild.channels.fetch(dmInfo.channelId).catch(() => null);
-    if (!channel) {
-      activeDMTickets.delete(userId);
-      await message.author.send('Ticket kanalı bulunamadı. Ticket\'ınız kapatılmış olabilir.').catch(() => {});
-      return;
-    }
+  const guild = await client.guilds.fetch(dmInfo.guildId).catch(() => null);
+  if (!guild) return;
 
-    const embed = new EmbedBuilder()
-      .setColor(0x4ade80)
-      .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
-      .setDescription(message.content)
-      .setFooter({ text: '📩 DM\'den gelen mesaj' })
-      .setTimestamp();
-
-    await channel.send({ embeds: [embed] });
-  } catch (err) {
-    console.error('[dmTicket] forwardDMToChannel hata:', err.message);
+  const channel = await guild.channels.fetch(dmInfo.channelId).catch(() => null);
+  if (!channel) {
+    activeDMTickets.delete(userId);
+    await message.author.send(
+      '📭 Ticket kanalınız bulunamadı. Kapatılmış olabilir.\n' +
+      'Yeni destek için tekrar yazabilirsiniz.'
+    ).catch(() => {});
+    return;
   }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x4ade80)
+    .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
+    .setDescription(message.content)
+    .setFooter({ text: '📩 Kullanıcıdan DM' })
+    .setTimestamp();
+
+  await channel.send({ embeds: [embed] }).catch(() => {});
 }
 
-/**
- * Ticket kanalından gelen mesajı kullanıcıya DM olarak ilet
- * index.js'deki messageCreate'den çağrılır
- */
+// ── Kanal → DM iletimi ──────────────────────────────────────────────────────
 async function forwardChannelToDM(message, client) {
-  // dm- ile başlayan kanallarda çalış
   if (!message.channel.name?.startsWith('dm-')) return false;
 
   const channelId = message.channel.id;
 
-  // Bu kanalın hangi DM ticket'ına ait olduğunu bul
+  // userId'yi bul: önce memory map, yoksa channel topic'ten
   let targetUserId = null;
-  for (const [userId, info] of activeDMTickets.entries()) {
-    if (info.channelId === channelId) {
-      targetUserId = userId;
-      break;
-    }
+  for (const [uid, info] of activeDMTickets.entries()) {
+    if (info.channelId === channelId) { targetUserId = uid; break; }
   }
-
-  // Aktif map'te yoksa DB'den ticket topic'inden bul
   if (!targetUserId && message.channel.topic) {
-    const match = message.channel.topic.match(/\((\d+)\)/);
-    if (match) targetUserId = match[1];
+    const m = message.channel.topic.match(/\((\d{17,20})\)/);
+    if (m) targetUserId = m[1];
   }
-
   if (!targetUserId) return false;
 
-  try {
-    const user = await client.users.fetch(targetUserId).catch(() => null);
-    if (!user) return false;
+  const user = await client.users.fetch(targetUserId).catch(() => null);
+  if (!user) return false;
 
-    const embed = new EmbedBuilder()
-      .setColor(0x7c6af7)
-      .setAuthor({ name: `${message.author.tag} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-      .setDescription(message.content)
-      .setFooter({ text: 'Sentara Destek • Bu mesaj bir yetkili tarafından gönderildi.' })
-      .setTimestamp();
+  const embed = new EmbedBuilder()
+    .setColor(0x7c6af7)
+    .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
+    .setDescription(message.content)
+    .setFooter({ text: 'Sentara Destek • Yetkili mesajı' })
+    .setTimestamp();
 
-    await user.send({ embeds: [embed] });
-
-    // Kanala iletildiğini belirt
-    await message.react('✅').catch(() => {});
-    return true;
-  } catch (err) {
-    console.error('[dmTicket] forwardChannelToDM hata:', err.message);
-    return false;
-  }
+  await user.send({ embeds: [embed] }).catch(() => {});
+  await message.react('✅').catch(() => {});
+  return true;
 }
 
-/**
- * DM ticket'ı kapat
- */
-async function closeDMTicket(userId) {
-  activeDMTickets.delete(userId);
-  dmConversations.delete(userId);
+// ── DM Ticket Kapat (butona basınca) ────────────────────────────────────────
+async function handleDMCloseButton(interaction, client) {
+  if (!interaction.customId?.startsWith('dm_close_')) return false;
+
+  const ticketId = interaction.customId.replace('dm_close_', '');
+
+  // DB'den ticket bul
+  const ticket = await Ticket.findOne({ ticketId }).catch(() => null);
+  if (!ticket) {
+    await interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
+    return true;
+  }
+  if (ticket.status === 'closed') {
+    await interaction.reply({ content: 'ℹ️ Bu ticket zaten kapalı.', ephemeral: true });
+    return true;
+  }
+
+  // Ticket'ı kapat
+  ticket.status  = 'closed';
+  ticket.closedAt = new Date();
+  ticket.closeReason = `DM ticket kapatıldı — ${interaction.user.tag}`;
+  ticket.closedBy   = interaction.user.id;
+  ticket.closedByName = interaction.user.username;
+  await ticket.save();
+
+  // Memory map'ten userId bul
+  let targetUserId = ticket.userId;
+  activeDMTickets.delete(targetUserId);
+  dmConversations.delete(targetUserId);
+
+  await interaction.reply({ content: '✅ DM Ticket kapatıldı.', ephemeral: true });
+
+  // Kanala kapanış mesajı
+  const closeEmbed = new EmbedBuilder()
+    .setColor(0xed4245)
+    .setTitle('🔒 DM Ticket Kapatıldı')
+    .setDescription(
+      `**Kapatan:** ${interaction.user.tag}\n` +
+      `⏳ Kanal 5 dakika içinde silinecek.`
+    )
+    .setTimestamp();
+
+  await interaction.channel.send({ embeds: [closeEmbed] }).catch(() => {});
+
+  // Kullanıcıya DM — kapandı + 5 yıldız hatırlatması
+  try {
+    const user = await client.users.fetch(targetUserId);
+    const dmEmbed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setTitle('🔒 Destek Talebiniz Kapatıldı')
+      .setDescription(
+        `Destek talebiniz **${interaction.user.username}** tarafından kapatıldı.\n\n` +
+        `⭐ **Değerlendirme yapmayı unutmayın!**\n` +
+        `Aldığınız hizmeti değerlendirmek için aşağıdaki butona basın.\n` +
+        `5 yıldız verirseniz çok mutlu oluruz! 😊`
+      )
+      .setFooter({ text: 'Sentara Destek • Tekrar ihtiyaç duyarsanız bize yazın.' })
+      .setTimestamp();
+
+    const rateBtn = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rate_ticket_${ticketId}`)
+        .setLabel('⭐ Değerlendir')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await user.send({ embeds: [dmEmbed], components: [rateBtn] }).catch(() => {});
+  } catch (_) {}
+
+  // 5 dakika sonra kanalı sil
+  setTimeout(async () => {
+    try {
+      await interaction.channel.delete('DM Ticket kapatıldı');
+    } catch (_) {}
+  }, 5 * 60 * 1000);
+
+  return true;
 }
 
 module.exports = {
   handleDMMessage,
   forwardChannelToDM,
-  closeDMTicket,
+  handleDMCloseButton,
   activeDMTickets,
 };
