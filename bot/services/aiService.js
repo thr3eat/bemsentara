@@ -10,7 +10,7 @@ const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
                  || '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';
 const AI_MODEL = 'moonshotai/kimi-k2:free';
 
-const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
+const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın..
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
 Kurallar:
 - Türkçe konuş, samimi ve yardımsever ol.
