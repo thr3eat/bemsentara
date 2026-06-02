@@ -1,17 +1,17 @@
 'use strict';
 
 /**
- * Ollama AI Servisi
- * API: https://openapi.io/provider/openai-compatible-ollama
- * Model: qwen3:6 (ya da env ile değiştirilebilir)
+ * OpenRouter AI Servisi (MoonshotAI Kimi)
+ * Kullanım: OpenRouter (https://openrouter.ai) üzerinden MoonshotAI `kimi-2.6` modelini kullanır.
+ * Ayarlar: `OPENROUTER_API_KEY` veya `OLLAMA_API_KEY` çevre değişkeni ile API anahtarınızı sağlayın.
  */
 
 const https = require('https');
 const http  = require('http');
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
-const OLLAMA_KEY  = process.env.OLLAMA_API_KEY  || '21f0ab1e253946cdbbe973ce949ec975.xESwoaOi96hNap_ELAGXpdvE';
-const AI_MODEL    = process.env.AI_MODEL        || 'google/gemma-3-4b-it:free';
+const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY || process.env.OLLAMA_API_KEY || '';
+const AI_MODEL    = process.env.AI_MODEL        || 'moonshotai/kimi-2.6:free';
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
