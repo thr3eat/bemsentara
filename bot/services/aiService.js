@@ -4,13 +4,20 @@ const https = require('https');
 const http  = require('http');
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'https://openrouter.ai/api/v1';
-// Render'da OPENROUTER_API_KEY veya OLLAMA_API_KEY adıyla eklenebilir
 const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
                  || process.env.OLLAMA_API_KEY
                  || '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';
-const AI_MODEL = 'moonshotai/kimi-k2:free';
+// Birden fazla model dene — ilki başarısız olursa sonrakine geç
+const MODELS = (process.env.AI_MODEL
+  ? [process.env.AI_MODEL]
+  : [
+    'meta-llama/llama-3.1-8b-instruct:free',
+    'mistralai/mistral-7b-instruct:free',
+    'google/gemma-3-4b-it:free',
+  ]
+);
 
-const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın..
+const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
 Kurallar:
 - Türkçe konuş, samimi ve yardımsever ol.
@@ -20,9 +27,12 @@ Kurallar:
 - Kısa ve net mesajlar yaz (max 200 karakter).
 - Eğer kullanıcı selamlama mesajı atmışsa nazikçe karşıla ve ne konuda yardım istediğini sor.`;
 
-async function chatWithAI(messages) {
+/**
+ * Tek bir modele istek at
+ */
+function requestModel(model, messages) {
   const body = JSON.stringify({
-    model: AI_MODEL,
+    model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       ...messages,
@@ -34,23 +44,20 @@ async function chatWithAI(messages) {
 
   return new Promise((resolve, reject) => {
     const base = OLLAMA_BASE.replace(/\/+$/, '');
-    const fullUrl = `${base}/chat/completions`;
-
     let url;
     try {
-      url = new URL(fullUrl);
+      url = new URL(`${base}/chat/completions`);
     } catch (e) {
-      return reject(new Error(`Geçersiz AI URL: ${fullUrl}`));
+      return reject(new Error(`Geçersiz URL: ${base}`));
     }
 
     const isHttps = url.protocol === 'https:';
     const lib = isHttps ? https : http;
-    const path = url.pathname + (url.search || '');
 
     const options = {
       hostname: url.hostname,
       port: url.port || (isHttps ? 443 : 80),
-      path,
+      path: url.pathname + (url.search || ''),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -61,46 +68,59 @@ async function chatWithAI(messages) {
       },
     };
 
-    console.log(`[aiService] İstek → model:${AI_MODEL} key:${OLLAMA_KEY ? OLLAMA_KEY.slice(0,12)+'...' : 'BOŞ!'}`);
-
     const req = lib.request(options, (res) => {
       let data = '';
       res.on('data', chunk => (data += chunk));
       res.on('end', () => {
-        console.log(`[aiService] HTTP ${res.statusCode} yanıtı:`, data.slice(0, 300));
         try {
           const parsed = JSON.parse(data);
 
+          // Hata kontrolü
           if (parsed?.error) {
             const msg = typeof parsed.error === 'string'
               ? parsed.error
-              : parsed.error.message || JSON.stringify(parsed.error);
+              : (parsed.error.message || JSON.stringify(parsed.error));
             return reject(new Error(msg));
           }
 
           const content = parsed?.choices?.[0]?.message?.content;
           if (content) return resolve(content.trim());
 
-          reject(new Error('AI boş yanıt. Ham: ' + data.slice(0, 200)));
+          reject(new Error(`Boş yanıt (HTTP ${res.statusCode}): ` + data.slice(0, 150)));
         } catch (e) {
-          reject(new Error('Parse hatası: ' + data.slice(0, 200)));
+          reject(new Error(`Parse hatası (HTTP ${res.statusCode}): ` + data.slice(0, 150)));
         }
       });
     });
 
-    req.setTimeout(30000, () => {
+    req.setTimeout(25000, () => {
       req.destroy();
-      reject(new Error('AI timeout (30s)'));
+      reject(new Error(`Timeout: ${model}`));
     });
 
-    req.on('error', (err) => {
-      console.error('[aiService] Ağ hatası:', err.message);
-      reject(err);
-    });
-
+    req.on('error', reject);
     req.write(body);
     req.end();
   });
+}
+
+/**
+ * Model listesini sırayla dener, ilk başarılı yanıtı döner
+ */
+async function chatWithAI(messages) {
+  let lastErr;
+  for (const model of MODELS) {
+    try {
+      console.log(`[aiService] Deneniyor: ${model}`);
+      const result = await requestModel(model, messages);
+      console.log(`[aiService] Başarılı: ${model}`);
+      return result;
+    } catch (err) {
+      console.warn(`[aiService] ${model} başarısız: ${err.message}`);
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Tüm AI modelleri başarısız oldu');
 }
 
 module.exports = { chatWithAI };

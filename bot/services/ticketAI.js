@@ -68,7 +68,7 @@ async function startAIConversation(channel, ticket, client) {
     resetInactivityTimer(ticket.ticketId, channel, ticket, client);
 
   } catch (err) {
-    console.error('[ticketAI] startAIConversation hata:', err.message);
+    console.error('[ticketAI] startAIConversation hata:', err.message, err.stack?.split('\n')[1] || '');
     // AI hata verirse direkt yetkililere ilet
     await fallbackNotifyStaff(channel, ticket, client);
   }
