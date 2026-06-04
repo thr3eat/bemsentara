@@ -19,15 +19,22 @@ const activeDMTickets = new Map();
 // Onay bekleyen kullanıcılar: userId → true
 const pendingConfirmation = new Map();
 
-const DM_SYSTEM_PROMPT = `Sen Sentara destek botunun yapay zeka asistanısın.
-Kullanıcıyla kısa bir sohbet yap ve destek talebini anla.
+const DM_SYSTEM_PROMPT = `Sen Eko Yıldız destek botunun yapay zeka asistanısın. Kullanıcı bot'a DM attı ve sorununu anlatıyor.
+Görevin: Sorunu kısa konuşmayla anla, çözebilirsen çöz, çözemezsen yetkililere aktar.
+
+Yapabileceklerin:
+- GENEL SORULAR: Kısa, net Türkçe yanıt ver (max 200 karakter).
+- BAN TALEBİ: Hedef kişiyi sor, kanıt iste. Kanıt alınca: [HAZIR] kullanıcı banlama talep ediyor
+- REKLAM: Fiyat listesini ver (30₺ Shorts, 50₺ uzun video alt, 100₺ uzun video orta), tür ve konu öğren, sonra: [HAZIR] reklam talebi
+- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz.
+- ÇÖZÜLEMEYECEK SORUN: [HAZIR] yaz ve özeti ekle.
+
 Kurallar:
 - Türkçe konuş, samimi ve nazik ol.
-- 2-3 mesajda sorunu öğren.
-- Sorunu anladıktan sonra YALNIZCA şu formatta yanıt ver (başka hiçbir şey yazma):
-  [HAZIR] <sorunun özeti tek cümle>
-- Çözüm önerme, yetkililere ilet.
-- Yanıtlar maksimum 200 karakter olsun.`;
+- Maksimum 2-3 mesajda sorunu anla.
+- Sorunu anladıktan sonra YALNIZCA şu formatta yanıt ver: [HAZIR] <sorunun tek cümle özeti>
+- [HAZIR] dışında köşeli parantez kullanma.
+- Kısa tut, max 200 karakter.`;
 
 function isReady(text) {
   return /^\s*\[HAZIR\]/i.test(text.trim());
@@ -315,6 +322,14 @@ async function createDMTicket(user, summary, history, client) {
   });
 
   console.log(`[dmTicket] ${user.tag} → DM ticket: ${ticketId}`);
+
+  // Ticket AI'yı başlat (ban/reklam/genel destek akışı için)
+  try {
+    const { startAIConversation } = require('./ticketAI');
+    await startAIConversation(createdChannel, ticket, client);
+  } catch (err) {
+    console.warn('[dmTicket] AI başlatılamadı:', err.message);
+  }
 }
 
 // ── DM → Kanal iletimi ──────────────────────────────────────────────────────

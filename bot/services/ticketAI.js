@@ -31,7 +31,8 @@ Yapabileceklerin:
   Fiyatlar: 30₺=Shorts, 50₺=Uzun video alt sponsor, 100₺=Uzun video orta bölme+sponsor
   Not: 2 ay önce finansal destek için açıldı.
 - GENEL SORULAR: Kısa yanıt ver.
-- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz.
+- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz. Asla HAZIR deme [HAZIR] de.
+- KANIT: Kanıt alınca [BAN_ONAY] <hedef> yaz. Kanıt yoksa [REKLAM_ONAY] <tür>|<fiyat>|<konu> yaz.
 
 Kurallar: Türkçe, max 300 karakter, [HAZIR]/[BAN_ONAY]/[REKLAM_ONAY] dışında köşeli parantez kullanma.`;
 
@@ -436,8 +437,15 @@ async function notifyStaff(channel, ticket, summary, client) {
     const mentions = [];
     try {
       const members = await guild.members.fetch();
-      members.filter(m => !m.user.bot && m.permissions.has('ManageMessages') && m.presence?.status !== 'offline')
-        .first(3).forEach(m => mentions.push(`<@${m.id}>`));
+      members
+        .filter(m => {
+          if (m.user.bot) return false;
+          if (!m.permissions.has('ManageMessages')) return false;
+          // Presence opsiyonel — GuildPresences intent yoksa crash'i önle
+          try { return m.presence?.status !== 'offline'; } catch (_) { return true; }
+        })
+        .first(3)
+        .forEach(m => mentions.push(`<@${m.id}>`));
     } catch (_) {}
     await channel.send({
       content: mentions.length ? `${mentions.join(' ')} — Destek talebi!` : '📢 Aktif yetkili bulunamadı.',
