@@ -8,10 +8,31 @@ const { chatWithAI } = require('./aiService');
 
 // Kaç anket tamamladı: userId → count
 const surveyCompletedCount = new Map();
-// Aktif anketler: userId → { topic, questions[], answers[], requesterId, guild }
+// Aktif anketler: userId → { topic, questions[], answers[], requesterId, guildId }
 const activeSurveys = new Map();
-// Onay bekleyenler: userId → { topic, requesterId, guildId }
-const pendingSurveys = new Map();
+
+// ── CustomId encode/decode (bot restart'a karşı) ───────────────────────────
+// Format: survey_yes_<userId>_<requesterId>_<guildId>_<topicB64>
+// topic base64'e çevrilir, max 80 char kalacak şekilde kısaltılır
+function encodeSurveyId(action, targetId, requesterId, guildId, topic) {
+  const topicB64 = Buffer.from(topic.slice(0, 40)).toString('base64').replace(/=/g, '');
+  return `survey_${action}_${targetId}_${requesterId}_${guildId}_${topicB64}`;
+}
+
+function decodeSurveyId(customId) {
+  // survey_yes_TARGETID_REQUESTERID_GUILDID_TOPICB64
+  const parts = customId.split('_');
+  // parts[0]=survey, parts[1]=action, parts[2]=targetId, parts[3]=requesterId, parts[4]=guildId, parts[5..]=topicB64
+  if (parts.length < 6) return null;
+  const action      = parts[1];
+  const targetId    = parts[2];
+  const requesterId = parts[3];
+  const guildId     = parts[4];
+  const topicB64    = parts.slice(5).join('_');
+  let topic = '(konu)';
+  try { topic = Buffer.from(topicB64, 'base64').toString('utf8'); } catch (_) {}
+  return { action, targetId, requesterId, guildId, topic };
+}
 
 // Anket sorusu üretme prompt - AI sadece soruyu yazar, başka bir şey yazmaz
 const SURVEY_PROMPT = (topic, questionNum, prevQA) => {
@@ -26,7 +47,7 @@ KURAL: Sadece soruyu yaz. "S1:", numara, açıklama, selamlama YAZMA. Sadece sor
 ${history}
 
 KURAL: Sadece ${questionNum}. soruyu yaz. "S${questionNum}:", numara, "C${questionNum}:", açıklama YAZMA. Sadece soru cümlesi. Max 120 karakter. Önceki soruları TEKRAR ETME.
-Şimdi ${questionNum}. soruyu sor:`; 
+Şimdi ${questionNum}. soruyu sor:`;
 };
 
 /**
@@ -65,18 +86,17 @@ async function startSurvey(interaction) {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`survey_yes_${target.id}`)
+        .setCustomId(encodeSurveyId('yes', target.id, requesterId, guildId, topic))
         .setLabel('✅ Evet, Katılıyorum')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`survey_no_${target.id}`)
+        .setCustomId(encodeSurveyId('no', target.id, requesterId, guildId, topic))
         .setLabel('❌ Hayır')
         .setStyle(ButtonStyle.Secondary)
     );
 
     await target.send({ embeds: [embed], components: [row] });
-
-    pendingSurveys.set(target.id, { topic, requesterId, guildId });
+    // pendingSurveys artık gerekmiyor — bilgi customId'de kodlandı
   } catch (err) {
     console.error('[surveyAI] DM gönderilemedi:', err.message);
     // Komut sahibine bildir
@@ -94,35 +114,36 @@ async function handleSurveyButton(interaction, client) {
   const cid = interaction.customId;
   if (!cid.startsWith('survey_yes_') && !cid.startsWith('survey_no_')) return false;
 
+  // Bilgiyi customId'den decode et — map'e gerek yok (restart-safe)
+  const info = decodeSurveyId(cid);
+  if (!info) {
+    await interaction.update({ content: '❌ Geçersiz anket butonu.', embeds: [], components: [] }).catch(() => {});
+    return true;
+  }
+
+  // Sadece anketin hedef kullanıcısı basabilir
+  if (interaction.user.id !== info.targetId) {
+    await interaction.reply({ content: '❌ Bu anket size ait değil.', ephemeral: true }).catch(() => {});
+    return true;
+  }
+
   const userId = interaction.user.id;
 
-  if (cid.startsWith('survey_no_')) {
-    const info = pendingSurveys.get(userId);
-    pendingSurveys.delete(userId);
-
+  if (info.action === 'no') {
     await interaction.update({
       content: '👍 Tamam, anketi reddettiniz. Teşekkürler!',
       embeds: [], components: [],
     }).catch(() => {});
 
     // Komut sahibine bildir
-    if (info) {
-      try {
-        const requester = await client.users.fetch(info.requesterId);
-        await requester.send(`❌ **${interaction.user.tag}** anketi reddetti.`);
-      } catch (_) {}
-    }
+    try {
+      const requester = await client.users.fetch(info.requesterId);
+      await requester.send(`❌ **${interaction.user.tag}** anketi reddetti.`);
+    } catch (_) {}
     return true;
   }
 
   // Evet — anketi başlat
-  const info = pendingSurveys.get(userId);
-  pendingSurveys.delete(userId);
-  if (!info) {
-    await interaction.update({ content: '❌ Anket bulunamadı.', embeds: [], components: [] }).catch(() => {});
-    return true;
-  }
-
   await interaction.update({
     content: '✅ Harika! Birkaç soru soracağım.',
     embeds: [], components: [],
@@ -148,8 +169,8 @@ async function handleSurveyButton(interaction, client) {
     );
 
     const cleanFirst = firstQ
-      .replace(/^[Ss]\d+[:.]\s*/g, '')   // "S1: " gibi prefix temizle
-      .replace(/[Cc]\d+[:.].*/gs, '')     // "C1:" ve sonrasını temizle
+      .replace(/^[Ss]\d+[:.]\s*/g, '')
+      .replace(/[Cc]\d+[:.].*/gs, '')
       .trim();
 
     activeSurveys.get(userId).questions.push(cleanFirst || firstQ.trim());
@@ -157,7 +178,7 @@ async function handleSurveyButton(interaction, client) {
   } catch (err) {
     console.error('[surveyAI] İlk soru hatası:', err.message);
     const fallback = `${info.topic} hakkında ne düşünüyorsunuz?`;
-    activeSurveys.get(userId).questions.push(fallback);
+    activeSurveys.get(userId)?.questions.push(fallback);
     await interaction.user.send(fallback).catch(() => {});
   }
 
