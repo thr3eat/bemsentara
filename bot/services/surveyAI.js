@@ -13,16 +13,21 @@ const activeSurveys = new Map();
 // Onay bekleyenler: userId → { topic, requesterId, guildId }
 const pendingSurveys = new Map();
 
-// Anket sorusu üretme prompt
-const SURVEY_PROMPT = (topic) => `Sen bir anket yapay zeka asistanısın.
-"${topic}" konusunda katılımcıya 4 kısa ve net soru sor.
-Her soruyu tek tek, sırayla sor — hepsini bir arada yazma.
-İlk soruyu şimdi sor. Kısa tut, max 150 karakter.`;
+// Anket sorusu üretme prompt - AI sadece soruyu yazar, başka bir şey yazmaz
+const SURVEY_PROMPT = (topic, questionNum, prevQA) => {
+  if (questionNum === 1) {
+    return `Sen bir anket asistanısın. "${topic}" konusunda kullanıcıya TEK bir soru soracaksın.
+KURAL: Sadece soruyu yaz. "S1:", numara, açıklama, selamlama YAZMA. Sadece soru cümlesi. Max 120 karakter.
+Şimdi 1. soruyu sor:`;
+  }
+  const history = prevQA.map((x, i) => `Soru ${i+1}: ${x.q}\nCevap ${i+1}: ${x.a}`).join('\n');
+  return `Sen bir anket asistanısın. "${topic}" konusunda anket yapıyorsun.
+Önceki sorular ve cevaplar:
+${history}
 
-const FOLLOW_UP_PROMPT = (topic, qa) => `Sen bir anket AI asistanısın. "${topic}" konusunda anket yapıyorsun.
-Şimdiye kadar sorulan soru ve cevaplar:
-${qa.map((x, i) => `S${i+1}: ${x.q}\nC${i+1}: ${x.a}`).join('\n')}
-Toplam 4 soru soruyorsun. ${qa.length < 4 ? `Şimdi ${qa.length + 1}. soruyu sor. Kısa, max 150 karakter.` : 'Tüm sorular tamam, "ANKET_TAMAM" yaz.'}`;
+KURAL: Sadece ${questionNum}. soruyu yaz. "S${questionNum}:", numara, "C${questionNum}:", açıklama YAZMA. Sadece soru cümlesi. Max 120 karakter. Önceki soruları TEKRAR ETME.
+Şimdi ${questionNum}. soruyu sor:`; 
+};
 
 /**
  * /anketai komutu çalıştığında — kullanıcıya DM gönder
@@ -139,14 +144,21 @@ async function handleSurveyButton(interaction, client) {
 
     const firstQ = await chatWithAI(
       [{ role: 'user', content: `Konu: ${info.topic}` }],
-      SURVEY_PROMPT(info.topic)
+      SURVEY_PROMPT(info.topic, 1, [])
     );
 
-    activeSurveys.get(userId).questions.push(firstQ.replace(/ANKET_TAMAM/gi, '').trim());
-    await interaction.user.send(firstQ.replace(/ANKET_TAMAM/gi, '').trim()).catch(() => {});
+    const cleanFirst = firstQ
+      .replace(/^[Ss]\d+[:.]\s*/g, '')   // "S1: " gibi prefix temizle
+      .replace(/[Cc]\d+[:.].*/gs, '')     // "C1:" ve sonrasını temizle
+      .trim();
+
+    activeSurveys.get(userId).questions.push(cleanFirst || firstQ.trim());
+    await interaction.user.send(cleanFirst || firstQ.trim()).catch(() => {});
   } catch (err) {
     console.error('[surveyAI] İlk soru hatası:', err.message);
-    await interaction.user.send('❓ Konu hakkında ne düşündüğünüzü kısaca anlatır mısınız?').catch(() => {});
+    const fallback = `${info.topic} hakkında ne düşünüyorsunuz?`;
+    activeSurveys.get(userId).questions.push(fallback);
+    await interaction.user.send(fallback).catch(() => {});
   }
 
   return true;
@@ -160,19 +172,20 @@ async function handleSurveyReply(message, client) {
   if (!activeSurveys.has(userId)) return false;
 
   const survey = activeSurveys.get(userId);
-  const qa = survey.questions.map((q, i) => ({ q, a: survey.answers[i] || '' }));
-
-  // Son cevabı kaydet
-  const lastQ = survey.questions[survey.answers.length];
-  if (lastQ) {
-    survey.answers.push(message.content);
-  }
-
-  const answeredCount = survey.answers.length;
   const TOTAL = 4;
 
+  // Mevcut soruyu cevapla — questions[answers.length] = henüz cevaplanmamış soru
+  const currentQIndex = survey.answers.length;
+  const currentQ = survey.questions[currentQIndex];
+
+  if (!currentQ) return false; // Soru yoksa işleme
+
+  // Cevabı kaydet
+  survey.answers.push(message.content);
+  const answeredCount = survey.answers.length;
+
+  // 4 soru tamamlandı mı?
   if (answeredCount >= TOTAL) {
-    // Anket tamamlandı
     await finalizeSurvey(message.author, survey, client);
     activeSurveys.delete(userId);
     return true;
@@ -183,15 +196,25 @@ async function handleSurveyReply(message, client) {
     const dmCh = await message.author.createDM().catch(() => null);
     if (dmCh) await dmCh.sendTyping().catch(() => {});
 
-    const updatedQA = survey.questions.map((q, i) => ({ q, a: survey.answers[i] || '' }));
-    const nextQ = await chatWithAI(
+    const nextQNum = answeredCount + 1; // kaç tane cevaplanmışsa bir sonraki
+    const prevQA = survey.questions.slice(0, answeredCount).map((q, i) => ({
+      q,
+      a: survey.answers[i] || '',
+    }));
+
+    const rawQ = await chatWithAI(
       [{ role: 'user', content: `Konu: ${survey.topic}` }],
-      FOLLOW_UP_PROMPT(survey.topic, updatedQA)
+      SURVEY_PROMPT(survey.topic, nextQNum, prevQA)
     );
 
-    const cleanQ = nextQ.replace(/ANKET_TAMAM/gi, '').trim();
+    // AI'dan gelen gereksiz prefix/format temizle
+    const cleanQ = rawQ
+      .replace(/^[Ss]\d+[:.]\s*/g, '')   // "S2: " temizle
+      .replace(/[Cc]\d+[:.].*/gs, '')     // "C2:" ve sonrasını temizle
+      .replace(/ANKET_TAMAM/gi, '')
+      .trim();
 
-    if (!cleanQ || nextQ.includes('ANKET_TAMAM')) {
+    if (!cleanQ) {
       await finalizeSurvey(message.author, survey, client);
       activeSurveys.delete(userId);
       return true;
