@@ -98,10 +98,9 @@ async function handleButtonInteraction(interaction) {
         const closeButton = buildCloseButton(ticketId);
         await channel.send({ embeds: [reopenEmbed], components: [closeButton] });
       } else {
-        // Kanal silinmiş — her iki sunucuda yeniden oluştur
+        // Kanal silinmiş — sadece GUILD2'de yeniden oluştur
         const targets = [
-          { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
-          { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+          { id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID },
         ];
         for (const target of targets) {
           try {

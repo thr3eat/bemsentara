@@ -77,10 +77,9 @@ router.post("/api/tickets", async (req, res) => {
 
     const client = getDiscordClient();
     if (client?.isReady()) {
-      // Her iki sunucuda da kanal aç
+      // Web ticketlar sadece GUILD2 (EkoYıldız) sunucusunda açılır
       const targets = [
-        { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
-        { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+        { id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID },
       ];
 
       for (const target of targets) {
@@ -242,11 +241,10 @@ router.post("/api/tickets/:ticketId/reopen", async (req, res) => {
         } catch (_) {}
       }
 
-      // Kanal silinmişse her iki sunucuda yeniden oluştur
+      // Kanal silinmişse sadece GUILD2'de yeniden oluştur
       if (!channelRestored) {
         const targets = [
-          { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
-          { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+          { id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID },
         ];
 
         for (const target of targets) {

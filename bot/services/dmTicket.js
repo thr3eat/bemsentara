@@ -200,9 +200,9 @@ async function createDMTicket(user, summary, history, client) {
 
   const ticketId = generateTicketId();
 
+  // DM ticketlar sadece GUILD2 (EkoYıldız) sunucusunda açılır
   const targets = [
-    { id: TARGET_GUILD_ID, categoryId: TARGET_CHANNEL_ID },
-    { id: GUILD2_ID,       categoryId: GUILD2_TICKET_CATEGORY_ID },
+    { id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID },
   ];
 
   let createdChannel = null;
