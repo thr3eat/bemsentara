@@ -67,6 +67,9 @@ KURALLAR:
 - Asla köşeli parantez başka şey için kullanma.`;
 
 // Yeni: WARN/MUTE akışı
+function isReady(t)   { return /\[HAZIR\]/i.test(t); }
+function isBan(t)     { return /\[BAN_ONAY\]/i.test(t); }
+function isAd(t)      { return /\[REKLAM_ONAY\]/i.test(t); }
 function isWarn(t)    { return /\[WARN_ONAY\]/i.test(t); }
 function isResolve(t) { return /\[RESOLVE\]/i.test(t); }
 

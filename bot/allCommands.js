@@ -158,6 +158,13 @@ const generalCommands = [
     .setDescription("Bot istatistiklerini ve sistem durumunu göster"),
 
   new SlashCommandBuilder()
+    .setName("personeldurum")
+    .setDescription("Personel ilerleme durumunu görüntüle")
+    .addUserOption(o =>
+      o.setName("kullanici").setDescription("Bakılacak personel (boş = kendin)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName("verify")
     .setDescription("Roblox hesabınıza göre Discord rollerinizi senkronize eder")
     .setDMPermission(false),

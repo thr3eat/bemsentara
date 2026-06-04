@@ -304,6 +304,12 @@ async function finalizeSurvey(user, survey, client) {
   // Komut sahibine sonuçları gönder
   try {
     const requester = await client.users.fetch(survey.requesterId);
+
+    // Anket yürüten personel ise istatistiği kaydet
+    try {
+      const { recordSurveyCompleted } = require('./staffSystem');
+      await recordSurveyCompleted(survey.requesterId, client);
+    } catch (_) {}
     const resultEmbed = new EmbedBuilder()
       .setColor(0x7c6af7)
       .setTitle(`📊 Anket Sonuçları — ${user.tag}`)

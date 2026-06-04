@@ -14,9 +14,11 @@ function initializeDiscordHandlers(client) {
     const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
     const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
     const { startCleanupScheduler } = require("../services/ticketCleanup");
+    const { startStaffScheduler } = require("../services/staffSystem");
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     startCleanupScheduler();
+    startStaffScheduler(client);
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -37,6 +39,47 @@ function initializeDiscordHandlers(client) {
       console.log(`[guildMemberAdd] ${member.user.tag} → doğrulanmamış rolü verildi`);
     } catch (err) {
       console.error("[guildMemberAdd] Rol verilemedi:", err.message);
+    }
+  });
+
+  // ── Ses kanalı takibi (personel ses dakikası) ──────────────────────────────
+  // userId → { joinedAt: Date }
+  const voiceSessions = new Map();
+
+  client.on("voiceStateUpdate", async (oldState, newState) => {
+    const userId = newState.member?.id || oldState.member?.id;
+    if (!userId || newState.member?.user?.bot) return;
+
+    const { GUILD_ID, ROLES } = require("../services/staffSystem");
+    const staffRoleIds = Object.values(ROLES);
+
+    // Personel mi kontrol et
+    const member = newState.member || oldState.member;
+    if (!member) return;
+    const isStaff = staffRoleIds.some(rid =>
+      rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
+      && member.roles.cache.has(rid)
+    );
+    if (!isStaff) return;
+
+    const guildId = newState.guild?.id || oldState.guild?.id;
+    if (guildId !== GUILD_ID) return;
+
+    if (!oldState.channelId && newState.channelId) {
+      // Sese girdi
+      voiceSessions.set(userId, { joinedAt: Date.now() });
+    } else if (oldState.channelId && !newState.channelId) {
+      // Sesten çıktı
+      const session = voiceSessions.get(userId);
+      if (session) {
+        const minutes = Math.floor((Date.now() - session.joinedAt) / 60000);
+        voiceSessions.delete(userId);
+        if (minutes > 0) {
+          const { addVoiceMinutes } = require("../services/staffSystem");
+          await addVoiceMinutes(userId, minutes, client).catch(() => {});
+          console.log(`[staffSystem] ${userId} → ${minutes} dk ses`);
+        }
+      }
     }
   });
 
@@ -67,6 +110,26 @@ function initializeDiscordHandlers(client) {
     }
 
     if (message.author.bot || !message.guild) return;
+
+    // ── Personel selam takibi ──────────────────────────────────────────────
+    try {
+      const { GUILD_ID, ROLES } = require("../services/staffSystem");
+      if (message.guild.id === GUILD_ID) {
+        const staffRoleIds = Object.values(ROLES).filter(id =>
+          id && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(id)
+        );
+        const isStaff = staffRoleIds.some(rid => message.member?.roles.cache.has(rid));
+        if (isStaff) {
+          const greetWords = ['selam', 'merhaba', 'günaydın', 'iyi günler', 'hey', 'heyy', 'hello', 'hi'];
+          const lower = message.content.toLowerCase();
+          const isGreet = greetWords.some(w => lower.startsWith(w) || lower.includes(w));
+          if (isGreet) {
+            const { recordGreet } = require("../services/staffSystem");
+            await recordGreet(message.author.id, client).catch(() => {});
+          }
+        }
+      }
+    } catch (_) {}
 
     // ── dm- kanalından yetkili mesajını kullanıcıya ilet ────────────────────
     if (message.channel.name?.startsWith('dm-') && !message.author.bot) {
@@ -100,10 +163,12 @@ function initializeDiscordHandlers(client) {
       }
     } catch (_) {}
     if (message.content === "!tumrollerveidleriveisimleri") {
-      const roles = message.guild.roles.cache.sort((a, b) => b.position - a.position);
-      let replyText = "**Sunucudaki Rollerdir:**\n\n";
+      const roles = message.guild.roles.cache
+        .filter(r => r.name !== '@everyone')
+        .sort((a, b) => b.position - a.position);
+      let replyText = "**Sunucudaki Roller (everyone hariç):**\n\n";
       roles.forEach((role) => {
-        replyText += `**İsim:** ${role.name} | **ID:** ${role.id}\n`;
+        replyText += `**İsim:** ${role.name} | **ID:** \`${role.id}\`\n`;
       });
       if (replyText.length > 2000) {
         const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];

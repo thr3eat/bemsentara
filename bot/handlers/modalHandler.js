@@ -199,6 +199,18 @@ async function handleCloseReasonModal(interaction) {
     cleanupTicketAI(ticketId);
   } catch (_) {}
 
+  // Personel istatistiği — ticket'ı kapatan yetkili ise kaydet
+  try {
+    const { recordTicketSolved, ROLES } = require('../services/staffSystem');
+    const staffRoleIds = Object.values(ROLES).filter(id =>
+      id && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(id)
+    );
+    const member = interaction.member;
+    if (member && staffRoleIds.some(rid => member.roles.cache.has(rid))) {
+      await recordTicketSolved(interaction.user.id, interaction.client);
+    }
+  } catch (_) {}
+
   // Önce etkileşimi onayla
   await interaction.reply({ content: "✅ Ticket kapatılıyor...", ephemeral: true });
 

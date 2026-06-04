@@ -21,6 +21,7 @@ const GENERAL_COMMANDS = new Set([
   "yardim",
   "ping",
   "stats",
+  "personeldurum",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -31,6 +32,66 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "anketai") {
     const { startSurvey } = require('../services/surveyAI');
     return startSurvey(interaction);
+  }
+
+  // ── personeldurum ──────────────────────────────────────────────────────────
+  if (commandName === "personeldurum") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const target = interaction.options.getUser('kullanici') || interaction.user;
+      const {
+        getOrCreate, getDailyRequirements, getNextRequirementsText,
+        ROLE_NAMES, PROMOTION_REQUIREMENTS, GUILD_ID,
+      } = require('../services/staffSystem');
+      const StaffProgress = require('../../models/StaffProgress');
+
+      const p = await StaffProgress.findOne({ userId: target.id });
+      if (!p) {
+        return interaction.editReply({ content: `❌ **${target.username}** personel sisteminde kayıtlı değil.` });
+      }
+
+      const req       = getDailyRequirements(p.level, p.stats.consecutiveDays);
+      const nextReq   = PROMOTION_REQUIREMENTS[p.level];
+      const today     = new Date().toISOString().split('T')[0];
+      const isToday   = p.daily.date === today;
+      const greetDone = isToday && p.daily.greeted;
+      const voiceDone = isToday && p.daily.voiceMinutes >= req.voiceMinutes;
+
+      const embed = new (require('discord.js').EmbedBuilder)()
+        .setColor(0x7c6af7)
+        .setTitle(`📊 Personel Durumu — ${target.username}`)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '🎖️ Seviye', value: ROLE_NAMES[p.level] || '?', inline: true },
+          { name: '📅 Arka Arkaya Aktif', value: `${p.stats.consecutiveDays} gün`, inline: true },
+          { name: '⚠️ Uyarı', value: `${p.warnings.count}/5`, inline: true },
+          {
+            name: '📋 Bugünkü Görevler',
+            value:
+              `${greetDone ? '✅' : '❌'} Selam (${isToday ? 1 : 0}/${req.greets})\n` +
+              `${voiceDone ? '✅' : '❌'} Ses: ${isToday ? p.daily.voiceMinutes : 0}/${req.voiceMinutes} dk`,
+            inline: false,
+          },
+          {
+            name: '📈 Terfi İlerlemesi',
+            value: nextReq
+              ? `Ticketlar: ${p.stats.ticketsSolved}/${nextReq.ticketsSolved}\n` +
+                `Anketler: ${p.stats.surveysCompleted}/${nextReq.surveysCompleted}\n` +
+                `Aktif Günler: ${p.stats.activeDays}/${nextReq.activeDays}`
+              : '🏆 En üst seviyeye ulaştın!',
+            inline: false,
+          }
+        )
+        .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[personeldurum] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
   }
 
   if (commandName === "verify" || commandName === "update" || commandName === "debug-update") {
