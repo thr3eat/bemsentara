@@ -24,6 +24,8 @@ const GENERAL_COMMANDS = new Set([
   "personeldurum",
   "seviye",
   "modbasvuru",
+  "istifa",
+  "emeklilik",
 ]);
 
 async function handleGeneralCommand(interaction) {

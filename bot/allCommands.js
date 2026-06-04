@@ -167,6 +167,17 @@ const generalCommands = [
     .setDMPermission(false),
 
   new SlashCommandBuilder()
+    .setName("istifa")
+    .setDescription("Personel görevinden istifa et")
+    .addStringOption(o =>
+      o.setName("sebep").setDescription("İstifa sebebin (opsiyonel)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("emeklilik")
+    .setDescription("90+ aktif gün sonra emekli ol (kalıcı)"),
+
+  new SlashCommandBuilder()
     .setName("personeldurum")
     .setDescription("Personel ilerleme durumunu görüntüle")
     .addUserOption(o =>
