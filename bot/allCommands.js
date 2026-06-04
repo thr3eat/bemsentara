@@ -158,6 +158,15 @@ const generalCommands = [
     .setDescription("Bot istatistiklerini ve sistem durumunu göster"),
 
   new SlashCommandBuilder()
+    .setName("modbasvuru")
+    .setDescription("[Yönetici] Kullanıcıya moderatör başvurusu sun")
+    .addUserOption(o =>
+      o.setName("kullanici").setDescription("Moderatör adayı").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
     .setName("personeldurum")
     .setDescription("Personel ilerleme durumunu görüntüle")
     .addUserOption(o =>

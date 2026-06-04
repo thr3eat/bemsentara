@@ -23,6 +23,7 @@ const GENERAL_COMMANDS = new Set([
   "stats",
   "personeldurum",
   "seviye",
+  "modbasvuru",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -35,52 +36,104 @@ async function handleGeneralCommand(interaction) {
     return startSurvey(interaction);
   }
 
+  // ── modbasvuru: sadece yöneticiler ────────────────────────────────────────
+  if (commandName === "modbasvuru") {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const target = interaction.options.getUser('kullanici');
+      if (target.bot) return interaction.editReply({ content: '❌ Botlara başvuru gönderilemez.' });
+
+      const { startModInterview } = require('../services/modInterview');
+      const sent = await startModInterview(target, interaction.user.id, interaction.guild?.id, interaction.client);
+
+      if (sent) {
+        return interaction.editReply({ content: `✅ **${target.username}** kullanıcısına moderatör başvurusu gönderildi. DM'ini açık tutması lazım.` });
+      } else {
+        return interaction.editReply({ content: `❌ **${target.username}** kullanıcısına DM gönderilemedi. DM'leri kapalı olabilir.` });
+      }
+    } catch (err) {
+      console.error('[modbasvuru] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── personeldurum ──────────────────────────────────────────────────────────
   if (commandName === "personeldurum") {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: true }).catch(() => {});
     }
     try {
+      const { EmbedBuilder: EB } = require('discord.js');
       const target = interaction.options.getUser('kullanici') || interaction.user;
       const {
-        getOrCreate, getDailyRequirements, getNextRequirementsText,
-        ROLE_NAMES, PROMOTION_REQUIREMENTS, GUILD_ID,
+        getOrCreate, getDailyRequirements,
+        ROLE_NAMES, PROMOTION_REQUIREMENTS, GUILD_ID, ROLES,
       } = require('../services/staffSystem');
       const StaffProgress = require('../../models/StaffProgress');
 
-      const p = await StaffProgress.findOne({ userId: target.id });
+      let p = await StaffProgress.findOne({ userId: target.id });
+
+      // Kayıtlı değilse Discord rolünden senkronize ederek oluştur
       if (!p) {
-        return interaction.editReply({ content: `❌ **${target.username}** personel sisteminde kayıtlı değil.` });
+        try {
+          const guild  = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
+          const member = guild ? await guild.members.fetch(target.id).catch(() => null) : null;
+          if (member) {
+            let level = 0;
+            for (let lvl = 4; lvl >= 1; lvl--) {
+              const roleId = ROLES[lvl];
+              if (roleId && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(roleId) && member.roles.cache.has(roleId)) {
+                level = lvl; break;
+              }
+            }
+            // Stajyer rolü veya üstü varsa kayıt et
+            const stajyerId = ROLES[1];
+            const hasStaffRole = level > 0 || (stajyerId && !['PERSONEL_ROLE_ID'].includes(stajyerId) && member.roles.cache.has(stajyerId));
+            if (hasStaffRole) {
+              p = await getOrCreate(target.id, GUILD_ID);
+              if (level > 0 && p.level < level) { p.level = level; await p.save(); }
+            }
+          }
+        } catch (_) {}
       }
 
-      const req       = getDailyRequirements(p.level, p.stats.consecutiveDays);
+      if (!p) {
+        return interaction.editReply({ content: `❌ **${target.username}** personel sisteminde kayıtlı değil. Stajyer Personel rolü olan birini sorgulayın.` });
+      }
+
+      const req       = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const nextReq   = PROMOTION_REQUIREMENTS[p.level];
       const today     = new Date().toISOString().split('T')[0];
-      const isToday   = p.daily.date === today;
-      const greetDone = isToday && p.daily.greeted;
-      const voiceDone = isToday && p.daily.voiceMinutes >= req.voiceMinutes;
+      const isToday   = p.daily?.date === today;
+      const greetDone = isToday && p.daily?.greeted;
+      const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
-      const embed = new (require('discord.js').EmbedBuilder)()
+      const embed = new EB()
         .setColor(0x7c6af7)
         .setTitle(`📊 Personel Durumu — ${target.username}`)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '🎖️ Seviye', value: ROLE_NAMES[p.level] || '?', inline: true },
-          { name: '📅 Arka Arkaya Aktif', value: `${p.stats.consecutiveDays} gün`, inline: true },
-          { name: '⚠️ Uyarı', value: `${p.warnings.count}/5`, inline: true },
+          { name: '🎖️ Seviye',            value: ROLE_NAMES[p.level] || 'Stajyer Personel', inline: true },
+          { name: '📅 Arka Arkaya Aktif',  value: `${p.stats?.consecutiveDays || 0} gün`,  inline: true },
+          { name: '⚠️ Uyarı',              value: `${p.warnings?.count || 0}/5`,            inline: true },
           {
             name: '📋 Bugünkü Görevler',
             value:
               `${greetDone ? '✅' : '❌'} Selam (${isToday ? 1 : 0}/${req.greets})\n` +
-              `${voiceDone ? '✅' : '❌'} Ses: ${isToday ? p.daily.voiceMinutes : 0}/${req.voiceMinutes} dk`,
+              `${voiceDone ? '✅' : '❌'} Ses: ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk`,
             inline: false,
           },
           {
             name: '📈 Terfi İlerlemesi',
             value: nextReq
-              ? `Ticketlar: ${p.stats.ticketsSolved}/${nextReq.ticketsSolved}\n` +
-                `Anketler: ${p.stats.surveysCompleted}/${nextReq.surveysCompleted}\n` +
-                `Aktif Günler: ${p.stats.activeDays}/${nextReq.activeDays}`
+              ? `Ticketlar: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
+                `Anketler: ${p.stats?.surveysCompleted || 0}/${nextReq.surveysCompleted}\n` +
+                `Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
               : '🏆 En üst seviyeye ulaştın!',
             inline: false,
           }
