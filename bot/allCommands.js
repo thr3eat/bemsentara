@@ -178,6 +178,16 @@ const generalCommands = [
     .setDescription("90+ aktif gün sonra emekli ol (kalıcı)"),
 
   new SlashCommandBuilder()
+    .setName("koc")
+    .setDescription("AI koçunla DM üzerinden konuş")
+    .addStringOption(o =>
+      o.setName("islem")
+       .setDescription("sıfırla = oturumu yenile")
+       .addChoices({ name: 'sıfırla', value: 'sıfırla' })
+       .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName("personeldurum")
     .setDescription("Personel ilerleme durumunu görüntüle")
     .addUserOption(o =>

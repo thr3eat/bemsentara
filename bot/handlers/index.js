@@ -113,6 +113,12 @@ function initializeDiscordHandlers(client) {
         const handled = await handleInterviewReply(message, client);
         if (handled) return;
       } catch (_) {}
+      // Koç sohbeti cevabı mı?
+      try {
+        const { handleCoachReply } = require('../services/staffCoach');
+        const handled = await handleCoachReply(message, client);
+        if (handled) return;
+      } catch (_) {}
       // Normal DM ticket
       try {
         const { handleDMMessage } = require('../services/dmTicket');
@@ -214,6 +220,12 @@ function initializeDiscordHandlers(client) {
       if (interaction.isButton() && (interaction.customId?.startsWith('mod_interview_yes_') || interaction.customId?.startsWith('mod_interview_no_'))) {
         const { handleInterviewButton } = require('../services/modInterview');
         await handleInterviewButton(interaction, client);
+        return;
+      }
+      // ── Koç butonları ────────────────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('coach_')) {
+        const { handleCoachButton } = require('../services/staffCoach');
+        await handleCoachButton(interaction, client);
         return;
       }
       // ── DM Ticket kapat butonu ─────────────────────────────────────────────
