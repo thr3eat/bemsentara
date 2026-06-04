@@ -6,6 +6,8 @@ const {
 } = require('discord.js');
 const { chatWithAI } = require('./aiService');
 
+// Kaç anket tamamladı: userId → count
+const surveyCompletedCount = new Map();
 // Aktif anketler: userId → { topic, questions[], answers[], requesterId, guild }
 const activeSurveys = new Map();
 // Onay bekleyenler: userId → { topic, requesterId, guildId }
@@ -210,32 +212,50 @@ async function handleSurveyReply(message, client) {
  * Anket tamamlandı — sonuçları gönder ve ödül ver
  */
 async function finalizeSurvey(user, survey, client) {
+  // Tamamlama sayısını artır
+  const prevCount = surveyCompletedCount.get(user.id) || 0;
+  const newCount = prevCount + 1;
+  surveyCompletedCount.set(user.id, newCount);
+
+  // Hangi yetki verileceğini belirle
+  const isFirstSurvey = newCount === 1;
+  const rewardText = isFirstSurvey
+    ? `Hediyeniz olarak sunucuda **tüm kanallara resim gönderebilme** yetkisi verildi! 🖼️`
+    : `Hediyeniz olarak sunucuda **tüm kanallarda tepki verebilme** yetkisi verildi! 🎉`;
+
   // Kullanıcıya teşekkür
   const thankEmbed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setTitle('🎉 Anket Tamamlandı!')
     .setDescription(
       `**${user.username}**, anketimize katıldığınız için teşekkürler! 🙏\n\n` +
-      `Hediyeniz olarak sunucuda **tüm kanallara resim gönderebilme** yetkisi verildi.\n` +
-      `Bir sonraki ankette ise **tüm kanallarda tepki verebilme** yetkisi kazanacaksınız! ⭐`
+      rewardText
     )
     .setFooter({ text: 'Eko Yıldız • Anket Sistemi' });
 
   await user.send({ embeds: [thankEmbed] }).catch(() => {});
 
-  // Sunucuda resim gönderme yetkisi ver
+  // Sunucuda yetki ver
   try {
     const guild = await client.guilds.fetch(survey.guildId).catch(() => null);
     if (guild) {
       const member = await guild.members.fetch(user.id).catch(() => null);
       if (member) {
-        // Tüm kanallarda AttachFiles izni ver
         const channels = guild.channels.cache.filter(c => c.isTextBased?.());
         for (const [, ch] of channels) {
-          await ch.permissionOverwrites.edit(user.id, {
-            AttachFiles: true,
-          }).catch(() => {});
+          if (isFirstSurvey) {
+            // 1. anket → resim gönderme yetkisi
+            await ch.permissionOverwrites.edit(user.id, {
+              [PermissionFlagsBits.AttachFiles]: true,
+            }).catch(() => {});
+          } else {
+            // 2. anket ve sonrası → tepki verme yetkisi
+            await ch.permissionOverwrites.edit(user.id, {
+              [PermissionFlagsBits.AddReactions]: true,
+            }).catch(() => {});
+          }
         }
+        console.log(`[surveyAI] ${user.tag} → yetki verildi (${isFirstSurvey ? 'AttachFiles' : 'AddReactions'}), tamamlama: ${newCount}`);
       }
     }
   } catch (err) {
