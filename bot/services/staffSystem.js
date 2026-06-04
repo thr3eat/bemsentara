@@ -465,7 +465,202 @@ async function removeRole(progress, client) {
   }
 }
 
-// ── Günlük kontrol + sabah brifing ────────────────────────────────────────
+// ── Öğlen hatırlatma (13:00) ──────────────────────────────────────────────
+async function sendMidDayReminder(progress, client) {
+  const today = todayStr();
+  const req   = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
+  const voiceDone   = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+
+  const missing = [];
+  if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets}x selam ver`);
+  if (!voiceDone)   missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal`);
+
+  if (missing.length === 0) return; // Zaten tamamlamış
+
+  const embed = new EmbedBuilder()
+    .setColor(0xfbbf24)
+    .setTitle('☀️ Öğlen Hatırlatması — Görevler Bekleniyor')
+    .setDescription(
+      `Günün yarısı geçti! Hâlâ tamamlanmayan görevlerin var:\n\n` +
+      missing.map(m => `• ${m}`).join('\n') +
+      `\n\nVaktin var, hâlâ yetişirsin! 💪`
+    )
+    .addFields(
+      { name: '📊 Seviye',       value: ROLE_NAMES[progress.level], inline: true },
+      { name: '🎤 Ses (bugün)',  value: `${progress.daily?.voiceMinutes || 0}/${req.voiceMinutes} dk`, inline: true },
+    )
+    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | 13:00 Hatırlatması' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+}
+
+// ── Akşam son uyarı (19:00) ───────────────────────────────────────────────
+async function sendEveningWarning(progress, client) {
+  const today = todayStr();
+  const req   = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
+  const voiceDone   = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+
+  if (isGreetDone && voiceDone) return; // Tamamlamış
+
+  const warnCount = progress.warnings?.count || 0;
+
+  // AI acil uyarı mesajı
+  let aiMsg = '';
+  try {
+    const prompt = `Eko Yıldız personeli ${ROLE_NAMES[progress.level]} akşam 19:00'da hâlâ günlük görevini yapmamış.
+Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), acil ve ciddi Türkçe uyarı yaz.`;
+    aiMsg = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+    aiMsg = aiMsg?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+  } catch (_) {}
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff4444)
+    .setTitle('🚨 ACİL — Akşam Son Uyarısı (19:00)')
+    .setDescription(
+      (aiMsg ? `🤖 **AI:** ${aiMsg}\n\n` : '') +
+      `**Gece 23:30'a kadar** görevlerini tamamlamazsan bugün için uyarı alacaksın!\n\n` +
+      `📋 **Yapman gerekenler:**\n` +
+      (!isGreetDone ? `• ✅ Sohbete ${req.greets}x selam ver\n` : '') +
+      (!voiceDone   ? `• 🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal\n` : '') +
+      `\n⏰ **${5 - warnCount} uyarı hakkın kaldı.**`
+    )
+    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | 19:00 Uyarısı' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+}
+
+// ── İSTİFA sistemi ─────────────────────────────────────────────────────────
+async function resignFromStaff(userId, reason, client) {
+  const p = await StaffProgress.findOne({ userId });
+  if (!p) return { success: false, message: 'Personel sisteminde kayıtlı değilsin.' };
+  if (p.status === 'retired') return { success: false, message: 'Zaten emeklisin.' };
+
+  const levelName = ROLE_NAMES[p.level];
+  const totalDays = (p.stats?.activeDays || 0) + (p.stats?.consecutiveDays || 0);
+
+  // Emeklilik hakkı var mı kontrol (90+ gün = emekli olabilir)
+  const canRetire = totalDays >= 90;
+
+  // İstifa kaydı
+  p.status       = 'resigned';
+  p.resignedAt   = new Date();
+  p.resignReason = reason?.slice(0, 200) || 'Belirtilmedi';
+  await p.save();
+
+  // Rolleri kaldır
+  try {
+    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
+    if (member) {
+      for (const roleId of Object.values(ROLES)) {
+        if (roleId && member.roles.cache.has(roleId)) {
+          await member.roles.remove(roleId, 'İstifa').catch(() => {});
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Kullanıcıya DM
+  try {
+    const user = await client.users.fetch(userId);
+    const embed = new EmbedBuilder()
+      .setColor(0xfbbf24)
+      .setTitle('👋 İstifan Alındı')
+      .setDescription(
+        `**${levelName}** görevinden istifa ettin.\n\n` +
+        `**Geçirdiğin süre:** ${totalDays}+ aktif gün\n` +
+        `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
+        canRetire
+          ? `💡 **90+ gün aktif kaldığın için** emeklilik talep edebilirsin!\n\`/emeklilik\` komutunu kullan.`
+          : `Tekrar başvurmak istersen yöneticilere yazabilirsin. Başarılar!`
+      )
+      .setFooter({ text: 'Eko Yıldız • Teşekkürler!' })
+      .setTimestamp();
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+
+  console.log(`[staffSystem] İstifa: ${userId} (${levelName})`);
+  return { success: true, canRetire };
+}
+
+// ── EMEKLİLİK sistemi ──────────────────────────────────────────────────────
+const RETIREMENT_ROLE_ID = process.env.RETIREMENT_ROLE_ID || ''; // Emekli Personel rolü (opsiyonel)
+const RETIREMENT_MIN_DAYS = 90; // Emeklilik için minimum aktif gün
+
+async function retireFromStaff(userId, client) {
+  const p = await StaffProgress.findOne({ userId });
+  if (!p) return { success: false, message: 'Personel sisteminde kayıtlı değilsin.' };
+  if (p.status === 'retired') return { success: false, message: 'Zaten emeklisin.' };
+
+  const totalDays = (p.stats?.activeDays || 0);
+  if (totalDays < RETIREMENT_MIN_DAYS) {
+    return {
+      success: false,
+      message: `Emeklilik için en az **${RETIREMENT_MIN_DAYS} aktif gün** gerekli. Şu an: ${totalDays} gün.`,
+    };
+  }
+
+  const levelName  = ROLE_NAMES[p.level];
+  const oldLevel   = p.level;
+
+  // Emeklilik kaydı
+  p.status     = 'retired';
+  p.retiredAt  = new Date();
+  p.retiredAt  = new Date();
+  await p.save();
+
+  // Staff rollerini kaldır, emekli rolü ver
+  try {
+    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
+    if (member) {
+      for (const roleId of Object.values(ROLES)) {
+        if (roleId && member.roles.cache.has(roleId)) {
+          await member.roles.remove(roleId, 'Emeklilik').catch(() => {});
+        }
+      }
+      if (RETIREMENT_ROLE_ID) {
+        await member.roles.add(RETIREMENT_ROLE_ID, 'Emeklilik').catch(() => {});
+      }
+    }
+  } catch (_) {}
+
+  // Emeklilik DM
+  try {
+    const user = await client.users.fetch(userId);
+    const embed = new EmbedBuilder()
+      .setColor(0xffd700)
+      .setTitle('🏅 EMEKLİLİK — Tebrikler!')
+      .setDescription(
+        `**${totalDays} aktif gün** sonra emekli oldun!\n\n` +
+        `**Son görevin:** ${levelName}\n\n` +
+        `Eko Yıldız topluluğuna verdiğin emek için çok teşekkürler! 🙏\n` +
+        `Emekli olsan da her zaman burasının bir parçasısın. ❤️\n\n` +
+        (RETIREMENT_ROLE_ID ? `🎖️ **Emekli Personel** rozeti verildi!` : '')
+      )
+      .addFields(
+        { name: '⏰ Toplam Aktif Gün',  value: `${totalDays} gün`, inline: true },
+        { name: '📊 Son Seviye',        value: levelName,           inline: true },
+        { name: '🎫 Çözülen Ticket',   value: `${p.stats?.ticketsSolved || 0}+`, inline: true },
+      )
+      .setFooter({ text: 'Eko Yıldız • Emeklilik Belgesi 🎖️' })
+      .setTimestamp();
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+
+  console.log(`[staffSystem] Emeklilik: ${userId} (${levelName}, ${totalDays} gün)`);
+  return { success: true, totalDays, levelName };
+}
 async function runDailyCheck(client) {
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
   console.log('[staffSystem] Günlük kontrol başladı...');
@@ -501,21 +696,68 @@ async function runDailyCheck(client) {
   }
 }
 
-// ── Scheduler ─────────────────────────────────────────────────────────────
+// ── Scheduler — sabah brifing + gün içi hatırlatmalar ──────────────────────
 function startStaffScheduler(client) {
-  function scheduleNextRun() {
-    const now  = new Date();
-    const next = new Date();
-    next.setDate(now.getDate() + 1);
-    next.setHours(8, 0, 0, 0); // Sabah 08:00 brifing
-    const delay = next - now;
-    setTimeout(async () => {
-      await runDailyCheck(client);
-      scheduleNextRun();
-    }, delay);
-    console.log(`[staffSystem] Bir sonraki brifing: ${next.toLocaleString('tr-TR')}`);
+  // Belirli saatte çalışacak görev planla
+  function scheduleAt(hour, minute, callback) {
+    function run() {
+      const now  = new Date();
+      const next = new Date();
+      // Bugün o saat geçtiyse yarın planla
+      next.setHours(hour, minute, 0, 0);
+      if (next <= now) next.setDate(next.getDate() + 1);
+      const delay = next - now;
+      setTimeout(async () => {
+        try { await callback(); } catch (err) { console.error('[staffSystem] Scheduler hata:', err.message); }
+        run(); // Ertesi gün için tekrar planla
+      }, delay);
+    }
+    run();
   }
-  scheduleNextRun();
+
+  // 09:00 — Sabah brifing (tüm personele)
+  scheduleAt(9, 0, async () => {
+    console.log('[staffSystem] 09:00 sabah brifing gönderiliyor...');
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      await sendMorningBriefing(p, client).catch(() => {});
+    }
+  });
+
+  // 13:00 — Öğlen hatırlatma (görevi tamamlamamış olanlara)
+  scheduleAt(13, 0, async () => {
+    console.log('[staffSystem] 13:00 öğlen hatırlatması...');
+    const today        = todayStr();
+    const allProgress  = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= getDailyRequirements(p.level, p.stats?.consecutiveDays || 0).voiceMinutes;
+      if (!isComplete) {
+        await sendMidDayReminder(p, client).catch(() => {});
+      }
+    }
+  });
+
+  // 19:00 — Akşam uyarısı (hâlâ tamamlamamışlara)
+  scheduleAt(19, 0, async () => {
+    console.log('[staffSystem] 19:00 akşam uyarısı...');
+    const today       = todayStr();
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      if (!isComplete) {
+        await sendEveningWarning(p, client).catch(() => {});
+      }
+    }
+  });
+
+  // 23:30 — Günlük kapanış kontrol + uyarı
+  scheduleAt(23, 30, async () => {
+    console.log('[staffSystem] 23:30 günlük kapanış...');
+    await runDailyCheck(client);
+  });
+
+  console.log('[staffSystem] Scheduler başlatıldı (09:00 / 13:00 / 19:00 / 23:30)');
 }
 
 module.exports = {
@@ -528,6 +770,8 @@ module.exports = {
   recordWeeklyReport,
   checkPromotion,
   startStaffScheduler,
+  resignFromStaff,
+  retireFromStaff,
   ROLES,
   ROLE_NAMES,
   LEVEL_TASKS,

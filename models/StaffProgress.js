@@ -40,6 +40,12 @@ const staffProgressSchema = new mongoose.Schema({
   // Terfi tarihleri
   promotedAt: { type: Date, default: null },
   joinedAt:   { type: Date, default: Date.now },
+
+  // İstifa / Emeklilik
+  status:       { type: String, default: 'active', enum: ['active', 'resigned', 'retired'] },
+  resignedAt:   { type: Date, default: null },
+  resignReason: { type: String, default: null },
+  retiredAt:    { type: Date, default: null },
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress
