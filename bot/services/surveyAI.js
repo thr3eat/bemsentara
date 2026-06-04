@@ -24,9 +24,14 @@ Toplam 4 soru soruyorsun. ${qa.length < 4 ? `Şimdi ${qa.length + 1}. soruyu sor
 
 /**
  * /anketai komutu çalıştığında — kullanıcıya DM gönder
- * Not: generalCommandHandler zaten deferReply() çağırdığından editReply() kullanıyoruz
+ * Kendi deferReply'ını kendisi çağırır (generalCommandHandler bypass edilir)
  */
 async function startSurvey(interaction) {
+  // Önce defer et — interaction cevap bekleniyor
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  }
+
   const target    = interaction.options.getUser('kullanici');
   const topic     = interaction.options.getString('konu');
   const requesterId = interaction.user.id;
