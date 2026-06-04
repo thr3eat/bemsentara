@@ -7,15 +7,16 @@ const {
 const { chatWithAI } = require('./aiService');
 const Ticket = require('../../models/Ticket');
 
-const conversationHistory = new Map();
-const inactivityTimers    = new Map();
-const activeAITickets     = new Map();
-const pendingBanRequests  = new Map();
+// ── Runtime state ──────────────────────────────────────────────────────────
+const conversationHistory = new Map(); // ticketId → [{role,content}]
+const inactivityTimers    = new Map(); // ticketId → timer
+const activeAITickets     = new Map(); // ticketId → { channelId, guildId, userId, turns }
+const pendingBanRequests  = new Map(); // ticketId → { target, userId, channelId, guildId }
 const pendingAdRequests   = new Map(); // ticketId → { adType, price, topic, channelId, guildId, userId }
 const pendingAdEvidence   = new Map(); // ticketId → { ...adInfo, link }
 
-const INACTIVITY_TIMEOUT  = 10 * 60 * 1000;
-const MAX_AI_TURNS        = 10;
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 dakika
+const MAX_AI_TURNS       = 10;
 
 const EVIDENCE_CHANNEL_ID = process.env.EVIDENCE_CHANNEL_ID || '1511411777521455256';
 const EVIDENCE_GUILD_ID   = process.env.EVIDENCE_GUILD_ID   || '1367646464804655104';
@@ -31,14 +32,13 @@ Yapabileceklerin:
   Fiyatlar: 30₺=Shorts, 50₺=Uzun video alt sponsor, 100₺=Uzun video orta bölme+sponsor
   Not: 2 ay önce finansal destek için açıldı.
 - GENEL SORULAR: Kısa yanıt ver.
-- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz. Asla HAZIR deme [HAZIR] de.
-- KANIT: Kanıt alınca [BAN_ONAY] <hedef> yaz. Kanıt yoksa [REKLAM_ONAY] <tür>|<fiyat>|<konu> yaz.
+- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz.
 
 Kurallar: Türkçe, max 300 karakter, [HAZIR]/[BAN_ONAY]/[REKLAM_ONAY] dışında köşeli parantez kullanma.`;
 
-function isReady(t)   { return /\[HAZIR\]/i.test(t); }
-function isBan(t)     { return /\[BAN_ONAY\]/i.test(t); }
-function isAd(t)      { return /\[REKLAM_ONAY\]/i.test(t); }
+function isReady(t) { return /\[HAZIR\]/i.test(t); }
+function isBan(t)   { return /\[BAN_ONAY\]/i.test(t); }
+function isAd(t)    { return /\[REKLAM_ONAY\]/i.test(t); }
 
 function cleanMsg(t) {
   return t
@@ -61,15 +61,44 @@ function extractAdInfo(t) {
   return { adType: parts[0] || '?', price: parts[1] || '?', topic: parts[2] || '?' };
 }
 
+// ── Bot restart sonrası DB'den aktif ticket'ı yükle ─────────────────────────
+async function restoreTicketFromDB(channelId, client) {
+  try {
+    const ticket = await Ticket.findOne({ channelId, status: 'open' });
+    if (!ticket) return null;
+
+    // activeAITickets'a ekle
+    if (!activeAITickets.has(ticket.ticketId)) {
+      activeAITickets.set(ticket.ticketId, {
+        channelId: ticket.channelId,
+        guildId:   ticket.guildId,
+        userId:    ticket.userId,
+        turns:     MAX_AI_TURNS - 2, // Restart sonrası neredeyse limitteymişgibi davran
+      });
+    }
+    // conversationHistory'e temel context ekle
+    if (!conversationHistory.has(ticket.ticketId)) {
+      conversationHistory.set(ticket.ticketId, [
+        { role: 'user', content: `Ticket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"` },
+      ]);
+    }
+    console.log(`[ticketAI] DB'den yüklendi: ${ticket.ticketId}`);
+    return ticket;
+  } catch (err) {
+    console.warn('[ticketAI] restoreTicketFromDB hata:', err.message);
+    return null;
+  }
+}
+
 // ── Ticket açılınca AI başlar ────────────────────────────────────────────────
 async function startAIConversation(channel, ticket, client) {
   try {
     conversationHistory.set(ticket.ticketId, []);
     activeAITickets.set(ticket.ticketId, {
       channelId: channel.id,
-      guildId: channel.guild?.id,
-      userId: ticket.userId,
-      turns: 0,
+      guildId:   channel.guild?.id,
+      userId:    ticket.userId,
+      turns:     0,
     });
 
     const ctx = `Ticket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"`;
@@ -84,8 +113,7 @@ async function startAIConversation(channel, ticket, client) {
       return;
     }
     if (isAd(reply)) {
-      const info = extractAdInfo(reply);
-      await handleAdRequest(channel, ticket, info, client);
+      await handleAdRequest(channel, ticket, extractAdInfo(reply), client);
       return;
     }
     if (isReady(reply)) {
@@ -112,11 +140,22 @@ async function startAIConversation(channel, ticket, client) {
 async function handleUserMessage(message, client) {
   const channelId = message.channel.id;
   let matchedId = null;
+
+  // Önce memory map'te ara
   for (const [tid, info] of activeAITickets.entries()) {
     if (info.channelId === channelId && info.userId === message.author.id) {
       matchedId = tid; break;
     }
   }
+
+  // Map'te yoksa DB'den yükle (restart sonrası)
+  if (!matchedId) {
+    const restoredTicket = await restoreTicketFromDB(channelId, client);
+    if (restoredTicket && restoredTicket.userId === message.author.id) {
+      matchedId = restoredTicket.ticketId;
+    }
+  }
+
   if (!matchedId) return false;
 
   const info = activeAITickets.get(matchedId);
@@ -130,7 +169,17 @@ async function handleUserMessage(message, client) {
   const attachments = [...message.attachments.values()];
   if (attachments.length) await sendEvidence(message, matchedId, attachments, client);
 
-  // Reklam kanıt bekleniyor mu?
+  // Reklam kanıt SSI bekleniyor mu? (memory yoksa DB'den kontrol)
+  if (!pendingAdEvidence.has(matchedId) && attachments.length) {
+    // DB'de reklam kanıt bekleme durumu var mı?
+    try {
+      const t = await Ticket.findOne({ ticketId: matchedId });
+      if (t?.pendingAdEvidence) {
+        pendingAdEvidence.set(matchedId, t.pendingAdEvidence);
+      }
+    } catch (_) {}
+  }
+
   if (pendingAdEvidence.has(matchedId) && attachments.length) {
     await finalizeAdWithEvidence(message, matchedId, attachments, client);
     return true;
@@ -167,7 +216,8 @@ async function handleUserMessage(message, client) {
     }
 
     await message.channel.send({
-      embeds: [new EmbedBuilder().setColor(0x7c6af7)
+      embeds: [new EmbedBuilder()
+        .setColor(0x7c6af7)
         .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
         .setDescription(cleanMsg(reply))],
     });
@@ -200,11 +250,11 @@ async function handleAdRequest(channel, ticket, adInfo, client) {
             .setColor(0xfbbf24)
             .setTitle('💰 İTEM SATIŞ: REKLAM')
             .addFields(
-              { name: 'KONU',           value: topic,   inline: true },
-              { name: 'HANGİ TÜR',      value: adType,  inline: true },
-              { name: 'FİYAT',          value: `${price}₺`, inline: true },
-              { name: 'KULLANICI',      value: `<@${ticket?.userId}>`, inline: true },
-              { name: 'TİCKET',        value: `\`${ticketId}\``, inline: true },
+              { name: 'KONU',      value: topic,            inline: true },
+              { name: 'HANGİ TÜR', value: adType,           inline: true },
+              { name: 'FİYAT',     value: `${price}₺`,      inline: true },
+              { name: 'KULLANICI', value: `<@${ticket?.userId}>`, inline: true },
+              { name: 'TİCKET',   value: `\`${ticketId}\``, inline: true },
             )
             .setDescription('LÜTFEN LİNK GİRİN')
             .setTimestamp()],
@@ -213,12 +263,11 @@ async function handleAdRequest(channel, ticket, adInfo, client) {
     }
   } catch (_) {}
 
-  // Ticket kanalında "Link Girin" butonu
   pendingAdRequests.set(ticketId, {
     adType, price, topic,
     channelId: channel.id,
-    guildId: channel.guild?.id,
-    userId: ticket?.userId,
+    guildId:   channel.guild?.id,
+    userId:    ticket?.userId,
   });
 
   const row = new ActionRowBuilder().addComponents(
@@ -241,7 +290,7 @@ async function handleAdRequest(channel, ticket, adInfo, client) {
 }
 
 // ── "Link Girin" butona basınca modal aç ─────────────────────────────────────
-async function handleAdLinkButton(interaction, client) {
+async function handleAdLinkButton(interaction) {
   if (!interaction.customId?.startsWith('ad_link_')) return false;
   const ticketId = interaction.customId.replace('ad_link_', '');
 
@@ -264,7 +313,7 @@ async function handleAdLinkButton(interaction, client) {
 }
 
 // ── Modal submit: link girildi ────────────────────────────────────────────────
-async function handleAdLinkModal(interaction, client) {
+async function handleAdLinkModal(interaction) {
   if (!interaction.customId?.startsWith('ad_link_modal_')) return false;
   const ticketId = interaction.customId.replace('ad_link_modal_', '');
   const link = interaction.fields.getTextInputValue('ad_link_input').trim();
@@ -277,8 +326,16 @@ async function handleAdLinkModal(interaction, client) {
     return true;
   }
 
-  // Kanıt bekleme moduna geç
-  pendingAdEvidence.set(ticketId, { ...adInfo, link });
+  // Kanıt bekleme moduna geç + DB'ye de kaydet (restart-safe)
+  const evidenceData = { ...adInfo, link };
+  pendingAdEvidence.set(ticketId, evidenceData);
+  try {
+    const t = await Ticket.findOne({ ticketId });
+    if (t) {
+      t.pendingAdEvidence = evidenceData;
+      await t.save();
+    }
+  } catch (_) {}
 
   await interaction.reply({
     embeds: [new EmbedBuilder()
@@ -287,7 +344,7 @@ async function handleAdLinkModal(interaction, client) {
       .setDescription(
         `**Link:** ${link}\n\n` +
         `✅ Ödeme yaptıktan sonra **ekran görüntüsü (SSI)** atın.\n` +
-        `SSI alındıktan sonra yetkililere yönlendirileceksiniz.`
+        `📸 SSI alındıktan sonra yetkililere otomatik yönlendirileceksiniz.`
       )],
     ephemeral: false,
   });
@@ -299,6 +356,12 @@ async function finalizeAdWithEvidence(message, ticketId, attachments, client) {
   const adInfo = pendingAdEvidence.get(ticketId);
   if (!adInfo) return;
   pendingAdEvidence.delete(ticketId);
+
+  // DB'den pendingAdEvidence temizle
+  try {
+    const t = await Ticket.findOne({ ticketId });
+    if (t) { t.pendingAdEvidence = null; await t.save(); }
+  } catch (_) {}
 
   const ticket = await Ticket.findOne({ ticketId });
 
@@ -313,10 +376,10 @@ async function finalizeAdWithEvidence(message, ticketId, attachments, client) {
             .setColor(0x4ade80)
             .setTitle(`✅ Reklam Ödeme Kanıtı — ${ticketId}`)
             .addFields(
-              { name: 'TÜR',    value: adInfo.adType, inline: true },
-              { name: 'FİYAT',  value: `${adInfo.price}₺`, inline: true },
-              { name: 'KONU',   value: adInfo.topic,   inline: true },
-              { name: 'LİNK',   value: adInfo.link,    inline: false },
+              { name: 'TÜR',       value: adInfo.adType,        inline: true },
+              { name: 'FİYAT',     value: `${adInfo.price}₺`,   inline: true },
+              { name: 'KONU',      value: adInfo.topic,          inline: true },
+              { name: 'LİNK',      value: adInfo.link,           inline: false },
               { name: 'KULLANICI', value: `<@${adInfo.userId}>`, inline: true },
             )],
           files: attachments.map(a => a.url).slice(0, 5),
@@ -325,17 +388,46 @@ async function finalizeAdWithEvidence(message, ticketId, attachments, client) {
     }
   } catch (_) {}
 
-  // Yetkililere aktar
-  await notifyStaff(message.channel, ticket, `Reklam ödeme kanıtı alındı. Tür: ${adInfo.adType}, Fiyat: ${adInfo.price}₺`, client);
-  await message.channel.send('✅ Kanıtınız alındı! Yetkili ekibimiz en kısa sürede sizinle ilgilenecek.').catch(() => {});
+  // Kullanıcıya bildir
+  try {
+    const u = await client.users.fetch(adInfo.userId);
+    await u.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x4ade80)
+        .setTitle('📸 SSI Alındı!')
+        .setDescription(
+          `Ödeme kanıtınız alındı.\n\n` +
+          `**Tür:** ${adInfo.adType}\n**Fiyat:** ${adInfo.price}₺\n**Link:** ${adInfo.link}\n\n` +
+          `Ekibimiz en kısa sürede reklamınızı yayınlayacak. Teşekkürler! 🙏`
+        )
+        .setFooter({ text: 'Eko Yıldız • Reklam Sistemi' })
+        .setTimestamp()],
+    });
+  } catch (_) {}
+
+  await notifyStaff(
+    message.channel,
+    ticket,
+    `Reklam ödeme kanıtı alındı — Tür: ${adInfo.adType}, Fiyat: ${adInfo.price}₺, Link: ${adInfo.link}`,
+    client
+  );
+  await message.channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0x4ade80)
+      .setTitle('✅ Ödeme Kanıtı Alındı')
+      .setDescription('Kullanıcı bilgilendirildi. Yetkili ekibimiz reklam yayını için hazırlanıyor.')
+      .setTimestamp()],
+  }).catch(() => {});
 }
 
 // ── Ban akışı ─────────────────────────────────────────────────────────────────
-async function handleBanRequest(channel, ticket, target, attachments, client) {
+async function handleBanRequest(channel, ticket, target, _attachments, _client) {
   const ticketId = ticket?.ticketId || 'bilinmiyor';
   pendingBanRequests.set(ticketId, {
-    target, userId: ticket?.userId,
-    channelId: channel.id, guildId: channel.guild?.id,
+    target,
+    userId:    ticket?.userId,
+    channelId: channel.id,
+    guildId:   channel.guild?.id,
   });
 
   const row = new ActionRowBuilder().addComponents(
@@ -345,8 +437,13 @@ async function handleBanRequest(channel, ticket, target, attachments, client) {
 
   await channel.send({
     embeds: [new EmbedBuilder()
-      .setColor(0xff6b6b).setTitle('🚨 Ban Talebi')
-      .setDescription(`**Hedef:** ${target || 'Belirsiz'}\n**Talep eden:** <@${ticket?.userId}>\n\n**Banlama gerçekleşsin mi?'`)
+      .setColor(0xff6b6b)
+      .setTitle('🚨 Ban Talebi')
+      .setDescription(
+        `**Hedef:** ${target || 'Belirsiz'}\n` +
+        `**Talep eden:** <@${ticket?.userId}>\n\n` +
+        `Banlama gerçekleşsin mi?`
+      )
       .setTimestamp()],
     components: [row],
   });
@@ -355,20 +452,70 @@ async function handleBanRequest(channel, ticket, target, attachments, client) {
 async function handleBanButton(interaction, client) {
   const cid = interaction.customId;
   if (!cid.startsWith('ban_approve_') && !cid.startsWith('ban_reject_')) return false;
-  const ticketId = cid.replace('ban_approve_', '').replace('ban_reject_', '');
-  const info = pendingBanRequests.get(ticketId);
-  if (!info) { await interaction.reply({ content: '❌ Ban talebi bulunamadı.', ephemeral: true }); return true; }
 
-  if (cid.startsWith('ban_reject_')) {
-    pendingBanRequests.delete(ticketId);
-    await interaction.update({ content: '❌ Ban talebi reddedildi.', embeds: [], components: [] }).catch(() => {});
-    try { const u = await client.users.fetch(info.userId); await u.send('❌ Ban talebiniz reddedildi.'); } catch (_) {}
+  const ticketId = cid.startsWith('ban_approve_')
+    ? cid.replace('ban_approve_', '')
+    : cid.replace('ban_reject_', '');
+
+  // Map'te yoksa DB'den yükle (restart sonrası)
+  let info = pendingBanRequests.get(ticketId);
+  if (!info) {
+    try {
+      const t = await Ticket.findOne({ ticketId });
+      if (t?.pendingBan) {
+        info = t.pendingBan;
+        pendingBanRequests.set(ticketId, info);
+      }
+    } catch (_) {}
+  }
+
+  if (!info) {
+    await interaction.reply({ content: '❌ Ban talebi bulunamadı.', ephemeral: true });
     return true;
   }
 
+  if (cid.startsWith('ban_reject_')) {
+    pendingBanRequests.delete(ticketId);
+    // DB'den temizle
+    try {
+      const t = await Ticket.findOne({ ticketId });
+      if (t) { t.pendingBan = null; await t.save(); }
+    } catch (_) {}
+
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle('❌ Ban Talebi Reddedildi')
+        .setDescription(`**Reddeden:** ${interaction.user.tag}\n**Hedef:** ${info.target || '—'}`)
+        .setTimestamp()],
+      components: [],
+    }).catch(() => {});
+
+    // Kullanıcıya gelişmiş bildirim
+    try {
+      const u = await client.users.fetch(info.userId);
+      await u.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle('❌ Ban Talebiniz Reddedildi')
+          .setDescription(
+            `**Hedef:** ${info.target}\n\n` +
+            `Ban talebiniz yetkili tarafından reddedildi.\n` +
+            `Başka bir isteğiniz varsa ticket'ınızdan yazabilirsiniz.`
+          )
+          .setFooter({ text: 'Sentara Destek' })
+          .setTimestamp()],
+      });
+    } catch (_) {}
+    return true;
+  }
+
+  // Ban onayla
   await interaction.deferUpdate().catch(() => {});
   let banned = false;
   let bannedTag = info.target;
+  let bannedId = null;
+
   try {
     const guild = await client.guilds.fetch(info.guildId).catch(() => null);
     if (guild && info.target) {
@@ -384,28 +531,81 @@ async function handleBanButton(interaction, client) {
       }
       if (memberId) {
         await guild.members.ban(memberId, { reason: `Ticket ${ticketId} — ${interaction.user.tag}` });
-        banned = true; bannedTag = `<@${memberId}>`;
+        banned   = true;
+        bannedId  = memberId;
+        bannedTag = `<@${memberId}>`;
       }
     }
   } catch (err) { console.warn('[ticketAI] ban hata:', err.message); }
 
   pendingBanRequests.delete(ticketId);
+
   await interaction.editReply({
     embeds: [new EmbedBuilder()
       .setColor(banned ? 0x4ade80 : 0xfbbf24)
       .setTitle(banned ? '✅ Ban Uygulandı' : '⚠️ Ban Uygulanamadı')
-      .setDescription(banned ? `${bannedTag} banlandı.` : `Kullanıcı bulunamadı: \`${info.target}\``)
+      .setDescription(banned
+        ? `${bannedTag} başarıyla banlandı.\n**Uygulayan:** ${interaction.user.tag}`
+        : `Kullanıcı bulunamadı: \`${info.target}\`\nManuel ban gerekebilir.`)
       .setTimestamp()],
     components: [],
   }).catch(() => {});
 
+  // Talep eden kullanıcıya detaylı bildirim
   try {
     const u = await client.users.fetch(info.userId);
-    await u.send(banned
-      ? '✅ **Sorununuz çözüldü!** Kişi banlandı.\n\nBaşka bir isteğiniz var mı? ⭐ 5 yıldız vermeyi unutmayın! 😊'
-      : '⚠️ Hedef kullanıcı bulunamadı. Yetkililere aktarılıyorsunuz.'
-    );
+    if (banned) {
+      await u.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle('✅ Sorununuz Çözüldü!')
+          .setDescription(
+            `**${info.target}** kullanıcısı başarıyla sunucudan banlandı.\n\n` +
+            `Başka bir isteğiniz var mı? Ticket'ınızdan yazabilirsiniz.\n` +
+            `⭐ Hizmetimizi değerlendirmeyi unutmayın!`
+          )
+          .setFooter({ text: 'Sentara Destek' })
+          .setTimestamp()],
+      });
+    } else {
+      await u.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xfbbf24)
+          .setTitle('⚠️ Ban Uygulanamadı')
+          .setDescription(
+            `Hedef kullanıcı **${info.target}** sunucuda bulunamadı.\n` +
+            `Sizi yetkililere aktarıyoruz, konuyu takip edeceğiz.`
+          )
+          .setFooter({ text: 'Sentara Destek' })
+          .setTimestamp()],
+      });
+    }
   } catch (_) {}
+
+  // Ban log: kanıta kaydet
+  if (banned && bannedId) {
+    try {
+      const guild = await client.guilds.fetch(EVIDENCE_GUILD_ID).catch(() => null);
+      if (guild) {
+        const ch = await guild.channels.fetch(EVIDENCE_CHANNEL_ID).catch(() => null);
+        if (ch?.isSendable()) {
+          await ch.send({
+            embeds: [new EmbedBuilder()
+              .setColor(0xff0000)
+              .setTitle('🔨 Ban Log')
+              .addFields(
+                { name: 'Banlanan',    value: `<@${bannedId}> (${info.target})`, inline: true },
+                { name: 'Talep Eden',  value: `<@${info.userId}>`,               inline: true },
+                { name: 'Uygulayan',   value: interaction.user.tag,              inline: true },
+                { name: 'Ticket',      value: `\`${ticketId}\``,                 inline: true },
+              )
+              .setTimestamp()],
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
   return true;
 }
 
@@ -418,9 +618,14 @@ async function sendEvidence(message, ticketId, attachments, client) {
     if (!ch?.isSendable()) return;
     const ticket = await Ticket.findOne({ ticketId });
     await ch.send({
-      embeds: [new EmbedBuilder().setColor(0xff6b6b)
+      embeds: [new EmbedBuilder()
+        .setColor(0xff6b6b)
         .setTitle(`🔍 Kanıtlar — ${ticketId}`)
-        .setDescription(`**Kullanıcı:** <@${message.author.id}>\n**Konu:** ${ticket?.subject || '—'}\nKanıtlar bunlar:`)
+        .setDescription(
+          `**Kullanıcı:** <@${message.author.id}>\n` +
+          `**Konu:** ${ticket?.subject || '—'}\n` +
+          `Kanıtlar aşağıda:`
+        )
         .setTimestamp()],
       files: attachments.map(a => a.url).slice(0, 10),
     });
@@ -433,6 +638,7 @@ async function notifyStaff(channel, ticket, summary, client) {
   try {
     const clean = cleanMsg(summary).slice(0, 800) || '—';
     if (ticket) { ticket.aiSummary = clean; await ticket.save(); }
+
     const guild = channel.guild;
     const mentions = [];
     try {
@@ -441,16 +647,22 @@ async function notifyStaff(channel, ticket, summary, client) {
         .filter(m => {
           if (m.user.bot) return false;
           if (!m.permissions.has('ManageMessages')) return false;
-          // Presence opsiyonel — GuildPresences intent yoksa crash'i önle
           try { return m.presence?.status !== 'offline'; } catch (_) { return true; }
         })
         .first(3)
         .forEach(m => mentions.push(`<@${m.id}>`));
     } catch (_) {}
+
     await channel.send({
       content: mentions.length ? `${mentions.join(' ')} — Destek talebi!` : '📢 Aktif yetkili bulunamadı.',
-      embeds: [new EmbedBuilder().setColor(0xfbbf24).setTitle('👨‍💼 Yetkili Gerekiyor')
-        .setDescription(`**Özet:** ${clean}\n**Ticket:** \`${ticket?.ticketId || '—'}\`\n**Kullanıcı:** <@${ticket?.userId || '?'}>`)
+      embeds: [new EmbedBuilder()
+        .setColor(0xfbbf24)
+        .setTitle('👨‍💼 Yetkili Gerekiyor')
+        .setDescription(
+          `**Özet:** ${clean}\n` +
+          `**Ticket:** \`${ticket?.ticketId || '—'}\`\n` +
+          `**Kullanıcı:** <@${ticket?.userId || '?'}>`
+        )
         .setTimestamp()],
     });
   } catch (err) { console.error('[ticketAI] notifyStaff hata:', err.message); }
@@ -458,8 +670,14 @@ async function notifyStaff(channel, ticket, summary, client) {
 
 async function fallbackNotify(channel, ticket) {
   await channel.send({
-    embeds: [new EmbedBuilder().setColor(0xfbbf24).setTitle('👨‍💼 Yetkili Gerekiyor')
-      .setDescription(`**Kullanıcı:** <@${ticket?.userId || '?'}>\n**Konu:** ${ticket?.subject || '—'}\nAI yanıt veremiyor.`)
+    embeds: [new EmbedBuilder()
+      .setColor(0xfbbf24)
+      .setTitle('👨‍💼 Yetkili Gerekiyor')
+      .setDescription(
+        `**Kullanıcı:** <@${ticket?.userId || '?'}>\n` +
+        `**Konu:** ${ticket?.subject || '—'}\n` +
+        `AI şu an yanıt veremiyor, yetkili bekleniyor.`
+      )
       .setTimestamp()],
   }).catch(() => {});
 }
@@ -467,24 +685,61 @@ async function fallbackNotify(channel, ticket) {
 // ── İnaktivite timer ──────────────────────────────────────────────────────────
 function resetInactivityTimer(ticketId, channel, ticket, client) {
   clearInactivityTimer(ticketId);
+  const channelId = channel.id;
+  const guildId   = channel.guild?.id;
+
   const timer = setTimeout(async () => {
     try {
       const t = ticket || await Ticket.findOne({ ticketId });
       if (!t || t.status === 'closed') return;
+
+      // Kullanıcıya DM uyarısı
       try {
         const u = await client.users.fetch(t.userId);
-        await u.send({ embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('⏰ Ticket Kapatıldı')
-          .setDescription('10 dakika aktif olmadığınız için ticket kapatıldı.').setTimestamp()] });
+        await u.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0xed4245)
+            .setTitle('⏰ Ticket İnaktivite Nedeniyle Kapatıldı')
+            .setDescription(
+              '10 dakika boyunca yanıt vermediğiniz için destek talebiniz kapatıldı.\n\n' +
+              'Yeni bir destek talebi açmak için bot\'a DM atabilirsiniz.'
+            )
+            .setTimestamp()],
+        });
       } catch (_) {}
-      t.status = 'closed'; t.closedAt = new Date();
-      t.closeReason = 'İnaktivite'; t.closedBy = 'AI'; await t.save();
-      await channel.send('⏰ İnaktivite — ticket kapatıldı.').catch(() => {});
-      await channel.permissionOverwrites.edit(t.userId, { ViewChannel: false, SendMessages: false }).catch(() => {});
+
+      t.status      = 'closed';
+      t.closedAt    = new Date();
+      t.closeReason = 'İnaktivite (10 dk)';
+      t.closedBy    = 'AI';
+      await t.save();
+
+      // Kanalı taze fetch et
+      try {
+        const guild = await client.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const ch = await guild.channels.fetch(channelId).catch(() => null);
+          if (ch) {
+            await ch.send({
+              embeds: [new EmbedBuilder()
+                .setColor(0xed4245)
+                .setTitle('⏰ Ticket Kapatıldı')
+                .setDescription('Kullanıcı 10 dakika boyunca yanıt vermedi.')
+                .setTimestamp()],
+            }).catch(() => {});
+            await ch.permissionOverwrites.edit(t.userId, { ViewChannel: false, SendMessages: false }).catch(() => {});
+          }
+        }
+      } catch (_) {}
+
       const { scheduleTicketDeletion } = require('./ticketCleanup');
       scheduleTicketDeletion(ticketId);
     } catch (err) { console.error('[ticketAI] inactivity hata:', err.message); }
-    activeAITickets.delete(ticketId); conversationHistory.delete(ticketId);
+
+    activeAITickets.delete(ticketId);
+    conversationHistory.delete(ticketId);
   }, INACTIVITY_TIMEOUT);
+
   inactivityTimers.set(ticketId, timer);
 }
 
