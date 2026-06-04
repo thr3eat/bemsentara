@@ -21,6 +21,7 @@ const GENERAL_COMMANDS = new Set([
   "yardim",
   "ping",
   "stats",
+  "anketai",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -371,6 +372,11 @@ async function handleGeneralCommand(interaction) {
         )
         .setTimestamp();
       return interaction.editReply({ embeds: [pingEmbed] });
+    }
+
+    if (commandName === "anketai") {
+      const { startSurvey } = require('../services/surveyAI');
+      return startSurvey(interaction);
     }
 
     if (commandName === "stats") {

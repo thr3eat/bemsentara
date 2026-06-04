@@ -49,6 +49,13 @@ function initializeDiscordHandlers(client) {
     // ── DM mesajları ────────────────────────────────────────────────────────
     if (!message.guild && !message.author?.bot) {
       console.log(`[DM] ${message.author?.tag}: ${message.content?.slice(0, 50)}`);
+      // Anket cevabı mı?
+      try {
+        const { handleSurveyReply } = require('../services/surveyAI');
+        const handled = await handleSurveyReply(message, client);
+        if (handled) return;
+      } catch (_) {}
+      // Normal DM ticket
       try {
         const { handleDMMessage } = require('../services/dmTicket');
         await handleDMMessage(message, client);

@@ -143,6 +143,17 @@ const generalCommands = [
     .setDescription("Botun gecikmesini ölç"),
 
   new SlashCommandBuilder()
+    .setName("anketai")
+    .setDescription("AI destekli anket gönder")
+    .addUserOption(o =>
+      o.setName("kullanici").setDescription("Anket gönderilecek kişi").setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("konu").setDescription("Anketin konusu").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  new SlashCommandBuilder()
     .setName("stats")
     .setDescription("Bot istatistiklerini ve sistem durumunu göster"),
 
