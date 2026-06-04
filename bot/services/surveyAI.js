@@ -262,7 +262,7 @@ async function finalizeSurvey(user, survey, client) {
     .setColor(0x4ade80)
     .setTitle('🎉 Anket Tamamlandı!')
     .setDescription(
-      `**${user.username}**, anketimize katıldığınız için teşekkürler! 🙏\n\n` +
+      `**${user.username}**, anketimize katıldığınız için teşekkürler! Bot hakkındaki önerilerinizi sunmak için Merhaba yazın ve evete tıklayın. 🙏\n\n` +
       rewardText
     )
     .setFooter({ text: 'Eko Yıldız • Anket Sistemi' });

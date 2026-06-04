@@ -54,11 +54,25 @@ function buildDMCloseButton(ticketId) {
 async function handleDMMessage(message, client) {
   const userId = message.author.id;
 
-  // Aktif ticket varsa → kanala ilet
+  // Aktif ticket varsa → kanala ilet (Map'te veya DB'de)
   if (activeDMTickets.has(userId)) {
     await forwardDMToChannel(message, client);
     return;
   }
+
+  // Map'te yok ama DB'de açık DM ticket olabilir (bot restart sonrası)
+  try {
+    const existing = await Ticket.findOne({ userId, status: 'open', source: 'dm' });
+    if (existing && existing.channelId && existing.guildId) {
+      activeDMTickets.set(userId, {
+        ticketId:  existing.ticketId,
+        channelId: existing.channelId,
+        guildId:   existing.guildId,
+      });
+      await forwardDMToChannel(message, client);
+      return;
+    }
+  } catch (_) {}
 
   // Onay bekleniyor → mesaj yazarsa tekrar sor (buton beklesin)
   if (pendingConfirmation.has(userId)) {
@@ -306,8 +320,30 @@ async function createDMTicket(user, summary, history, client) {
 // ── DM → Kanal iletimi ──────────────────────────────────────────────────────
 async function forwardDMToChannel(message, client) {
   const userId = message.author.id;
-  const dmInfo = activeDMTickets.get(userId);
-  if (!dmInfo) return;
+
+  // Önce memory map'e bak
+  let dmInfo = activeDMTickets.get(userId);
+
+  // Map'te yoksa DB'den aç DM ticket'ı bul (bot restart sonrası)
+  if (!dmInfo) {
+    try {
+      const ticket = await Ticket.findOne({ userId, status: 'open', source: 'dm' });
+      if (ticket && ticket.channelId && ticket.guildId) {
+        // Map'i yeniden doldur
+        dmInfo = {
+          ticketId:  ticket.ticketId,
+          channelId: ticket.channelId,
+          guildId:   ticket.guildId,
+        };
+        activeDMTickets.set(userId, dmInfo);
+        console.log(`[dmTicket] DB'den yüklendi: ${ticket.ticketId}`);
+      }
+    } catch (err) {
+      console.warn('[dmTicket] DB ticket araması hatası:', err.message);
+    }
+  }
+
+  if (!dmInfo) return; // Aktif DM ticket yok
 
   const guild = await client.guilds.fetch(dmInfo.guildId).catch(() => null);
   if (!guild) return;
@@ -325,11 +361,18 @@ async function forwardDMToChannel(message, client) {
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(message.content)
+    .setDescription(message.content || '*(ek dosya)*')
     .setFooter({ text: '📩 Kullanıcıdan DM' })
     .setTimestamp();
 
-  await channel.send({ embeds: [embed] }).catch(() => {});
+  const sendOpts = { embeds: [embed] };
+
+  // Resim/dosya varsa ekle
+  if (message.attachments.size > 0) {
+    sendOpts.files = [...message.attachments.values()].map(a => a.url).slice(0, 5);
+  }
+
+  await channel.send(sendOpts).catch(() => {});
 }
 
 // ── Kanal → DM iletimi ──────────────────────────────────────────────────────
