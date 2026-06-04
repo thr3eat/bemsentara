@@ -19,12 +19,15 @@ const staffProgressSchema = new mongoose.Schema({
     voiceMinutes:  { type: Number, default: 0 },
   },
 
-  // Toplam başarılar (terfi için)
+  // İstatistikler (terfi için)
   stats: {
-    ticketsSolved:   { type: Number, default: 0 },
-    surveysCompleted:{ type: Number, default: 0 },
-    activeDays:      { type: Number, default: 0 },  // Günlük görevleri tamamlayan gün sayısı
-    consecutiveDays: { type: Number, default: 0 },  // Arka arkaya tamamlanan günler
+    ticketsSolved:    { type: Number, default: 0 },
+    surveysCompleted: { type: Number, default: 0 },
+    activeDays:       { type: Number, default: 0 },
+    consecutiveDays:  { type: Number, default: 0 },
+    moderationActions:{ type: Number, default: 0 }, // Mod işlemleri
+    weeklyReports:    { type: Number, default: 0 },  // Haftalık rapor sayısı
+    lastCompleteDay:  { type: String, default: '' }, // Son tamamlanan gün
   },
 
   // Uyarı sistemi
