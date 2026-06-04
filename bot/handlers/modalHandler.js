@@ -41,11 +41,19 @@ async function handleSupportModal(interaction) {
   const category = interaction.customId.replace("support_modal_", "");
   const subject = interaction.fields.getTextInputValue("support_subject");
   const description = interaction.fields.getTextInputValue("support_description");
-  let priority = interaction.fields.getTextInputValue("support_priority") || "medium";
 
-  if (!["low", "medium", "high"].includes(priority)) {
-    priority = "medium";
-  }
+  // Kategori bazlı otomatik öncelik
+  const autoPriority = {
+    ban:       'high',
+    report:    'high',
+    reklam:    'medium',
+    billing:   'high',
+    technical: 'medium',
+    account:   'medium',
+    genel:     'low',
+    other:     'low',
+  };
+  const priority = autoPriority[category] || 'medium';
 
   try {
     const ticketId = generateTicketId();

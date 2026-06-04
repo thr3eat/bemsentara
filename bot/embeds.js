@@ -25,11 +25,14 @@ function getCategorySelectMenu() {
       .setCustomId("support_category")
       .setPlaceholder("Kategori seçin / Select Category")
       .addOptions(
-        { label: "💳 Ödeme Sorunu", value: "billing", emoji: "💳" },
-        { label: "🔧 Teknik Sorun", value: "technical", emoji: "🔧" },
-        { label: "👤 Hesap Sorunu", value: "account", emoji: "👤" },
-        { label: "👥 Grup Sorunu", value: "group", emoji: "👥" },
-        { label: "📝 Diğer", value: "other", emoji: "📝" }
+        { label: "🔨 Ban/Şikayet Talebi",  value: "ban",       description: "Birisini şikayet et veya ban talep et" },
+        { label: "📢 Reklam Satın Al",      value: "reklam",    description: "YouTube kanalında reklam satın al" },
+        { label: "🚨 Kullanıcı Şikayet",    value: "report",    description: "Küfür, taciz veya kural ihlali bildir" },
+        { label: "💳 Ödeme Sorunu",         value: "billing",   description: "Ödeme veya satın alma sorunları" },
+        { label: "🔧 Teknik Sorun",         value: "technical", description: "Bot veya site teknik sorunları" },
+        { label: "👤 Hesap Sorunu",         value: "account",   description: "Hesap veya Roblox bağlantı sorunları" },
+        { label: "💬 Genel Destek",         value: "genel",     description: "Genel soru ve destek talepleri" },
+        { label: "📝 Diğer",               value: "other",     description: "Yukarıdaki kategorilere uymayan konular" }
       )
   );
 }

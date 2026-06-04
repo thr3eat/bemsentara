@@ -2812,7 +2812,14 @@ function renderCreateTicketPage(user, categories = []) {
         <label>Kategori <span style="color:var(--danger);">*</span></label>
         <select id="tc-category">
           <option value="">— Seçiniz —</option>
-          ${cats.map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('')}
+          <option value="ban">🔨 Ban / Şikayet Talebi</option>
+          <option value="reklam">📢 Reklam Satın Al</option>
+          <option value="report">🚨 Kullanıcı Şikayet</option>
+          <option value="billing">💳 Ödeme Sorunu</option>
+          <option value="technical">🔧 Teknik Sorun</option>
+          <option value="account">👤 Hesap Sorunu</option>
+          <option value="genel">💬 Genel Destek</option>
+          <option value="other">📝 Diğer</option>
         </select>
 
         <label>Konu <span style="color:var(--danger);">*</span></label>
@@ -2823,13 +2830,6 @@ function renderCreateTicketPage(user, categories = []) {
         <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
           <span id="tc-count">0</span>/2000
         </div>
-
-        <label>Öncelik</label>
-        <select id="tc-priority">
-          <option value="normal">Normal</option>
-          <option value="high">Yüksek</option>
-          <option value="low">Düşük</option>
-        </select>
 
         <div id="tc-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--danger);padding:0.8rem 1rem;border-radius:10px;margin-bottom:1rem;"></div>
 
@@ -2849,9 +2849,12 @@ function renderCreateTicketPage(user, categories = []) {
         const cat      = document.getElementById('tc-category').value;
         const subject  = document.getElementById('tc-subject').value.trim();
         const desc     = descEl.value.trim();
-        const priority = document.getElementById('tc-priority').value;
         const errEl    = document.getElementById('tc-error');
         const btn      = document.getElementById('tc-submit');
+
+        // Kategori bazlı otomatik öncelik
+        const autoPriority = { ban: 'high', report: 'high', billing: 'high', reklam: 'medium', technical: 'medium', account: 'medium', genel: 'low', other: 'low' };
+        const priority = autoPriority[cat] || 'medium';
 
         errEl.style.display = 'none';
         if (!cat)     { errEl.textContent = 'Lütfen bir kategori seçin.';        errEl.style.display='block'; return; }

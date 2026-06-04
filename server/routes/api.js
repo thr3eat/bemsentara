@@ -56,7 +56,9 @@ router.post("/api/tickets", async (req, res) => {
   if (d.length > 2000) return res.status(400).json({ error: "Açıklama en fazla 2000 karakter olabilir." });
 
   const validPriorities = ["low", "normal", "medium", "high"];
-  const prio = validPriorities.includes(priority) ? priority : "medium";
+  // Kategori bazlı otomatik öncelik — gönderilmemişse kategoriye göre belirle
+  const autoPriority = { ban: 'high', report: 'high', billing: 'high', reklam: 'medium', technical: 'medium', account: 'medium', genel: 'low', other: 'low' };
+  const prio = validPriorities.includes(priority) ? priority : (autoPriority[c] || 'medium');
 
   try {
     const { generateTicketId } = require("../../utils/ticketId");

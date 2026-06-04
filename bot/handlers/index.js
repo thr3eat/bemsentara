@@ -146,6 +146,12 @@ function initializeDiscordHandlers(client) {
         await handleBanButton(interaction, client);
         return;
       }
+      // ── Warn/Mute butonu ──────────────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('warn_approve_') || interaction.customId?.startsWith('warn_ban_') || interaction.customId?.startsWith('warn_reject_'))) {
+        const { handleWarnButton } = require('../services/ticketAI');
+        await handleWarnButton(interaction, client);
+        return;
+      }
       // ── Reklam link butonu ────────────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('ad_link_')) {
         const { handleAdLinkButton } = require('../services/ticketAI');

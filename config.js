@@ -33,11 +33,14 @@ const GUILD2_VOICE_CATEGORY_ID   = process.env.GUILD2_VOICE_CATEGORY_ID   || "14
 const GUILD2_VOICE_PANEL_ID      = process.env.GUILD2_VOICE_PANEL_ID      || "1505505849924255955";
 
 const SUPPORT_CATEGORIES = {
-  billing: { name: "💳 Ödeme Sorunu", color: 0xff6b6b },
-  technical: { name: "🔧 Teknik Sorun", color: 0x4ecdc4 },
-  account: { name: "👤 Hesap Sorunu", color: 0x95e1d3 },
-  group: { name: "👥 Grup Sorunu", color: 0xf38181 },
-  other: { name: "📝 Diğer", color: 0xaa96da },
+  ban:        { name: "🔨 Ban/Şikayet Talebi",  color: 0xff4444 },
+  reklam:     { name: "📢 Reklam Satın Al",      color: 0xfbbf24 },
+  report:     { name: "🚨 Kullanıcı Şikayet",    color: 0xff6b6b },
+  billing:    { name: "💳 Ödeme Sorunu",         color: 0xf38181 },
+  technical:  { name: "🔧 Teknik Sorun",         color: 0x4ecdc4 },
+  account:    { name: "👤 Hesap Sorunu",         color: 0x95e1d3 },
+  genel:      { name: "💬 Genel Destek",         color: 0x7c6af7 },
+  other:      { name: "📝 Diğer",               color: 0xaa96da },
 };
 
 const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")

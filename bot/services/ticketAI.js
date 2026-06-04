@@ -14,6 +14,7 @@ const activeAITickets     = new Map(); // ticketId → { channelId, guildId, use
 const pendingBanRequests  = new Map(); // ticketId → { target, userId, channelId, guildId }
 const pendingAdRequests   = new Map(); // ticketId → { adType, price, topic, channelId, guildId, userId }
 const pendingAdEvidence   = new Map(); // ticketId → { ...adInfo, link }
+const pendingWarnRequests = new Map(); // ticketId → { target, reason, userId, channelId, guildId }
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 dakika
 const MAX_AI_TURNS       = 10;
@@ -24,27 +25,70 @@ const AD_SALES_CHANNEL_ID = process.env.AD_SALES_CHANNEL_ID || '1511411777521455
 const AD_SALES_GUILD_ID   = process.env.AD_SALES_GUILD_ID   || '1367646464804655104';
 
 const SYSTEM = `Sen Sentara/EkoYıldız destek botunun yapay zeka asistanısın.
-Kullanıcıyla konuş ve sorununu çöz. Çözemezsen [HAZIR] ile yetkililere aktar.
+Kullanıcıyla konuş, kategorisine göre akışı yönet. Türkçe, max 300 karakter.
 
-Yapabileceklerin:
-- BAN TALEBİ: Hedef kişiyi ve kanıt iste. Kanıt alınca: [BAN_ONAY] <hedef>
-- REKLAM: Fiyat listesi ver, tür ve konuyu öğren, sonra: [REKLAM_ONAY] <tür>|<fiyat>|<konu>
-  Fiyatlar: 30₺=Shorts, 50₺=Uzun video alt sponsor, 100₺=Uzun video orta bölme+sponsor
-  Not: 2 ay önce finansal destek için açıldı.
-- GENEL SORULAR: Kısa yanıt ver.
-- YETKİLİ İSTEĞİ: Hemen [HAZIR] yaz.
+KATEGORİ BAZLI AKIŞLAR:
 
-Kurallar: Türkçe, max 300 karakter, [HAZIR]/[BAN_ONAY]/[REKLAM_ONAY] dışında köşeli parantez kullanma.`;
+[BAN/ŞİKAYET - "ban"] 
+- Hedef kişiyi ve kanıt iste. Kanıt alınca: [BAN_ONAY] <kullanıcıadı_veya_id>
 
-function isReady(t) { return /\[HAZIR\]/i.test(t); }
-function isBan(t)   { return /\[BAN_ONAY\]/i.test(t); }
-function isAd(t)    { return /\[REKLAM_ONAY\]/i.test(t); }
+[REKLAM - "reklam"]
+- Fiyat listesini ver: 30₺=Shorts, 50₺=Uzun video alt, 100₺=Uzun video orta bölme
+- Tür ve konuyu öğren, sonra: [REKLAM_ONAY] <tür>|<fiyat>|<konu>
+
+[KULLANICI ŞİKAYET - "report"]
+- Şikayet edilen kişiyi sor, ne yaptığını sor, kanıt iste
+- Kanıt alınca: [WARN_ONAY] <hedef>|<sebep>
+- Ciddi ihlalde (küfür, ırkçılık, tehdit): [BAN_ONAY] <hedef>
+
+[ÖDEME SORUNU - "billing"]
+- Ödeme kanalını, tutarı ve tarihi sor
+- Eğer 24 saat içindeyse: [RESOLVE] Ödemeniz alındı, 24 saat içinde işleme alınır.
+- Daha eskiyse: [HAZIR] ödeme sorunu
+
+[TEKNİK SORUN - "technical"]
+- Sorunu anla. Bilinen çözüm varsa ver: [RESOLVE] <çözüm>
+- Çözemediysen: [HAZIR] teknik sorun
+
+[HESAP SORUNU - "account"]
+- Roblox bağlantı sorunlarında /authorize komutunu öner: [RESOLVE] /authorize komutunu çalıştırın
+- Başka hesap sorunlarında: [HAZIR] hesap sorunu
+
+[GENEL DESTEK - "genel"]
+- Kısa cevap ver. Çözülebildiyse: [RESOLVE] <cevap>
+- Çözemediysen: [HAZIR] genel soru
+
+KURALLAR:
+- [RESOLVE] = AI halletti, ticket oto-kapanır. Kullanıcıya çözüm yaz.
+- [HAZIR] = Yetkili gerekli, ticket yetkililere gider.
+- [BAN_ONAY] = Ban uygula + ticket oto-kapan.
+- [REKLAM_ONAY] = Reklam akışı başlat.
+- [WARN_ONAY] = Uyarı/mute uygula + ticket oto-kapan.
+- Asla köşeli parantez başka şey için kullanma.`;
+
+// Yeni: WARN/MUTE akışı
+function isWarn(t)    { return /\[WARN_ONAY\]/i.test(t); }
+function isResolve(t) { return /\[RESOLVE\]/i.test(t); }
+
+function extractWarnInfo(t) {
+  const m = t.match(/\[WARN_ONAY\]\s*(.+)/i);
+  if (!m) return null;
+  const parts = m[1].split('|').map(s => s.trim());
+  return { target: parts[0] || '?', reason: parts[1] || 'Kural ihlali' };
+}
+
+function extractResolveMsg(t) {
+  const m = t.match(/\[RESOLVE\]\s*(.+)/i);
+  return m ? m[1].trim() : null;
+}
 
 function cleanMsg(t) {
   return t
     .replace(/\[HAZIR\]/gi, '')
     .replace(/\[BAN_ONAY\][^\n]*/gi, '')
     .replace(/\[REKLAM_ONAY\][^\n]*/gi, '')
+    .replace(/\[WARN_ONAY\][^\n]*/gi, '')
+    .replace(/\[RESOLVE\]/gi, '')
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .trim();
 }
@@ -99,9 +143,11 @@ async function startAIConversation(channel, ticket, client) {
       guildId:   channel.guild?.id,
       userId:    ticket.userId,
       turns:     0,
+      category:  ticket.category || 'other',
     });
 
-    const ctx = `Ticket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"`;
+    // Kategori bilgisini sisteme ver
+    const ctx = `Kategori: "${ticket.category || 'other'}"\nTicket konusu: "${ticket.subject}"\nAçıklama: "${ticket.description}"`;
     const history = conversationHistory.get(ticket.ticketId);
     history.push({ role: 'user', content: ctx });
 
@@ -112,8 +158,17 @@ async function startAIConversation(channel, ticket, client) {
       await handleBanRequest(channel, ticket, extractBanTarget(reply), [], client);
       return;
     }
+    if (isWarn(reply)) {
+      await handleWarnRequest(channel, ticket, extractWarnInfo(reply), client);
+      return;
+    }
     if (isAd(reply)) {
       await handleAdRequest(channel, ticket, extractAdInfo(reply), client);
+      return;
+    }
+    if (isResolve(reply)) {
+      const resolveMsg = extractResolveMsg(reply) || cleanMsg(reply);
+      await autoResolveTicket(channel, ticket, resolveMsg, client);
       return;
     }
     if (isReady(reply)) {
@@ -200,10 +255,25 @@ async function handleUserMessage(message, client) {
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
+    if (isWarn(reply)) {
+      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      clearInactivityTimer(matchedId);
+      await handleWarnRequest(message.channel, ticket, extractWarnInfo(reply), client);
+      activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
+      return true;
+    }
     if (isAd(reply)) {
       const ticket = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
       await handleAdRequest(message.channel, ticket, extractAdInfo(reply), client);
+      activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
+      return true;
+    }
+    if (isResolve(reply)) {
+      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      clearInactivityTimer(matchedId);
+      const resolveMsg = extractResolveMsg(reply) || cleanMsg(reply);
+      await autoResolveTicket(message.channel, ticket, resolveMsg, client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
@@ -230,6 +300,203 @@ async function handleUserMessage(message, client) {
     activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
     return true;
   }
+}
+
+// ── Otomatik Çözüm — ticket yetkili gerekmeden kapanır ──────────────────────
+async function autoResolveTicket(channel, ticket, resolveMsg, client) {
+  // Kanala çözüm mesajı
+  await channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0x4ade80)
+      .setAuthor({ name: '✅ Sentara AI — Sorun Çözüldü', iconURL: client?.user?.displayAvatarURL() })
+      .setDescription(resolveMsg)
+      .setFooter({ text: 'Sorun çözüldü — ticket otomatik kapatıldı' })
+      .setTimestamp()],
+  }).catch(() => {});
+
+  // Ticket kapat
+  if (ticket) {
+    ticket.status      = 'closed';
+    ticket.closedAt    = new Date();
+    ticket.closeReason = `AI oto-çözüm: ${resolveMsg.slice(0, 100)}`;
+    ticket.closedBy    = 'AI';
+    await ticket.save().catch(() => {});
+  }
+
+  // Kullanıcıya DM bildir
+  try {
+    const u = await client.users.fetch(ticket?.userId);
+    await u.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x4ade80)
+        .setTitle('✅ Destek Talebiniz Çözüldü!')
+        .setDescription(
+          `**Çözüm:** ${resolveMsg}\n\n` +
+          `Sorunuz yapay zeka tarafından yanıtlandı.\n` +
+          `⭐ Hizmetimizi değerlendirmeyi unutmayın!`
+        )
+        .setFooter({ text: 'Eko Yıldız • AI Destek' })
+        .setTimestamp()],
+    });
+  } catch (_) {}
+
+  // 3 dakika sonra kanalı sil
+  const channelId = channel.id;
+  const guildId   = channel.guild?.id;
+  setTimeout(async () => {
+    try {
+      const guild = await client.guilds.fetch(guildId).catch(() => null);
+      if (guild) {
+        const ch = await guild.channels.fetch(channelId).catch(() => null);
+        if (ch) await ch.delete('AI oto-çözüm — kapatıldı').catch(() => {});
+      }
+    } catch (_) {}
+  }, 3 * 60 * 1000);
+
+  console.log(`[ticketAI] Oto-çözüm: ${ticket?.ticketId || '?'}`);
+}
+
+// ── Warn/Mute akışı ────────────────────────────────────────────────────────
+async function handleWarnRequest(channel, ticket, warnInfo, client) {
+  if (!warnInfo) { await fallbackNotify(channel, ticket); return; }
+
+  const { target, reason } = warnInfo;
+  const ticketId = ticket?.ticketId || 'bilinmiyor';
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`warn_approve_${ticketId}`).setLabel('⚠️ Uyar/Mute').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`warn_ban_${ticketId}`).setLabel('🔨 Direkt Banla').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`warn_reject_${ticketId}`).setLabel('❌ Reddet').setStyle(ButtonStyle.Secondary)
+  );
+
+  // pendingWarnRequests'e kaydet
+  pendingWarnRequests.set(ticketId, {
+    target, reason,
+    userId:    ticket?.userId,
+    channelId: channel.id,
+    guildId:   channel.guild?.id,
+  });
+
+  await channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0xfbbf24)
+      .setTitle('⚠️ Kullanıcı Şikayet İşlemi')
+      .setDescription(
+        `**Şikayet Edilen:** ${target}\n` +
+        `**Sebep:** ${reason}\n` +
+        `**Talep Eden:** <@${ticket?.userId}>\n\n` +
+        `Nasıl işlem yapalım?`
+      )
+      .setTimestamp()],
+    components: [row],
+  });
+}
+
+// ── Warn buton handler ─────────────────────────────────────────────────────
+async function handleWarnButton(interaction, client) {
+  const cid = interaction.customId;
+  if (!cid.startsWith('warn_approve_') && !cid.startsWith('warn_ban_') && !cid.startsWith('warn_reject_')) return false;
+
+  const ticketId = cid.replace('warn_approve_', '').replace('warn_ban_', '').replace('warn_reject_', '');
+  const info = pendingWarnRequests.get(ticketId);
+  if (!info) {
+    await interaction.reply({ content: '❌ Şikayet talebi bulunamadı.', ephemeral: true });
+    return true;
+  }
+
+  if (cid.startsWith('warn_reject_')) {
+    pendingWarnRequests.delete(ticketId);
+    await interaction.update({
+      embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('❌ Şikayet Reddedildi')
+        .setDescription(`**Reddeden:** ${interaction.user.tag}`).setTimestamp()],
+      components: [],
+    }).catch(() => {});
+    try {
+      const u = await client.users.fetch(info.userId);
+      await u.send({
+        embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('❌ Şikayetiniz Reddedildi')
+          .setDescription(`Şikayetiniz yeterli kanıt bulunamadığı için reddedildi.`)
+          .setTimestamp()],
+      });
+    } catch (_) {}
+    return true;
+  }
+
+  if (cid.startsWith('warn_ban_')) {
+    // Ban akışına yönlendir
+    pendingWarnRequests.delete(ticketId);
+    const ticket = await Ticket.findOne({ ticketId });
+    await handleBanRequest(interaction.channel, ticket, info.target, [], client);
+    await interaction.update({ components: [] }).catch(() => {});
+    return true;
+  }
+
+  // Warn/Mute uygula
+  await interaction.deferUpdate().catch(() => {});
+  let warned = false;
+  let warnedTag = info.target;
+
+  try {
+    const guild = await client.guilds.fetch(info.guildId).catch(() => null);
+    if (guild && info.target) {
+      const isId = /^\d{17,20}$/.test(info.target.trim());
+      let memberId = isId ? info.target.trim() : null;
+      if (!memberId) {
+        const members = await guild.members.fetch().catch(() => null);
+        const found = members?.find(m =>
+          m.user.username.toLowerCase() === info.target.toLowerCase()
+        );
+        if (found) memberId = found.id;
+      }
+      if (memberId) {
+        // 1 saatlik timeout uygula
+        const timeoutUntil = new Date(Date.now() + 60 * 60 * 1000);
+        await guild.members.fetch(memberId).then(m =>
+          m.timeout(60 * 60 * 1000, `Ticket ${ticketId}: ${info.reason}`)
+        );
+        warned   = true;
+        warnedTag = `<@${memberId}>`;
+      }
+    }
+  } catch (err) { console.warn('[ticketAI] warn hata:', err.message); }
+
+  pendingWarnRequests.delete(ticketId);
+
+  await interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setColor(warned ? 0xfbbf24 : 0xed4245)
+      .setTitle(warned ? '⚠️ Kullanıcı Uyarıldı (1 saat mute)' : '❌ Uyarı Uygulanamadı')
+      .setDescription(warned
+        ? `${warnedTag} 1 saat susturuldu.\n**Sebep:** ${info.reason}`
+        : `Kullanıcı bulunamadı: \`${info.target}\``)
+      .setTimestamp()],
+    components: [],
+  }).catch(() => {});
+
+  // Şikayet eden kullanıcıya bildir
+  try {
+    const u = await client.users.fetch(info.userId);
+    await u.send({
+      embeds: [new EmbedBuilder()
+        .setColor(warned ? 0xfbbf24 : 0xed4245)
+        .setTitle(warned ? '⚠️ Şikayetiniz İşleme Alındı' : '❌ İşlem Yapılamadı')
+        .setDescription(warned
+          ? `**${info.target}** 1 saat susturuldu.\nTekrarda daha ağır işlem uygulanacak.`
+          : `Hedef kullanıcı bulunamadı. Yetkililere iletildi.`)
+        .setTimestamp()],
+    });
+  } catch (_) {}
+
+  // Ticket oto-kapat
+  const ticket = await Ticket.findOne({ ticketId });
+  if (ticket) {
+    ticket.status = 'closed'; ticket.closedAt = new Date();
+    ticket.closeReason = `Şikayet işlendi — ${warned ? 'mute' : 'bulunamadı'}`;
+    ticket.closedBy = 'AI';
+    await ticket.save().catch(() => {});
+  }
+
+  return true;
 }
 
 // ── Reklam akışı ─────────────────────────────────────────────────────────────
@@ -606,6 +873,18 @@ async function handleBanButton(interaction, client) {
     } catch (_) {}
   }
 
+  // Ban sonrası ticket oto-kapat
+  try {
+    const t = await Ticket.findOne({ ticketId });
+    if (t && t.status === 'open') {
+      t.status      = 'closed';
+      t.closedAt    = new Date();
+      t.closeReason = banned ? `Ban uygulandı: ${info.target}` : 'Ban talebi işlendi';
+      t.closedBy    = 'AI';
+      await t.save();
+    }
+  } catch (_) {}
+
   return true;
 }
 
@@ -755,12 +1034,14 @@ function cleanupTicketAI(ticketId) {
   pendingBanRequests.delete(ticketId);
   pendingAdRequests.delete(ticketId);
   pendingAdEvidence.delete(ticketId);
+  pendingWarnRequests.delete(ticketId);
 }
 
 module.exports = {
   startAIConversation,
   handleUserMessage,
   handleBanButton,
+  handleWarnButton,
   handleAdLinkButton,
   handleAdLinkModal,
   cleanupTicketAI,
