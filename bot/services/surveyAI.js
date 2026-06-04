@@ -24,6 +24,7 @@ Toplam 4 soru soruyorsun. ${qa.length < 4 ? `Şimdi ${qa.length + 1}. soruyu sor
 
 /**
  * /anketai komutu çalıştığında — kullanıcıya DM gönder
+ * Not: generalCommandHandler zaten deferReply() çağırdığından editReply() kullanıyoruz
  */
 async function startSurvey(interaction) {
   const target    = interaction.options.getUser('kullanici');
@@ -32,10 +33,10 @@ async function startSurvey(interaction) {
   const guildId   = interaction.guild?.id;
 
   if (target.bot) {
-    return interaction.reply({ content: '❌ Botlara anket gönderilemez.', ephemeral: true });
+    return interaction.editReply({ content: '❌ Botlara anket gönderilemez.' });
   }
 
-  await interaction.reply({ content: `✅ **${target.username}** kullanıcısına anket gönderildi.`, ephemeral: true });
+  await interaction.editReply({ content: `✅ **${target.username}** kullanıcısına anket gönderildi.` });
 
   // Kullanıcıya DM
   try {

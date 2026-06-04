@@ -21,12 +21,17 @@ const GENERAL_COMMANDS = new Set([
   "yardim",
   "ping",
   "stats",
-  "anketai",
 ]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // ── anketai: deferReply öncesi çalışmalı ──────────────────────────────────
+  if (commandName === "anketai") {
+    const { startSurvey } = require('../services/surveyAI');
+    return startSurvey(interaction);
+  }
 
   if (commandName === "verify" || commandName === "update" || commandName === "debug-update") {
     const { handleVerify, handleUpdate, handleDebugUpdate } = require("./roleHandler");
@@ -372,11 +377,6 @@ async function handleGeneralCommand(interaction) {
         )
         .setTimestamp();
       return interaction.editReply({ embeds: [pingEmbed] });
-    }
-
-    if (commandName === "anketai") {
-      const { startSurvey } = require('../services/surveyAI');
-      return startSurvey(interaction);
     }
 
     if (commandName === "stats") {

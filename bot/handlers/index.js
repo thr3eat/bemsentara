@@ -116,6 +116,12 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     try {
+      // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
+        const { handleSurveyButton } = require('../services/surveyAI');
+        await handleSurveyButton(interaction, client);
+        return;
+      }
       // ── DM Ticket kapat butonu ─────────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('dm_close_')) {
         const { handleDMCloseButton } = require('../services/dmTicket');
@@ -126,6 +132,12 @@ function initializeDiscordHandlers(client) {
       if (interaction.isButton() && interaction.customId?.startsWith('dm_confirm_')) {
         const { handleDMConfirmButton } = require('../services/dmTicket');
         await handleDMConfirmButton(interaction, client);
+        return;
+      }
+      // ── Anket Evet/Hayır butonu ────────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
+        const { handleSurveyButton } = require('../services/surveyAI');
+        await handleSurveyButton(interaction, client);
         return;
       }
       // ── Ban onayla/reddet butonu ───────────────────────────────────────────
