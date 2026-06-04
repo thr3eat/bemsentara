@@ -165,6 +165,13 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("seviye")
+    .setDescription("Kurbağa seviyeni ve XP durumunu göster")
+    .addUserOption(o =>
+      o.setName("kullanici").setDescription("Bakılacak kişi (boş = kendin)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName("verify")
     .setDescription("Roblox hesabınıza göre Discord rollerinizi senkronize eder")
     .setDMPermission(false),

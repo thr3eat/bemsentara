@@ -22,6 +22,7 @@ const GENERAL_COMMANDS = new Set([
   "ping",
   "stats",
   "personeldurum",
+  "seviye",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -438,6 +439,39 @@ async function handleGeneralCommand(interaction) {
         )
         .setTimestamp();
       return interaction.editReply({ embeds: [pingEmbed] });
+    }
+
+    if (commandName === "seviye") {
+      const target = interaction.options.getUser('kullanici') || interaction.user;
+      const {
+        getFrogProfile, FROG_ROLES, xpToNextLevel, totalXpForLevel
+      } = require('../services/frogLevel');
+
+      const profile = await getFrogProfile(target.id, interaction.client);
+      if (!profile) {
+        return interaction.editReply({ content: `❌ **${target.username}** henüz hiç XP kazanmamış. Sunucuda mesaj yazmaya veya seste kalmaya başlasın!` });
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x4ade80)
+        .setTitle(`🐸 ${target.username} — Kurbağa Seviyesi`)
+        .setThumbnail(target.displayAvatarURL())
+        .setDescription(
+          `**${profile.currentRole?.name || 'Yavru Kurbağa'}**\n\n` +
+          `XP: **${profile.currentXP.toLocaleString()}** / **${profile.neededXP > 0 ? profile.neededXP.toLocaleString() : 'MAX'}**\n` +
+          `\`${profile.bar}\` ${profile.neededXP > 0 ? Math.floor((profile.currentXP / profile.neededXP) * 100) : 100}%`
+        )
+        .addFields(
+          { name: '📊 Seviye',          value: `${profile.level}/${FROG_ROLES.length - 1}`, inline: true },
+          { name: '✨ Toplam XP',       value: profile.xp.toLocaleString(), inline: true },
+          { name: '📝 Mesaj',           value: (profile.totalMessages || 0).toLocaleString(), inline: true },
+          { name: '🎤 Ses (dk)',        value: (profile.totalVoiceMinutes || 0).toLocaleString(), inline: true },
+          { name: '⬆️ Sonraki rol',    value: profile.nextRole?.name || '🏆 MAX SEVİYE', inline: true },
+        )
+        .setFooter({ text: 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
     }
 
     if (commandName === "stats") {

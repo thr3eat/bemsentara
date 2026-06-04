@@ -42,7 +42,7 @@ function initializeDiscordHandlers(client) {
     }
   });
 
-  // ── Ses kanalı takibi (personel ses dakikası) ──────────────────────────────
+  // ── Ses kanalı takibi (personel ses dakikası + kurbağa XP) ───────────────────
   // userId → { joinedAt: Date }
   const voiceSessions = new Map();
 
@@ -50,34 +50,43 @@ function initializeDiscordHandlers(client) {
     const userId = newState.member?.id || oldState.member?.id;
     if (!userId || newState.member?.user?.bot) return;
 
-    const { GUILD_ID, ROLES } = require("../services/staffSystem");
+    const { GUILD_ID: STAFF_GUILD_ID, ROLES } = require("../services/staffSystem");
+    const { FROG_GUILD_ID, onVoiceJoin, onVoiceLeave, addVoiceXP } = require("../services/frogLevel");
     const staffRoleIds = Object.values(ROLES);
 
-    // Personel mi kontrol et
-    const member = newState.member || oldState.member;
+    const member  = newState.member || oldState.member;
     if (!member) return;
-    const isStaff = staffRoleIds.some(rid =>
-      rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
-      && member.roles.cache.has(rid)
-    );
-    if (!isStaff) return;
 
     const guildId = newState.guild?.id || oldState.guild?.id;
-    if (guildId !== GUILD_ID) return;
+
+    const isStaff = guildId === STAFF_GUILD_ID &&
+      staffRoleIds.some(rid =>
+        rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
+        && member.roles.cache.has(rid)
+      );
 
     if (!oldState.channelId && newState.channelId) {
       // Sese girdi
-      voiceSessions.set(userId, { joinedAt: Date.now() });
+      voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
+      if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
     } else if (oldState.channelId && !newState.channelId) {
       // Sesten çıktı
       const session = voiceSessions.get(userId);
-      if (session) {
-        const minutes = Math.floor((Date.now() - session.joinedAt) / 60000);
-        voiceSessions.delete(userId);
-        if (minutes > 0) {
-          const { addVoiceMinutes } = require("../services/staffSystem");
-          await addVoiceMinutes(userId, minutes, client).catch(() => {});
-          console.log(`[staffSystem] ${userId} → ${minutes} dk ses`);
+      voiceSessions.delete(userId);
+
+      const minutes = session ? Math.floor((Date.now() - session.joinedAt) / 60000) : 0;
+
+      // Personel ses takibi
+      if (isStaff && minutes > 0) {
+        const { addVoiceMinutes } = require("../services/staffSystem");
+        await addVoiceMinutes(userId, minutes, client).catch(() => {});
+      }
+
+      // Kurbağa ses XP
+      if (guildId === FROG_GUILD_ID) {
+        const frogMins = onVoiceLeave(userId);
+        if (frogMins > 0) {
+          await addVoiceXP(userId, frogMins, client).catch(() => {});
         }
       }
     }
@@ -110,6 +119,14 @@ function initializeDiscordHandlers(client) {
     }
 
     if (message.author.bot || !message.guild) return;
+
+    // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) ───────────────────────────
+    try {
+      const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");
+      if (message.guild.id === FROG_GUILD_ID) {
+        await addMessageXP(message.member, client).catch(() => {});
+      }
+    } catch (_) {}
 
     // ── Personel selam takibi ──────────────────────────────────────────────
     try {
