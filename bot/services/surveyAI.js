@@ -264,21 +264,32 @@ async function finalizeSurvey(user, survey, client) {
     if (guild) {
       const member = await guild.members.fetch(user.id).catch(() => null);
       if (member) {
-        const channels = guild.channels.cache.filter(c => c.isTextBased?.());
+        // Kanalları fetch et (cache boş olabilir)
+        await guild.channels.fetch().catch(() => {});
+
+        const channels = guild.channels.cache.filter(c =>
+          c.isTextBased?.() &&
+          c.permissionOverwrites != null &&
+          typeof c.permissionOverwrites.edit === 'function'
+        );
+
+        let successCount = 0;
         for (const [, ch] of channels) {
-          if (isFirstSurvey) {
-            // 1. anket → resim gönderme yetkisi
-            await ch.permissionOverwrites.edit(user.id, {
-              [PermissionFlagsBits.AttachFiles]: true,
-            }).catch(() => {});
-          } else {
-            // 2. anket ve sonrası → tepki verme yetkisi
-            await ch.permissionOverwrites.edit(user.id, {
-              [PermissionFlagsBits.AddReactions]: true,
-            }).catch(() => {});
-          }
+          try {
+            if (isFirstSurvey) {
+              await ch.permissionOverwrites.edit(user.id, {
+                [PermissionFlagsBits.AttachFiles]: true,
+              });
+            } else {
+              await ch.permissionOverwrites.edit(user.id, {
+                [PermissionFlagsBits.AddReactions]: true,
+              });
+            }
+            successCount++;
+          } catch (_) {}
         }
-        console.log(`[surveyAI] ${user.tag} → yetki verildi (${isFirstSurvey ? 'AttachFiles' : 'AddReactions'}), tamamlama: ${newCount}`);
+
+        console.log(`[surveyAI] ${user.tag} → ${isFirstSurvey ? 'AttachFiles' : 'AddReactions'} yetkisi ${successCount} kanala verildi`);
       }
     }
   } catch (err) {
