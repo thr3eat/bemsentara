@@ -477,10 +477,28 @@ async function handleDMCloseButton(interaction, client) {
   } catch (_) {}
 
   // 5 dakika sonra kanalı sil
+  const channelToDelete = interaction.channel;
+  const channelId = channelToDelete.id;
+  const guildId   = channelToDelete.guild?.id;
+
   setTimeout(async () => {
     try {
-      await interaction.channel.delete('DM Ticket kapatıldı');
-    } catch (_) {}
+      // Kanalı yeniden fetch et (restart veya cache sıfırlamasına karşı)
+      if (guildId) {
+        const guild = await client.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const ch = await guild.channels.fetch(channelId).catch(() => null);
+          if (ch) {
+            await ch.delete('DM Ticket kapatıldı — 5 dk sonra silindi');
+            console.log(`[dmTicket] Kanal silindi: ${channelId}`);
+          }
+        }
+      } else {
+        await channelToDelete.delete('DM Ticket kapatıldı').catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[dmTicket] Kanal silinemedi:', err.message);
+    }
   }, 5 * 60 * 1000);
 
   return true;
