@@ -414,13 +414,8 @@ async function createDMTicket(user, summary, history, client) {
 
   console.log(`[dmTicket] ${user.tag} → DM ticket: ${ticketId}`);
 
-  // Ticket AI'yı başlat (ban/reklam/genel destek akışı için)
-  try {
-    const { startAIConversation } = require('./ticketAI');
-    await startAIConversation(createdChannel, ticket, client);
-  } catch (err) {
-    console.warn('[dmTicket] AI başlatılamadı:', err.message);
-  }
+  // ── Ticket AI devre dışı ─────────────────────────────────────────────────
+  // (Ticket AI kaldırıldı)
 }
 
 // ── DM → Kanal iletimi ──────────────────────────────────────────────────────

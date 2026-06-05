@@ -217,14 +217,8 @@ function initializeDiscordHandlers(client) {
       }
     }
 
-    // ── Ticket AI: kullanıcı mesajını işle ──────────────────────────────────
-    try {
-      const { handleUserMessage } = require('../services/ticketAI');
-      const handled = await handleUserMessage(message, client);
-      if (handled) return;
-    } catch (aiErr) {
-      console.warn('[messageCreate] AI handler hata:', aiErr.message);
-    }
+    // ── Ticket AI devre dışı ────────────────────────────────────────────────
+    // (Ticket kanallarında AI konuşması kaldırıldı)
 
     // ── Ticket inaktivite uyarısını iptal et (kullanıcı yazdı) ───────────────
     try {

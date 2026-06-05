@@ -219,13 +219,8 @@ async function handleSupportModal(interaction) {
     const closeButton = buildCloseButton(ticketId);
     await ticketChannel.send({ embeds: [ticketEmbed], components: [closeButton] });
 
-    // ── AI karşılama konuşmasını başlat ──────────────────────────────────
-    try {
-      const { startAIConversation } = require('../services/ticketAI');
-      await startAIConversation(ticketChannel, ticket, interaction.client);
-    } catch (aiErr) {
-      console.warn('[modal] AI başlatılamadı:', aiErr.message);
-    }
+    // ── AI karşılama devre dışı ───────────────────────────────────────────
+    // (Ticket AI kaldırıldı)
 
     const { logTicketCreated } = require("../services/ticketLog");
     logTicketCreated(ticket, {
