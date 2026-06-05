@@ -193,71 +193,67 @@ async function processInactivityCheck(ticket, client, warnCutoff) {
       console.warn(`[ticketCleanup] DM process error for ${ticket.userId}:`, dmErr.message);
     }
 
-        // Kanala da bildirim
-        await channel.send(
-          `<@${ticket.userId}> ⏰ 1 saattir yanıt bekleniyor. **5 dakika içinde yanıt gelmezse ticket kapatılacak.**`
+    // Kanala da bildirim
+    await channel.send(
+      `<@${ticket.userId}> ⏰ 1 saattir yanıt bekleniyor. **5 dakika içinde yanıt gelmezse ticket kapatılacak.**`
+    ).catch(() => {});
+
+    // 5 dakika sonra kapat
+    const closeHandle = setTimeout(async () => {
+      inactivityWarnings.delete(ticket.ticketId);
+
+      // Hâlâ açık mı kontrol et
+      const fresh = await Ticket.findOne({ ticketId: ticket.ticketId }).catch(() => null);
+      if (!fresh || fresh.status !== "open") return;
+
+      // Son mesaj hâlâ yetkiliden mi?
+      try {
+        const ch = await guild.channels.fetch(ticket.channelId).catch(() => null);
+        if (ch?.isTextBased()) {
+          const msgs = await ch.messages.fetch({ limit: 3 }).catch(() => null);
+          if (msgs) {
+            const last = msgs.first();
+            if (last && last.author.id === ticket.userId) return; // Kullanıcı cevap verdi
+          }
+        }
+      } catch (_) {}
+
+      // Ticket'ı kapat
+      fresh.status = "closed";
+      fresh.closedAt = new Date();
+      fresh.closeReason = "İnaktivite — kullanıcı 1 saat yanıt vermedi";
+      fresh.closedBy = "system";
+      fresh.closedByName = "Sistem";
+      await fresh.save();
+
+      // Kullanıcıya DM
+      try {
+        const user2 = await client.users.fetch(ticket.userId);
+        await user2.send(
+          `🔒 **Ticket'ınız Kapatıldı — ${ticket.ticketId}**\n\n` +
+          `5 dakika içinde yanıt vermediğiniz için ticket otomatik kapatıldı.\n` +
+          `İstediğiniz zaman yeni bir destek talebi açabilirsiniz.`
         ).catch(() => {});
+      } catch (_) {}
 
-        // 5 dakika sonra kapat
-        const closeHandle = setTimeout(async () => {
-          inactivityWarnings.delete(ticket.ticketId);
+      // Kanala bildirim + 5dk sonra sil
+      try {
+        const ch = await guild.channels.fetch(ticket.channelId).catch(() => null);
+        if (ch) {
+          await ch.send("🔒 Ticket inaktivite nedeniyle kapatıldı. Kanal 5 dakika içinde silinecek.").catch(() => {});
+          await ch.permissionOverwrites.edit(ticket.userId, { ViewChannel: false, SendMessages: false }).catch(() => {});
+        }
+      } catch (_) {}
 
-          // Hâlâ açık mı kontrol et
-          const fresh = await Ticket.findOne({ ticketId: ticket.ticketId }).catch(() => null);
-          if (!fresh || fresh.status !== "open") return;
+      scheduleTicketDeletion(ticket.ticketId);
+      console.log(`[ticketCleanup] ${ticket.ticketId} → inaktivite ile kapatıldı`);
 
-          // Son mesaj hâlâ yetkiliden mi?
-          try {
-            const ch = await guild.channels.fetch(ticket.channelId).catch(() => null);
-            if (ch?.isTextBased()) {
-              const msgs = await ch.messages.fetch({ limit: 3 }).catch(() => null);
-              if (msgs) {
-                const last = msgs.first();
-                if (last && last.author.id === ticket.userId) return; // Kullanıcı cevap verdi
-              }
-            }
-          } catch (_) {}
+    }, INACTIVITY_CLOSE_MS);
 
-          // Ticket'ı kapat
-          fresh.status = "closed";
-          fresh.closedAt = new Date();
-          fresh.closeReason = "İnaktivite — kullanıcı 1 saat yanıt vermedi";
-          fresh.closedBy = "system";
-          fresh.closedByName = "Sistem";
-          await fresh.save();
+    inactivityWarnings.set(ticket.ticketId, { warnedAt: new Date(), closeHandle });
 
-          // Kullanıcıya DM
-          try {
-            const user2 = await client.users.fetch(ticket.userId);
-            await user2.send(
-              `🔒 **Ticket'ınız Kapatıldı — ${ticket.ticketId}**\n\n` +
-              `5 dakika içinde yanıt vermediğiniz için ticket otomatik kapatıldı.\n` +
-              `İstediğiniz zaman yeni bir destek talebi açabilirsiniz.`
-            ).catch(() => {});
-          } catch (_) {}
-
-          // Kanala bildirim + 5dk sonra sil
-          try {
-            const ch = await guild.channels.fetch(ticket.channelId).catch(() => null);
-            if (ch) {
-              await ch.send("🔒 Ticket inaktivite nedeniyle kapatıldı. Kanal 5 dakika içinde silinecek.").catch(() => {});
-              await ch.permissionOverwrites.edit(ticket.userId, { ViewChannel: false, SendMessages: false }).catch(() => {});
-            }
-          } catch (_) {}
-
-          scheduleTicketDeletion(ticket.ticketId);
-          console.log(`[ticketCleanup] ${ticket.ticketId} → inaktivite ile kapatıldı`);
-
-        }, INACTIVITY_CLOSE_MS);
-
-        inactivityWarnings.set(ticket.ticketId, { warnedAt: new Date(), closeHandle });
-
-      } catch (err) {
-        console.warn(`[ticketCleanup] inaktivite kontrol hatası (${ticket.ticketId}):`, err.message);
-      }
-    }
   } catch (err) {
-    console.warn("[ticketCleanup] runInactivityCheck hata:", err.message);
+    console.warn(`[ticketCleanup] inaktivite kontrol hatası (${ticket.ticketId}):`, err.message);
   }
 }
 

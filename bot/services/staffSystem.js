@@ -257,12 +257,15 @@ async function recordWeeklyReport(userId, client) {
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
-  await checkPromotion(p, client);
+    await checkPromotion(p, client).catch(err => {
+      console.error('[staffSystem] checkPromotion failed:', err.message);
+    });
+  } catch (err) {
+    console.error('[staffSystem] recordWeeklyReport error:', err.message);
+  }
 }
 
-  catch (err) {
-    console.error('[staffSystem] recordWeeklyReport error:', err.message);
-  }function checkDailyCompletion(progress, client) {
+async function checkDailyCompletion(progress, client) {
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const greetDone = progress.daily.greeted;
   const voiceDone = progress.daily.voiceMinutes >= req.voiceMinutes;
