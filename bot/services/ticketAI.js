@@ -233,8 +233,15 @@ async function handleUserMessage(message, client) {
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
 
-  // ── ADIM 2: Mesajı yazan kişi kontrol et ────────────────────────────────
+  // ── ADIM 1.5: Eğer ticket duraklatıldıysa, sadece orijinal user yazabilir ──
   const isOriginalUser = message.author.id === info.userId;
+  if (info.pausedAt && !isOriginalUser) {
+    // Moderatör yazarsa ve ticket duraklatılmışsa, hiçbir şey yapma
+    console.log(`[ticketAI] Ticket duraklatılmış (pausedAt: ${info.pausedAt}), non-original user: ${message.author.username}`);
+    return false;
+  }
+
+  // ── ADIM 2: Mesajı yazan kişi kontrol et ────────────────────────────────
 
   if (!isOriginalUser) {
     // Orijinal kullanıcı değil → Başka birisi yazıyor
@@ -294,6 +301,9 @@ async function handleUserMessage(message, client) {
         await ticket.save().catch(() => {});
       }
 
+      // ✅ PAUSEDAT FLAG'I SET ET - bunu önemli!
+      info.pausedAt = new Date();
+
       // Konuşma geçmişini temizle
       conversationHistory.delete(matchedId);
       conversationHistory.set(matchedId, []);
@@ -313,7 +323,7 @@ async function handleUserMessage(message, client) {
           .setTimestamp()],
       }).catch(() => {});
 
-      console.log(`[ticketAI] Moderator (${message.author.username}) yazıyor - AI duraklatıldı`);
+      console.log(`[ticketAI] Moderator (${message.author.username}) yazıyor - AI duraklatıldı (pausedAt set)`);
       return true;  // ← BU ÖNEMLİ: Handler'ı duraklat
     } else {
       // Moderatör değilse, başka birisi
@@ -325,6 +335,12 @@ async function handleUserMessage(message, client) {
   // ── ADIM 3: Orijinal kullanıcı mesaj attı → Normal işleme ───────────────
   resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
+
+  // ✅ Eğer ticket duraklatıldıysa ve orijinal user yazarsa, resume et
+  if (info.pausedAt) {
+    console.log(`[ticketAI] Ticket resume edildi (pausedAt temizlendi)`);
+    info.pausedAt = null;
+  }
 
   // Resim/dosya → kanıt kanalına gönder
   const attachments = [...message.attachments.values()];
