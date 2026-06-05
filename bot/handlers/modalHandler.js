@@ -38,7 +38,11 @@ async function handleModalSubmit(interaction) {
       await handleRemoveSubscriberModal(interaction, interaction.client);
     } catch (err) {
       console.error('[photoVerification] Modal hata:', err.message);
-      return interaction.reply({ content: '❌ Bir hata oluştu.', ephemeral: true });
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+        }
+      } catch (_) {}
     }
   }
 

@@ -69,24 +69,6 @@ async function handlePhotoUpload(message, client) {
     // Orijinal mesajı sil (temizlik)
     await message.delete().catch(() => {});
 
-    // Üyeyi bilgilendir
-    try {
-      await message.author.send({
-        embeds: [new EmbedBuilder()
-          .setColor(0x3b82f6)
-          .setTitle('📋 Abone Kontrolü')
-          .setDescription(
-            `Selamlar **${message.author.username}**! 👋\n\n` +
-            `Paylaştığın fotoğraf moderatör ekibimiz tarafından gözden geçirilecek.\n\n` +
-            `Eğer gerçekten kanala abone değilsen, abone rolün alınacak.\n` +
-            `Lütfen bekleme...`
-          )
-          .setFooter({ text: 'Eko Yıldız • Abone Sistemi' })
-          .setTimestamp()
-        ]
-      }).catch(() => {});
-    } catch (_) {}
-
     return true;
   } catch (err) {
     console.error('[photoVerification] handlePhotoUpload hata:', err.message);
@@ -97,14 +79,41 @@ async function handlePhotoUpload(message, client) {
 // Button: "Hayır Abone Değil" tıklandığında
 async function handleNoSubscriberButton(interaction, client) {
   try {
-    const userId = interaction.customId.split('_').pop();
-    
-    if (userId !== interaction.user.id && !interaction.member?.permissions.has('ManageMembers')) {
+    // ── MODERATÖR KONTROLÜ ──────────────────────────────────────────────────
+    let isModerator = false;
+    try {
+      if (interaction.member?.permissions?.has('ManageMembers')) {
+        isModerator = true;
+      } else if (interaction.member?.permissions?.has('ManageMessages')) {
+        isModerator = true;
+      } else if (interaction.member?.permissions?.has('ManageChannels')) {
+        isModerator = true;
+      }
+    } catch (_) {
+      // Member partial olabilir, bunun yerine guild'den çek
+      const guild = await client.guilds.fetch(GUILD2_ID).catch(() => null);
+      if (guild) {
+        try {
+          const freshMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+          if (freshMember) {
+            if (freshMember.permissions?.has('ManageMembers') || 
+                freshMember.permissions?.has('ManageMessages') ||
+                freshMember.permissions?.has('ManageChannels')) {
+              isModerator = true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!isModerator) {
       return interaction.reply({
         content: '❌ Bu işlemi sadece moderatörler yapabilir!',
         ephemeral: true,
       });
     }
+
+    const userId = interaction.customId.split('_').pop();
 
     // Modal aç: "Neden?"
     const modal = new ModalBuilder()
@@ -126,6 +135,12 @@ async function handleNoSubscriberButton(interaction, client) {
     await interaction.showModal(modal);
   } catch (err) {
     console.error('[photoVerification] handleNoSubscriberButton hata:', err.message);
+    try {
+      await interaction.reply({
+        content: `❌ Hata: ${err.message}`,
+        ephemeral: true,
+      });
+    } catch (_) {}
   }
 }
 
@@ -136,18 +151,18 @@ async function handleRemoveSubscriberModal(interaction, client) {
     const reason = interaction.fields.getTextInputValue('reason');
     const moderatorId = interaction.user.id;
 
-    // ── ABONE ROLüNü KALDIR ────────────────────────────────────────────────
-    const guild = await client.guilds.fetch(GUILD2_ID);
-    const member = await guild.members.fetch(userId).catch(() => null);
-
-    if (!member) {
-      return interaction.reply({
-        content: '❌ Üye bulunamadı!',
-        ephemeral: true,
-      });
+    // ── GUILD VE MEMBER FETCH ET ────────────────────────────────────────────
+    const guild = await client.guilds.fetch(GUILD2_ID).catch(() => null);
+    if (!guild) {
+      throw new Error('Guild bulunamadı');
     }
 
-    // Rolü kaldır
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) {
+      throw new Error('Üye bulunamadı');
+    }
+
+    // ── ABONE ROLüNü KALDIR ────────────────────────────────────────────────
     await member.roles.remove(SUBSCRIBER_ROLE_ID).catch(err => {
       console.warn('[photoVerification] Rol kaldırma hatası:', err.message);
     });
@@ -156,25 +171,9 @@ async function handleRemoveSubscriberModal(interaction, client) {
     try {
       const { recordTicketSolved } = require('./staffSystem');
       await recordTicketSolved(moderatorId, client).catch(() => {});
-    } catch (_) {}
-
-    // ── ÜYEYE DM GÖNDERİSİ ───────────────────────────────────────────────
-    try {
-      const moderator = await client.users.fetch(moderatorId);
-      const dmEmbed = new EmbedBuilder()
-        .setColor(0xff6b6b)
-        .setTitle('⛔ Abone Rolünüz Alındı')
-        .setDescription(
-          `Merhaba **${member.user.username}**!\n\n` +
-          `Moderatör **${moderator.username}** tarafından abone rolünüz alındı.\n\n` +
-          `**Sebep:** ${reason}\n\n` +
-          `Eğer itiraz etmek istersen, destek talebi aç ve bize ulaş! 📞`
-        )
-        .setFooter({ text: 'Eko Yıldız • Abone Sistemi' })
-        .setTimestamp();
-
-      await member.user.send({ embeds: [dmEmbed] }).catch(() => {});
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[photoVerification] recordTicketSolved hatası:', e.message);
+    }
 
     // ── MODERATÖRü ONAYLA ──────────────────────────────────────────────────
     const confirmEmbed = new EmbedBuilder()
@@ -193,7 +192,7 @@ async function handleRemoveSubscriberModal(interaction, client) {
       ephemeral: false,
     });
 
-    // Moderatöre ödül DM'i
+    // ── MODERATÖRE ÖDÜL DM'İ ───────────────────────────────────────────────
     try {
       const moderatorUser = await client.users.fetch(moderatorId);
       const rewardEmbed = new EmbedBuilder()
@@ -207,13 +206,21 @@ async function handleRemoveSubscriberModal(interaction, client) {
         .setTimestamp();
 
       await moderatorUser.send({ embeds: [rewardEmbed] }).catch(() => {});
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[photoVerification] Moderator DM hatası:', e.message);
+    }
   } catch (err) {
-    console.error('[photoVerification] handleRemoveSubscriberModal hata:', err.message);
-    await interaction.reply({
-      content: '❌ Bir hata oluştu. Lütfen daha sonra tekrar dene.',
-      ephemeral: true,
-    });
+    console.error('[photoVerification] handleRemoveSubscriberModal hata:', err.message, err.stack);
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: `❌ Hata: ${err.message}`,
+          ephemeral: true,
+        });
+      }
+    } catch (replyErr) {
+      console.error('[photoVerification] Reply hata:', replyErr.message);
+    }
   }
 }
 
