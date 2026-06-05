@@ -1188,10 +1188,12 @@ function cleanupTicketAI(ticketId) {
   clearInactivityTimer(ticketId);
   activeAITickets.delete(ticketId);
   conversationHistory.delete(ticketId);
+  inactivityTimers.delete(ticketId);
   pendingBanRequests.delete(ticketId);
   pendingAdRequests.delete(ticketId);
   pendingAdEvidence.delete(ticketId);
   pendingWarnRequests.delete(ticketId);
+  console.log(`[ticketAI] Cleaned up ticket ${ticketId} from all Maps`);
 }
 
 module.exports = {
