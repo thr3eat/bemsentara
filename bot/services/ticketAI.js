@@ -238,21 +238,55 @@ async function handleUserMessage(message, client) {
 
   if (!isOriginalUser) {
     // Orijinal kullanıcı değil → Başka birisi yazıyor
-    const isModerator = message.member?.permissions.has('ManageMessages') ||
-                        message.member?.permissions.has('ModerateMembers') ||
-                        message.member?.roles.cache.some(r => 
-                          r.name.toLowerCase().includes('personel') || 
-                          r.name.toLowerCase().includes('moderatör') ||
-                          r.name.toLowerCase().includes('sekreter') ||
-                          r.name.toLowerCase().includes('yönetici') ||
-                          r.name.toLowerCase().includes('yetkili')
-                        );
+    // ── MODERATÖRLERİ DETECT ET ──────────────────────────────────────────
+    let isModerator = false;
 
-    if (isModerator || message.member?.permissions.has('ManageChannels')) {
-      // ── MODERATÖR DURACAĞI: Ticket'ı DB'de işaretle, AI duraklasın ──────
+    try {
+      // 1. Discord izni ile kontrol (en güvenilir)
+      if (message.member?.permissions.has('ManageMessages') ||
+          message.member?.permissions.has('ModerateMembers') ||
+          message.member?.permissions.has('ManageChannels')) {
+        isModerator = true;
+      }
+
+      // 2. Staff roller ile kontrol (stajyer ve üstü)
+      if (!isModerator) {
+        const STAFF_ROLES = {
+          1: process.env.ROLE_STAJYER  || '1475082184896548864',
+          2: process.env.ROLE_PERSONEL || '1417530761774366821',
+          3: process.env.ROLE_GELISMIS || '1417533740892291214',
+          4: process.env.ROLE_SEKRETER || '1419688146689593415',
+        };
+        
+        for (const roleId of Object.values(STAFF_ROLES)) {
+          if (roleId && message.member?.roles.cache.has(roleId)) {
+            isModerator = true;
+            break;
+          }
+        }
+      }
+
+      // 3. Role adı ile kontrol (alternatif)
+      if (!isModerator) {
+        isModerator = message.member?.roles.cache.some(r => {
+          const name = r.name.toLowerCase();
+          return name.includes('personel') || 
+                 name.includes('moderatör') ||
+                 name.includes('sekreter') ||
+                 name.includes('yönetici') ||
+                 name.includes('yetkili') ||
+                 name.includes('admin');
+        });
+      }
+    } catch (e) {
+      console.warn('[ticketAI] Moderator detection hata:', e.message);
+    }
+
+    if (isModerator) {
+      // ── MODERATÖR DURACAĞI: AI sadece orijinal user'a cevap versin ──────
       clearInactivityTimer(matchedId);
 
-      // Ticket'ı DB'de işaretle (claimedBy moderatörün ID'si, ama userId değişme)
+      // Ticket'ı DB'de işaretle
       if (ticket) {
         ticket.claimedBy = message.author.id;
         ticket.claimedByName = message.author.username;
@@ -260,11 +294,11 @@ async function handleUserMessage(message, client) {
         await ticket.save().catch(() => {});
       }
 
-      // ⚠️ memory'de userId DEĞİŞTİRME - sadece temizle
+      // Konuşma geçmişini temizle
       conversationHistory.delete(matchedId);
       conversationHistory.set(matchedId, []);
 
-      // ── Moderatörü bilgilendir (orjinal user'a AI cevap vermeyecek) ──────
+      // ── Moderatörü bilgilendir ─────────────────────────────────────────
       await message.channel.send({
         embeds: [new EmbedBuilder()
           .setColor(0xfbbf24)
@@ -273,15 +307,17 @@ async function handleUserMessage(message, client) {
             `**⏸️ Duraklatıldı**\n\n` +
             `Merhaba **${message.author.username}**! 👋\n\n` +
             `Sen bu ticketi ele aldığın için AI şimdi sadece **orijinal kullanıcı**'nın mesajlarına cevap verecek.\n\n` +
-            `Moderatör olarak sorun çözmek için yardımcı ol! 💪`
+            `Lütfen sorunu çözmek için yardımcı ol! 💪`
           )
           .setFooter({ text: 'AI Duraklatıldı • Sadece Ticket Sahibi AI ile Konuşabilir' })
           .setTimestamp()],
       }).catch(() => {});
 
-      return true;
+      console.log(`[ticketAI] Moderator (${message.author.username}) yazıyor - AI duraklatıldı`);
+      return true;  // ← BU ÖNEMLİ: Handler'ı duraklat
     } else {
-      // Moderatör değilse, random kullanıcı mesajına cevap verme
+      // Moderatör değilse, başka birisi
+      console.log(`[ticketAI] Random user (${message.author.username}) ticket'ta yazıyor - AI cevap vermeyecek`);
       return false;
     }
   }
