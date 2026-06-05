@@ -64,7 +64,9 @@ KURALLAR:
 - [BAN_ONAY] = Ban uygula + ticket oto-kapan.
 - [REKLAM_ONAY] = Reklam akışı başlat.
 - [WARN_ONAY] = Uyarı/mute uygula + ticket oto-kapan.
-- Asla köşeli parantez başka şey için kullanma.`;
+- Asla köşeli parantez başka şey için kullanma.
+
+DESTEK TALEBİ YAZDIKTAN SONRA DEVAM ETME`;
 
 // Yeni: WARN/MUTE akışı
 function isReady(t)   { return /\[HAZIR\]/i.test(t); }
@@ -235,26 +237,19 @@ async function handleUserMessage(message, client) {
   const info = activeAITickets.get(matchedId);
   if (!ticket) ticket = await Ticket.findOne({ ticketId: matchedId });
 
-  // ── ADIM 1: Orijinal kullanıcı mı kontrol et ────────────────────────────
-  const isOriginalUser = message.author.id === info.userId;
-
-  // ── ADIM 1.5: Duraklatma kontrolü — turns/history'den ÖNCE yapılmalı ────
-  // pausedAt set edilmişse, HİÇ KİMSE AI'ı tetikleyemez (kullanıcı da dahil)
-  if (info.pausedAt) {
-    if (!isOriginalUser) {
-      console.log(`[ticketAI] Ticket duraklatılmış, moderatör/3. kişi engellendi: ${message.author.username}`);
-    } else {
-      console.log(`[ticketAI] Ticket duraklatılmış, kullanıcı mesajına AI cevap vermiyor (yetkili ticketi aldı)`);
-    }
-    return false; // AI cevap vermez, başka handler'lar (yetkili sistemi vb.) devralabilir
+  // ── DURAKLATMA: DB'den de kontrol et (restart-safe) ─────────────────────
+  // Ticket claim edilmişse veya memory'de pausedAt varsa → AI tamamen susturulur
+  const isPaused = info.pausedAt || ticket?.claimedBy;
+  if (isPaused) {
+    console.log(`[ticketAI] AI duraklatılmış, cevap verilmiyor. Kanal: ${channelId}, Yazar: ${message.author.username}`);
+    return false;
   }
+
+  // ── Orijinal kullanıcı mı kontrol et ────────────────────────────────────
+  const isOriginalUser = message.author.id === info.userId;
 
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
-
-  // ── ADIM 2: Mesajı yazan kişi kontrol et ────────────────────────────────
-
-  if (!isOriginalUser) {
     // Orijinal kullanıcı değil → Başka birisi yazıyor
     // ── MODERATÖRLERİ DETECT ET ──────────────────────────────────────────
     let isModerator = false;
@@ -300,54 +295,92 @@ async function handleUserMessage(message, client) {
       console.warn('[ticketAI] Moderator detection hata:', e.message);
     }
 
-    if (isModerator) {
-      // ── MODERATÖR DURACAĞI: AI sadece orijinal user'a cevap versin ──────
+  // ── Mesajı yazan kişi kontrol et ────────────────────────────────────────
+  if (!isOriginalUser) {
+    // Orijinal kullanıcı değil → Moderatör mü kontrol et
+    let isModerator = false;
 
-      // Eğer zaten duraklatıldıysa tekrar mesaj gönderme
-      if (info.pausedAt) {
-        console.log(`[ticketAI] Zaten duraklatılmış, moderatör mesajı sessizce geçiriliyor: ${message.author.username}`);
-        return true;
+    try {
+      // 1. Discord izni ile kontrol (en güvenilir)
+      if (message.member?.permissions.has('ManageMessages') ||
+          message.member?.permissions.has('ModerateMembers') ||
+          message.member?.permissions.has('ManageChannels')) {
+        isModerator = true;
       }
 
+      // 2. Staff roller ile kontrol
+      if (!isModerator) {
+        const STAFF_ROLES = {
+          1: process.env.ROLE_STAJYER  || '1475082184896548864',
+          2: process.env.ROLE_PERSONEL || '1417530761774366821',
+          3: process.env.ROLE_GELISMIS || '1417533740892291214',
+          4: process.env.ROLE_SEKRETER || '1419688146689593415',
+        };
+        for (const roleId of Object.values(STAFF_ROLES)) {
+          if (roleId && message.member?.roles.cache.has(roleId)) {
+            isModerator = true;
+            break;
+          }
+        }
+      }
+
+      // 3. Role adı ile kontrol (alternatif)
+      if (!isModerator) {
+        isModerator = message.member?.roles.cache.some(r => {
+          const name = r.name.toLowerCase();
+          return name.includes('personel') ||
+                 name.includes('moderatör') ||
+                 name.includes('sekreter') ||
+                 name.includes('yönetici') ||
+                 name.includes('yetkili') ||
+                 name.includes('admin');
+        });
+      }
+    } catch (e) {
+      console.warn('[ticketAI] Moderator detection hata:', e.message);
+    }
+
+    if (isModerator) {
+      // ── Moderatör ilk kez yazıyor: duraklatma başlat ──────────────────
       clearInactivityTimer(matchedId);
 
-      // Ticket'ı DB'de işaretle
+      // Memory'de işaretle
+      info.pausedAt = new Date();
+
+      // DB'de kalıcı olarak işaretle (restart-safe)
       if (ticket) {
-        ticket.claimedBy = message.author.id;
+        ticket.claimedBy     = message.author.id;
         ticket.claimedByName = message.author.username;
-        ticket.claimedAt = new Date();
+        ticket.claimedAt     = new Date();
         await ticket.save().catch(() => {});
       }
-
-      // ✅ PAUSEDAT FLAG'I SET ET
-      info.pausedAt = new Date();
 
       // Konuşma geçmişini temizle
       conversationHistory.delete(matchedId);
       conversationHistory.set(matchedId, []);
 
-      // ── Moderatörü bilgilendir ─────────────────────────────────────────
+      // Kanala bildirim
       await message.channel.send({
         embeds: [new EmbedBuilder()
           .setColor(0xfbbf24)
           .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
           .setDescription(
-            `**⏸️ Duraklatıldı**\n\n` +
+            `**⏸️ AI Duraklatıldı**\n\n` +
             `Merhaba **${message.author.username}**! 👋\n\n` +
-            `Sen bu ticketi ele aldığın için AI şimdi sadece **orijinal kullanıcı**'nın mesajlarına cevap verecek.\n\n` +
-            `Lütfen sorunu çözmek için yardımcı ol! 💪`
+            `Ticketi sen ele aldığın için AI artık **tamamen sessiz**.\n` +
+            `Kullanıcıyla kendin ilgilenebilirsin. 💪`
           )
-          .setFooter({ text: 'AI Duraklatıldı • Sadece Ticket Sahibi AI ile Konuşabilir' })
+          .setFooter({ text: 'AI Durduruldu • Yetkili Devreye Girdi' })
           .setTimestamp()],
       }).catch(() => {});
 
-      console.log(`[ticketAI] Moderator (${message.author.username}) yazıyor - AI duraklatıldı (pausedAt set)`);
+      console.log(`[ticketAI] Moderatör devreye girdi (${message.author.username}) — AI kalıcı olarak durduruldu`);
       return true;
-    } else {
-      // Moderatör değilse, başka birisi
-      console.log(`[ticketAI] Random user (${message.author.username}) ticket'ta yazıyor - AI cevap vermeyecek`);
-      return false;
     }
+
+    // Moderatör değil, 3. kişi → sessiz geç
+    console.log(`[ticketAI] 3. kişi (${message.author.username}) ticket'ta yazıyor — AI cevap vermeyecek`);
+    return false;
   }
 
   // ── ADIM 3: Orijinal kullanıcı mesaj attı → Normal işleme ───────────────
