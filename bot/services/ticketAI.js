@@ -239,10 +239,14 @@ async function handleUserMessage(message, client) {
   const isOriginalUser = message.author.id === info.userId;
 
   // ── ADIM 1.5: Duraklatma kontrolü — turns/history'den ÖNCE yapılmalı ────
-  // pausedAt set edilmişse, orijinal olmayan kullanıcılar TAMAMEN engellenir
-  if (info.pausedAt && !isOriginalUser) {
-    console.log(`[ticketAI] Ticket duraklatılmış (pausedAt: ${info.pausedAt}), engellendi: ${message.author.username}`);
-    return true; // true döndür: başka handler'ların da işlemesini engelle
+  // pausedAt set edilmişse, HİÇ KİMSE AI'ı tetikleyemez (kullanıcı da dahil)
+  if (info.pausedAt) {
+    if (!isOriginalUser) {
+      console.log(`[ticketAI] Ticket duraklatılmış, moderatör/3. kişi engellendi: ${message.author.username}`);
+    } else {
+      console.log(`[ticketAI] Ticket duraklatılmış, kullanıcı mesajına AI cevap vermiyor (yetkili ticketi aldı)`);
+    }
+    return false; // AI cevap vermez, başka handler'lar (yetkili sistemi vb.) devralabilir
   }
 
   const history = conversationHistory.get(matchedId);
@@ -349,12 +353,6 @@ async function handleUserMessage(message, client) {
   // ── ADIM 3: Orijinal kullanıcı mesaj attı → Normal işleme ───────────────
   resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
-
-  // ✅ Eğer ticket duraklatıldıysa ve orijinal user yazarsa, resume et
-  if (info.pausedAt) {
-    console.log(`[ticketAI] Ticket resume edildi (pausedAt temizlendi)`);
-    info.pausedAt = null;
-  }
 
   // Resim/dosya → kanıt kanalına gönder
   const attachments = [...message.attachments.values()];
