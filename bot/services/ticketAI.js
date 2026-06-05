@@ -220,6 +220,36 @@ async function handleUserMessage(message, client) {
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
 
+  // ── MODERATÖRler ticket kanalına yazabilir ──────────────────────────────────
+  // Eğer moderatör mesaj atarsa, AI "moderatör ayırıldı" mesajı gönder
+  const isModerator = message.member?.permissions.has('ManageMessages') ||
+                      message.member?.permissions.has('ModerateMembers') ||
+                      message.member?.roles.cache.some(r => 
+                        r.name.toLowerCase().includes('personel') || 
+                        r.name.toLowerCase().includes('moderatör') ||
+                        r.name.toLowerCase().includes('sekreter') ||
+                        r.name.toLowerCase().includes('yönetici') ||
+                        r.name.toLowerCase().includes('yetkili')
+                      );
+
+  if (isModerator && message.author.id !== info.userId) {
+    // Moderatör devrimesi
+    clearInactivityTimer(matchedId);
+    await message.channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x7c6af7)
+        .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
+        .setDescription(
+          `**👮‍♂️ Moderatör Devrimesi!**\n\n` +
+          `Merhaba! Şu andan itibaren **${message.author.username}** adlı moderatör sorunda yardımcı olacak!\n\n` +
+          `Lütfen biraz bekleyin... Moderatör cevap verene kadar sabrınız için teşekkürler! ⏳`
+        )
+        .setFooter({ text: 'Sentara AI • Moderatör Sistemi' })
+        .setTimestamp()],
+    }).catch(() => {});
+    return true;
+  }
+
   resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
 
@@ -950,6 +980,41 @@ async function notifyStaff(channel, ticket, summary, client) {
   } catch (err) { console.error('[ticketAI] notifyStaff hata:', err.message); }
 }
 
+// ── Moderatöre "Aferin!" mesajı (sorun çözüldüğünde) ──────────────────────
+async function sendModerationPraise(moderatorId, ticket, client) {
+  try {
+    const { recordTicketSolved } = require('./staffSystem');
+    
+    // Moderatör'ün ticket çözmesini kaydet
+    await recordTicketSolved(moderatorId, client).catch(() => {});
+
+    const user = await client.users.fetch(moderatorId).catch(() => null);
+    if (!user) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x4ade80)
+      .setTitle('🎉 Aferin! Ticket Çözüldü!')
+      .setDescription(
+        `Harika iş çıkardın! Destek talebini başarıyla çözdün!\n\n` +
+        `**Ticket:** \`${ticket?.ticketId}\`\n` +
+        `**Kullanıcı:** ${ticket?.userName || 'Bilinmiyor'}\n\n` +
+        `Senin hakkındaki bilgi personel sistemde kaydedildi.\n` +
+        `Çözdüğün ticketlar sayın artıyor — terfi yolunda ilerli! 📈`
+      )
+      .addFields(
+        { name: '✨ Ödül', value: 'Ticket çözmek = Terfi puanı', inline: true },
+        { name: '📊 Seviye', value: 'Ticket sayını /personeldurum ile kontrol et', inline: true },
+      )
+      .setFooter({ text: 'Eko Yıldız • Moderatör Sistemi' })
+      .setTimestamp();
+
+    await user.send({ embeds: [embed] }).catch(() => {});
+    console.log(`[ticketAI] Moderatörün (${moderatorId}) "aferin" DM gönderildi`);
+  } catch (err) {
+    console.warn('[ticketAI] sendModerationPraise hata:', err.message);
+  }
+}
+
 async function fallbackNotify(channel, ticket) {
   await channel.send({
     embeds: [new EmbedBuilder()
@@ -1048,4 +1113,5 @@ module.exports = {
   handleAdLinkButton,
   handleAdLinkModal,
   cleanupTicketAI,
+  sendModerationPraise,
 };

@@ -10,7 +10,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { TARGET_GUILD_ID, TICKET_LOG_CHANNEL_ID } = require("../../config");
 const { getDiscordClient } = require("../discordClient");
-const CLEANUP_DELAY_MS    = 5 * 60 * 1000;   // 5 dakika
+const CLEANUP_DELAY_MS    = 2 * 60 * 1000;   // 2 dakika (eski: 5 dakika) — Kapalı ticketler hızlı silinsin
 const CHECK_INTERVAL_MS   = 30 * 1000;        // 30 saniyede bir kontrol
 const INACTIVITY_CHECK_MS = 5 * 60 * 1000;   // İnaktivite 5 dk'da bir kontrol
 const INACTIVITY_WARN_MS  = 60 * 60 * 1000;  // 1 saat cevap yok → uyar

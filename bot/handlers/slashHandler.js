@@ -83,6 +83,17 @@ async function handleSlashCommand(interaction) {
         source: "/closeticket komutu",
       });
 
+      // ── Moderatörse "aferin!" mesajı gönder ───────────────────────────────────
+      const isModerator = interaction.member?.permissions.has('ManageMessages') ||
+                          interaction.member?.permissions.has('ModerateMembers');
+      
+      if (isModerator && interaction.user.id !== ticket.userId) {
+        try {
+          const { sendModerationPraise } = require("../services/ticketAI");
+          await sendModerationPraise(interaction.user.id, ticket, interaction.client);
+        } catch (_) {}
+      }
+
       // Ticket sahibine DM gönder
       try {
         const { buildReopenAndRateRow } = require("../embeds");
@@ -113,7 +124,7 @@ async function handleSlashCommand(interaction) {
           .setTitle("🔒 Ticket Kapatıldı")
           .setDescription(
             `**Sebep:** ${reason}\n\n` +
-            `⏳ Bu kanal **5 dakika** içinde yeniden açılmazsa otomatik silinecektir.`
+            `⏳ Bu kanal **2 dakika** içinde yeniden açılmazsa otomatik silinecektir.`
           )
           .setColor(0xed4245)
           .setTimestamp();
@@ -124,7 +135,7 @@ async function handleSlashCommand(interaction) {
         });
       }
 
-      // 5 dakika sonra kanal silinmek üzere kuyruğa al
+      // 2 dakika sonra kanal silinmek üzere kuyruğa al
       const { scheduleTicketDeletion } = require("../services/ticketCleanup");
       scheduleTicketDeletion(ticket.ticketId);
 

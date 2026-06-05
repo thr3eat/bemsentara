@@ -42,6 +42,37 @@ async function handleSupportModal(interaction) {
   const subject = interaction.fields.getTextInputValue("support_subject");
   const description = interaction.fields.getTextInputValue("support_description");
 
+  // ── YENİ STAJYER GÜVENLİK ──────────────────────────────────────────────────
+  // Stajyer/yeni moderatörlerin abuse yapmasını engelle
+  try {
+    const { StaffProgress } = require('../services/staffSystem');
+    const StaffModel = require('../../models/StaffProgress');
+    
+    const staff = await StaffModel.findOne({ userId: interaction.user.id });
+    const joinedAt = staff?.joinedAt || new Date();
+    const hoursWorked = (Date.now() - new Date(joinedAt).getTime()) / (1000 * 60 * 60);
+    
+    // Yeni stajyer (< 24 saat)
+    if (hoursWorked < 24 && staff?.level === 1) {
+      // Bugünkü ticket sayısını kontrol et
+      const today = new Date().toISOString().split('T')[0];
+      const todayTickets = await Ticket.find({
+        userId: interaction.user.id,
+        createdAt: { $gte: new Date(today) },
+      });
+      
+      if (todayTickets.length >= 2) {
+        await interaction.reply({
+          content: `❌ **Stajyer Güvenlik:** Günde maksimum 2 ticket açabilirsin (açılmış: ${todayTickets.length}/2)\n\nSunucuyu spamdan korumak için bu kuralımız var. Lütfen sonra tekrar dene!`,
+          ephemeral: true,
+        });
+        return;
+      }
+    }
+  } catch (_) {
+    // Kontrol başarısız olursa devam et (güvenlik basit tutal)
+  }
+
   // Kategori bazlı otomatik öncelik
   const autoPriority = {
     ban:       'high',
@@ -80,7 +111,16 @@ async function handleSupportModal(interaction) {
           PermissionFlagsBits.EmbedLinks,
         ],
       },
-    ];
+      // ── Moderatörlerin ticket kanalını görebilmesi ────────────────────────
+      {
+        id: targetGuild.roles.cache.find(r => r.name.toLowerCase().includes('moderatör') || r.permissions.has('ManageMessages'))?.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
+      },
+    ].filter(o => o.id); // Geçersiz ID'leri filtrele
 
     if (isGuild2) {
       // EKOYILDIZ: GUILD2_TICKET_CATEGORY_ID kategorisine aç
