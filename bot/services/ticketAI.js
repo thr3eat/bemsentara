@@ -121,6 +121,8 @@ async function restoreTicketFromDB(channelId, client) {
         guildId:   ticket.guildId,
         userId:    ticket.userId,
         turns:     MAX_AI_TURNS - 2, // Restart sonrası neredeyse limitteymişgibi davran
+        // Eğer DB'de claim edilmişse duraklatılmış say
+        pausedAt:  ticket.claimedBy ? new Date(ticket.claimedAt || Date.now()) : null,
       });
     }
     // conversationHistory'e temel context ekle
@@ -220,6 +222,8 @@ async function handleUserMessage(message, client) {
           channelId,
           guildId: ticket.guildId,
           turns: 0,
+          // Claim edilmişse duraklatılmış say
+          pausedAt: ticket.claimedBy ? new Date(ticket.claimedAt || Date.now()) : null,
         });
         conversationHistory.set(matchedId, []);
       }
@@ -230,16 +234,19 @@ async function handleUserMessage(message, client) {
 
   const info = activeAITickets.get(matchedId);
   if (!ticket) ticket = await Ticket.findOne({ ticketId: matchedId });
+
+  // ── ADIM 1: Orijinal kullanıcı mı kontrol et ────────────────────────────
+  const isOriginalUser = message.author.id === info.userId;
+
+  // ── ADIM 1.5: Duraklatma kontrolü — turns/history'den ÖNCE yapılmalı ────
+  // pausedAt set edilmişse, orijinal olmayan kullanıcılar TAMAMEN engellenir
+  if (info.pausedAt && !isOriginalUser) {
+    console.log(`[ticketAI] Ticket duraklatılmış (pausedAt: ${info.pausedAt}), engellendi: ${message.author.username}`);
+    return true; // true döndür: başka handler'ların da işlemesini engelle
+  }
+
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
-
-  // ── ADIM 1.5: Eğer ticket duraklatıldıysa, sadece orijinal user yazabilir ──
-  const isOriginalUser = message.author.id === info.userId;
-  if (info.pausedAt && !isOriginalUser) {
-    // Moderatör yazarsa ve ticket duraklatılmışsa, hiçbir şey yapma
-    console.log(`[ticketAI] Ticket duraklatılmış (pausedAt: ${info.pausedAt}), non-original user: ${message.author.username}`);
-    return false;
-  }
 
   // ── ADIM 2: Mesajı yazan kişi kontrol et ────────────────────────────────
 
@@ -291,6 +298,13 @@ async function handleUserMessage(message, client) {
 
     if (isModerator) {
       // ── MODERATÖR DURACAĞI: AI sadece orijinal user'a cevap versin ──────
+
+      // Eğer zaten duraklatıldıysa tekrar mesaj gönderme
+      if (info.pausedAt) {
+        console.log(`[ticketAI] Zaten duraklatılmış, moderatör mesajı sessizce geçiriliyor: ${message.author.username}`);
+        return true;
+      }
+
       clearInactivityTimer(matchedId);
 
       // Ticket'ı DB'de işaretle
@@ -301,7 +315,7 @@ async function handleUserMessage(message, client) {
         await ticket.save().catch(() => {});
       }
 
-      // ✅ PAUSEDAT FLAG'I SET ET - bunu önemli!
+      // ✅ PAUSEDAT FLAG'I SET ET
       info.pausedAt = new Date();
 
       // Konuşma geçmişini temizle
@@ -324,7 +338,7 @@ async function handleUserMessage(message, client) {
       }).catch(() => {});
 
       console.log(`[ticketAI] Moderator (${message.author.username}) yazıyor - AI duraklatıldı (pausedAt set)`);
-      return true;  // ← BU ÖNEMLİ: Handler'ı duraklat
+      return true;
     } else {
       // Moderatör değilse, başka birisi
       console.log(`[ticketAI] Random user (${message.author.username}) ticket'ta yazıyor - AI cevap vermeyecek`);
