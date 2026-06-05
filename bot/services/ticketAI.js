@@ -249,10 +249,10 @@ async function handleUserMessage(message, client) {
                         );
 
     if (isModerator || message.member?.permissions.has('ManageChannels')) {
-      // ── TICKET'ı YENİ HANDLER'A AKTAR ──────────────────────────────────
+      // ── MODERATÖR DURACAĞI: Ticket'ı DB'de işaretle, AI duraklasın ──────
       clearInactivityTimer(matchedId);
 
-      // Ticket'ı DB'de güncelle
+      // Ticket'ı DB'de işaretle (claimedBy moderatörün ID'si, ama userId değişme)
       if (ticket) {
         ticket.claimedBy = message.author.id;
         ticket.claimedByName = message.author.username;
@@ -260,30 +260,22 @@ async function handleUserMessage(message, client) {
         await ticket.save().catch(() => {});
       }
 
-      // Memory'de güncelle
-      info.userId = message.author.id; // Artık yeni handler'ı takip et
-      
-      // Konuşma geçmişini sıfırla (yeni handler'a baştan başla)
+      // ⚠️ memory'de userId DEĞİŞTİRME - sadece temizle
       conversationHistory.delete(matchedId);
       conversationHistory.set(matchedId, []);
 
-      // ── Transfer onay mesajı gönder ──────────────────────────────────
+      // ── Moderatörü bilgilendir (orjinal user'a AI cevap vermeyecek) ──────
       await message.channel.send({
         embeds: [new EmbedBuilder()
-          .setColor(0x10b981)
+          .setColor(0xfbbf24)
           .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
           .setDescription(
-            `**📋 Ticket Aktarıldı!**\n\n` +
+            `**⏸️ Duraklatıldı**\n\n` +
             `Merhaba **${message.author.username}**! 👋\n\n` +
-            `Bu destek talebini sen alıyorsun.\n` +
-            `Sorunun detaylarını aşağıda bulabilirsin.\n\n` +
-            `Lütfen sorunu çözmek için yardımcı ol! 💪`
+            `Sen bu ticketi ele aldığın için AI şimdi sadece **orijinal kullanıcı**'nın mesajlarına cevap verecek.\n\n` +
+            `Moderatör olarak sorun çözmek için yardımcı ol! 💪`
           )
-          .addFields(
-            { name: '📌 Konu', value: ticket?.subject || 'Belirtilmedi', inline: false },
-            { name: '📝 Açıklama', value: (ticket?.description || 'Belirtilmedi').slice(0, 200), inline: false }
-          )
-          .setFooter({ text: 'Ticket Aktarım Sistemi' })
+          .setFooter({ text: 'AI Duraklatıldı • Sadece Ticket Sahibi AI ile Konuşabilir' })
           .setTimestamp()],
       }).catch(() => {});
 

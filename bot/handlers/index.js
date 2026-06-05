@@ -132,6 +132,13 @@ function initializeDiscordHandlers(client) {
 
     if (message.author.bot || !message.guild) return;
 
+    // ── Abone fotoğraf doğrulama (Eko Yıldız) ──────────────────────────────
+    try {
+      const { handlePhotoUpload } = require('../services/photoVerification');
+      const handled = await handlePhotoUpload(message, client);
+      if (handled) return;
+    } catch (_) {}
+
     // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) ───────────────────────────
     try {
       const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");

@@ -184,6 +184,17 @@ async function handleButtonInteraction(interaction) {
     return interaction.showModal(modal);
   }
 
+  // ── Abone Doğrulama: "HAYIR ABONE DEĞİL" butonu ────────────────────────
+  if (interaction.customId.startsWith('abone_no_')) {
+    try {
+      const { handleNoSubscriberButton } = require('../services/photoVerification');
+      await handleNoSubscriberButton(interaction, interaction.client);
+    } catch (err) {
+      console.error('[photoVerification] Button hata:', err.message);
+      return interaction.reply({ content: '❌ Bir hata oluştu.', ephemeral: true });
+    }
+  }
+
   return null;
 }
 

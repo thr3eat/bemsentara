@@ -31,6 +31,17 @@ async function handleModalSubmit(interaction) {
     return handleRatingModal(interaction);
   }
 
+  // ── Abone Rolü Kaldırma Sebebi modal'ı ─────────────────────────────────
+  if (interaction.customId.startsWith("abone_reason_")) {
+    try {
+      const { handleRemoveSubscriberModal } = require('../services/photoVerification');
+      await handleRemoveSubscriberModal(interaction, interaction.client);
+    } catch (err) {
+      console.error('[photoVerification] Modal hata:', err.message);
+      return interaction.reply({ content: '❌ Bir hata oluştu.', ephemeral: true });
+    }
+  }
+
   return null;
 }
 
@@ -111,16 +122,33 @@ async function handleSupportModal(interaction) {
           PermissionFlagsBits.EmbedLinks,
         ],
       },
-      // ── Moderatörlerin ticket kanalını görebilmesi ────────────────────────
-      {
-        id: targetGuild.roles.cache.find(r => r.name.toLowerCase().includes('moderatör') || r.permissions.has('ManageMessages'))?.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-        ],
-      },
-    ].filter(o => o.id); // Geçersiz ID'leri filtrele
+    ];
+
+    // ── TÜM MODERAT/PERSONEL ROLLERINI EKLE (ticket görülebilsin) ──────────
+    try {
+      const STAFF_ROLES = {
+        1: process.env.ROLE_STAJYER  || '1475082184896548864',
+        2: process.env.ROLE_PERSONEL || '1417530761774366821',
+        3: process.env.ROLE_GELISMIS || '1417533740892291214',
+        4: process.env.ROLE_SEKRETER || '1419688146689593415',
+      };
+      
+      for (const roleId of Object.values(STAFF_ROLES)) {
+        if (roleId && targetGuild.roles.cache.has(roleId)) {
+          permissionOverwrites.push({
+            id: roleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Geçersiz ID'leri filtrele
+    const validOverwrites = permissionOverwrites.filter(o => o.id);
 
     if (isGuild2) {
       // EKOYILDIZ: GUILD2_TICKET_CATEGORY_ID kategorisine aç
@@ -128,7 +156,7 @@ async function handleSupportModal(interaction) {
         name: `ticket-${ticketId.toLowerCase()}`,
         type: ChannelType.GuildText,
         parent: GUILD2_TICKET_CATEGORY_ID || undefined,
-        permissionOverwrites,
+        permissionOverwrites: validOverwrites,
       });
     } else {
       // Ana sunucu: mevcut mantık
@@ -141,14 +169,14 @@ async function handleSupportModal(interaction) {
           name: `ticket-${ticketId.toLowerCase()}`,
           type: ChannelType.GuildText,
           parent: configuredChannel.id,
-          permissionOverwrites,
+          permissionOverwrites: validOverwrites,
         });
       } else if (configuredChannel?.type === ChannelType.GuildText) {
         ticketChannel = await targetGuild.channels.create({
           name: `ticket-${ticketId.toLowerCase()}`,
           type: ChannelType.GuildText,
           parent: configuredChannel.parentId,
-          permissionOverwrites,
+          permissionOverwrites: validOverwrites,
         });
       } else {
         let ticketCategory = targetGuild.channels.cache.find(
@@ -164,7 +192,7 @@ async function handleSupportModal(interaction) {
           name: `ticket-${ticketId.toLowerCase()}`,
           type: ChannelType.GuildText,
           parent: ticketCategory.id,
-          permissionOverwrites,
+          permissionOverwrites: validOverwrites,
         });
       }
     }
