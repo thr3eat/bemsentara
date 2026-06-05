@@ -204,7 +204,7 @@ async function handleUserMessage(message, client) {
   let matchedId = null;
   let ticket = null;
 
-  // Önce memory'de ara (herhangi bir userId)
+  // Önce memory'de ara
   for (const [tid, info] of activeAITickets.entries()) {
     if (info.channelId === channelId) {
       matchedId = tid;
@@ -217,15 +217,13 @@ async function handleUserMessage(message, client) {
     ticket = await Ticket.findOne({ channelId });
     if (ticket) {
       matchedId = ticket.ticketId;
-      // Belleğe yükle
       if (!activeAITickets.has(matchedId)) {
         activeAITickets.set(matchedId, {
-          userId: ticket.userId,
+          userId:    ticket.userId,
           channelId,
-          guildId: ticket.guildId,
-          turns: 0,
-          // Claim edilmişse duraklatılmış say
-          pausedAt: ticket.claimedBy ? new Date(ticket.claimedAt || Date.now()) : null,
+          guildId:   ticket.guildId,
+          turns:     0,
+          pausedAt:  ticket.claimedBy ? new Date(ticket.claimedAt || Date.now()) : null,
         });
         conversationHistory.set(matchedId, []);
       }
@@ -237,78 +235,29 @@ async function handleUserMessage(message, client) {
   const info = activeAITickets.get(matchedId);
   if (!ticket) ticket = await Ticket.findOne({ ticketId: matchedId });
 
-  // ── DURAKLATMA: DB'den de kontrol et (restart-safe) ─────────────────────
-  // Ticket claim edilmişse veya memory'de pausedAt varsa → AI tamamen susturulur
-  const isPaused = info.pausedAt || ticket?.claimedBy;
-  if (isPaused) {
-    console.log(`[ticketAI] AI duraklatılmış, cevap verilmiyor. Kanal: ${channelId}, Yazar: ${message.author.username}`);
+  // ── DURAKLATMA KONTROLÜ — her şeyden önce ────────────────────────────────
+  // Memory'de pausedAt VEYA DB'de claimedBy varsa AI tamamen susar
+  if (info.pausedAt || ticket?.claimedBy) {
+    console.log(`[ticketAI] AI durdurulmuş, cevap verilmiyor | yazar: ${message.author.username}`);
     return false;
   }
 
-  // ── Orijinal kullanıcı mı kontrol et ────────────────────────────────────
+  // ── Orijinal kullanıcı kontrolü ─────────────────────────────────────────
   const isOriginalUser = message.author.id === info.userId;
 
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
-    // Orijinal kullanıcı değil → Başka birisi yazıyor
-    // ── MODERATÖRLERİ DETECT ET ──────────────────────────────────────────
-    let isModerator = false;
 
-    try {
-      // 1. Discord izni ile kontrol (en güvenilir)
-      if (message.member?.permissions.has('ManageMessages') ||
-          message.member?.permissions.has('ModerateMembers') ||
-          message.member?.permissions.has('ManageChannels')) {
-        isModerator = true;
-      }
-
-      // 2. Staff roller ile kontrol (stajyer ve üstü)
-      if (!isModerator) {
-        const STAFF_ROLES = {
-          1: process.env.ROLE_STAJYER  || '1475082184896548864',
-          2: process.env.ROLE_PERSONEL || '1417530761774366821',
-          3: process.env.ROLE_GELISMIS || '1417533740892291214',
-          4: process.env.ROLE_SEKRETER || '1419688146689593415',
-        };
-        
-        for (const roleId of Object.values(STAFF_ROLES)) {
-          if (roleId && message.member?.roles.cache.has(roleId)) {
-            isModerator = true;
-            break;
-          }
-        }
-      }
-
-      // 3. Role adı ile kontrol (alternatif)
-      if (!isModerator) {
-        isModerator = message.member?.roles.cache.some(r => {
-          const name = r.name.toLowerCase();
-          return name.includes('personel') || 
-                 name.includes('moderatör') ||
-                 name.includes('sekreter') ||
-                 name.includes('yönetici') ||
-                 name.includes('yetkili') ||
-                 name.includes('admin');
-        });
-      }
-    } catch (e) {
-      console.warn('[ticketAI] Moderator detection hata:', e.message);
-    }
-
-  // ── Mesajı yazan kişi kontrol et ────────────────────────────────────────
+  // ── Orijinal kullanıcı değil → Moderatör mü? ────────────────────────────
   if (!isOriginalUser) {
-    // Orijinal kullanıcı değil → Moderatör mü kontrol et
     let isModerator = false;
 
     try {
-      // 1. Discord izni ile kontrol (en güvenilir)
       if (message.member?.permissions.has('ManageMessages') ||
           message.member?.permissions.has('ModerateMembers') ||
           message.member?.permissions.has('ManageChannels')) {
         isModerator = true;
       }
-
-      // 2. Staff roller ile kontrol
       if (!isModerator) {
         const STAFF_ROLES = {
           1: process.env.ROLE_STAJYER  || '1475082184896548864',
@@ -323,8 +272,6 @@ async function handleUserMessage(message, client) {
           }
         }
       }
-
-      // 3. Role adı ile kontrol (alternatif)
       if (!isModerator) {
         isModerator = message.member?.roles.cache.some(r => {
           const name = r.name.toLowerCase();
@@ -341,13 +288,13 @@ async function handleUserMessage(message, client) {
     }
 
     if (isModerator) {
-      // ── Moderatör ilk kez yazıyor: duraklatma başlat ──────────────────
+      // Moderatör devreye girdi → AI'ı kalıcı olarak durdur
       clearInactivityTimer(matchedId);
 
       // Memory'de işaretle
       info.pausedAt = new Date();
 
-      // DB'de kalıcı olarak işaretle (restart-safe)
+      // DB'de kalıcı olarak işaretle
       if (ticket) {
         ticket.claimedBy     = message.author.id;
         ticket.claimedByName = message.author.username;
@@ -359,13 +306,12 @@ async function handleUserMessage(message, client) {
       conversationHistory.delete(matchedId);
       conversationHistory.set(matchedId, []);
 
-      // Kanala bildirim
       await message.channel.send({
         embeds: [new EmbedBuilder()
           .setColor(0xfbbf24)
           .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
           .setDescription(
-            `**⏸️ AI Duraklatıldı**\n\n` +
+            `**⏸️ AI Durduruldu**\n\n` +
             `Merhaba **${message.author.username}**! 👋\n\n` +
             `Ticketi sen ele aldığın için AI artık **tamamen sessiz**.\n` +
             `Kullanıcıyla kendin ilgilenebilirsin. 💪`
@@ -378,27 +324,21 @@ async function handleUserMessage(message, client) {
       return true;
     }
 
-    // Moderatör değil, 3. kişi → sessiz geç
-    console.log(`[ticketAI] 3. kişi (${message.author.username}) ticket'ta yazıyor — AI cevap vermeyecek`);
+    // 3. kişi, moderatör değil → sessiz geç
     return false;
   }
 
-  // ── ADIM 3: Orijinal kullanıcı mesaj attı → Normal işleme ───────────────
+  // ── Orijinal kullanıcı mesaj attı → AI cevap verir ──────────────────────
   resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
 
-  // Resim/dosya → kanıt kanalına gönder
   const attachments = [...message.attachments.values()];
   if (attachments.length) await sendEvidence(message, matchedId, attachments, client);
 
-  // Reklam kanıt SSI bekleniyor mu? (memory yoksa DB'den kontrol)
   if (!pendingAdEvidence.has(matchedId) && attachments.length) {
-    // DB'de reklam kanıt bekleme durumu var mı?
     try {
       const t = await Ticket.findOne({ ticketId: matchedId });
-      if (t?.pendingAdEvidence) {
-        pendingAdEvidence.set(matchedId, t.pendingAdEvidence);
-      }
+      if (t?.pendingAdEvidence) pendingAdEvidence.set(matchedId, t.pendingAdEvidence);
     } catch (_) {}
   }
 
@@ -416,38 +356,38 @@ async function handleUserMessage(message, client) {
     history.push({ role: 'assistant', content: reply });
 
     if (isBan(reply)) {
-      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      const t = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
-      await handleBanRequest(message.channel, ticket, extractBanTarget(reply), attachments, client);
+      await handleBanRequest(message.channel, t, extractBanTarget(reply), attachments, client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
     if (isWarn(reply)) {
-      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      const t = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
-      await handleWarnRequest(message.channel, ticket, extractWarnInfo(reply), client);
+      await handleWarnRequest(message.channel, t, extractWarnInfo(reply), client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
     if (isAd(reply)) {
-      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      const t = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
-      await handleAdRequest(message.channel, ticket, extractAdInfo(reply), client);
+      await handleAdRequest(message.channel, t, extractAdInfo(reply), client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
     if (isResolve(reply)) {
-      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      const t = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
       const resolveMsg = extractResolveMsg(reply) || cleanMsg(reply);
-      await autoResolveTicket(message.channel, ticket, resolveMsg, client);
+      await autoResolveTicket(message.channel, t, resolveMsg, client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
     if (isReady(reply) || info.turns >= MAX_AI_TURNS) {
-      const ticket = await Ticket.findOne({ ticketId: matchedId });
+      const t = await Ticket.findOne({ ticketId: matchedId });
       clearInactivityTimer(matchedId);
-      await notifyStaff(message.channel, ticket, reply, client);
+      await notifyStaff(message.channel, t, reply, client);
       activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
       return true;
     }
@@ -461,9 +401,9 @@ async function handleUserMessage(message, client) {
     return true;
   } catch (err) {
     console.error('[ticketAI] handleUserMessage hata:', err.message);
-    const ticket = await Ticket.findOne({ ticketId: matchedId });
+    const t = await Ticket.findOne({ ticketId: matchedId });
     clearInactivityTimer(matchedId);
-    await fallbackNotify(message.channel, ticket);
+    await fallbackNotify(message.channel, t);
     activeAITickets.delete(matchedId); conversationHistory.delete(matchedId);
     return true;
   }
