@@ -81,7 +81,7 @@ async function handleNoSubscriberButton(interaction, client) {
   try {
     // ── MODERATÖR KONTROLÜ ──────────────────────────────────────────────────
     let isModerator = false;
-  role: MODERATOR_ROLE_ID = '1367646745324159126'; // Moderatör rolü ID'si
+  role: MODERATOR_ROLE_ID = '1475082184896548864'; // Moderatör rolü ID'si
 
     // Önce interaction.member üzerinden kontrol et (çoğu durumda çalışır)                
      try {

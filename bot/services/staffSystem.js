@@ -148,36 +148,115 @@ function resetDaily(progress) {
 }
 
 async function recordGreet(userId, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  resetDaily(p);
-  if (!p.daily.greeted) {
-    p.daily.greeted = true;
-    await p.save();
-    await checkDailyCompletion(p, client);
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordGreet: Invalid userId');
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed in recordGreet:', err.message);
+      return null;
+    });
+    
+    if (!p) {
+      console.warn(`[staffSystem] recordGreet: Cannot create/fetch record for ${userId}`);
+      return;
+    }
+    
+    resetDaily(p);
+    if (!p.daily.greeted) {
+      p.daily.greeted = true;
+      await p.save().catch(err => {
+        console.error('[staffSystem] Save failed in recordGreet:', err.message);
+        return;
+      });
+      await checkDailyCompletion(p, client).catch(err => {
+        console.error('[staffSystem] checkDailyCompletion failed:', err.message);
+      });
+    }
+  } catch (err) {
+    console.error('[staffSystem] recordGreet error:', err.message);
   }
 }
 
 async function addVoiceMinutes(userId, minutes, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  resetDaily(p);
-  p.daily.voiceMinutes += minutes;
-  await p.save();
-  await checkDailyCompletion(p, client);
+  try {
+    if (!userId || !minutes || minutes <= 0) {
+      console.warn('[staffSystem] addVoiceMinutes: Invalid parameters', { userId, minutes });
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed in addVoiceMinutes:', err.message);
+      return null;
+    });
+    
+    if (!p) {
+      console.warn(`[staffSystem] addVoiceMinutes: Cannot create/fetch record for ${userId}`);
+      return;
+    }
+    
+    resetDaily(p);
+    p.daily.voiceMinutes += minutes;
+    await p.save().catch(err => {
+      console.error('[staffSystem] Save failed in addVoiceMinutes:', err.message);
+      return;
+    });
+    await checkDailyCompletion(p, client).catch(err => {
+      console.error('[staffSystem] checkDailyCompletion failed:', err.message);
+    });
+  } catch (err) {
+    console.error('[staffSystem] addVoiceMinutes error:', err.message);
+  }
 }
 
 // ── Mod işlem kaydı (yeni) ─────────────────────────────────────────────────
 async function recordModerationAction(userId, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
-  await p.save();
-  await checkPromotion(p, client);
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordModerationAction: Invalid userId');
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed:', err.message);
+      return null;
+    });
+    
+    if (!p) return;
+    
+    p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
+    await p.save().catch(err => {
+      console.error('[staffSystem] Save failed:', err.message);
+    });
+    await checkPromotion(p, client).catch(err => {
+      console.error('[staffSystem] checkPromotion failed:', err.message);
+    });
+  } catch (err) {
+    console.error('[staffSystem] recordModerationAction error:', err.message);
+  }
 }
 
 // ── Haftalık rapor kaydı (yeni) ────────────────────────────────────────────
 async function recordWeeklyReport(userId, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  p.stats.weeklyReports = (p.stats.weeklyReports || 0) + 1;
-  await p.save();
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordWeeklyReport: Invalid userId');
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed:', err.message);
+      return null;
+    });
+    
+    if (!p) return;
+    
+    p.stats.weeklyReports = (p.stats.weeklyReports || 0) + 1;
+    await p.save().catch(err => {
+      console.error('[staffSystem] Save failed:', err.message);
+    });
   await checkPromotion(p, client);
 }
 

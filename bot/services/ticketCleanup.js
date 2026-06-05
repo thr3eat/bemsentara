@@ -80,7 +80,7 @@ function cancelInactivityWarning(ticketId) {
 }
 
 /**
- * Açık ticketlarda inaktivite kontrolü
+ * Açık ticketlarda inaktivite kontrolü (Rate limit korumasıyla)
  * Kural: Son mesaj yetkiliden geldiyse ve üzerinden 1 saat geçtiyse → kullanıcıya DM uyarısı
  */
 async function runInactivityCheck() {
@@ -92,52 +92,106 @@ async function runInactivityCheck() {
   const warnCutoff = new Date(now - INACTIVITY_WARN_MS); // 1 saat önce
 
   try {
-    const openTickets = await Ticket.find({ status: "open" });
+    const openTickets = await Ticket.find({ status: "open" }).catch(err => {
+      console.error('[ticketCleanup] Ticket fetch error in runInactivityCheck:', err.message);
+      return [];
+    });
 
-    for (const ticket of openTickets) {
-      // Zaten uyarı gönderilmiş mi?
-      if (inactivityWarnings.has(ticket.ticketId)) continue;
-      // Kanalı silinmiş mi?
-      if (!ticket.channelId || ticket.channelDeleted) continue;
+    if (openTickets.length === 0) return;
 
-      try {
-        const guildId = ticket.guildId || TARGET_GUILD_ID;
-        const guild = await client.guilds.fetch(guildId).catch(() => null);
-        if (!guild) continue;
+    // ── Rate limiting: Sequential processing (max 3 concurrent) ──────────────
+    const batchSize = 3;
+    for (let i = 0; i < openTickets.length; i += batchSize) {
+      const batch = openTickets.slice(i, i + batchSize);
+      
+      await Promise.all(
+        batch.map(ticket => processInactivityCheck(ticket, client, warnCutoff).catch(err => {
+          console.warn(`[ticketCleanup] Inactivity check error for ${ticket.ticketId}:`, err.message);
+        }))
+      );
+      
+      // Delay between batches to avoid rate limits
+      if (i + batchSize < openTickets.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  } catch (err) {
+    console.error("[ticketCleanup] runInactivityCheck error:", err.message);
+  }
+}
 
-        const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
-        if (!channel?.isTextBased()) continue;
+/**
+ * Single ticket inactivity check
+ */
+async function processInactivityCheck(ticket, client, warnCutoff) {
+  // Zaten uyarı gönderilmiş mi?
+  if (inactivityWarnings.has(ticket.ticketId)) return;
+  
+  // Kanalı silinmiş mi?
+  if (!ticket.channelId || ticket.channelDeleted) return;
 
-        // Son 2 mesajı çek
-        const messages = await channel.messages.fetch({ limit: 5 }).catch(() => null);
-        if (!messages || messages.size === 0) continue;
+  try {
+    const guildId = ticket.guildId || TARGET_GUILD_ID;
+    const guild = await client.guilds.fetch(guildId).catch(err => {
+      console.debug(`[ticketCleanup] Guild ${guildId} not found:`, err.code);
+      return null;
+    });
+    
+    if (!guild) return;
 
-        const lastMsg = messages.first();
-        if (!lastMsg) continue;
+    const channel = await guild.channels.fetch(ticket.channelId).catch(err => {
+      console.debug(`[ticketCleanup] Channel ${ticket.channelId} not found:`, err.code);
+      return null;
+    });
+    
+    if (!channel?.isTextBased?.()) return;
 
-        // Son mesaj kullanıcıdan mı geldi? → İnaktivite yok
-        if (lastMsg.author.id === ticket.userId) continue;
-        // Son mesaj bottan mı? → Atla
-        if (lastMsg.author.bot) continue;
-        // 1 saat geçmedi mi?
-        if (lastMsg.createdAt > warnCutoff) continue;
+    // Son 5 mesajı çek
+    const messages = await channel.messages.fetch({ limit: 5 }).catch(err => {
+      console.debug(`[ticketCleanup] Message fetch error for ${ticket.ticketId}:`, err.code);
+      return null;
+    });
+    
+    if (!messages || messages.size === 0) return;
 
-        // ── 1 saat geçmiş, son mesaj yetkiliden — uyar ─────────────────────
-        console.log(`[ticketCleanup] ${ticket.ticketId} → inaktivite uyarısı gönderiliyor`);
+    const lastMsg = messages.first();
+    if (!lastMsg) return;
 
-        // Kullanıcıya DM
-        try {
-          const user = await client.users.fetch(ticket.userId);
-          const { GUILD2_ID } = require("../../config");
-          const serverName = guildId === GUILD2_ID ? "EkoYıldız" : "Sentara";
+    // Son mesaj kullanıcıdan mı geldi? → İnaktivite yok
+    if (lastMsg.author?.id === ticket.userId) return;
+    
+    // Son mesaj bottan mı? → Atla
+    if (lastMsg.author?.bot) return;
+    
+    // 1 saat geçmedi mi? → Henüz uyar verme
+    if (lastMsg.createdAt > warnCutoff) return;
 
-          await user.send(
-            `📬 **Ticket Uyarısı — ${ticket.ticketId}**\n\n` +
-            `Lütfen **${serverName}** sunucusundaki ticket'ınıza bakın!\n` +
-            `Yetkili size cevap verdi ancak henüz yanıtlamadınız.\n\n` +
-            `⚠️ **5 dakika içinde yanıt vermezseniz ticket otomatik kapatılacak.**`
-          ).catch(() => {});
-        } catch (_) {}
+    // ── 1 saat geçmiş, son mesaj yetkiliden — uyar ───────────────────────────
+    console.log(`[ticketCleanup] ${ticket.ticketId} → inaktivite uyarısı gönderiliyor`);
+
+    // Kullanıcıya DM
+    try {
+      const user = await client.users.fetch(ticket.userId).catch(err => {
+        console.warn(`[ticketCleanup] User ${ticket.userId} not found:`, err.code);
+        return null;
+      });
+      
+      if (!user) return;
+
+      const { GUILD2_ID } = require("../../config");
+      const serverName = guildId === GUILD2_ID ? "Eko Yıldız" : "BEM Sentara";
+
+      await user.send(
+        `📬 **Ticket Uyarısı — ${ticket.ticketId}**\n\n` +
+        `Lütfen **${serverName}** sunucusundaki ticket'ınıza bakın!\n` +
+        `Yetkili size cevap verdi ancak henüz yanıtlamadınız.\n\n` +
+        `⚠️ **2 dakika içinde yanıt vermezseniz ticket otomatik kapatılacak.**`
+      ).catch(err => {
+        console.warn(`[ticketCleanup] Cannot send DM to ${ticket.userId}:`, err.code);
+      });
+    } catch (dmErr) {
+      console.warn(`[ticketCleanup] DM process error for ${ticket.userId}:`, dmErr.message);
+    }
 
         // Kanala da bildirim
         await channel.send(

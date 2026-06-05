@@ -26,6 +26,15 @@ Kurallar:
  * Tek bir modele istek at
  */
 function requestModel(model, messages, systemContent) {
+  // Validate inputs
+  if (!OLLAMA_KEY || OLLAMA_KEY.trim() === '') {
+    return Promise.reject(new Error('❌ AI API anahtarı yapılandırılmamış'));
+  }
+  
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return Promise.reject(new Error('❌ Geçersiz mesaj formatı'));
+  }
+
   const body = JSON.stringify({
     model,
     messages: [
@@ -63,39 +72,82 @@ function requestModel(model, messages, systemContent) {
       },
     };
 
-    const req = lib.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => (data += chunk));
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-
-          // Hata kontrolü
-          if (parsed?.error) {
-            const msg = typeof parsed.error === 'string'
-              ? parsed.error
-              : (parsed.error.message || JSON.stringify(parsed.error));
-            return reject(new Error(msg));
-          }
-
-          const content = parsed?.choices?.[0]?.message?.content;
-          if (content) return resolve(content.trim());
-
-          reject(new Error(`Boş yanıt (HTTP ${res.statusCode}): ` + data.slice(0, 150)));
-        } catch (e) {
-          reject(new Error(`Parse hatası (HTTP ${res.statusCode}): ` + data.slice(0, 150)));
+    let request;
+    try {
+      request = lib.request(options, (res) => {
+        let data = '';
+        
+        // Handle non-200 status codes
+        if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            let errorMsg = `HTTP ${res.statusCode}`;
+            try {
+              const parsed = JSON.parse(data);
+              errorMsg = `HTTP ${res.statusCode}: ${parsed.error?.message || parsed.message || data.slice(0, 200)}`;
+            } catch (_) {
+              errorMsg = `HTTP ${res.statusCode}: ${data.slice(0, 200)}`;
+            }
+            reject(new Error(errorMsg));
+          });
+          return;
         }
+        
+        res.on('data', chunk => (data += chunk));
+        res.on('end', () => {
+          try {
+            if (!data || data.trim() === '') {
+              return reject(new Error(`Boş yanıt (HTTP ${res.statusCode})`));
+            }
+            
+            const parsed = JSON.parse(data);
+
+            // Error response handling
+            if (parsed?.error) {
+              const msg = typeof parsed.error === 'string'
+                ? parsed.error
+                : (parsed.error.message || JSON.stringify(parsed.error));
+              
+              if (msg.includes('rate limit') || msg.includes('429')) {
+                return reject(new Error(`Rate limit: ${msg}`));
+              }
+              if (msg.includes('invalid api key') || msg.includes('401')) {
+                return reject(new Error(`API Key hatası: ${msg}`));
+              }
+              return reject(new Error(`AI hatası: ${msg}`));
+            }
+
+            // Response validation
+            const content = parsed?.choices?.[0]?.message?.content;
+            if (!content || typeof content !== 'string') {
+              return reject(new Error(`Geçersiz yanıt formatı`));
+            }
+
+            resolve(content.trim());
+          } catch (e) {
+            reject(new Error(`JSON parse hatası (HTTP ${res.statusCode}): ${e.message}`));
+          }
+        });
+        
+        res.on('error', (err) => {
+          reject(new Error(`Response stream hatası: ${err.message}`));
+        });
       });
-    });
 
-    req.setTimeout(25000, () => {
-      req.destroy();
-      reject(new Error(`Timeout: ${model}`));
-    });
+      request.on('error', (err) => {
+        reject(new Error(`Network hatası: ${err.code || err.message}`));
+      });
 
-    req.on('error', reject);
-    req.write(body);
-    req.end();
+      request.setTimeout(25000, () => {
+        request.destroy();
+        reject(new Error(`Timeout (${model}): 25 saniye`));
+      });
+
+      request.write(body);
+      request.end();
+    } catch (err) {
+      reject(new Error(`İstek gönderme hatası: ${err.message}`));
+    }
   });
 }
 
