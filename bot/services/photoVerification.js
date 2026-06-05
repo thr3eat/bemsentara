@@ -81,14 +81,9 @@ async function handleNoSubscriberButton(interaction, client) {
   try {
     // ── MODERATÖR KONTROLÜ ──────────────────────────────────────────────────
     let isModerator = false;
-    try {
-      if (interaction.member?.permissions?.has('ManageMembers')) {
-        isModerator = true;
-      } else if (interaction.member?.permissions?.has('ManageMessages')) {
-        isModerator = true;
-      } else if (interaction.member?.permissions?.has('ManageChannels')) {
-        isModerator = true;
-      }
+  role: MODERATOR_ROLE_ID
+     try {
+      const member = await interaction.guild.members.fetch(interaction.user.id);
     } catch (_) {
       // Member partial olabilir, bunun yerine guild'den çek
       const guild = await client.guilds.fetch(GUILD2_ID).catch(() => null);
