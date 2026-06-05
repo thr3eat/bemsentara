@@ -198,58 +198,103 @@ async function startAIConversation(channel, ticket, client) {
 async function handleUserMessage(message, client) {
   const channelId = message.channel.id;
   let matchedId = null;
+  let ticket = null;
 
-  // Önce memory map'te ara
+  // Önce memory'de ara (herhangi bir userId)
   for (const [tid, info] of activeAITickets.entries()) {
-    if (info.channelId === channelId && info.userId === message.author.id) {
-      matchedId = tid; break;
+    if (info.channelId === channelId) {
+      matchedId = tid;
+      break;
     }
   }
 
-  // Map'te yoksa DB'den yükle (restart sonrası)
+  // Map'te yoksa DB'den yükle
   if (!matchedId) {
-    const restoredTicket = await restoreTicketFromDB(channelId, client);
-    if (restoredTicket && restoredTicket.userId === message.author.id) {
-      matchedId = restoredTicket.ticketId;
+    ticket = await Ticket.findOne({ channelId });
+    if (ticket) {
+      matchedId = ticket.ticketId;
+      // Belleğe yükle
+      if (!activeAITickets.has(matchedId)) {
+        activeAITickets.set(matchedId, {
+          userId: ticket.userId,
+          channelId,
+          guildId: ticket.guildId,
+          turns: 0,
+        });
+        conversationHistory.set(matchedId, []);
+      }
     }
   }
 
   if (!matchedId) return false;
 
   const info = activeAITickets.get(matchedId);
+  if (!ticket) ticket = await Ticket.findOne({ ticketId: matchedId });
   const history = conversationHistory.get(matchedId);
   if (!history || info.turns >= MAX_AI_TURNS) return false;
 
-  // ── MODERATÖRler ticket kanalına yazabilir ──────────────────────────────────
-  // Eğer moderatör mesaj atarsa, AI "moderatör ayırıldı" mesajı gönder
-  const isModerator = message.member?.permissions.has('ManageMessages') ||
-                      message.member?.permissions.has('ModerateMembers') ||
-                      message.member?.roles.cache.some(r => 
-                        r.name.toLowerCase().includes('personel') || 
-                        r.name.toLowerCase().includes('moderatör') ||
-                        r.name.toLowerCase().includes('sekreter') ||
-                        r.name.toLowerCase().includes('yönetici') ||
-                        r.name.toLowerCase().includes('yetkili')
-                      );
+  // ── ADIM 2: Mesajı yazan kişi kontrol et ────────────────────────────────
+  const isOriginalUser = message.author.id === info.userId;
 
-  if (isModerator && message.author.id !== info.userId) {
-    // Moderatör devrimesi
-    clearInactivityTimer(matchedId);
-    await message.channel.send({
-      embeds: [new EmbedBuilder()
-        .setColor(0x7c6af7)
-        .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
-        .setDescription(
-          `**👮‍♂️ Moderatör Devrimesi!**\n\n` +
-          `Merhaba! Şu andan itibaren **${message.author.username}** adlı moderatör sorunda yardımcı olacak!\n\n` +
-          `Lütfen biraz bekleyin... Moderatör cevap verene kadar sabrınız için teşekkürler! ⏳`
-        )
-        .setFooter({ text: 'Sentara AI • Moderatör Sistemi' })
-        .setTimestamp()],
-    }).catch(() => {});
-    return true;
+  if (!isOriginalUser) {
+    // Orijinal kullanıcı değil → Başka birisi yazıyor
+    const isModerator = message.member?.permissions.has('ManageMessages') ||
+                        message.member?.permissions.has('ModerateMembers') ||
+                        message.member?.roles.cache.some(r => 
+                          r.name.toLowerCase().includes('personel') || 
+                          r.name.toLowerCase().includes('moderatör') ||
+                          r.name.toLowerCase().includes('sekreter') ||
+                          r.name.toLowerCase().includes('yönetici') ||
+                          r.name.toLowerCase().includes('yetkili')
+                        );
+
+    if (isModerator || message.member?.permissions.has('ManageChannels')) {
+      // ── TICKET'ı YENİ HANDLER'A AKTAR ──────────────────────────────────
+      clearInactivityTimer(matchedId);
+
+      // Ticket'ı DB'de güncelle
+      if (ticket) {
+        ticket.claimedBy = message.author.id;
+        ticket.claimedByName = message.author.username;
+        ticket.claimedAt = new Date();
+        await ticket.save().catch(() => {});
+      }
+
+      // Memory'de güncelle
+      info.userId = message.author.id; // Artık yeni handler'ı takip et
+      
+      // Konuşma geçmişini sıfırla (yeni handler'a baştan başla)
+      conversationHistory.delete(matchedId);
+      conversationHistory.set(matchedId, []);
+
+      // ── Transfer onay mesajı gönder ──────────────────────────────────
+      await message.channel.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x10b981)
+          .setAuthor({ name: '🤖 Sentara AI', iconURL: client.user?.displayAvatarURL() })
+          .setDescription(
+            `**📋 Ticket Aktarıldı!**\n\n` +
+            `Merhaba **${message.author.username}**! 👋\n\n` +
+            `Bu destek talebini sen alıyorsun.\n` +
+            `Sorunun detaylarını aşağıda bulabilirsin.\n\n` +
+            `Lütfen sorunu çözmek için yardımcı ol! 💪`
+          )
+          .addFields(
+            { name: '📌 Konu', value: ticket?.subject || 'Belirtilmedi', inline: false },
+            { name: '📝 Açıklama', value: (ticket?.description || 'Belirtilmedi').slice(0, 200), inline: false }
+          )
+          .setFooter({ text: 'Ticket Aktarım Sistemi' })
+          .setTimestamp()],
+      }).catch(() => {});
+
+      return true;
+    } else {
+      // Moderatör değilse, random kullanıcı mesajına cevap verme
+      return false;
+    }
   }
 
+  // ── ADIM 3: Orijinal kullanıcı mesaj attı → Normal işleme ───────────────
   resetInactivityTimer(matchedId, message.channel, null, client);
   info.turns++;
 
