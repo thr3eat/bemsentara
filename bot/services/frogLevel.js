@@ -104,19 +104,44 @@ async function addMessageXP(member, client) {
 
 // ── Ses dakikası XP ekle ──────────────────────────────────────────────────
 async function addVoiceXP(userId, minutes, client) {
-  const p = await getOrCreate(userId);
-  p.xp                += minutes * XP_PER_VOICE_MIN;
-  p.totalVoiceMinutes  = (p.totalVoiceMinutes || 0) + minutes;
-  await p.save();
-
-  // Guild'den member fetch et
+  if (!userId || !minutes || minutes <= 0 || !client) {
+    console.warn('[frogLevel] Invalid addVoiceXP parameters:', { userId, minutes, client: !!client });
+    return;
+  }
+  
   try {
-    const guild  = await client.guilds.fetch(FROG_GUILD_ID).catch(() => null);
+    const p = await getOrCreate(userId).catch(err => {
+      console.error('[frogLevel] getOrCreate error in addVoiceXP:', err.message);
+      return null;
+    });
+    if (!p) return;
+    
+    p.xp                += minutes * XP_PER_VOICE_MIN;
+    p.totalVoiceMinutes  = (p.totalVoiceMinutes || 0) + minutes;
+    await p.save().catch(err => {
+      console.error('[frogLevel] Save failed during addVoiceXP:', err.message);
+      throw err;
+    });
+
+    // Guild'den member fetch et
+    const guild = await client.guilds.fetch(FROG_GUILD_ID).catch(err => {
+      console.warn(`[frogLevel] Guild ${FROG_GUILD_ID} not found:`, err.code);
+      return null;
+    });
     if (!guild) return;
-    const member = await guild.members.fetch(userId).catch(() => null);
+    
+    const member = await guild.members.fetch(userId).catch(err => {
+      console.warn(`[frogLevel] Member ${userId} not found:`, err.code);
+      return null;
+    });
     if (!member) return;
-    await checkLevelUp(p, member, client);
-  } catch (_) {}
+    
+    await checkLevelUp(p, member, client).catch(err => {
+      console.error('[frogLevel] checkLevelUp error:', err.message);
+    });
+  } catch (err) {
+    console.error('[frogLevel] addVoiceXP fatal error:', err.message);
+  }
 }
 
 // ── Seviye atladı mı kontrol et ──────────────────────────────────────────

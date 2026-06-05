@@ -254,33 +254,61 @@ async function deleteTicketChannel(ticketId) {
   }
 
   try {
-    const ticket = await Ticket.findOne({ ticketId });
-    if (!ticket) return;
+    const ticket = await Ticket.findOne({ ticketId }).catch(err => {
+      console.error(`[ticketCleanup] DB error for ${ticketId}:`, err.message);
+      return null;
+    });
+    
+    if (!ticket) {
+      console.log(`[ticketCleanup] ${ticketId} → DB'de bulunamadı`);
+      return;
+    }
+    
     if (ticket.status === "open") {
       console.log(`[ticketCleanup] ${ticketId} → yeniden açılmış, silme iptal.`);
       return;
     }
-    if (ticket.channelDeleted) return;
+    if (ticket.channelDeleted) {
+      console.log(`[ticketCleanup] ${ticketId} → zaten silinmiş olarak işaretlenmiş`);
+      return;
+    }
 
     // Ticket'ın hangi sunucuda olduğunu belirle
     const guildId = ticket.guildId || TARGET_GUILD_ID;
-    const guild = await client.guilds.fetch(guildId);
+    const guild = await client.guilds.fetch(guildId).catch(err => {
+      console.error(`[ticketCleanup] Guild ${guildId} bulunamadı:`, err.code);
+      return null;
+    });
+    
+    if (!guild) {
+      console.error(`[ticketCleanup] ${ticketId} → Guild fetch başarısız`);
+      return;
+    }
 
     // Kanalı sil
     let channelDeleted = false;
     if (ticket.channelId) {
-      const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
-      if (channel) {
-        await channel.delete(`Ticket ${ticketId} — 5 dakika içinde yeniden açılmadı`);
-        channelDeleted = true;
-        console.log(`[ticketCleanup] ${ticketId} → kanal silindi.`);
+      try {
+        const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+        if (channel) {
+          await channel.delete(`Ticket ${ticketId} — 2 dakika içinde yeniden açılmadı`);
+          channelDeleted = true;
+          console.log(`[ticketCleanup] ${ticketId} → kanal silindi.`);
+        } else {
+          console.log(`[ticketCleanup] ${ticketId} → kanal bulunamadı (zaten silinmiş olabilir)`);
+        }
+      } catch (chErr) {
+        console.error(`[ticketCleanup] ${ticketId} → Kanal silme hatası:`, chErr.code, chErr.message);
+        // Devam et - yine de DB'de işaretle
       }
     }
 
     // Ticket'ı güncelle
     ticket.channelDeleted = true;
     ticket.channelDeletedAt = new Date();
-    await ticket.save();
+    await ticket.save().catch(err => {
+      console.error(`[ticketCleanup] ${ticketId} → Save hatası:`, err.message);
+    });
 
     // Log kanalına bildirim gönder
     const { TICKET_LOG_CHANNEL_ID, GUILD2_TICKET_LOG_ID } = require("../../config");

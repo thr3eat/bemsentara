@@ -47,48 +47,59 @@ function initializeDiscordHandlers(client) {
   const voiceSessions = new Map();
 
   client.on("voiceStateUpdate", async (oldState, newState) => {
-    const userId = newState.member?.id || oldState.member?.id;
-    if (!userId || newState.member?.user?.bot) return;
-
-    const { GUILD_ID: STAFF_GUILD_ID, ROLES } = require("../services/staffSystem");
-    const { FROG_GUILD_ID, onVoiceJoin, onVoiceLeave, addVoiceXP } = require("../services/frogLevel");
-    const staffRoleIds = Object.values(ROLES);
-
-    const member  = newState.member || oldState.member;
-    if (!member) return;
-
-    const guildId = newState.guild?.id || oldState.guild?.id;
-
-    const isStaff = guildId === STAFF_GUILD_ID &&
-      staffRoleIds.some(rid =>
-        rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
-        && member.roles.cache.has(rid)
-      );
-
-    if (!oldState.channelId && newState.channelId) {
-      // Sese girdi
-      voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
-      if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
-    } else if (oldState.channelId && !newState.channelId) {
-      // Sesten çıktı
-      const session = voiceSessions.get(userId);
-      voiceSessions.delete(userId);
-
-      const minutes = session ? Math.floor((Date.now() - session.joinedAt) / 60000) : 0;
-
-      // Personel ses takibi
-      if (isStaff && minutes > 0) {
-        const { addVoiceMinutes } = require("../services/staffSystem");
-        await addVoiceMinutes(userId, minutes, client).catch(() => {});
+    try {
+      const member = newState.member || oldState.member;
+      if (!member || !member.user || member.user.bot) return;
+      
+      const userId = member.id;
+      if (!userId) {
+        console.warn('[voiceStateUpdate] No user ID found');
+        return;
       }
 
-      // Kurbağa ses XP
-      if (guildId === FROG_GUILD_ID) {
-        const frogMins = onVoiceLeave(userId);
-        if (frogMins > 0) {
-          await addVoiceXP(userId, frogMins, client).catch(() => {});
+      const { GUILD_ID: STAFF_GUILD_ID, ROLES } = require("../services/staffSystem");
+      const { FROG_GUILD_ID, onVoiceJoin, onVoiceLeave, addVoiceXP } = require("../services/frogLevel");
+      const staffRoleIds = Object.values(ROLES);
+
+      const guildId = newState.guild?.id || oldState.guild?.id;
+
+      const isStaff = guildId === STAFF_GUILD_ID &&
+        staffRoleIds.some(rid =>
+          rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
+          && member.roles.cache.has(rid)
+        );
+
+      if (!oldState.channelId && newState.channelId) {
+        // Sese girdi
+        voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
+        if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
+      } else if (oldState.channelId && !newState.channelId) {
+        // Sesten çıktı
+        const session = voiceSessions.get(userId);
+        voiceSessions.delete(userId);
+
+        const minutes = session ? Math.floor((Date.now() - session.joinedAt) / 60000) : 0;
+
+        // Personel ses takibi
+        if (isStaff && minutes > 0) {
+          const { addVoiceMinutes } = require("../services/staffSystem");
+          await addVoiceMinutes(userId, minutes, client).catch(err => {
+            console.warn(`[voiceStateUpdate] addVoiceMinutes error for ${userId}:`, err.message);
+          });
+        }
+
+        // Kurbağa ses XP
+        if (guildId === FROG_GUILD_ID) {
+          const frogMins = onVoiceLeave(userId);
+          if (frogMins > 0) {
+            await addVoiceXP(userId, frogMins, client).catch(err => {
+              console.warn(`[voiceStateUpdate] addVoiceXP error for ${userId}:`, err.message);
+            });
+          }
         }
       }
+    } catch (err) {
+      console.error('[voiceStateUpdate] Fatal error:', err.message);
     }
   });
 

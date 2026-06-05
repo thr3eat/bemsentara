@@ -263,8 +263,23 @@ async function promote(progress, client) {
 
     const oldRoleId = ROLES[oldLevel];
     const newRoleId = ROLES[newLevel];
-    if (oldRoleId) await member.roles.remove(oldRoleId, 'Terfi').catch(() => {});
-    if (newRoleId) await member.roles.add(newRoleId,    'Terfi').catch(() => {});
+    
+    // Eski rolü kaldır
+    if (oldRoleId) {
+      await member.roles.remove(oldRoleId, 'Terfi').catch(roleErr => {
+        console.warn(`[staffSystem] Eski rol kaldırma hatası (${oldRoleId}):`, roleErr.code, roleErr.message);
+      });
+    }
+    
+    // Yeni rolü ekle
+    if (newRoleId) {
+      await member.roles.add(newRoleId, 'Terfi').catch(roleErr => {
+        console.warn(`[staffSystem] Yeni rol ekleme hatası (${newRoleId}):`, roleErr.code, roleErr.message);
+        if (roleErr.code === 'DiscordAPIError[50] Missing permissions') {
+          console.error('[staffSystem] Bot rolü yönetimi izni yok!');
+        }
+      });
+    }
 
     const isFinal = newLevel === 4;
     const embed = new EmbedBuilder()
