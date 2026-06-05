@@ -203,6 +203,16 @@ async function checkDailyCompletion(progress, client) {
 async function recordTicketSolved(userId, client) {
   const p = await getOrCreate(userId, GUILD_ID);
   p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
+  
+  // Sert çalışma takibi: gün içinde 3+ ticket = haftada 1 gün izin hediyesi
+  if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
+  p.stats.dailyTicketsToday += 1;
+  
+  if (p.stats.dailyTicketsToday % 3 === 0) {
+    p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+    await sendBreakRewardDM(p, client);
+  }
+  
   await p.save();
   await checkPromotion(p, client);
 }
@@ -429,6 +439,84 @@ async function sendRequirementIncreaseDM(progress, client) {
       `Bu zor — ama güçlü olduğunu biliyoruz! 💪`
     )
     .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+}
+
+// ── Sert çalışma ödülü: 1 gün izin kredisi ─────────────────────────────────
+async function sendBreakRewardDM(progress, client) {
+  const totalCredits = progress.stats?.breakCredits || 0;
+  const embed = new EmbedBuilder()
+    .setColor(0xffd700)
+    .setTitle('🎁 SEVİYE ATLAMA ÖDÜLÜ: 1 Günlük İzin!')
+    .setDescription(
+      `Harika bir iş çıkardın! 🌟 **${totalCredits === 1 ? 'İlk' : totalCredits}.** kez bu başarıyı başardın!\n\n` +
+      `**Ödülün:** 📅 **1 Günlük İzin Kredisi**\n\n` +
+      `Yarın veya sonraki gün kalmak istersen bu krediyi kullanabilirsin.\n` +
+      `Yöneticilere "izin kredisi kullanmak istiyorum" diyerek haberdar et.\n\n` +
+      `Toplam kreditin: **${totalCredits}**\n\n` +
+      `💪 Devam et, bu hız çok iyi!`
+    )
+    .addFields(
+      { name: '🎯 Başarı', value: 'Bu gün 3+ Ticket çözdün!', inline: false },
+      { name: '📊 Seviyesi', value: ROLE_NAMES[progress.level], inline: true },
+      { name: '🏆 Toplam Ödülü', value: `${totalCredits} gün izin`, inline: true },
+    )
+    .setFooter({ text: 'Eko Yıldız • Personel Ödül Sistemi' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    await user.send({ embeds: [embed] });
+    console.log(`[staffSystem] Break reward gönderildi: ${progress.userId} (total: ${totalCredits})`);
+  } catch (_) {}
+}
+
+// ── Motivasyon mesajları: rasgele teşvik ─────────────────────────────────
+async function sendRandomMotivationDM(progress, client) {
+  const motivations = [
+    {
+      title: '💪 Devam Et!',
+      messages: [
+        `${ROLE_NAMES[progress.level]}, sizi sunucuda görmek harika! Hızınızı korumanız çok önemli.`,
+        `Bugün ${progress.stats?.ticketsSolved || 0} ticket çözdüğünüz için teşekkürler! Sunucumuzu daha iyi bir yer yapıyorsunuz.`,
+        `Aktif olduğunuz için teşekkürler! Eko Yıldız'ın sizi gerek duyuyor. 🌟`,
+      ]
+    },
+    {
+      title: '🎯 Hedef Hatırlatması',
+      messages: [
+        `Terfi olmak için hâlâ ${((PROMOTION_REQUIREMENTS[progress.level]?.ticketsSolved || 0) - (progress.stats?.ticketsSolved || 0))} ticket çözmek gerekli. Yaklaşıyor!`,
+        `Sekreter olmak istiyorsanız, her ticket'ı çözmek sizi bir adım ileriye götürüyor.`,
+        `Bu seviyedeki son hedefine yaklaşıyorsun. Biraz daha çaba!`,
+      ]
+    },
+    {
+      title: '🌈 İlham Verici',
+      messages: [
+        `Eko Yıldız'ın en iyi personelleri sizin gibi çalışanlardır. Başarılı bir ekibin parçasısınız!`,
+        `Her ticket'ın çözülmesi bir kullanıcıyı mutlu ediyor. Teşekkürler! 😊`,
+        `Sunucuda sesiniz duyuluyor ve saygınlık kazanıyorsunuz. Devam edin!`,
+      ]
+    }
+  ];
+
+  const motiv = motivations[Math.floor(Math.random() * motivations.length)];
+  const msg = motiv.messages[Math.floor(Math.random() * motiv.messages.length)];
+
+  const embed = new EmbedBuilder()
+    .setColor(0x7c6af7)
+    .setTitle(motiv.title)
+    .setDescription(msg)
+    .addFields(
+      { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
+      { name: '⭐ Aktif Gün', value: `${progress.stats?.consecutiveDays || 0} gün`, inline: true },
+    )
+    .setFooter({ text: 'Eko Yıldız • Motivasyon Mesajı ✨' })
     .setTimestamp();
 
   try {
@@ -669,6 +757,9 @@ async function runDailyCheck(client) {
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 } });
 
     for (const p of allProgress) {
+      // Günlük ticket sayacını sıfırla
+      p.stats.dailyTicketsToday = 0;
+      
       const completedYesterday = p.stats.lastCompleteDay === yesterday;
 
       if (!completedYesterday) {
@@ -751,6 +842,43 @@ function startStaffScheduler(client) {
     }
   });
 
+  // 15:00 — Öğleden sonra motivasyon mesajı (aktif olan personele)
+  scheduleAt(15, 0, async () => {
+    console.log('[staffSystem] 15:00 motivasyon mesajları gönderiliyor...');
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      // %50 şansla motivasyon gönder (tüm gruba yazarsak spam olur)
+      if (Math.random() > 0.5) {
+        await sendRandomMotivationDM(p, client).catch(() => {});
+      }
+    }
+  });
+
+  // 21:00 — Akşam geç saatlerde teşvik mesajı
+  scheduleAt(21, 0, async () => {
+    console.log('[staffSystem] 21:00 gece motivasyonu...');
+    const today       = todayStr();
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      
+      // Tamamlayanları tebrik et, tamamlayamayanlara son çağrı yap
+      if (isComplete) {
+        const embed = new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle('✅ Günlük Görevleri Tamamladın!')
+          .setDescription(`Muhteşem! Bugünün görevlerini başarıyla tamamladın! 🌟\n\nYarın da bu tempoyu koruyabilirsin. İyi geceler!`)
+          .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+          .setTimestamp();
+        try {
+          const user = await client.users.fetch(p.userId);
+          await user.send({ embeds: [embed] });
+        } catch (_) {}
+      }
+    }
+  });
+
   // 23:30 — Günlük kapanış kontrol + uyarı
   scheduleAt(23, 30, async () => {
     console.log('[staffSystem] 23:30 günlük kapanış...');
@@ -772,6 +900,8 @@ module.exports = {
   startStaffScheduler,
   resignFromStaff,
   retireFromStaff,
+  sendBreakRewardDM,
+  sendRandomMotivationDM,
   ROLES,
   ROLE_NAMES,
   LEVEL_TASKS,

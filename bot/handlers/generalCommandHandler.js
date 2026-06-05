@@ -26,6 +26,7 @@ const GENERAL_COMMANDS = new Set([
   "modbasvuru",
   "istifa",
   "emeklilik",
+  "koc",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -36,6 +37,16 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "anketai") {
     const { startSurvey } = require('../services/surveyAI');
     return startSurvey(interaction);
+  }
+
+  // ── koc: AI Koç sistemi ───────────────────────────────────────────────────
+  if (commandName === "koc") {
+    const { startCoachSession, resetCoachSession } = require('../services/staffCoach');
+    const islem = interaction.options.getString('islem');
+    if (islem === 'sıfırla') {
+      await resetCoachSession(interaction.user.id);
+    }
+    return startCoachSession(interaction);
   }
 
   // ── modbasvuru: sadece yöneticiler ────────────────────────────────────────

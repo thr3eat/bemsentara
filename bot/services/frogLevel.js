@@ -23,10 +23,10 @@ const FROG_ROLES = [
 ];
 
 // ── Her seviye için gereken XP (giderek zorlaşıyor: üstel artış) ─────────────
-// Seviye 0→1: 100 XP, 1→2: 250 XP, 2→3: 500 XP ... her seviye ~2x zorlaşır
+// Seviye 0→1: 150 XP, 1→2: 350 XP, 2→3: 700 XP ... her seviye ~2.2x zorlaşır
 function xpToNextLevel(currentLevel) {
-  // Formül: 100 * (2^level) — 0dan 1e: 100, 1den 2ye: 200, 2den 3e: 400...
-  return Math.floor(100 * Math.pow(1.8, currentLevel));
+  // Formül: 150 * (2.2^level) — 0dan 1e: 150, 1den 2ye: 330, 2den 3e: 726...
+  return Math.floor(150 * Math.pow(2.2, currentLevel));
 }
 
 // Toplam seviyeye ulaşmak için gereken XP
@@ -181,6 +181,47 @@ async function levelUp(p, member, client) {
     }
   } catch (err) {
     console.warn('[frogLevel] Kanal mesajı gönderilemedi:', err.message);
+  }
+
+  // ── DM'ye seviye atlama bildirimi gönder ──────────────────────────────────
+  try {
+    const dmEmbed = new EmbedBuilder()
+      .setColor(isFinal ? 0xffd700 : 0x4ade80)
+      .setTitle(isFinal ? '🏆 TEBRIKLER! MAKSIMUM SEVİYE! 🏆' : `🎉 SEVİYE ATLAMA BAŞARILI! 🎉`)
+      .setThumbnail(member.displayAvatarURL());
+
+    if (isFinal) {
+      dmEmbed.setDescription(
+        `**Tebrikler, ${member.displayName}!**\n\n` +
+        `Eko Yıldız kurbağa sisteminde en üst seviyeye ulaştın! 👑\n\n` +
+        `🐸 **${newRoleInfo.name}** olarak tüm rotaları tamamladın!\n` +
+        `Bundan sonra sırada ne var öğrenmek için sekreterle konuş.`
+      );
+    } else {
+      const nextXp = xpToNextLevel(newLevel);
+      dmEmbed.setDescription(
+        `**Tebrikler!** Yeni seviyeye ulaştın! 🐸\n\n` +
+        `**Eski Seviye:** ${FROG_ROLES[oldLevel]?.name}\n` +
+        `**Yeni Seviye:** ${newRoleInfo.name}\n\n` +
+        `📊 **Toplam XP:** ${p.xp.toLocaleString()}`
+      ).addFields(
+        {
+          name: '⬆️ Sonraki Seviye İçin Gerekli XP',
+          value: `**${nextXp.toLocaleString()} XP** yapman gerekli\n\n` +
+                 `💬 Mesaj yazarak: Her mesaj = 5 XP\n` +
+                 `🎤 Ses kanalında: Her dakika = 3 XP\n\n` +
+                 `Seviye atlamak çok zorlaşıyor, devam et! 💪`,
+          inline: false,
+        }
+      );
+    }
+
+    dmEmbed.setFooter({ text: 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+           .setTimestamp();
+
+    await member.user.send({ embeds: [dmEmbed] }).catch(() => {});
+  } catch (err) {
+    console.warn('[frogLevel] DM gönderme hatası:', err.message);
   }
 
   // Eğer başka seviye atlama gerekiyorsa tekrar kontrol et
