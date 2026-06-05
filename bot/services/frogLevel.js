@@ -67,10 +67,19 @@ async function syncLevelFromRoles(member) {
 
 // ── Mesaj XP ekle ─────────────────────────────────────────────────────────
 async function addMessageXP(member, client) {
+  if (!member || !member.guild || !member.user) {
+    console.warn('[frogLevel] Invalid member object in addMessageXP');
+    return;
+  }
+  
   if (member.guild.id !== FROG_GUILD_ID) return;
   if (member.user.bot) return;
 
-  const p = await getOrCreate(member.id);
+  const p = await getOrCreate(member.id).catch(err => {
+    console.error('[frogLevel] getOrCreate error in addMessageXP:', err.message);
+    return null;
+  });
+  if (!p) return;
 
   // Cooldown kontrolü
   const now = Date.now();
