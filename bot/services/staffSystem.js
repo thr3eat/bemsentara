@@ -260,7 +260,9 @@ async function recordWeeklyReport(userId, client) {
   await checkPromotion(p, client);
 }
 
-async function checkDailyCompletion(progress, client) {
+  catch (err) {
+    console.error('[staffSystem] recordWeeklyReport error:', err.message);
+  }function checkDailyCompletion(progress, client) {
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const greetDone = progress.daily.greeted;
   const voiceDone = progress.daily.voiceMinutes >= req.voiceMinutes;
@@ -280,65 +282,149 @@ async function checkDailyCompletion(progress, client) {
 }
 
 async function recordTicketSolved(userId, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
-  
-  // Sert çalışma takibi: gün içinde 3+ ticket = haftada 1 gün izin hediyesi
-  if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
-  p.stats.dailyTicketsToday += 1;
-  
-  if (p.stats.dailyTicketsToday % 3 === 0) {
-    p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
-    await sendBreakRewardDM(p, client);
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordTicketSolved: Invalid userId');
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed in recordTicketSolved:', err.message);
+      return null;
+    });
+    
+    if (!p) {
+      console.warn(`[staffSystem] recordTicketSolved: Cannot create/fetch record for ${userId}`);
+      return;
+    }
+    
+    p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
+    
+    // Sert çalışma takibi: gün içinde 3+ ticket = haftada 1 gün izin hediyesi
+    if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
+    p.stats.dailyTicketsToday += 1;
+    
+    if (p.stats.dailyTicketsToday % 3 === 0) {
+      p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+      await sendBreakRewardDM(p, client).catch(err => {
+        console.warn(`[staffSystem] sendBreakRewardDM error for ${userId}:`, err.message);
+      });
+    }
+    
+    await p.save().catch(err => {
+      console.error('[staffSystem] Save failed in recordTicketSolved:', err.message);
+      return;
+    });
+    await checkPromotion(p, client).catch(err => {
+      console.error('[staffSystem] checkPromotion failed:', err.message);
+    });
+  } catch (err) {
+    console.error('[staffSystem] recordTicketSolved error:', err.message);
   }
-  
-  await p.save();
-  await checkPromotion(p, client);
 }
 
 async function recordSurveyCompleted(userId, client) {
-  const p = await getOrCreate(userId, GUILD_ID);
-  p.stats.surveysCompleted = (p.stats.surveysCompleted || 0) + 1;
-  await p.save();
-  await checkPromotion(p, client);
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordSurveyCompleted: Invalid userId');
+      return;
+    }
+    
+    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
+      console.error('[staffSystem] getOrCreate failed:', err.message);
+      return null;
+    });
+    
+    if (!p) return;
+    
+    p.stats.surveysCompleted = (p.stats.surveysCompleted || 0) + 1;
+    await p.save().catch(err => {
+      console.error('[staffSystem] Save failed:', err.message);
+    });
+    await checkPromotion(p, client).catch(err => {
+      console.error('[staffSystem] checkPromotion failed:', err.message);
+    });
+  } catch (err) {
+    console.error('[staffSystem] recordSurveyCompleted error:', err.message);
+  }
 }
 
 async function checkPromotion(progress, client) {
-  const currentLevel = progress.level || 1;
-  const req = PROMOTION_REQUIREMENTS[currentLevel];
-  if (!req) return;
+  try {
+    if (!progress || !progress.stats) {
+      console.warn('[staffSystem] checkPromotion: Invalid progress object');
+      return;
+    }
+    
+    const currentLevel = progress.level || 1;
+    const req = PROMOTION_REQUIREMENTS[currentLevel];
+    if (!req) {
+      console.debug(`[staffSystem] No promotion requirements for level ${currentLevel}`);
+      return;
+    }
 
-  const stats = progress.stats;
-  const ok =
-    (stats.ticketsSolved    || 0) >= req.ticketsSolved    &&
-    (stats.surveysCompleted || 0) >= req.surveysCompleted &&
-    (stats.activeDays       || 0) >= req.activeDays       &&
-    (stats.moderationActions|| 0) >= req.moderationActions &&
-    (stats.weeklyReports    || 0) >= req.weeklyReports;
+    const stats = progress.stats;
+    const ok =
+      (stats.ticketsSolved    || 0) >= req.ticketsSolved    &&
+      (stats.surveysCompleted || 0) >= req.surveysCompleted &&
+      (stats.activeDays       || 0) >= req.activeDays       &&
+      (stats.moderationActions|| 0) >= req.moderationActions &&
+      (stats.weeklyReports    || 0) >= req.weeklyReports;
 
-  if (ok) await promote(progress, client);
+    if (ok) {
+      await promote(progress, client).catch(err => {
+        console.error('[staffSystem] promote failed:', err.message);
+      });
+    }
+  } catch (err) {
+    console.error('[staffSystem] checkPromotion error:', err.message);
+  }
 }
 
 async function promote(progress, client) {
-  const oldLevel = progress.level;
-  const newLevel = oldLevel + 1;
-  if (newLevel > 4) return;
-
-  progress.level      = newLevel;
-  progress.promotedAt = new Date();
-  // İstatistik sıfırla
-  progress.stats.ticketsSolved     = 0;
-  progress.stats.surveysCompleted  = 0;
-  progress.stats.activeDays        = 0;
-  progress.stats.moderationActions = 0;
-  progress.stats.weeklyReports     = 0;
-  await progress.save();
-
   try {
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    if (!guild) return;
-    const member = await guild.members.fetch(progress.userId).catch(() => null);
-    if (!member) return;
+    if (!progress || !client) {
+      console.warn('[staffSystem] promote: Missing progress or client');
+      return;
+    }
+    
+    const oldLevel = progress.level || 1;
+    const newLevel = oldLevel + 1;
+    if (newLevel > 4) return;
+
+    progress.level      = newLevel;
+    progress.promotedAt = new Date();
+    // İstatistik sıfırla
+    progress.stats.ticketsSolved     = 0;
+    progress.stats.surveysCompleted  = 0;
+    progress.stats.activeDays        = 0;
+    progress.stats.moderationActions = 0;
+    progress.stats.weeklyReports     = 0;
+    
+    await progress.save().catch(err => {
+      console.error('[staffSystem] Save failed in promote:', err.message);
+      return;
+    });
+
+    // ── Role management ──────────────────────────────────────────────────────
+    const guild  = await client.guilds.fetch(GUILD_ID).catch(err => {
+      console.warn(`[staffSystem] Guild ${GUILD_ID} not found:`, err.code);
+      return null;
+    });
+    
+    if (!guild) {
+      console.error(`[staffSystem] Cannot access guild ${GUILD_ID} for role assignment`);
+      return;
+    }
+    
+    const member = await guild.members.fetch(progress.userId).catch(err => {
+      console.warn(`[staffSystem] Member ${progress.userId} not found:`, err.code);
+      return null;
+    });
+    if (!member) {
+      console.warn(`[staffSystem] Cannot access member ${progress.userId} for role assignment`);
+      return;
+    }
 
     const oldRoleId = ROLES[oldLevel];
     const newRoleId = ROLES[newLevel];
@@ -346,16 +432,19 @@ async function promote(progress, client) {
     // Eski rolü kaldır
     if (oldRoleId) {
       await member.roles.remove(oldRoleId, 'Terfi').catch(roleErr => {
-        console.warn(`[staffSystem] Eski rol kaldırma hatası (${oldRoleId}):`, roleErr.code, roleErr.message);
+        console.warn(`[staffSystem] Cannot remove old role (${oldRoleId}):`, roleErr.code, roleErr.message);
+        if (roleErr.code === 50) {
+          console.error('[staffSystem] ⚠️ Bot missing ManageRoles permission');
+        }
       });
     }
     
     // Yeni rolü ekle
     if (newRoleId) {
       await member.roles.add(newRoleId, 'Terfi').catch(roleErr => {
-        console.warn(`[staffSystem] Yeni rol ekleme hatası (${newRoleId}):`, roleErr.code, roleErr.message);
-        if (roleErr.code === 'DiscordAPIError[50] Missing permissions') {
-          console.error('[staffSystem] Bot rolü yönetimi izni yok!');
+        console.warn(`[staffSystem] Cannot add new role (${newRoleId}):`, roleErr.code, roleErr.message);
+        if (roleErr.code === 50) {
+          console.error('[staffSystem] ⚠️ Bot missing ManageRoles permission');
         }
       });
     }
@@ -376,10 +465,16 @@ async function promote(progress, client) {
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
 
-    await client.users.fetch(progress.userId).then(u => u.send({ embeds: [embed] })).catch(() => {});
-    console.log(`[staffSystem] ${progress.userId} → Seviye ${newLevel}`);
+    try {
+      const user = await client.users.fetch(progress.userId);
+      await user.send({ embeds: [embed] });
+    } catch (dmErr) {
+      console.warn(`[staffSystem] Cannot send promotion DM to ${progress.userId}:`, dmErr.code);
+    }
+    
+    console.log(`[staffSystem] ${progress.userId} promoted to level ${newLevel}`);
   } catch (err) {
-    console.error('[staffSystem] Terfi hatası:', err.message);
+    console.error('[staffSystem] promote error:', err.message);
   }
 }
 

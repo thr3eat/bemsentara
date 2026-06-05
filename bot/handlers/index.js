@@ -25,20 +25,48 @@ function initializeDiscordHandlers(client) {
   client.on("guildMemberAdd", async (member) => {
     try {
       const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID } = require("../../config");
+      const { PermissionFlagsBits } = require('discord.js');
+      
       if (member.guild.id !== TARGET_GUILD_ID) return;
-      if (!UNVERIFIED_ROLE_ID) return;
       if (member.user.bot) return;
-
-      const role = member.guild.roles.cache.get(UNVERIFIED_ROLE_ID);
-      if (!role) {
-        console.warn(`[guildMemberAdd] Doğrulanmamış rol bulunamadı: ${UNVERIFIED_ROLE_ID}`);
+      
+      if (!UNVERIFIED_ROLE_ID) {
+        console.warn('[guildMemberAdd] UNVERIFIED_ROLE_ID not configured');
         return;
       }
 
-      await member.roles.add(role, "Yeni üye — doğrulanmamış");
+      // Check bot permissions
+      const botMember = await member.guild.members.fetchMe().catch(err => {
+        console.error('[guildMemberAdd] Cannot fetch bot member:', err.code);
+        return null;
+      });
+      
+      if (!botMember) {
+        console.error('[guildMemberAdd] Bot member object is null');
+        return;
+      }
+      
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.error('[guildMemberAdd] ⚠️ Bot missing ManageRoles permission');
+        return;
+      }
+
+      const role = member.guild.roles.cache.get(UNVERIFIED_ROLE_ID);
+      if (!role) {
+        console.warn(`[guildMemberAdd] Role ${UNVERIFIED_ROLE_ID} not found in guild`);
+        return;
+      }
+
+      await member.roles.add(role, "Yeni üye — doğrulanmamış").catch(err => {
+        console.error(`[guildMemberAdd] Cannot add role to ${member.user.tag}:`, err.code, err.message);
+        if (err.code === 'DiscordAPIError[50] Missing permissions') {
+          console.error('[guildMemberAdd] ⚠️ Bot has insufficient permissions');
+        }
+      });
+      
       console.log(`[guildMemberAdd] ${member.user.tag} → doğrulanmamış rolü verildi`);
     } catch (err) {
-      console.error("[guildMemberAdd] Rol verilemedi:", err.message);
+      console.error("[guildMemberAdd] Fatal error:", err.message);
     }
   });
 

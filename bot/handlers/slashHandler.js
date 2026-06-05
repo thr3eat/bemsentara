@@ -10,7 +10,10 @@ async function handleSlashCommand(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const user = await User.findOne({ discordId: interaction.user.id });
+    const user = await User.findOne({ discordId: interaction.user.id }).catch(err => {
+      console.warn('[slashHandler] User lookup error:', err.message);
+      return null;
+    });
 
     if (commandName === "support") {
       if (!interaction.guild) {
@@ -52,7 +55,10 @@ async function handleSlashCommand(interaction) {
 
     if (commandName === "closeticket") {
       const reason = interaction.options.getString("reason") || "Belirtilmedi";
-      const ticket = await Ticket.findOne({ userId: interaction.user.id, status: "open" });
+      const ticket = await Ticket.findOne({ userId: interaction.user.id, status: "open" }).catch(err => {
+        console.error('[slashHandler] Ticket lookup error:', err.message);
+        return null;
+      });
 
       if (!ticket) {
         return interaction.editReply({ content: "❌ Açık ticket'ınız yok" });
@@ -63,17 +69,33 @@ async function handleSlashCommand(interaction) {
       ticket.closeReason = reason;
       ticket.closedBy = interaction.user.id;
       ticket.closedByName = interaction.user.username;
-      await ticket.save();
+      await ticket.save().catch(err => {
+        console.error('[slashHandler] Ticket save error:', err.message);
+      });
 
       // Kanal mesajlarını logla
       const { logTicketClosed, logTicketMessages } = require("../services/ticketLog");
       const { TARGET_GUILD_ID } = require("../../config");
       const guildId = ticket.guildId || TARGET_GUILD_ID;
-      const guild = await interaction.client.guilds.fetch(guildId);
-      const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+      
+      const guild = await interaction.client.guilds.fetch(guildId).catch(err => {
+        console.warn(`[slashHandler] Guild ${guildId} not found:`, err.code);
+        return null;
+      });
+      
+      if (!guild) {
+        console.error(`[slashHandler] Cannot access guild ${guildId} to log ticket`);
+      } else {
+        const channel = await guild.channels.fetch(ticket.channelId).catch(err => {
+          console.warn(`[slashHandler] Channel ${ticket.channelId} not found:`, err.code);
+          return null;
+        });
 
-      if (channel) {
-        await logTicketMessages(channel, ticket);
+        if (channel) {
+          await logTicketMessages(channel, ticket).catch(err => {
+            console.error('[slashHandler] logTicketMessages error:', err.message);
+          });
+        }
       }
 
       logTicketClosed(ticket, {
