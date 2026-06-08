@@ -75,6 +75,51 @@ async function handleGeneralCommand(interaction) {
     }
   }
 
+  // ── istifa: Personel görevinden istifa et ─────────────────────────────────
+  if (commandName === "istifa") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { resignFromStaff } = require('../services/staffSystem');
+      const reason = interaction.options.getString('sebep');
+      const result = await resignFromStaff(interaction.user.id, reason, interaction.client);
+      
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ ${result.message}` });
+      }
+      
+      const message = result.canRetire
+        ? `✅ İstifan kabul edildi. 90+ gün aktif kaldığın için emeklilik talep edebilirsin! \`/emeklilik\` komutunu kullan.`
+        : `✅ İstifan kabul edildi. Teşekkürler! Tekrar başvurmak istersen yöneticilere yazabilirsin.`;
+      
+      return interaction.editReply({ content: message });
+    } catch (err) {
+      console.error('[istifa] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── emeklilik: Emekli ol ───────────────────────────────────────────────────
+  if (commandName === "emeklilik") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { retireFromStaff } = require('../services/staffSystem');
+      const result = await retireFromStaff(interaction.user.id, interaction.client);
+      
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ ${result.message}` });
+      }
+      
+      return interaction.editReply({ content: `🏅 Tebrikler! ${result.totalDays} gün aktif hizmetin sonrasında emekli oldun! Son görevin: ${result.levelName}` });
+    } catch (err) {
+      console.error('[emeklilik] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── personeldurum ──────────────────────────────────────────────────────────
   if (commandName === "personeldurum") {
     if (!interaction.deferred && !interaction.replied) {

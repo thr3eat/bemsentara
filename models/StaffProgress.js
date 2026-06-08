@@ -28,6 +28,18 @@ const staffProgressSchema = new mongoose.Schema({
     moderationActions:{ type: Number, default: 0 }, // Mod işlemleri
     weeklyReports:    { type: Number, default: 0 },  // Haftalık rapor sayısı
     lastCompleteDay:  { type: String, default: '' }, // Son tamamlanan gün
+    dailyTicketsToday:{ type: Number, default: 0 },
+    breakCredits:     { type: Number, default: 0 },  // İzin kredileri
+  },
+
+  // İzin Sistemi (Yeni)
+  leaves: {
+    totalCredits:      { type: Number, default: 0 },  // Toplam izin kredileri
+    usedDays:          { type: [String], default: [] }, // Kullanılan izin günleri [YYYY-MM-DD]
+    pendingRequests:   { type: [Object], default: [] },  // Bekleyen izin talepleri
+    lastLeaveDate:     { type: String, default: null },   // Son izin tarihi
+    monthlyLeaveUsed:  { type: Number, default: 0 },      // Bu ay kullanılan izin günü
+    weeklyLeaveUsed:   { type: Number, default: 0 },      // Bu hafta kullanılan izin günü
   },
 
   // Uyarı sistemi
@@ -41,11 +53,13 @@ const staffProgressSchema = new mongoose.Schema({
   promotedAt: { type: Date, default: null },
   joinedAt:   { type: Date, default: Date.now },
 
-  // İstifa / Emeklilik
-  status:       { type: String, default: 'active', enum: ['active', 'resigned', 'retired'] },
+  // İstifa / Emeklilik / Kov
+  status:       { type: String, default: 'active', enum: ['active', 'resigned', 'retired', 'dismissed'] },
   resignedAt:   { type: Date, default: null },
   resignReason: { type: String, default: null },
   retiredAt:    { type: Date, default: null },
+  dismissedAt:  { type: Date, default: null },
+  dismissReason:{ type: String, default: null },
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress
