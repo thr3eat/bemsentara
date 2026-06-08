@@ -307,6 +307,44 @@ async function recordTicketSolved(userId, client) {
     
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     
+    // 🎮 Gamification: XP ve Puan ekle
+    if (!p.gamification) {
+      p.gamification = {
+        totalPoints: 0,
+        level: 1,
+        currentXP: 0,
+        badges: {},
+        streak: { current: 0, longest: 0, brokenDays: 0 },
+      };
+    }
+    
+    const xpGain = 50; // Ticket başına 50 XP
+    const pointsGain = 10; // Ticket başına 10 puan
+    p.gamification.totalPoints = (p.gamification.totalPoints || 0) + pointsGain;
+    p.gamification.currentXP = (p.gamification.currentXP || 0) + xpGain;
+    
+    // Level up kontrol et
+    const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+    if (p.gamification.currentXP >= nextLevelXp) {
+      p.gamification.level = (p.gamification.level || 1) + 1;
+      p.gamification.currentXP = 0;
+      
+      // Level up mesajı gönder
+      if (client && p.gamification.level > 1) {
+        const levelEmbed = new EmbedBuilder()
+          .setColor(0xff006e)
+          .setTitle(`🎉 LEVEL UP! ${p.gamification.level}`)
+          .setDescription(`Seni görüyoruz! Her ticket seni daha güçlü yapıyor! 🚀`)
+          .setFooter({ text: 'Eko Yıldız • Gamification' })
+          .setTimestamp();
+        
+        try {
+          const user = await client.users.fetch(userId);
+          await user.send({ embeds: [levelEmbed] });
+        } catch (_) {}
+      }
+    }
+    
     // Sert çalışma takibi: gün içinde 3+ ticket = haftada 1 gün izin hediyesi
     if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
     p.stats.dailyTicketsToday += 1;
@@ -318,10 +356,19 @@ async function recordTicketSolved(userId, client) {
       });
     }
     
+    // Hız ustası rozeti kontrol et
+    if (p.stats.dailyTicketsToday === 5 && !p.gamification.badges?.speedRunner) {
+      await checkAndUnlockBadges(p, client);
+    }
+    
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed in recordTicketSolved:', err.message);
       return;
     });
+    
+    // Rozetleri kontrol et
+    await checkAndUnlockBadges(p, client).catch(() => {});
+    
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -1250,6 +1297,18 @@ function startStaffScheduler(client) {
     }
   });
 
+  // 18:00 — Akşam eğlenceleri (gamification fun message'ları)
+  scheduleAt(18, 0, async () => {
+    console.log('[staffSystem] 18:00 eğlenceli mesajları gönderiliyor...');
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    for (const p of allProgress) {
+      // %60 şansla eğlenceli mesaj gönder
+      if (Math.random() > 0.4) {
+        await sendFunMessage(p.userId, client).catch(() => {});
+      }
+    }
+  });
+
   // 21:00 — Akşam geç saatlerde teşvik mesajı
   scheduleAt(21, 0, async () => {
     console.log('[staffSystem] 21:00 gece motivasyonu...');
@@ -1388,6 +1447,251 @@ async function notifyStaff(userId, title, message, color = 0x7c6af7, client) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// 🎮 GAMİFİCATION SİSTEMİ (OYUNLAŞTIRMA)
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Rozet tanımları
+const BADGES = {
+  firstTicket: { name: '🎫 İlk Ticket', desc: 'İlk ticket\'ini çözdün!', xp: 50 },
+  weekWarrior: { name: '⚔️ Hafta Savaşçısı', desc: '7 gün ardışık başarı!', xp: 200 },
+  monthMaster: { name: '👑 Ay Hakimi', desc: '30 gün ardışık başarı!', xp: 500 },
+  ticketHero: { name: '🦸 Ticket Kahramanı', desc: '50 ticket çözdün!', xp: 300 },
+  supportStar: { name: '⭐ Destek Yıldızı', desc: '100 ticket çözdün!', xp: 750 },
+  legendaryHelper: { name: '🌟 Efsane Yardımcı', desc: '250 ticket çözdün!', xp: 2000 },
+  perfectWeek: { name: '💯 Mükemmel Hafta', desc: '7 gün 100% başarı!', xp: 400 },
+  socialButterfly: { name: '🦋 Sosyal Kelebeği', desc: '10 anket yönettin!', xp: 300 },
+  moderator: { name: '🛡️ Moderatör', desc: '30 moderasyon işlemi!', xp: 350 },
+  speedRunner: { name: '⚡ Hız Ustası', desc: 'Aynı gün 5 ticket!', xp: 250 },
+  noMissWeek: { name: '🎯 Hedefçi', desc: '7 gün uyarısız!', xp: 300 },
+};
+
+/**
+ * XP ve seviye hesapla
+ */
+function getXpForLevel(level) {
+  return Math.floor(100 * Math.pow(1.15, level - 1));
+}
+
+/**
+ * Rozetleri kontrol et ve kilidi aç
+ */
+async function checkAndUnlockBadges(progress, client) {
+  if (!progress.gamification) {
+    progress.gamification = {
+      totalPoints: 0,
+      level: 1,
+      currentXP: 0,
+      badges: {},
+      streak: { current: 0, longest: 0, brokenDays: 0 },
+    };
+  }
+
+  const badges = progress.gamification.badges || {};
+  const stats = progress.stats || {};
+  let newBadges = [];
+
+  // Rozetleri kontrol et
+  if (stats.ticketsSolved === 1 && !badges.firstTicket) {
+    badges.firstTicket = true;
+    newBadges.push('firstTicket');
+  }
+
+  if (stats.consecutiveDays === 7 && !badges.weekWarrior) {
+    badges.weekWarrior = true;
+    newBadges.push('weekWarrior');
+  }
+
+  if (stats.consecutiveDays === 30 && !badges.monthMaster) {
+    badges.monthMaster = true;
+    newBadges.push('monthMaster');
+  }
+
+  if ((stats.ticketsSolved || 0) >= 50 && !badges.ticketHero) {
+    badges.ticketHero = true;
+    newBadges.push('ticketHero');
+  }
+
+  if ((stats.ticketsSolved || 0) >= 100 && !badges.supportStar) {
+    badges.supportStar = true;
+    newBadges.push('supportStar');
+  }
+
+  if ((stats.ticketsSolved || 0) >= 250 && !badges.legendaryHelper) {
+    badges.legendaryHelper = true;
+    newBadges.push('legendaryHelper');
+  }
+
+  if ((stats.surveysCompleted || 0) >= 10 && !badges.socialButterfly) {
+    badges.socialButterfly = true;
+    newBadges.push('socialButterfly');
+  }
+
+  if ((stats.moderationActions || 0) >= 30 && !badges.moderator) {
+    badges.moderator = true;
+    newBadges.push('moderator');
+  }
+
+  if (!badges.noMissWeek && progress.warnings?.count === 0 && stats.consecutiveDays === 7) {
+    badges.noMissWeek = true;
+    newBadges.push('noMissWeek');
+  }
+
+  if ((stats.dailyTicketsToday || 0) >= 5 && !badges.speedRunner) {
+    badges.speedRunner = true;
+    newBadges.push('speedRunner');
+  }
+
+  // Yeni rozetler için gönder
+  if (newBadges.length > 0) {
+    for (const badgeId of newBadges) {
+      await sendBadgeUnlockedDM(progress, badgeId, client).catch(() => {});
+    }
+  }
+
+  await progress.save().catch(() => {});
+  return newBadges;
+}
+
+/**
+ * Rozet açıldığında bildir
+ */
+async function sendBadgeUnlockedDM(progress, badgeId, client) {
+  const badge = BADGES[badgeId];
+  if (!badge) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(0xffd700)
+    .setTitle(`🏆 ROZET AÇILDI: ${badge.name}`)
+    .setDescription(
+      `\`\`\`\n${badge.name}\n\`\`\`\n\n` +
+      `**${badge.desc}**\n\n` +
+      `✨ +${badge.xp} XP kazandın!\n\n` +
+      `Harika bir başarı! Bu rozeti taşı gurulla! 💪`
+    )
+    .setFooter({ text: 'Eko Yıldız • Gamification' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    await user.send({ embeds: [embed] });
+    console.log(`[staffSystem] Rozet açıldı: ${progress.userId} → ${badgeId}`);
+  } catch (_) {}
+}
+
+/**
+ * Leaderboard al (Top 10)
+ */
+async function getLeaderboard() {
+  try {
+    const allProgress = await StaffProgress.find({ status: 'active' })
+      .sort({ 'gamification.totalPoints': -1 })
+      .limit(10)
+      .select('userId gamification stats level ROLE_NAMES');
+
+    return allProgress.map((p, idx) => ({
+      rank: idx + 1,
+      userId: p.userId,
+      points: p.gamification?.totalPoints || 0,
+      level: p.level,
+      xpLevel: p.gamification?.level || 1,
+      tickets: p.stats?.ticketsSolved || 0,
+      badges: Object.values(p.gamification?.badges || {}).filter(Boolean).length,
+    }));
+  } catch (err) {
+    console.error('[staffSystem] Leaderboard hatası:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Haftalık Challenge (Zorluk) sistemi
+ */
+const WEEKLY_CHALLENGES = [
+  {
+    id: 'ticketBlitz',
+    name: '🚀 Ticket Patlaması',
+    goal: 10,
+    description: 'Bu hafta 10 ticket çöz!',
+    reward: 500,
+  },
+  {
+    id: 'perfectStreak',
+    name: '💯 Mükemmel Hafta',
+    goal: 7,
+    description: '7 gün uyarısız kalmayı başar!',
+    reward: 400,
+  },
+  {
+    id: 'surveyMaster',
+    name: '📊 Anket Ustası',
+    goal: 5,
+    description: 'Bu hafta 5 anket yürüt!',
+    reward: 300,
+  },
+  {
+    id: 'socialStar',
+    name: '⭐ Sosyal Yıldız',
+    goal: 4,
+    description: 'Hergün sohbete 5+ selam ver!',
+    reward: 250,
+  },
+];
+
+/**
+ * Mevcut hafta challenge'ı döndür
+ */
+function getWeeklyChallenge() {
+  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000)) % WEEKLY_CHALLENGES.length;
+  return WEEKLY_CHALLENGES[week];
+}
+
+/**
+ * Personele eğlenceli mesaj gönder
+ */
+async function sendFunMessage(userId, client) {
+  const funMessages = [
+    {
+      title: '🎮 OYUN ZAMANINDA!',
+      desc: 'Sende kaç puan var? Leaderboard\'a bak! `/leaderboard`',
+      color: 0x9d4edd,
+    },
+    {
+      title: '⚡ ÇOK HIZLISSIN!',
+      desc: 'Şu hızla gidersen sekreter olursun! Devam et! 💨',
+      color: 0x00b4d8,
+    },
+    {
+      title: '🌟 ROZETLER KAZAN!',
+      desc: 'Biraz daha ilerlersen yeni rozetler açılacak! Heyecanlı mı? 🏆',
+      color: 0xffd60a,
+    },
+    {
+      title: '🎯 HAFTALIK CHALLENGE!',
+      desc: `Bu hafta "${getWeeklyChallenge().name}" challenge\'ı var. Başarabilir misin?`,
+      color: 0xff006e,
+    },
+    {
+      title: '💪 BÜ GÜZEL!',
+      desc: 'Seni sunucuda görmek çok mutlu ediyor! Devam et! 😊',
+      color: 0x06ffa5,
+    },
+  ];
+
+  const msg = funMessages[Math.floor(Math.random() * funMessages.length)];
+  const embed = new EmbedBuilder()
+    .setColor(msg.color)
+    .setTitle(msg.title)
+    .setDescription(msg.desc)
+    .setFooter({ text: 'Eko Yıldız • Eğlence' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send({ embeds: [embed] });
+  } catch (_) {}
+}
+
 module.exports = {
   getOrCreate,
   recordGreet,
@@ -1409,6 +1713,15 @@ module.exports = {
   notifyAllStaffAboutUpdate,
   sendSystemUpdateNotification,
   notifyStaff,
+  // Gamification
+  checkAndUnlockBadges,
+  sendBadgeUnlockedDM,
+  getLeaderboard,
+  getWeeklyChallenge,
+  sendFunMessage,
+  BADGES,
+  WEEKLY_CHALLENGES,
+  getXpForLevel,
   ROLES,
   ROLE_NAMES,
   LEVEL_TASKS,

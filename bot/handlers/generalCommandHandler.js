@@ -27,6 +27,9 @@ const GENERAL_COMMANDS = new Set([
   "istifa",
   "emeklilik",
   "koc",
+  "leaderboard",
+  "profil",
+  "challenge",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -116,6 +119,126 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ content: `🏅 Tebrikler! ${result.totalDays} gün aktif hizmetin sonrasında emekli oldun! Son görevin: ${result.levelName}` });
     } catch (err) {
       console.error('[emeklilik] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── leaderboard: Top 10 göster ────────────────────────────────────────────
+  if (commandName === "leaderboard") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+    try {
+      const { getLeaderboard } = require('../services/staffSystem');
+      const lb = await getLeaderboard();
+
+      if (lb.length === 0) {
+        return interaction.editReply({ content: '❌ Henüz leaderboard verisi yok.' });
+      }
+
+      let description = '```\n';
+      for (const p of lb) {
+        const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
+        description += `${medal} <@${p.userId}> | ${p.points}pts | Lvl.${p.xpLevel} | ${p.tickets} 🎫 | ${p.badges} 🏆\n`;
+      }
+      description += '```';
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle('🏆 LEADERBOARD - Top 10 Personel')
+        .setDescription(description)
+        .addFields(
+          { name: '📊 Nasıl İşliyor?', value: 'Ticket = +10 puan • Seviye = +XP • Rozet = +Prestij', inline: false }
+        )
+        .setFooter({ text: 'Eko Yıldız • Gamification' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[leaderboard] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── profil: Gamification profili ───────────────────────────────────────────
+  if (commandName === "profil") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { BADGES, getXpForLevel } = require('../services/staffSystem');
+      const StaffProgress = require('../../models/StaffProgress');
+      const target = interaction.options.getUser('kullanici') || interaction.user;
+
+      const p = await StaffProgress.findOne({ userId: target.id });
+      if (!p || !p.gamification) {
+        return interaction.editReply({ content: `❌ **${target.username}** henüz gamification verisi yok. Ticket çöz! 🎫` });
+      }
+
+      const gm = p.gamification;
+      const nextLevelXp = getXpForLevel(gm.level + 1);
+      const xpPercent = Math.floor((gm.currentXP / nextLevelXp) * 100);
+
+      // Rozet listesi
+      let badgeList = '```\n';
+      let badgeCount = 0;
+      for (const [key, value] of Object.entries(gm.badges || {})) {
+        if (value === true) {
+          badgeCount++;
+          const badge = BADGES[key];
+          if (badge) {
+            badgeList += `${badge.name}\n`;
+          }
+        }
+      }
+      if (badgeCount === 0) badgeList += 'Henüz rozet yok. Başlasana! 🎮\n';
+      badgeList += '```';
+
+      const embed = new EmbedBuilder()
+        .setColor(0x9d4edd)
+        .setTitle(`🎮 ${target.username}'nin Gamification Profili`)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '⭐ XP Seviye', value: `**${gm.level}**`, inline: true },
+          { name: '🎯 Puanlar', value: `**${gm.totalPoints}**`, inline: true },
+          { name: '🏆 Rozetler', value: `**${badgeCount}**`, inline: true },
+          { name: '📈 XP İlerlemesi', value: `\`${gm.currentXP}/${nextLevelXp} (${xpPercent}%)\``, inline: false },
+          { name: '🎪 Streak', value: `Mevcut: ${gm.streak?.current || 0} | En Uzun: ${gm.streak?.longest || 0}`, inline: false },
+          { name: '🏅 Rozetlerin', value: badgeList, inline: false },
+        )
+        .setFooter({ text: 'Eko Yıldız • Gamification' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[profil] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── challenge: Haftalık challenge göster ───────────────────────────────────
+  if (commandName === "challenge") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+    try {
+      const { getWeeklyChallenge } = require('../services/staffSystem');
+      const challenge = getWeeklyChallenge();
+
+      const embed = new EmbedBuilder()
+        .setColor(0xff006e)
+        .setTitle(`🎯 BU HAFTA CHALLENGE: ${challenge.name}`)
+        .setDescription(`**${challenge.description}**\n\n🏆 Ödül: **${challenge.reward} puan**`)
+        .addFields(
+          { name: '💪 Yapabilir misin?', value: 'Başarırsan extra puan ve prestij kazanırsın!', inline: false },
+          { name: '🚀 Hızlı İpuçları', value: '• Hızlı başla\n• Konsantre ol\n• Diğerleriyle yarış\n• WIN! 🎉', inline: false }
+        )
+        .setFooter({ text: 'Eko Yıldız • Haftalık Challenge' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[challenge] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

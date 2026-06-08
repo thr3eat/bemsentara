@@ -42,6 +42,33 @@ const staffProgressSchema = new mongoose.Schema({
     weeklyLeaveUsed:   { type: Number, default: 0 },      // Bu hafta kullanılan izin günü
   },
 
+  // Gamification Sistemi (YENİ!)
+  gamification: {
+    totalPoints:       { type: Number, default: 0 },     // Toplam puan
+    level:             { type: Number, default: 1 },     // XP Seviyesi (1-50)
+    currentXP:         { type: Number, default: 0 },     // Mevcut XP
+    badges: {          // Rozetler
+      firstTicket:     { type: Boolean, default: false }, // İlk ticket çözümü
+      weekWarrior:     { type: Boolean, default: false }, // 7 gün ardışık
+      monthMaster:     { type: Boolean, default: false }, // 30 gün ardışık
+      ticketHero:      { type: Boolean, default: false }, // 50 ticket
+      supportStar:     { type: Boolean, default: false }, // 100 ticket
+      legendaryHelper:  { type: Boolean, default: false }, // 250 ticket
+      perfectWeek:     { type: Boolean, default: false }, // 7 gün 100% başarı
+      socialButterfly:  { type: Boolean, default: false }, // 10 anket
+      moderator:       { type: Boolean, default: false }, // 30 mod işlem
+      speedRunner:     { type: Boolean, default: false }, // Aynı gün 5 ticket
+      noMissWeek:      { type: Boolean, default: false }, // 7 gün uyarısız
+    },
+    streak: {          // Kayıt (Streak)
+      current:         { type: Number, default: 0 },     // Şu anki
+      longest:         { type: Number, default: 0 },     // En uzun
+      brokenDays:      { type: Number, default: 0 },     // Kaç kez kırıldı
+    },
+    challengesCompleted: { type: Number, default: 0 },   // Tamamlanan haftalk zorluklar
+    lastChallengeWeek:   { type: Number, default: 0 },   // Son challenge haftası
+  },
+
   // Uyarı sistemi
   warnings: {
     count:        { type: Number, default: 0 },    // Kaç gün üst üste görev yapılmadı

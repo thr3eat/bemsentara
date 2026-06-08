@@ -222,6 +222,21 @@ const generalCommands = [
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("leaderboard")
+    .setDescription("🏆 Top 10 personeli göster - XP, Puan, Rozetler!"),
+
+  new SlashCommandBuilder()
+    .setName("profil")
+    .setDescription("🎮 Senin gamification profilini göster - XP, Rozetler, Streak")
+    .addUserOption(o =>
+      o.setName("kullanici").setDescription("Bakılacak kişi (boş = kendin)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("challenge")
+    .setDescription("🎯 Bu hafta challenge'ını göster!"),
 ];
 
 const economyCommands = [
