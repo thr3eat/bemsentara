@@ -99,6 +99,34 @@ function getDailyRequirements(level, consecutiveDays = 0) {
   };
 }
 
+// ── Aktif gün az uyarı (< 2 gün) ──────────────────────────────────────────
+async function checkLowActivityWarning(progress, client) {
+  const activeDays = progress.stats?.activeDays || 0;
+  const level = progress.level || 1;
+  
+  // Sadece 1 gün aktifse özel uyarı gönder
+  if (activeDays === 1 && !progress.warnings?.lowActivityNotified) {
+    const embed = new EmbedBuilder()
+      .setColor(0xff9500)
+      .setTitle('⚠️ Az Aktivite Uyarısı')
+      .setDescription(
+        `${ROLE_NAMES[level]} olarak **sadece 1 gün aktif** oldun. Biraz daha hareket etmemiz gerekecek!\n\n` +
+        `Ne biraz acı? Hata mı yaptın? Problem var mı? Yöneticilere yazabilirsin. ✨\n\n` +
+        `Şimdi **en az 2 gün aktif ol** ki sistemde dengeli kalalım. Başarabilirsin! 💪`
+      )
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz!' })
+      .setTimestamp();
+    
+    try {
+      const user = await client.users.fetch(progress.userId);
+      await user.send({ embeds: [embed] });
+    } catch (_) {}
+    
+    progress.warnings.lowActivityNotified = true;
+    await progress.save();
+  }
+}
+
 // ── Terfi gereksinimleri (ZOR) ─────────────────────────────────────────────
 const PROMOTION_REQUIREMENTS = {
   1: {
@@ -108,6 +136,7 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 0,
     weeklyReports:    0,
     description: '3 ticket + 10 gün aktif',
+    promotionBonus: { points: 150, xp: 200 },
   },
   2: {
     ticketsSolved:    15,
@@ -116,6 +145,7 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 10,
     weeklyReports:    2,
     description: '15 ticket + 5 anket + 10 mod işlem + 2 rapor + 30 gün aktif',
+    promotionBonus: { points: 300, xp: 400 },
   },
   3: {
     ticketsSolved:    50,
@@ -124,8 +154,9 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 30,
     weeklyReports:    8,
     description: '50 ticket + 15 anket + 30 mod işlem + 8 rapor + 90 gün aktif',
+    promotionBonus: { points: 500, xp: 750 },
   },
-  4: null,
+  4: { promotionBonus: { points: 1000, xp: 1500 } },
 };
 
 function todayStr() {
@@ -315,11 +346,14 @@ async function recordTicketSolved(userId, client) {
         currentXP: 0,
         badges: {},
         streak: { current: 0, longest: 0, brokenDays: 0 },
+        challengeProgress: {},
       };
     }
     
-    const xpGain = 50; // Ticket başına 50 XP
-    const pointsGain = 10; // Ticket başına 10 puan
+    // 📊 Seviye-bazlı puan artışı (sınıflandırma teşviki)
+    const levelMultiplier = 1 + (p.level * 0.2); // Level arttıkça daha fazla puan (0.15 → 0.2)
+    const xpGain = Math.floor(55 * levelMultiplier); // Ticket başına 55+ XP (50 → 55)
+    const pointsGain = Math.floor(12 * levelMultiplier); // Ticket başına 12+ puan (10 → 12)
     p.gamification.totalPoints = (p.gamification.totalPoints || 0) + pointsGain;
     p.gamification.currentXP = (p.gamification.currentXP || 0) + xpGain;
     
@@ -446,6 +480,13 @@ async function promote(progress, client) {
     const newLevel = oldLevel + 1;
     if (newLevel > 4) return;
 
+    // 🎁 Terfi bonusu ekle
+    const req = PROMOTION_REQUIREMENTS[oldLevel];
+    if (req && req.promotionBonus) {
+      progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + req.promotionBonus.points;
+      progress.gamification.currentXP = (progress.gamification.currentXP || 0) + req.promotionBonus.xp;
+    }
+
     progress.level      = newLevel;
     progress.promotedAt = new Date();
     // İstatistik sıfırla
@@ -553,7 +594,8 @@ async function sendMorningBriefing(progress, client) {
   const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
   const req       = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const nextReq   = PROMOTION_REQUIREMENTS[progress.level];
-  const daysLeft  = progress.warnings?.count > 0 ? 7 - progress.warnings.count : null;
+  const MAX_WARNINGS = 5; // 7 → 5 gün
+  const daysLeft  = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
 
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
@@ -582,7 +624,7 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     .addFields(
       {
         name: '⚡ Yapman Gerekenler',
-        value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n*Bu kadar! Geri kalanı seçimli.*`,
+        value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n💪 Kolay! Senin için cinayeti işlemesi!`,
         inline: false,
       },
       {
@@ -605,18 +647,29 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     });
   }
 
-  // Terfi sayaçları
+  // Terfi sayaçları — Rütbe Atlamaya Teşvik!
   if (nextReq) {
     const s = progress.stats || {};
     const ticketsNeeded = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
     const surveyNeeded = Math.max(0, nextReq.surveysCompleted - (s.surveysCompleted || 0));
     const daysNeeded = Math.max(0, nextReq.activeDays - (s.activeDays || 0));
+    const modsNeeded = Math.max(0, (nextReq.moderationActions || 0) - (s.moderationActions || 0));
+    const reportsNeeded = Math.max(0, (nextReq.weeklyReports || 0) - (s.weeklyReports || 0));
+    
+    // Terfi yüzdesi hesapla
+    const maxTickets = nextReq.ticketsSolved || 1;
+    const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
+    const progressBar = '█'.repeat(Math.floor(ticketProgress / 10)) + '░'.repeat(10 - Math.floor(ticketProgress / 10));
     
     embed.addFields({
-      name: '📈 Terfi Yolunuz',
-      value: `🎫 Ticket: ${s.ticketsSolved||0}/${nextReq.ticketsSolved} (${ticketsNeeded} kaldı)\n` +
-             `📊 Anket: ${s.surveysCompleted||0}/${nextReq.surveysCompleted} (${surveyNeeded} kaldı)\n` +
-             `📅 Aktif: ${s.activeDays||0}/${nextReq.activeDays} gün (${daysNeeded} gün kaldı)`,
+      name: '🚀 Rütbe Atlaması',
+      value: 
+        `${progress.level < 4 ? `🎫 Ticket: ${s.ticketsSolved||0}/${nextReq.ticketsSolved} ${ticketsNeeded > 0 ? `(${ticketsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `${nextReq.surveysCompleted ? `📊 Anket: ${s.surveysCompleted||0}/${nextReq.surveysCompleted} ${surveyNeeded > 0 ? `(${surveyNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `📅 Aktif: ${s.activeDays||0}/${nextReq.activeDays} gün ${daysNeeded > 0 ? `(${daysNeeded} gün kaldı!)` : '✅'}\n` +
+        `${nextReq.moderationActions ? `🛡️ Moderasyon: ${s.moderationActions||0}/${nextReq.moderationActions} ${modsNeeded > 0 ? `(${modsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `${nextReq.weeklyReports ? `📋 Rapor: ${s.weeklyReports||0}/${nextReq.weeklyReports} ${reportsNeeded > 0 ? `(${reportsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `\n💪 **${Math.floor((100 - ticketProgress) * 0.5)}% daha çaba!** Başarabilirsin!`,
       inline: false,
     });
   }
@@ -636,7 +689,8 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
 async function sendWarningDM(progress, client) {
   const req      = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const warnLeft = 7 - (progress.warnings?.count || 0);
+  const MAX_WARNINGS = 5; // 7 → 5 gün
+  const warnLeft = MAX_WARNINGS - (progress.warnings?.count || 0);
 
   // AI'dan uyarı mesajı
   let aiWarn = '';
@@ -649,24 +703,24 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
   } catch (_) {}
 
   const embed = new EmbedBuilder()
-    .setColor(warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
-    .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/7`)
+    .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
+    .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/${MAX_WARNINGS}`)
     .setDescription(
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
-      `Bugün günlük görevlerini tamamlamadın. Sorun yaşıyor musun?\n\n` +
-      `**🕐 ${warnLeft} gün daha yapmazsan rolün alınır.** (Ama işler yoluna girdikçe tekrar terfi olabilirsin!)\n\n` +
+      `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n` +
+      `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
       `📋 **Bugün yapman gerekenler:**\n` +
       `• Sohbete **${req.greets}x** selam\n` +
       `• Ses kanalında **${req.voiceMinutes} dk** kal\n\n` +
-      `Meşgul müsün? Yöneticilere söyle, işimiz hakkında konuşabilir.\n` +
-      `Bugün yaparsan uyarı sayacın sıfırlanır!`
+      `💡 **Meşgulsen, yöneticilere yazabilirsin!** İzin isteyebilirsin. 😊\n` +
+      `Bugün yaparsan uyarı sayacın sıfırlanır! İçin rahat olsun. 💚`
     )
     .addFields(
-      { name: '⚠️ Uyarı', value: `${progress.warnings?.count}/7`, inline: true },
+      { name: '⚠️ Uyarı', value: `${progress.warnings?.count}/${MAX_WARNINGS}`, inline: true },
       { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
-      { name: '🕐 Kalan Hakkı', value: `${warnLeft} gün`, inline: true },
+      { name: '🕐 Kalan Hakkı', value: warnLeft === 1 ? '🔴 1 gün (SON)' : `${warnLeft} gün`, inline: true },
     )
-    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz!' })
+    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz! 💚' })
     .setTimestamp();
 
   try {
@@ -888,28 +942,30 @@ async function removeRole(progress, client) {
     const member = await guild.members.fetch(progress.userId).catch(() => null);
     if (!member) return;
     const roleId = ROLES[progress.level];
-    if (roleId) await member.roles.remove(roleId, '7 gün görev yapmadı').catch(() => {});
+    if (roleId) await member.roles.remove(roleId, '5 gün görev yapmadı').catch(() => {});
 
     const embed = new EmbedBuilder()
       .setColor(0xff9500)
-      .setTitle('⏸️ Personel Rolü Duraklatıldı')
+      .setTitle('⏸️ Personel Rolü Duraklatıldı — Geri Dön!')
       .setDescription(
-        `Yazık ki **7 gün üst üste görev yapamadığın** için **${ROLE_NAMES[progress.level]}** rolün geçici olarak alındı.\n\n` +
-        `💡 Ama endişelenme! **Geri gelmek çok basit:**\n` +
-        `• Yöneticilere yazabilirsin\n` +
-        `• Neden yapamadığını anlatabilirsin\n` +
-        `• İyileştirmen için plan yapabilirsiniz\n` +
-        `• Sonra tekrar başlarsın! 🌟\n\n` +
-        `Çok çalışıyorsan, izin isteyebilirsin! Bunu bilin.\n` +
-        `Herkes ara sıra durgunluk yaşıyor. Sorun değil!`
+        `Yazık ki **5 gün üst üste görev yapamadığın** için **${ROLE_NAMES[progress.level]}** rolün geçici olarak alındı. 😟\n\n` +
+        `💡 **Ama endişelenme! Geri gelmek ÇOOOOK basit:**\n` +
+        `🤝 Yöneticilere yazabilirsin\n` +
+        `💬 Neden yapamadığını anlatabilirsin\n` +
+        `📋 Plan yapabilirsiniz\n` +
+        `✨ Sonra tekrar başlarsın!\n\n` +
+        `🎁 **Meşgulseniz:**\n` +
+        `İzin sistemi var! İzin talep edebilirsin. Anlıyoruz!\n\n` +
+        `😊 Herkes ara sıra durgunluk yaşıyor. Sorun değil!\n` +
+        `Biz seninle çözeriz. Geri dön! 💪`
       )
-      .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seni özleyeceğiz!' })
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seni özleyeceğiz! 💚' })
       .setTimestamp();
 
     const user = await client.users.fetch(progress.userId).catch(() => null);
     if (user) await user.send({ embeds: [embed] }).catch(() => {});
     await StaffProgress.deleteOne({ userId: progress.userId });
-    console.log(`[staffSystem] Rol alındı (7 gün): ${progress.userId}`);
+    console.log(`[staffSystem] Rol alındı (5 gün): ${progress.userId}`);
   } catch (err) {
     console.error('[staffSystem] Rol alma hatası:', err.message);
   }
@@ -1204,12 +1260,14 @@ async function runDailyCheck(client) {
       }
       
       const completedYesterday = p.stats.lastCompleteDay === yesterday;
+      const activeDays = p.stats?.activeDays || 0;
 
       if (!completedYesterday) {
         p.stats.consecutiveDays = 0;
         p.warnings.count = (p.warnings.count || 0) + 1;
 
-        if (p.warnings.count >= 7) {
+        // 5 gün uyarısı sonrası rol al (7 → 5)
+        if (p.warnings.count >= 5) {
           await removeRole(p, client);
         } else {
           await sendWarningDM(p, client);
@@ -1221,6 +1279,11 @@ async function runDailyCheck(client) {
         }
         // ✅ Sabah brifing — görevi yapanlara da gönder (motive et)
         await sendMorningBriefing(p, client);
+      }
+      
+      // ⚠️ Aktif gün < 2 uyarısı
+      if (activeDays < 2) {
+        await checkLowActivityWarning(p, client);
       }
     }
 
@@ -1613,28 +1676,48 @@ const WEEKLY_CHALLENGES = [
     name: '🚀 Ticket Patlaması',
     goal: 10,
     description: 'Bu hafta 10 ticket çöz!',
-    reward: 500,
+    reward: 750, // 500 → 750 (artırıldı)
+    xpReward: 400,
   },
   {
     id: 'perfectStreak',
     name: '💯 Mükemmel Hafta',
     goal: 7,
     description: '7 gün uyarısız kalmayı başar!',
-    reward: 400,
+    reward: 600, // 400 → 600 (artırıldı)
+    xpReward: 350,
   },
   {
     id: 'surveyMaster',
     name: '📊 Anket Ustası',
     goal: 5,
     description: 'Bu hafta 5 anket yürüt!',
-    reward: 300,
+    reward: 500, // 300 → 500 (artırıldı)
+    xpReward: 300,
   },
   {
     id: 'socialStar',
     name: '⭐ Sosyal Yıldız',
     goal: 4,
-    description: 'Hergün sohbete 5+ selam ver!',
-    reward: 250,
+    description: 'Her gün sohbete 5+ selam ver!',
+    reward: 400, // 250 → 400 (artırıldı)
+    xpReward: 250,
+  },
+  {
+    id: 'moderationMaster',
+    name: '🛡️ Moderasyon Ustası',
+    goal: 8,
+    description: '8 moderasyon işlemi yap!',
+    reward: 550,
+    xpReward: 320,
+  },
+  {
+    id: 'endlessHelper',
+    name: '♾️ Sonsuz Yardımcı',
+    goal: 15,
+    description: 'Haftada 15 ticket çöz (zorlu!)',
+    reward: 1000, // Yeni, çok cazip
+    xpReward: 600,
   },
 ];
 
