@@ -175,9 +175,21 @@ async function getOrCreate(userId, guildId) {
 
 function resetDaily(progress) {
   const today = todayStr();
+  
+  // 🔧 Güvenlik: daily objesi tanımlı değilse oluştur
+  if (!progress.daily) {
+    progress.daily = {
+      date: today,
+      greeted: false,
+      voiceMinutes: 0,
+    };
+    return;
+  }
+  
+  // Tarih değişmişse sıfırla
   if (progress.daily.date !== today) {
-    progress.daily.date         = today;
-    progress.daily.greeted      = false;
+    progress.daily.date = today;
+    progress.daily.greeted = false;
     progress.daily.voiceMinutes = 0;
   }
 }
@@ -261,6 +273,9 @@ async function recordModerationAction(userId, client) {
     
     if (!p) return;
     
+    // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
+    resetDaily(p);
+    
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
@@ -288,6 +303,9 @@ async function recordWeeklyReport(userId, client) {
     
     if (!p) return;
     
+    // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
+    resetDaily(p);
+    
     p.stats.weeklyReports = (p.stats.weeklyReports || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
@@ -301,6 +319,11 @@ async function recordWeeklyReport(userId, client) {
 }
 
 async function checkDailyCompletion(progress, client) {
+  // 🔧 Güvenlik: Objeler tanımlı değilse oluştur
+  if (!progress.stats) progress.stats = {};
+  if (!progress.daily) progress.daily = { date: '', greeted: false, voiceMinutes: 0 };
+  if (!progress.warnings) progress.warnings = { count: 0 };
+  
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const greetDone = progress.daily.greeted;
   const voiceDone = progress.daily.voiceMinutes >= req.voiceMinutes;
@@ -335,6 +358,9 @@ async function recordTicketSolved(userId, client) {
       console.warn(`[staffSystem] recordTicketSolved: Cannot create/fetch record for ${userId}`);
       return;
     }
+    
+    // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
+    resetDaily(p);
     
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     
@@ -424,6 +450,9 @@ async function recordSurveyCompleted(userId, client) {
     });
     
     if (!p) return;
+    
+    // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
+    resetDaily(p);
     
     p.stats.surveysCompleted = (p.stats.surveysCompleted || 0) + 1;
     await p.save().catch(err => {
@@ -1232,21 +1261,42 @@ async function retireFromStaff(userId, client) {
   return { success: true, totalDays, levelName };
 }
 async function runDailyCheck(client) {
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = todayStr();
   console.log('[staffSystem] Günlük kontrol başladı...');
 
   try {
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
 
     for (const p of allProgress) {
+      // 🔧 Güvenlik: Objeler tanımlı değilse oluştur
+      if (!p.stats) p.stats = {};
+      if (!p.daily) p.daily = { date: '', greeted: false, voiceMinutes: 0 };
+      if (!p.warnings) p.warnings = { count: 0 };
+      if (!p.leaves) p.leaves = { totalCredits: 0, usedDays: [], lastLeaveDate: null, monthlyLeaveUsed: 0, weeklyLeaveUsed: 0 };
+      if (!p.gamification) p.gamification = { totalPoints: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
+      
+      // İstatistik alanlarını başlat
+      p.stats.dailyTicketsToday = p.stats.dailyTicketsToday || 0;
+      p.stats.ticketsSolved = p.stats.ticketsSolved || 0;
+      p.stats.surveysCompleted = p.stats.surveysCompleted || 0;
+      p.stats.activeDays = p.stats.activeDays || 0;
+      p.stats.consecutiveDays = p.stats.consecutiveDays || 0;
+      p.stats.moderationActions = p.stats.moderationActions || 0;
+      p.stats.weeklyReports = p.stats.weeklyReports || 0;
+      p.stats.lastCompleteDay = p.stats.lastCompleteDay || '';
+      p.stats.breakCredits = p.stats.breakCredits || 0;
+      
+      // 🔧 Günü sıfırla (ertesi gün başlasın temiz)
+      resetDaily(p);
+      
       // Günlük ticket sayacını sıfırla
       p.stats.dailyTicketsToday = 0;
       
       // Aylık/haftalık izin sayacını sıfırla
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
+      const todayDate = new Date();
+      const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+      const startOfWeek = new Date(todayDate);
+      startOfWeek.setDate(todayDate.getDate() - todayDate.getDay());
 
       // Aylık izin sayıldı mı kontrol et
       if (p.leaves.lastLeaveDate) {
@@ -1259,12 +1309,15 @@ async function runDailyCheck(client) {
         }
       }
       
-      const completedYesterday = p.stats.lastCompleteDay === yesterday;
+      // 🔧 BUG FIX: Bugünün görevleri tamamlandı mı kontrol et (dün değil)
+      const completedToday = p.stats.lastCompleteDay === today;
       const activeDays = p.stats?.activeDays || 0;
 
-      if (!completedYesterday) {
+      if (!completedToday) {
+        // Bugün görev yapılmadı — uyarı ver
         p.stats.consecutiveDays = 0;
         p.warnings.count = (p.warnings.count || 0) + 1;
+        p.warnings.lowActivityNotified = false; // Aktif gün < 2 kontrolü için sıfırla
 
         // 5 gün uyarısı sonrası rol al (7 → 5)
         if (p.warnings.count >= 5) {
@@ -1274,6 +1327,7 @@ async function runDailyCheck(client) {
           await p.save();
         }
       } else {
+        // Bugün görev yapıldı — devam ettir
         if (p.stats.consecutiveDays > 0 && p.stats.consecutiveDays % 30 === 0) {
           await sendRequirementIncreaseDM(p, client);
         }
