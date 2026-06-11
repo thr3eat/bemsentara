@@ -39,6 +39,7 @@ async function handleButtonInteraction(interaction) {
   // ── TMT Rol Senkronizasyon Butonu ────────────────────────────────────────
   if (interaction.customId === "verify_button") {
     const User = require("../../models/User");
+    const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
     
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
@@ -64,13 +65,30 @@ async function handleButtonInteraction(interaction) {
 
       console.log(`[verify_button] Found user: Discord=${interaction.user.id}, Roblox=${user.robloxId}`);
       
-      // Rolleri senkronize et
+      // Sunucuya özel rol senkronizasyonu
       let result;
-      if (interaction.guild && interaction.guild.id === "1483482948320891074") {
+      const normalizedGuildId = String(interaction.guild?.id || "").trim();
+      const normalizedTMT = String(TMT_GUILD_ID).trim();
+      const normalizedBEM = String(TARGET_GUILD_ID).trim();
+      const normalizedEKO = String(GUILD2_ID).trim();
+      const normalizedAllied = String(ALLIED_GUILD_ID).trim();
+
+      console.log(`[verify_button] Guild check: ${normalizedGuildId} - TMT: ${normalizedTMT}, BEM: ${normalizedBEM}, EKO: ${normalizedEKO}, ALLIED: ${normalizedAllied}`);
+      
+      if (normalizedGuildId === normalizedAllied || normalizedGuildId === normalizedEKO) {
         const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
         result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
-      } else {
+      } else if (normalizedGuildId === normalizedTMT) {
+        const { syncTMTRoles } = require("../services/tmtRoleSyncService");
         result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+      } else if (normalizedGuildId === normalizedBEM) {
+        const { syncMemberRoles } = require("../services/roleSyncService");
+        result = await syncMemberRoles(interaction.client, interaction.user.id, user.robloxId);
+      } else {
+        return interaction.editReply({
+          content: `❌ Sunucu tanınmadı. Guild ID: ${normalizedGuildId}`,
+          flags: MessageFlags.Ephemeral,
+        });
       }
       
       if (result && result.success) {
@@ -81,18 +99,18 @@ async function handleButtonInteraction(interaction) {
 
         const embed = new EmbedBuilder()
           .setColor(0x00AA00)
-          .setTitle("Update")
+          .setTitle("✅ Rolleri Senkronize Et")
           .addFields(
-            { name: "Nickname", value: result.nickname || interaction.user.username, inline: false },
-            { name: "Added Roles", value: formatRoleList(result.added || []), inline: false },
-            { name: "Removed Roles", value: formatRoleList(result.removed || []), inline: false }
+            { name: "👤 Kullanıcı", value: result.nickname || interaction.user.username, inline: false },
+            { name: "➕ Eklenen Roller", value: formatRoleList(result.added || []), inline: false },
+            { name: "➖ Kaldırılan Roller", value: formatRoleList(result.removed || []), inline: false }
           )
-          .setFooter({ text: "TMT • Rol Senkronizasyonu" })
+          .setFooter({ text: "Rol Senkronizasyonu Tamamlandı" })
           .setTimestamp();
         
         if (result.tier) {
           embed.addFields({
-            name: "Seviye Rolü",
+            name: "🎖️ Seviye Rolü",
             value: result.tier,
             inline: true,
           });
@@ -106,18 +124,18 @@ async function handleButtonInteraction(interaction) {
           });
         }
         
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       } else {
         return interaction.editReply({
           content: "❌ Roller senkronize edilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     } catch (error) {
       console.error("[verify_button] Error:", error);
       return interaction.editReply({
         content: "❌ Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
   }

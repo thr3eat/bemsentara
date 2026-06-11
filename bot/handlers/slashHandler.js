@@ -339,14 +339,16 @@ async function handleSlashCommand(interaction) {
       }
 
       try {
-        const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
+        const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
         // Normalize guild IDs for comparison
         const guildId = String(interaction.guildId).trim();
         const normalizedTMT = String(TMT_GUILD_ID).trim();
         const normalizedBEM = String(TARGET_GUILD_ID).trim();
+        const normalizedEKO = String(GUILD2_ID).trim();
+        const normalizedAllied = String(ALLIED_GUILD_ID).trim();
         const targetUser = interaction.options.getUser("user");
         
-        console.log(`[Update Command] Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
+        console.log(`[Update Command] Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}, EKO: ${normalizedEKO}, ALLIED: ${normalizedAllied}`);
         
         let userIds = [];
         if (targetUser) {
@@ -361,23 +363,27 @@ async function handleSlashCommand(interaction) {
         }
 
         let updated = 0;
-        if (guildId === "1483482948320891074") {
-          console.log(`[Update Command] Müttefik sunucusu Update başlatılıyor...`);
+        if (guildId === normalizedAllied) {
+          console.log(`[Update Command] Allied Orduları sunucusu Update başlatılıyor...`);
           const { verifyAllAlliedRoles } = require("../services/alliedRoleSyncService");
           updated = await verifyAllAlliedRoles(interaction.client, userIds);
-        } else if (guildId === TMT_GUILD_ID) {
+        } else if (guildId === normalizedTMT) {
           console.log(`[Update Command] TMT Update başlatılıyor...`);
           // TMT Update Logic
           const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
           updated = await verifyAllTMTRoles(interaction.client, userIds);
-        } else if (guildId === TARGET_GUILD_ID) {
+        } else if (guildId === normalizedBEM) {
           console.log(`[Update Command] BEM Update başlatılıyor...`);
           // BEM Update Logic
           const { handleUpdate } = require("./roleHandler");
           updated = await handleUpdate(interaction, null);
+        } else if (guildId === normalizedEKO) {
+          console.log(`[Update Command] EKOYILDIZ Update başlatılıyor...`);
+          const { verifyAllAlliedRoles } = require("../services/alliedRoleSyncService");
+          updated = await verifyAllAlliedRoles(interaction.client, userIds);
         } else {
           return interaction.editReply({ 
-            content: `❌ Sunucu tanınmadı. TMT: ${guildId === TMT_GUILD_ID}, BEM: ${guildId === TARGET_GUILD_ID}` 
+            content: `❌ Sunucu tanınmadı. Güncel Guild ID: ${guildId}` 
           });
         }
         

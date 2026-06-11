@@ -47,9 +47,16 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     );
   }
 
-  // TMT Guild check
-  const { TMT_GUILD_ID } = require("../../config");
-  if (guild.id === TMT_GUILD_ID) {
+  // Sunucu kontrolleri
+  const { TMT_GUILD_ID, TARGET_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
+  const normalizedGuildId = String(guild.id).trim();
+  const normalizedTMT = String(TMT_GUILD_ID).trim();
+  const normalizedBEM = String(TARGET_GUILD_ID).trim();
+  const normalizedAllied = String(ALLIED_GUILD_ID).trim();
+  const normalizedEKO = String(GUILD2_ID).trim();
+
+  // TMT Sunucusu
+  if (normalizedGuildId === normalizedTMT) {
     await interaction.deferReply(ephemeral ? deferEphemeral() : {});
     try {
       const { syncTMTRoles } = require("../services/tmtRoleSyncService");
@@ -66,7 +73,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
         
         if (result.tier) {
           embed.addFields({
-            name: "Seviye Rolü",
+            name: "🎖️ Seviye Rolü",
             value: result.tier,
             inline: true,
           });
@@ -87,13 +94,60 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
         });
       }
     } catch (err) {
-      console.error("TMT role sync error:", err);
+      console.error("[TMT] Role sync error:", err);
       return interaction.editReply({
         content: `❌ Bir hata oluştu: ${err.message}`,
       });
     }
   }
 
+  // Allied veya EKOYILDIZ Sunucusu
+  if (normalizedGuildId === normalizedAllied || normalizedGuildId === normalizedEKO) {
+    await interaction.deferReply(ephemeral ? deferEphemeral() : {});
+    try {
+      const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+      const fullMember = member.partial ? await member.fetch() : member;
+      const result = await syncAlliedRoles(
+        interaction.client,
+        user.id,
+        parseInt(dbUser.robloxId, 10),
+        fullMember
+      );
+
+      if (result && result.success) {
+        const embed = buildUpdateEmbed(fullMember, result);
+        
+        if (result.tier) {
+          embed.addFields({
+            name: "🎖️ Tier Rolü",
+            value: result.tier,
+            inline: true,
+          });
+        }
+
+        if (result.unresolved && result.unresolved.length > 0) {
+          embed.addFields({
+            name: "⚠️ Eşleşmeyen Roller",
+            value: result.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+            inline: false,
+          });
+        }
+        
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        return interaction.editReply({
+          content: "❌ Roller senkronize edilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+        });
+      }
+    } catch (err) {
+      console.error("[Allied/EKO] Role sync error:", err);
+      return interaction.editReply({
+        content: `❌ Bir hata oluştu: ${err.message}`,
+      });
+    }
+  }
+
+  // BEM Sunucusu (varsayılan)
   await interaction.deferReply(ephemeral ? deferEphemeral() : {});
 
   try {
@@ -123,7 +177,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
 
     if (result.tier) {
       embed.addFields({
-        name: "Seviye Rolü",
+        name: "🎖️ Seviye Rolü",
         value: result.tier,
         inline: true,
       });
@@ -139,7 +193,7 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
 
     return interaction.editReply({ embeds: [embed] });
   } catch (err) {
-    console.error("Role sync error:", err);
+    console.error("[BEM] Role sync error:", err);
     logUpdate(interaction, {
       commandName,
       dbUser: await findUserByDiscordId(user.id),
