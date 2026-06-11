@@ -99,6 +99,51 @@ function getRoleColorFromId(roleId) {
 /**
  * Find a role in Discord guild by name (case-insensitive)
  */
+/**
+ * Encode hidden metadata into a visible string using zero-width characters
+ */
+function encodeHiddenText(visibleText, hiddenText) {
+  const binary = Array.from(hiddenText)
+    .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
+    .join('');
+  const zeroWidth = Array.from(binary)
+    .map(bit => bit === '0' ? '\u200b' : '\u200c')
+    .join('') + '\u200d';
+  return visibleText + zeroWidth;
+}
+
+/**
+ * Decode hidden metadata from a string containing zero-width characters
+ */
+function decodeHiddenText(text) {
+  if (!text) return "";
+  const match = text.match(/[\u200b\u200c]+\u200d/);
+  if (!match) return "";
+  const zeroWidth = match[0].slice(0, -1);
+  const binary = Array.from(zeroWidth)
+    .map(char => char === '\u200b' ? '0' : '1')
+    .join('');
+  const chars = [];
+  for (let i = 0; i < binary.length; i += 8) {
+    const byte = binary.slice(i, i + 8);
+    if (byte.length === 8) {
+      chars.push(String.fromCharCode(parseInt(byte, 2)));
+    }
+  }
+  return chars.join('');
+}
+
+/**
+ * Find a role in Discord guild by its zero-width encoded hidden metadata
+ */
+function findRoleByHiddenText(guild, hiddenText) {
+  if (!hiddenText) return null;
+  return guild.roles.cache.find(r => decodeHiddenText(r.name) === hiddenText) || null;
+}
+
+/**
+ * Find a role in Discord guild by name (case-insensitive)
+ */
 function findRoleByName(guild, name) {
   if (!name) return null;
   const target = name.toLowerCase().trim();
@@ -107,6 +152,9 @@ function findRoleByName(guild, name) {
   return (
     guild.roles.cache.find(
       (r) => {
+        // Ignore roles with hidden metadata (separators)
+        if (decodeHiddenText(r.name) !== "") return false;
+
         const rName = r.name.toLowerCase().trim();
         const rHasLines = rName.includes("▬▬▬") || rName.includes("▬");
 
@@ -374,11 +422,12 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
     const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
     const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
-    // Ensure branch top separator exists and add it
+    // Ensure branch top separator exists and add it (Visible: ▬▬▬▬▬▬▬▬▬, Hidden: branchName-top)
     if (branchConfig.discordRoleName) {
-      const topSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬`;
-      let topSepRole = findRoleByName(guild, topSepName);
+      const topSepHidden = `${branchConfig.discordRoleName}-top`;
+      let topSepRole = findRoleByHiddenText(guild, topSepHidden);
       if (!topSepRole) {
+        const topSepName = encodeHiddenText("▬▬▬▬▬▬▬▬▬", topSepHidden);
         topSepRole = await guild.roles.create({
           name: topSepName,
           color: hexToDiscordColor("#808080"),
@@ -428,11 +477,12 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
       }
     }
 
-    // Ensure branch bottom separator exists and add it
+    // Ensure branch bottom separator exists and add it (Visible: ▬▬▬▬▬▬▬▬▬, Hidden: branchName-bottom)
     if (branchConfig.discordRoleName) {
-      const bottomSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬\u200b`;
-      let bottomSepRole = findRoleByName(guild, bottomSepName);
+      const bottomSepHidden = `${branchConfig.discordRoleName}-bottom`;
+      let bottomSepRole = findRoleByHiddenText(guild, bottomSepHidden);
       if (!bottomSepRole) {
+        const bottomSepName = encodeHiddenText("▬▬▬▬▬▬▬▬▬", bottomSepHidden);
         bottomSepRole = await guild.roles.create({
           name: bottomSepName,
           color: hexToDiscordColor("#808080"),
@@ -485,10 +535,10 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
 
       // Add top and bottom separators of this branch to cleanup set
       if (groupConfig.discordRoleName) {
-        const topSep = findRoleByName(guild, `▬▬▬ ${groupConfig.discordRoleName} ▬▬▬`);
+        const topSep = findRoleByHiddenText(guild, `${groupConfig.discordRoleName}-top`);
         if (topSep) resolvedBranchRoleIds.add(topSep.id);
 
-        const bottomSep = findRoleByName(guild, `▬▬▬ ${groupConfig.discordRoleName} ▬▬▬\u200b`);
+        const bottomSep = findRoleByHiddenText(guild, `${groupConfig.discordRoleName}-bottom`);
         if (bottomSep) resolvedBranchRoleIds.add(bottomSep.id);
       }
     }
@@ -560,11 +610,12 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
       try {
-        // Add branch top separator
+        // Add branch top separator (Visible: ▬▬▬▬▬▬▬▬▬, Hidden: branchName-top)
         if (branchConfig.discordRoleName) {
-          const topSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬`;
-          let topSepRole = findRoleByName(guild, topSepName);
+          const topSepHidden = `${branchConfig.discordRoleName}-top`;
+          let topSepRole = findRoleByHiddenText(guild, topSepHidden);
           if (!topSepRole) {
+            const topSepName = encodeHiddenText("▬▬▬▬▬▬▬▬▬", topSepHidden);
             topSepRole = await guild.roles.create({
               name: topSepName,
               color: hexToDiscordColor("#808080"),
@@ -610,11 +661,12 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
           }
         }
 
-        // Add branch bottom separator
+        // Add branch bottom separator (Visible: ▬▬▬▬▬▬▬▬▬, Hidden: branchName-bottom)
         if (branchConfig.discordRoleName) {
-          const bottomSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬\u200b`;
-          let bottomSepRole = findRoleByName(guild, bottomSepName);
+          const bottomSepHidden = `${branchConfig.discordRoleName}-bottom`;
+          let bottomSepRole = findRoleByHiddenText(guild, bottomSepHidden);
           if (!bottomSepRole) {
+            const bottomSepName = encodeHiddenText("▬▬▬▬▬▬▬▬▬", bottomSepHidden);
             bottomSepRole = await guild.roles.create({
               name: bottomSepName,
               color: hexToDiscordColor("#808080"),
@@ -729,6 +781,15 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       } else if (groupConfig.discordBranchRoleName) {
         const role = findRoleByName(guild, groupConfig.discordBranchRoleName);
         if (role) resolvedBranchRoleIds.add(role.id);
+      }
+
+      // Add top and bottom separators of this branch to cleanup set
+      if (groupConfig.discordRoleName) {
+        const topSep = findRoleByHiddenText(guild, `${groupConfig.discordRoleName}-top`);
+        if (topSep) resolvedBranchRoleIds.add(topSep.id);
+
+        const bottomSep = findRoleByHiddenText(guild, `${groupConfig.discordRoleName}-bottom`);
+        if (bottomSep) resolvedBranchRoleIds.add(bottomSep.id);
       }
     }
 
