@@ -171,6 +171,145 @@ function initializeDiscordHandlers(client) {
     }
   });
 
+  client.on("roleCreate", async (role) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (role.guild.id === TMT_GUILD_ID) {
+        const { logTMTRoleCreate } = require("../services/tmtLogger");
+        logTMTRoleCreate(role);
+      }
+    } catch (err) {
+      console.error("roleCreate hatası:", err);
+    }
+  });
+
+  client.on("roleDelete", async (role) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (role.guild.id === TMT_GUILD_ID) {
+        const { logTMTRoleDelete } = require("../services/tmtLogger");
+        logTMTRoleDelete(role);
+      }
+    } catch (err) {
+      console.error("roleDelete hatası:", err);
+    }
+  });
+
+  client.on("roleUpdate", async (oldRole, newRole) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (newRole.guild.id === TMT_GUILD_ID) {
+        const { logTMTRoleUpdate } = require("../services/tmtLogger");
+        logTMTRoleUpdate(oldRole, newRole);
+      }
+    } catch (err) {
+      console.error("roleUpdate hatası:", err);
+    }
+  });
+
+  client.on("emojiCreate", async (emoji) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (emoji.guild.id === TMT_GUILD_ID) {
+        const { logTMTEmojiCreate } = require("../services/tmtLogger");
+        logTMTEmojiCreate(emoji);
+      }
+    } catch (err) {
+      console.error("emojiCreate hatası:", err);
+    }
+  });
+
+  client.on("emojiDelete", async (emoji) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (emoji.guild.id === TMT_GUILD_ID) {
+        const { logTMTEmojiDelete } = require("../services/tmtLogger");
+        logTMTEmojiDelete(emoji);
+      }
+    } catch (err) {
+      console.error("emojiDelete hatası:", err);
+    }
+  });
+
+  client.on("emojiUpdate", async (oldEmoji, newEmoji) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (newEmoji.guild.id === TMT_GUILD_ID) {
+        const { logTMTEmojiUpdate } = require("../services/tmtLogger");
+        logTMTEmojiUpdate(oldEmoji, newEmoji);
+      }
+    } catch (err) {
+      console.error("emojiUpdate hatası:", err);
+    }
+  });
+
+  client.on("channelCreate", async (channel) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (channel.guild && channel.guild.id === TMT_GUILD_ID) {
+        const { logTMTChannelCreate } = require("../services/tmtLogger");
+        logTMTChannelCreate(channel);
+      }
+    } catch (err) {
+      console.error("channelCreate hatası:", err);
+    }
+  });
+
+  client.on("channelDelete", async (channel) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (channel.guild && channel.guild.id === TMT_GUILD_ID) {
+        const { logTMTChannelDelete } = require("../services/tmtLogger");
+        logTMTChannelDelete(channel);
+      }
+    } catch (err) {
+      console.error("channelDelete hatası:", err);
+    }
+  });
+
+  client.on("channelUpdate", async (oldChannel, newChannel) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (newChannel.guild && newChannel.guild.id === TMT_GUILD_ID) {
+        const { logTMTChannelUpdate } = require("../services/tmtLogger");
+        logTMTChannelUpdate(oldChannel, newChannel);
+      }
+    } catch (err) {
+      console.error("channelUpdate hatası:", err);
+    }
+  });
+
+  client.on("messageReactionAdd", async (reaction, user) => {
+    try {
+      if (reaction.partial) {
+        try { await reaction.fetch(); } catch (_) { return; }
+      }
+      const { TMT_GUILD_ID } = require("../../config");
+      if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
+        const { logTMTReactionAdd } = require("../services/tmtLogger");
+        logTMTReactionAdd(reaction, user);
+      }
+    } catch (err) {
+      console.error("messageReactionAdd hatası:", err);
+    }
+  });
+
+  client.on("messageReactionRemove", async (reaction, user) => {
+    try {
+      if (reaction.partial) {
+        try { await reaction.fetch(); } catch (_) { return; }
+      }
+      const { TMT_GUILD_ID } = require("../../config");
+      if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
+        const { logTMTReactionRemove } = require("../services/tmtLogger");
+        logTMTReactionRemove(reaction, user);
+      }
+    } catch (err) {
+      console.error("messageReactionRemove hatası:", err);
+    }
+  });
+
+
   // ── Ses kanalı takibi (personel ses dakikası + kurbağa XP) ───────────────────
   // userId → { joinedAt: Date }
   const voiceSessions = new Map();

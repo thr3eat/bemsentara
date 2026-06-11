@@ -10,7 +10,16 @@ const LOG_CHANNELS = {
   ses: "1514583175412842576",
   davet: "1514583175412842576",
   girisCikis: "1514583175412842576",
-  tag: "1514583175412842576"
+  tag: "1514583175412842576",
+  rol: "1514583175412842576",
+  tepki: "1514583175412842576",
+  emoji: "1514583175412842576",
+  talep: "1514583175412842576",
+  seviye: "1514583175412842576",
+  kanal: "1514583175412842576",
+  mute: "1514583175412842576",
+  jail: "1514583175412842576",
+  isim: "1514583175412842576"
 };
 
 // Map of client invite cache for tracking who invited whom
@@ -52,19 +61,19 @@ async function ensureTMTLogEmbed(client) {
       .setDescription(
         `**🤖 Moderasyon Logları:**\n` +
         `:box: :webhookBan: ・ban-log: :aktif: ⛔・ban-log\n` +
-        `:box: :webhookTimeout: ・mute-log: :deaktif: Deaktif\n` +
-        `:box: :jail: ・jail-log: :deaktif: Deaktif\n` +
+        `:box: :webhookTimeout: ・mute-log: :aktif: 🔇・mute-log\n` +
+        `:box: :jail: ・jail-log: :aktif: 🔒・jail-log\n` +
         `:box: :staff: ・mod-log: :aktif: mod-logs\n\n` +
         `**📊 Genel Loglar:**\n` +
-        `:pro: :role:・rol-log: :deaktif: Deaktif\n` +
-        `:pro: :addreaction:・tepki-log: :deaktif: Deaktif\n` +
-        `:emoji:・emoji-log: :deaktif: Deaktif\n` +
-        `:talepayarlar:・talep-log: :deaktif: Deaktif\n` +
+        `:pro: :role:・rol-log: :aktif: 🎭・rol-log\n` +
+        `:pro: :addreaction:・tepki-log: :aktif: 👍・tepki-log\n` +
+        `:emoji:・emoji-log: :aktif: 😄・emoji-log\n` +
+        `:talepayarlar:・talep-log: :aktif: 🎫・talep-log\n` +
         `:webhookMessage:・mesaj-log: :aktif: 💬・mesaj-log\n` +
-        `:rank:・seviye-log: :deaktif: Deaktif\n` +
-        `:name:・isim-log: :deaktif: Deaktif\n` +
+        `:rank:・seviye-log: :aktif: 📈・seviye-log\n` +
+        `:name:・isim-log: :aktif: 💾・isim-log\n` +
         `:ses:・ses-log: :aktif: 🔉・ses-log\n` +
-        `:textchannel:・kanal-log: :deaktif: Deaktif\n` +
+        `:textchannel:・kanal-log: :aktif: 📝・kanal-log\n` +
         `:davet:・davet-log: :aktif: davet-kayıtları\n` +
         `:artti:・giriş-çıkış-log: :aktif: 🔮・giriş-çıkış-log\n` +
         `:tag:・tag-log: :aktif: 💾┇moderator-only`
@@ -392,6 +401,224 @@ async function logTMTMemberUpdate(oldMember, newMember) {
   }
 }
 
+async function logTMTRoleCreate(role) {
+  try {
+    const channel = await findLogChannel(role.guild, "rol");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("🎭 Rol Oluşturuldu (TMT)")
+      .setDescription(`**Rol Adı:** ${role.name}\n**ID:** \`${role.id}\`\n**Renk:** ${role.hexColor}`)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTRoleCreate error:", err.message);
+  }
+}
+
+async function logTMTRoleDelete(role) {
+  try {
+    const channel = await findLogChannel(role.guild, "rol");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("🎭 Rol Silindi (TMT)")
+      .setDescription(`**Rol Adı:** ${role.name}\n**ID:** \`${role.id}\``)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTRoleDelete error:", err.message);
+  }
+}
+
+async function logTMTRoleUpdate(oldRole, newRole) {
+  try {
+    if (oldRole.name === newRole.name && oldRole.hexColor === newRole.hexColor) return;
+    const channel = await findLogChannel(newRole.guild, "rol");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("🎭 Rol Güncellendi (TMT)")
+      .setDescription(`**Rol:** ${newRole.toString()} (\`${newRole.id}\`)`)
+      .setTimestamp();
+
+    if (oldRole.name !== newRole.name) {
+      embed.addFields(
+        { name: "Eski İsim", value: oldRole.name, inline: true },
+        { name: "Yeni İsim", value: newRole.name, inline: true }
+      );
+    }
+    if (oldRole.hexColor !== newRole.hexColor) {
+      embed.addFields(
+        { name: "Eski Renk", value: oldRole.hexColor, inline: true },
+        { name: "Yeni Renk", value: newRole.hexColor, inline: true }
+      );
+    }
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTRoleUpdate error:", err.message);
+  }
+}
+
+async function logTMTEmojiCreate(emoji) {
+  try {
+    const channel = await findLogChannel(emoji.guild, "emoji");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("😄 Emoji Eklendi (TMT)")
+      .setDescription(`**Emoji:** ${emoji.toString()}\n**İsim:** \`${emoji.name}\`\n**ID:** \`${emoji.id}\``)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTEmojiCreate error:", err.message);
+  }
+}
+
+async function logTMTEmojiDelete(emoji) {
+  try {
+    const channel = await findLogChannel(emoji.guild, "emoji");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("🗑️ Emoji Kaldırıldı (TMT)")
+      .setDescription(`**İsim:** \`${emoji.name}\`\n**ID:** \`${emoji.id}\``)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTEmojiDelete error:", err.message);
+  }
+}
+
+async function logTMTEmojiUpdate(oldEmoji, newEmoji) {
+  try {
+    if (oldEmoji.name === newEmoji.name) return;
+    const channel = await findLogChannel(newEmoji.guild, "emoji");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("📝 Emoji Güncellendi (TMT)")
+      .setDescription(`**Emoji:** ${newEmoji.toString()}`)
+      .addFields(
+        { name: "Eski İsim", value: `\`${oldEmoji.name}\``, inline: true },
+        { name: "Yeni İsim", value: `\`${newEmoji.name}\``, inline: true }
+      )
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTEmojiUpdate error:", err.message);
+  }
+}
+
+async function logTMTChannelCreate(ch) {
+  try {
+    const channel = await findLogChannel(ch.guild, "kanal");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("📝 Kanal Oluşturuldu (TMT)")
+      .setDescription(`**Kanal:** ${ch.toString()} (\`${ch.id}\`)\n**Tip:** \`${ch.type}\``)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTChannelCreate error:", err.message);
+  }
+}
+
+async function logTMTChannelDelete(ch) {
+  try {
+    const channel = await findLogChannel(ch.guild, "kanal");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("🗑️ Kanal Silindi (TMT)")
+      .setDescription(`**Kanal Adı:** #${ch.name}\n**ID:** \`${ch.id}\`\n**Tip:** \`${ch.type}\``)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTChannelDelete error:", err.message);
+  }
+}
+
+async function logTMTChannelUpdate(oldCh, newCh) {
+  try {
+    if (oldCh.name === newCh.name && oldCh.parentId === newCh.parentId) return;
+    const channel = await findLogChannel(newCh.guild, "kanal");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("📝 Kanal Güncellendi (TMT)")
+      .setDescription(`**Kanal:** ${newCh.toString()} (\`${newCh.id}\`)`)
+      .setTimestamp();
+
+    if (oldCh.name !== newCh.name) {
+      embed.addFields(
+        { name: "Eski İsim", value: oldCh.name, inline: true },
+        { name: "Yeni İsim", value: newCh.name, inline: true }
+      );
+    }
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTChannelUpdate error:", err.message);
+  }
+}
+
+async function logTMTReactionAdd(reaction, user) {
+  try {
+    if (user.bot) return;
+    const channel = await findLogChannel(reaction.message.guild, "tepki");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("👍 Tepki Eklendi (TMT)")
+      .setDescription(
+        `**Kullanıcı:** ${user.toString()} (\`${user.id}\`)\n` +
+        `**Emoji:** ${reaction.emoji.toString()}\n` +
+        `**Mesaj:** [Git](${reaction.message.url})`
+      )
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTReactionAdd error:", err.message);
+  }
+}
+
+async function logTMTReactionRemove(reaction, user) {
+  try {
+    if (user.bot) return;
+    const channel = await findLogChannel(reaction.message.guild, "tepki");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("👎 Tepki Kaldırıldı (TMT)")
+      .setDescription(
+        `**Kullanıcı:** ${user.toString()} (\`${user.id}\`)\n` +
+        `**Emoji:** ${reaction.emoji.toString()}\n` +
+        `**Mesaj:** [Git](${reaction.message.url})`
+      )
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTReactionRemove error:", err.message);
+  }
+}
+
+async function logTMTLevelUp(member, level, roleName) {
+  try {
+    const channel = await findLogChannel(member.guild, "seviye");
+    if (!channel) return;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("📈 Seviye Atlandı (TMT)")
+      .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
+      .setDescription(`🎉 **${member.user.tag}** seviye atladı ve **Seviye ${level}** oldu!\n**Yeni Rol:** ${roleName}`)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error("[tmtLogger] logTMTLevelUp error:", err.message);
+  }
+}
+
 module.exports = {
   ensureTMTLogEmbed,
   logTMTBanAdd,
@@ -403,5 +630,17 @@ module.exports = {
   initTMTInvites,
   logTMTMemberJoin,
   logTMTMemberLeave,
-  logTMTMemberUpdate
+  logTMTMemberUpdate,
+  logTMTRoleCreate,
+  logTMTRoleDelete,
+  logTMTRoleUpdate,
+  logTMTEmojiCreate,
+  logTMTEmojiDelete,
+  logTMTEmojiUpdate,
+  logTMTChannelCreate,
+  logTMTChannelDelete,
+  logTMTChannelUpdate,
+  logTMTReactionAdd,
+  logTMTReactionRemove,
+  logTMTLevelUp
 };
