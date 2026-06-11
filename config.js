@@ -86,6 +86,13 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
   .map((id) => id.trim())
   .filter(Boolean);
 
+// ── Sunucu Davet Linkleri (Gece Ban Sistemi İçin) ──────────────────────────────
+const SERVER_INVITE_LINKS = {
+  "1514569307886063666": process.env.TMT_INVITE || "https://discord.gg/Pq7GNdQtde",
+  "1367646464804655104": process.env.EKOYILDIZ_INVITE || "https://discord.gg/XUTYbU5wgd",
+  "1414639355456389344": process.env.BEM_INVITE || "https://discord.gg/9NzKxVrs8Z",
+};
+
 const DATA_DIR = process.env.DATA_DIR || null;
 
 module.exports = {
@@ -134,4 +141,6 @@ module.exports = {
   // Allied Orduları (Merkezi Loglama)
   ALLIED_GUILD_ID,
   ALLIED_LOG_CHANNEL_ID,
+  // Sunucu Davet Linkleri (Gece Ban Sistemi)
+  SERVER_INVITE_LINKS,
 };

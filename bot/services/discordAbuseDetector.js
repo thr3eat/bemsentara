@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AuditLogEvent } = require("discord.js");
+const { SERVER_INVITE_LINKS } = require("../../config");
 
 // ─── İzlenen sunucular ────────────────────────────────────────────────────────
 const MONITORED_GUILDS = {
@@ -7,9 +8,19 @@ const MONITORED_GUILDS = {
   "1414639355456389344": "BEM Sentara"
 };
 
-// ─── Alert kanalı (Müttefik Orduları) ────────────────────────────────────────
-const ALERT_GUILD_ID   = "1483482948320891074";
-const ALERT_CHANNEL_ID = "1514685613830574272";
+// ─── Gece saatleri kontrol ────────────────────────────────────────────────────
+function isNightHours() {
+  const now = new Date();
+  const hour = now.getHours();
+  return hour >= 0 && hour < 8; // 00:00 - 08:00
+}
+
+// ─── Gece modu otomatik ban tracker ───────────────────────────────────────────
+// `${guildId}_${userId}` → { timestamp, type, details }
+const nightModePendingBans = new Map();
+
+// ─── BAN LOG KANALI ───────────────────────────────────────────────────────────
+const BAN_LOG_CHANNEL_ID = "1504201531551907941";
 
 // ─── Tespit eşikleri ──────────────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -102,11 +113,40 @@ async function fetchExecutor(guild, auditLogEvent, targetId = null, maxAgeSec = 
 async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLines = [] }) {
   if (!canSendAlert(guild.id, executor.id, type)) return;
 
+  // ─── GECE MODU: Otomatik ban başlatılacak ──────────────────────────────────
+  if (isNightHours()) {
+    const key = `${guild.id}_${executor.id}`;
+    
+    // Eğer bu kişi için zaten bir ban bekliyorsa, ek kaydı yazma
+    if (!nightModePendingBans.has(key)) {
+      nightModePendingBans.set(key, {
+        timestamp: Date.now(),
+        type,
+        guild,
+        executor,
+        detailLines,
+        client,
+      });
+
+      // 1 dakika sonra otomatik ban kontrol et
+      setTimeout(async () => {
+        const pending = nightModePendingBans.get(key);
+        if (!pending) return; // Bu sürede manual işlem yapılmış
+
+        await executeNightModeAutoBan(client, guild, executor, type, detailLines);
+        nightModePendingBans.delete(key);
+      }, 60_000); // 1 dakika = 60000 ms
+
+      console.log(`[NightMode] ⏳ ${guild.name} — ${executor.tag} için 1 dakika bekleme başlandı`);
+    }
+    return; // Gece modunda manuel alert göndermiyoruz
+  }
+
   let alertCh = null;
   try {
-    const alertGuild = client.guilds.cache.get(ALERT_GUILD_ID);
+    const alertGuild = client.guilds.cache.get("1483482948320891074");
     if (!alertGuild) return;
-    alertCh = alertGuild.channels.cache.get(ALERT_CHANNEL_ID);
+    alertCh = alertGuild.channels.cache.get("1514685613830574272");
     if (!alertCh || !alertCh.isTextBased()) return;
   } catch (_) { return; }
 
@@ -278,4 +318,176 @@ function startDiscordAbuseDetector(client) {
   client.on("messageCreate",     (msg)     => handleMassMention(client, msg).catch(e => console.error("[AbuseDetector] massMention:", e.message)));
 }
 
-module.exports = { startDiscordAbuseDetector, MONITORED_GUILDS };
+/**
+ * GECE MODU: Otomatik ban ve grup atılması işlemi
+ */
+async function executeNightModeAutoBan(client, guild, executor, type, detailLines) {
+  console.log(`[NightMode] 🔨 Otomatik ban başladı: ${guild.name} — ${executor.tag}`);
+
+  // ─── 1. Discord sunucusundan banla ──────────────────────────────────────────
+  try {
+    await guild.members.ban(executor.id, {
+      reason: `Abuse şüphesi (${type}) — Gece otomatik ban sistem`
+    });
+    console.log(`[NightMode] ✅ ${guild.name} — ${executor.tag} banlandı`);
+  } catch (err) {
+    console.error(`[NightMode] Ban hatası (${guild.name}):`, err.message);
+  }
+
+  // ─── 2. Roblox gruptan atma (TMT grup için) ──────────────────────────────────
+  if (guild.id === "1514569307886063666") {
+    try {
+      console.log(`[NightMode] 📤 Roblox grup atılması işlemi başlatıldı: ${executor.tag}`);
+    } catch (err) {
+      console.warn(`[NightMode] Roblox işlemi başlatma hatası:`, err.message);
+    }
+  }
+
+  // ─── 3. Ban loguna mesaj gönder ────────────────────────────────────────────
+  try {
+    const targetGuild = await client.guilds.fetch(guild.id);
+    const banLogChannel = targetGuild.channels.cache.get("1504201531551907941");
+    
+    if (banLogChannel && banLogChannel.isTextBased()) {
+      const banEmbed = new EmbedBuilder()
+        .setTitle("🔨 GECE OTOMOTIK BAN")
+        .setColor(0xFF0000)
+        .addFields(
+          { name: "👤 Banlanan Kullanıcı", value: `${executor.tag}\n\`${executor.id}\``, inline: true },
+          { name: "🏠 Sunucu", value: `${MONITORED_GUILDS[guild.id] || guild.name}\n\`${guild.id}\``, inline: true },
+          { name: "⚠️ Sebep", value: `Abuse şüphesi (${type})\nGece saatleri otomatik ban`, inline: false },
+          { name: "🕐 Zaman", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+          { name: "↩️ Geri Alma", value: "Ban log kanalında geri al butonuna tıklayın", inline: true }
+        )
+        .setThumbnail(executor.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+
+      const unbanBtn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`night_unban_${guild.id}_${executor.id}`)
+          .setLabel("↩️ Banı Geri Al")
+          .setStyle(ButtonStyle.Success)
+          .setEmoji("↩️")
+      );
+
+      await banLogChannel.send({ embeds: [banEmbed], components: [unbanBtn] });
+    }
+  } catch (err) {
+    console.warn(`[NightMode] Ban log kanal hatası:`, err.message);
+  }
+
+  // ─── 4. Admin ID'lerine DM gönder ──────────────────────────────────────────
+  const NIGHT_ADMIN_IDS = ["1078049507230625963", "1031620522406072350"];
+  for (const adminId of NIGHT_ADMIN_IDS) {
+    try {
+      const admin = await client.users.fetch(adminId);
+      
+      const adminEmbed = new EmbedBuilder()
+        .setTitle("🚨 GECE OTOMOTIK BAN ÖZETİ")
+        .setColor(0xFF0000)
+        .setDescription(
+          `${MONITORED_GUILDS[guild.id] || guild.name} sunucusunda geç saatlerde abuse şüphesi tespit edildi. ` +
+          `Yanıt gelmediği için sistem otomatik olarak kullanıcıyı banladı.`
+        )
+        .addFields(
+          { name: "👤 Banlanan", value: `${executor.tag}\n\`${executor.id}\``, inline: true },
+          { name: "🏠 Sunucu", value: `${MONITORED_GUILDS[guild.id] || guild.name}`, inline: true },
+          { name: "⚠️ Abuse Tipi", value: type, inline: true },
+          { name: "🕐 Zaman", value: new Date().toLocaleString('tr-TR'), inline: true },
+          { name: "📋 Detaylar", value: detailLines.join("\n") || "Detay yok", inline: false }
+        )
+        .setThumbnail(executor.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+
+      await admin.send({
+        content: `⚠️ **Uyarı:** Gece otomatik ban sistemi tarafından bir kullanıcı banlandı.\n**Sebep:** Abuse şüphesi — ${type}`,
+        embeds: [adminEmbed]
+      });
+    } catch (err) {
+      console.warn(`[NightMode] Admin DM hatası (${adminId}):`, err.message);
+    }
+  }
+
+  // ─── 5. Banlanan kullanıcıya DM gönder ────────────────────────────────────
+  try {
+    const userEmbed = new EmbedBuilder()
+      .setTitle("⛔ BAN BİLDİRİMİ")
+      .setColor(0xFF0000)
+      .setDescription(
+        `${MONITORED_GUILDS[guild.id] || guild.name} sunucusundan **banlandınız**.\n\n` +
+        `**Sebep:** Abuse şüphesi — Gece saatleri otomatik ban sistemi\n` +
+        `**Zaman:** Geç saatlerde (00:00-08:00)\n\n` +
+        `**Banınızı Geri Almak İçin:**\n` +
+        `1. Abuse Log kanalına gidin\n` +
+        `2. Banlandığınız mesajın altında bulunan **↩️ Banı Geri Al** butonuna tıklayın`
+      )
+      .setFooter({ text: "Sentara Ban Sistemi" })
+      .setTimestamp();
+
+    await executor.send({ embeds: [userEmbed] });
+  } catch (err) {
+    console.warn(`[NightMode] Kullanıcı DM hatası:`, err.message);
+  }
+}
+
+/**
+ * Gece otomatik ban sonrası banı geri alma (buton)
+ */
+async function handleNightUnbanButton(interaction) {
+  if (!interaction.customId?.startsWith('night_unban_')) return false;
+
+  const parts = interaction.customId.split('_');
+  const guildId = parts[2];
+  const userId = parts[3];
+
+  try {
+    const guild = await interaction.client.guilds.fetch(guildId);
+    const user = await interaction.client.users.fetch(userId);
+
+    // Ban'ı kaldır
+    await guild.bans.remove(userId, "Gece otomatik ban geri alındı");
+
+    // Banı geri alan kişiye bildir
+    await interaction.reply({
+      content: `✅ **${user.tag}** kullanıcısının banı geri alındı.`,
+      ephemeral: true
+    });
+
+    // Sunucu davet linki
+    const inviteLink = SERVER_INVITE_LINKS[guildId] || `https://discord.gg/`;
+    const guildName = MONITORED_GUILDS[guildId] || guild.name;
+
+    // Banlanan kişiye DM gönder
+    const userEmbed = new EmbedBuilder()
+      .setTitle("✅ BAN GERİ ALINDI")
+      .setColor(0x00FF00)
+      .setDescription(
+        `${guildName} sunucusundaki banınız geri alındı.\n\n` +
+        `**Geri Alan:** ${interaction.user.tag}\n` +
+        `**Sebep:** Gece otomatik ban sisteminin devreye alınmasından dolayı üzgünüz. ` +
+        `Lütfen dikkatli olun ve kurallara uyun.\n\n` +
+        `**Sunucuya Geri Dönüş:**\n` +
+        `${inviteLink}`
+      )
+      .setFooter({ text: "Sentara Ban Sistemi" })
+      .setTimestamp();
+
+    await user.send({ embeds: [userEmbed] }).catch(() => {});
+
+    console.log(`[NightMode] ✅ ${user.tag} (${userId}) banı geri alındı`);
+  } catch (err) {
+    console.error(`[NightMode] Ban geri alma hatası:`, err.message);
+    await interaction.reply({
+      content: `❌ Ban geri alma işleminde hata oluştu: ${err.message}`,
+      ephemeral: true
+    });
+  }
+
+  return true;
+}
+
+module.exports = { 
+  startDiscordAbuseDetector, 
+  MONITORED_GUILDS,
+  handleNightUnbanButton,
+};
