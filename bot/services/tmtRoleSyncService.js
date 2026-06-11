@@ -53,6 +53,92 @@ function hexToDiscordColor(hex) {
 }
 
 /**
+ * Get role name from role ID (searches all role configs)
+ */
+function getRoleNameFromId(roleId) {
+  // Search in SEPARATOR_ROLES
+  for (const [key, id] of Object.entries(SEPARATOR_ROLES)) {
+    if (id === roleId) return `▬▬▬ ${key}`;
+  }
+  
+  // Search in CATEGORY_ROLES
+  for (const [key, id] of Object.entries(CATEGORY_ROLES)) {
+    if (id === roleId) return key;
+  }
+  
+  // Search in STATUS_ROLES
+  for (const [key, id] of Object.entries(STATUS_ROLES)) {
+    if (id === roleId) return key;
+  }
+  
+  // Search in RANK_ROLES
+  for (const [key, id] of Object.entries(RANK_ROLES)) {
+    if (id === roleId) return key;
+  }
+  
+  return null;
+}
+
+/**
+ * Get role color from role ID
+ */
+function getRoleColorFromId(roleId) {
+  // Check if it's a separator role
+  for (const [key, id] of Object.entries(SEPARATOR_ROLES)) {
+    if (id === roleId) return "#808080"; // Gray
+  }
+  
+  // Check if it's a status role
+  for (const [key, id] of Object.entries(STATUS_ROLES)) {
+    if (id === roleId) return "#9B59B6"; // Purple
+  }
+  
+  return "#808080"; // Default gray
+}
+
+/**
+async function ensureRoleExists(guild, roleId, roleName, roleColor = "#808080", position = null) {
+  try {
+    // Check if role already exists
+    let role = guild.roles.cache.get(roleId);
+    if (role) {
+      return role;
+    }
+
+    // Role doesn't exist - create it
+    console.warn(`[TMT Role Sync] Creating missing role: ${roleName} (was ID: ${roleId})`);
+    
+    const newRole = await guild.roles.create({
+      name: roleName,
+      color: hexToDiscordColor(roleColor),
+      reason: `Auto-created missing system role: ${roleName}`,
+    });
+
+    // Update the ID in config
+    if (roleName.includes("OR-") || roleName.includes("OF-") || roleName.includes("Paşa") || 
+        roleName === "Konsey" || roleName === "Ankara Heyeti" || roleName === "Başkumandan" ||
+        roleName === "Askeri Kurultay" || roleName === "Disiplin Kurulu" || roleName === "Lider" ||
+        roleName === "Genelkurmay" || roleName === "Genelkurmay Başkanı" || roleName === "Yüksek Askerî Şûra" ||
+        roleName === "Yönetim Kurulu" || roleName === "YK Başkan Yardımcısı" || roleName === "YK Başkanı" ||
+        roleName === "Geliştirme Ofisi" || roleName === "Holder" || roleName === "OF-10 Mareşal" ||
+        roleName === "Emekli Personel") {
+      // Update RANK_ROLES
+      Object.entries(RANK_ROLES).forEach(([key, id]) => {
+        if (id === roleId) {
+          RANK_ROLES[key] = newRole.id;
+        }
+      });
+    }
+
+    console.log(`[TMT Role Sync] ✅ Created role: ${roleName} (New ID: ${newRole.id})`);
+    return newRole;
+  } catch (error) {
+    console.error(`[TMT Role Sync] Error ensuring role ${roleName}:`, error.message);
+    return null;
+  }
+}
+
+/**
  * Automatically create a role for a rank in Discord
  */
 async function createRoleForRank(guild, userRank, nearestRoles) {
@@ -333,14 +419,22 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     let roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
     
     if (roleConfig && roleConfig.discordRoleIds) {
-      // Role mapping exists - use it
+      // Role mapping exists - ensure all roles exist and add them
       for (const roleId of roleConfig.discordRoleIds) {
         try {
-          const role = guild.roles.cache.get(roleId);
+          let role = guild.roles.cache.get(roleId);
+          
+          // If role doesn't exist, try to create it with appropriate name
+          if (!role) {
+            const roleName = getRoleNameFromId(roleId) || `TMT Role ${roleId}`;
+            const roleColor = getRoleColorFromId(roleId);
+            role = await ensureRoleExists(guild, roleId, roleName, roleColor);
+          }
+          
           if (role) {
             await member.roles.add(role, `TMT Sync: ${userRank.roleName} (Rank ${userRank.rank})`);
           } else {
-            console.warn(`[TMT Role Sync] Discord role ${roleId} not found in guild`);
+            console.warn(`[TMT Role Sync] Could not add role ${roleId} - role missing and creation failed`);
           }
         } catch (err) {
           console.error(`[TMT Role Sync] Error adding role ${roleId}:`, err.message);
@@ -391,7 +485,15 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
 
       for (const roleId of rolesToReAdd) {
         try {
-          const role = guild.roles.cache.get(roleId);
+          let role = guild.roles.cache.get(roleId);
+          
+          // If role doesn't exist, try to create it
+          if (!role) {
+            const roleName = getRoleNameFromId(roleId) || `TMT Role ${roleId}`;
+            const roleColor = getRoleColorFromId(roleId);
+            role = await ensureRoleExists(guild, roleId, roleName, roleColor);
+          }
+          
           if (role) {
             await member.roles.add(role, `TMT Sync: ${userRank.roleName} - Tier role (Post-branch)`);
           }
