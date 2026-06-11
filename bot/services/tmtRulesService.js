@@ -1,22 +1,447 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { TMT_GUILD_ID, TMT_RULES_CHANNEL_ID, TMT_AUTOMOD_RULES_CHANNEL_ID } = require("../../config");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
+} = require("discord.js");
+const {
+  TMT_GUILD_ID,
+  TMT_RULES_CHANNEL_ID,
+  TMT_AUTOMOD_RULES_CHANNEL_ID,
+} = require("../../config");
+
+// ─── Sabitler ────────────────────────────────────────────────────────────────
+
+const COLORS = {
+  RED: 0xdc143c,
+  DANGER: 0xff4444,
+  WARNING: 0xfbbf24,
+  INFO: 0x7c6af7,
+  TEAL: 0x4ecdc4,
+  MINT: 0x95e1d3,
+  ORANGE: 0xff6347,
+  PINK: 0xff6b6b,
+  SUCCESS: 0x22c55e,
+};
+
+const BANNER_URL =
+  "https://cdn.discordapp.com/attachments/1398799109573574686/1414007204234793010/Sunucu_Kurallar.png?ex=6a2bd894&is=6a2a8714&hm=68b9b4ff9cd4f1af700d1244ccc1ff276a6befd52749afc02fe27101751d7f0f";
+
+// ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
 
 /**
- * TMT (Turkish Armed Forces) sunucu kurallarını Discord kanalına gönderir
+ * Belirtilen kanaldaki tüm mesajları siler (bulk delete, maksimum 100).
+ * @param {import("discord.js").TextChannel} channel
  */
-async function postTMTRules(client) {
+async function clearChannel(channel) {
+  let deleted = 0;
+  try {
+    let fetched;
+    do {
+      fetched = await channel.messages.fetch({ limit: 100 });
+      if (fetched.size === 0) break;
+      await channel.bulkDelete(fetched, true); // filterOld: true → 14 günden eski mesajları atlar
+      deleted += fetched.size;
+    } while (fetched.size >= 2);
+  } catch (err) {
+    console.warn(`⚠️ Kanal temizlenirken hata (${channel.name}):`, err.message);
+  }
+  return deleted;
+}
+
+/**
+ * Kısa gecikme ekler (rate-limit'e takılmamak için).
+ * @param {number} ms
+ */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Embed dizisini sırayla gönderir, her gönderim arasında kısa bir bekleme yapar.
+ * @param {import("discord.js").TextChannel} channel
+ * @param {Array<{embeds?: EmbedBuilder[], components?: ActionRowBuilder[]}>} payloads
+ */
+async function sendSequential(channel, payloads) {
+  for (const payload of payloads) {
+    await channel.send(payload);
+    await sleep(400);
+  }
+}
+
+// ─── Kural Verileri ───────────────────────────────────────────────────────────
+
+const SERVER_RULES = [
+  {
+    number: "1",
+    title: "Discord Kullanım Şartları & Topluluk Kuralları",
+    color: COLORS.DANGER,
+    fields: [
+      {
+        name: "📜 Genel",
+        value:
+          "Bu sunucudaki en kapsayıcı kuraldır. Tüm diğer kurallar bu kurala göre yazılmıştır; hem Discord kurallarını hem de sunucu kurallarını kapsar.",
+      },
+      {
+        name: "⭐ Türk Tarihine Saygı",
+        value:
+          "Türk tarihine ve sembollerine saygısızlık kesinlikle yasaktır. **Gazi Mustafa Kemal Atatürk** hakkında olumsuz ifade kullanmak yasaktır.",
+      },
+      {
+        name: "1.1 · Yaş Sınırı",
+        value:
+          "Discord'u kullanmak için **en az 13 yaşında** olmanız gerekir. 13 yaş altı olduğunu belirten üyeler sunucudan yasaklanır.",
+        inline: true,
+      },
+      {
+        name: "1.2 · Kişisel Bilgiler",
+        value:
+          "Telefon numarası, isim-soyisim, kimlik numarası gibi kişisel bilgilerin ifşası yasaktır. Üyelerin yüz fotoğrafları da dahildir.",
+        inline: true,
+      },
+      {
+        name: "1.3 · Zararlı İçerik",
+        value:
+          "Virüslü dosyalar, zararlı bağlantılar ve IP Logger paylaşımı yasaktır. Dolandırıcılık kesinlikle yasaklanır.",
+        inline: true,
+      },
+      {
+        name: "1.4 · Kayıt Yasağı",
+        value:
+          "Sesli kanallarda diğer üyelerin izni olmadan kayıt almak yasaktır. Yetkililerin düzenlediği etkinlikler bu kuraldan muaftır.",
+        inline: true,
+      },
+      {
+        name: "1.5 · Bilet Sistemi",
+        value:
+          "İhtiyaç dışında, eğlence amaçlı veya troll yapmak için bilet açmak yasaktır.",
+        inline: true,
+      },
+    ],
+  },
+  {
+    number: "2",
+    title: "NSFW / Hassas İçerik / Müstehcen Davranışlar",
+    color: COLORS.PINK,
+    fields: [
+      {
+        name: "2.1 · NSFW İçerik",
+        value:
+          "Pornografik veya müstehcen içerikler hakkında sıfır tolerans uygulanır. Paylaşmak, ima etmek veya çağrıştıran içerik göndermek yasaktır.",
+        inline: true,
+      },
+      {
+        name: "2.2 · NSFL & Hassas İçerik",
+        value:
+          "İntihar veya kendine zarar vermeyi teşvik eden ya da üyeleri rahatsız edecek içerikler kesinlikle yasaktır.",
+        inline: true,
+      },
+      {
+        name: "2.3 · E-Date",
+        value:
+          "Sunucumuz bir flört platformu değildir. Reşit olmayan üyeler bulunduğundan flörtleşme DM dahil her ortamda yasaktır ve yasaklanmaya yol açar.",
+        inline: false,
+      },
+    ],
+  },
+  {
+    number: "3",
+    title: "Tüm Üyelere Saygılı Olun",
+    color: COLORS.INFO,
+    fields: [
+      {
+        name: "3.1 · Eşit Saygı",
+        value:
+          "Rütbe veya yetki farkı gözetmeksizin herkese saygılı davranın. Buradaki herkes bir bireydir.",
+        inline: true,
+      },
+      {
+        name: "3.2 · Hassas Konular",
+        value:
+          "Politika, siyaset, din, cinsellik, futbol gibi tartışmaya açık konular yasaktır. Üst yetkililerin gözetiminde istisnai olarak izin verilebilir.",
+        inline: true,
+      },
+      {
+        name: "3.3 · Kasıtlı Tartışma",
+        value:
+          "Bilerek tartışma çıkarmak veya tartışmaya yol açacak konulara girmek yasaktır. Küçük şakalar tolere edilse de kasıt belirleyicidir.",
+        inline: true,
+      },
+      {
+        name: "3.4 · Irkçılık & Aşırı İdeolojiler",
+        value:
+          "Aşırı fikirlerin savunuculuğu, svastika ve benzeri nefret sembollerinin paylaşımı kesinlikle yasaktır.",
+        inline: true,
+      },
+    ],
+  },
+  {
+    number: "4",
+    title: "Genel Sohbet Kuralları",
+    color: COLORS.TEAL,
+    fields: [
+      {
+        name: "4.1 · Spam & Flood",
+        value:
+          "Mesaj, resim, video veya tepki spamı yasaktır. Arka arkaya 4 mesaj (arada başka biri yazmadan) flood sayılır.",
+        inline: true,
+      },
+      {
+        name: "4.2 · Rahatsız Edici Medya",
+        value:
+          "Kulak sağlığını tehdit eden aşırı yüksek sesli içerikler ve ışığa duyarlı kişileri etkileyebilecek yanıp sönen medya paylaşımı yasaktır.",
+        inline: true,
+      },
+      {
+        name: "4.3 · Etiket Kuralları",
+        value:
+          "**@Ordu Yönetimi** ve üzeri rolleri sebepsiz etiketlemek yasaktır. Ghost tag (etiketleyip silmek) yasaktır.",
+        inline: true,
+      },
+      {
+        name: "4.4 · Otomod Bypass",
+        value:
+          "Otomod tarafından engellenen kelimeleri harf çıkararak veya sırasını değiştirerek yazmaya çalışmak yasaktır.",
+        inline: true,
+      },
+      {
+        name: "4.5 · Küfür & Argo",
+        value:
+          "Sunucu düzenini korumak amacıyla küfür, argo ve benzeri ifadeler tamamen yasaklanmıştır. Moderatör uyarılarına uyun.",
+        inline: true,
+      },
+    ],
+  },
+  {
+    number: "5",
+    title: "Reklam",
+    color: COLORS.WARNING,
+    fields: [
+      {
+        name: "5.1 · DM Reklamı",
+        value:
+          "DM üzerinden herhangi bir içerik veya başka bir Roblox grubu/sunucu reklamı yapmak hem Discord ToS'a hem de sunucu kurallarına aykırıdır. Birine katılım daveti göndermek istiyorsanız DM'den yapın; kanal içinde davet linki paylaşmak yasaktır.",
+      },
+    ],
+  },
+  {
+    number: "6",
+    title: "Discord Profilleri",
+    color: COLORS.MINT,
+    fields: [
+      {
+        name: "6.1 · Profil Uygunluğu",
+        value:
+          "Profil fotoğrafı, biyografi ve diğer profil alanları Discord ToS ile sunucu kurallarına uygun olmalıdır. NSFW, ırkçı veya cinsiyetçi içerik profilinizde bulunamaz.",
+        inline: true,
+      },
+      {
+        name: "6.2 · Taklit Yasağı",
+        value:
+          "Yetkilileri, YK'leri, @sanker ve diğer yönetim üyelerini taklit etmek, dolandırma amacı olmasa dahi yasaktır.",
+        inline: true,
+      },
+    ],
+  },
+];
+
+const AUTOMOD_RULES = [
+  {
+    id: "1.0",
+    emoji: "🔒",
+    title: "Kişisel Bilgilerin Koruması",
+    color: COLORS.DANGER,
+    description:
+      "Telefon numarası, isim-soyad vb. kişisel bilgilerin korunması amacıyla oluşturulmuş otomod modülü.",
+    penalty: "🚫 Sunucudan kalıcı yasaklama.",
+    exempt: null,
+    extra: null,
+  },
+  {
+    id: "1.1",
+    emoji: "🚫",
+    title: "Toksik Kelime Moderasyonu",
+    color: COLORS.PINK,
+    description:
+      "Sohbet kanallarının kalitesini korumak amacıyla küfür, argo ve toksik ifadeleri engelleyen otomod modülü.",
+    penalty: "⏱️ 1 gün susturma.",
+    exempt: "@Ordu Yönetimi ve @Moderatör Ekibi · Destek-sistemi biletleri",
+    extra: null,
+  },
+  {
+    id: "1.2",
+    emoji: "🇹🇷",
+    title: "Siyasi Parti Moderasyonu",
+    color: COLORS.WARNING,
+    description:
+      "Sohbet ortamında siyasi tartışmaların önüne geçmek için oluşturulmuş otomod modülü.",
+    penalty: "⏱️ 1 gün susturma.",
+    exempt: "@Ordu Yönetimi ve @Moderatör Ekibi",
+    extra: null,
+  },
+  {
+    id: "1.3",
+    emoji: "🔗",
+    title: "Discord Bağlantı Moderasyonu",
+    color: COLORS.INFO,
+    description:
+      "Sunucu içinde izinsiz Discord davet bağlantısı paylaşımını engelleyen otomod modülü.",
+    penalty: "⏱️ 1 gün susturma.",
+    exempt: "@Ordu Yönetimi ve @Moderatör Ekibi · Destek-sistemi biletleri",
+    extra: null,
+  },
+  {
+    id: "1.4",
+    emoji: "🏷️",
+    title: "Etiket Spam Engeli",
+    color: COLORS.TEAL,
+    description:
+      "Ghost tag ve toplu etiket spamını engelleyen otomod modülü.",
+    penalty: "⏱️ 10 dakika susturma.",
+    exempt: "@Ordu Yönetimi ve @Moderatör Ekibi",
+    extra: { name: "📊 Etiket Sınırı", value: "Maksimum **3** etiket" },
+  },
+];
+
+// ─── Embed Oluşturucular ──────────────────────────────────────────────────────
+
+/**
+ * Tek bir sunucu kuralı için embed oluşturur.
+ * @param {{ number: string, title: string, color: number, fields: object[] }} rule
+ * @returns {EmbedBuilder}
+ */
+function buildRuleEmbed(rule) {
+  return new EmbedBuilder()
+    .setTitle(`${rule.number}. ${rule.title}`)
+    .setColor(rule.color)
+    .addFields(rule.fields)
+    .setFooter({ text: `Kural ${rule.number}` });
+}
+
+/**
+ * Otomod kuralı için embed oluşturur.
+ */
+function buildAutomodEmbed(rule) {
+  const fields = [];
+
+  if (rule.exempt) {
+    fields.push({ name: "✅ Etkilenmeyen Roller", value: rule.exempt });
+  }
+  if (rule.extra) {
+    fields.push(rule.extra);
+  }
+  fields.push({ name: "⚖️ Ceza", value: rule.penalty });
+
+  return new EmbedBuilder()
+    .setTitle(`${rule.emoji} ${rule.id} · ${rule.title}`)
+    .setDescription(rule.description)
+    .setColor(rule.color)
+    .addFields(fields)
+    .setFooter({ text: `Otomod Modülü ${rule.id}` });
+}
+
+// ─── Ana Gönderim Fonksiyonları ───────────────────────────────────────────────
+
+/**
+ * Sunucu genel kurallarını kanalına gönderir.
+ * @param {import("discord.js").TextChannel} channel
+ */
+async function postServerRules(channel) {
+  const payloads = [];
+
+  // Başlık embed'i
+  payloads.push({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("| TMT | Turkish Armed Forces'e Hoş Geldin 👋")
+        .setDescription(
+          "Seni burada gördüğümüz için mutluyuz!\n\n" +
+          "Aşağıdaki kuralları dikkatlice oku. Sunucumuza giren her üye kuralları okumuş sayılır. " +
+          "Moderatörler tarafından susturulur veya yasaklanırsan kurallara uymamışsındır."
+        )
+        .setColor(COLORS.RED)
+        .setImage(BANNER_URL),
+    ],
+  });
+
+  // Kural embed'leri
+  for (const rule of SERVER_RULES) {
+    payloads.push({ embeds: [buildRuleEmbed(rule)] });
+  }
+
+  // Son uyarı embed'i
+  payloads.push({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("⚠️ Kuralları Aşmaya Çalışmayın")
+        .setDescription(
+          "Her yasaklı davranış kurallarda açıkça yazılı olmayabilir. " +
+          "Yasak olabilecek şeyleri düşünerek hareket edin.\n\n" +
+          "Moderatörler sizi susturduysa veya yasakladıysa bunun kesinlikle bir gerekçesi vardır. " +
+          '"Böyle bir kural yok." şeklinde itiraz etmek cezanızın artmasına yol açabilir.\n\n' +
+          "Moderatörler sizi susturan kişinin bilgilerini açıklamakla yükümlü değildir."
+        )
+        .setColor(COLORS.ORANGE),
+    ],
+  });
+
+  await sendSequential(channel, payloads);
+}
+
+/**
+ * Otomod kurallarını kanalına gönderir.
+ * @param {import("discord.js").TextChannel} channel
+ */
+async function postAutomodRules(channel) {
+  const payloads = [];
+
+  // Başlık
+  payloads.push({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🤖 Otomod Kuralları")
+        .setDescription(
+          "Bu kanaldaki kurallar sunucumuzda aktif olan otomatik moderasyon modüllerini açıklamaktadır.\n" +
+          "Her modülün hangi davranışı engellediğini, hangi rollerin muaf olduğunu ve ihlal durumundaki cezayı bulabilirsiniz."
+        )
+        .setColor(COLORS.INFO),
+    ],
+  });
+
+  for (const rule of AUTOMOD_RULES) {
+    payloads.push({ embeds: [buildAutomodEmbed(rule)] });
+  }
+
+  await sendSequential(channel, payloads);
+}
+
+/**
+ * TMT sunucu kurallarını Discord kanallarına gönderir.
+ * Kanallar önce temizlenir, ardından güncel içerik sırayla gönderilir.
+ * @param {import("discord.js").Client} client
+ * @param {{ clear?: boolean }} [options]
+ * @returns {Promise<boolean>}
+ */
+async function postTMTRules(client, { clear = false } = {}) {
   try {
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
     const rulesChannel = await guild.channels.fetch(TMT_RULES_CHANNEL_ID);
-    const automodChannel = await guild.channels.fetch(TMT_AUTOMOD_RULES_CHANNEL_ID);
+    const automodChannel = await guild.channels.fetch(
+      TMT_AUTOMOD_RULES_CHANNEL_ID
+    );
 
-    // Sunucu kurallarını gönder
+    if (clear) {
+      console.log("🧹 Kanallar temizleniyor...");
+      await clearChannel(rulesChannel);
+      await clearChannel(automodChannel);
+    }
+
+    console.log("📤 Sunucu kuralları gönderiliyor...");
     await postServerRules(rulesChannel);
-    
-    // Otomod kurallarını gönder
+
+    console.log("📤 Otomod kuralları gönderiliyor...");
     await postAutomodRules(automodChannel);
 
-    console.log("✅ TMT sunucu kuralları başarıyla gönderildi");
+    console.log("✅ TMT sunucu kuralları başarıyla gönderildi.");
     return true;
   } catch (error) {
     console.error("❌ TMT kuralları gönderilirken hata:", error);
@@ -24,250 +449,10 @@ async function postTMTRules(client) {
   }
 }
 
-/**
- * Sunucu genel kurallarını gönderir
- */
-async function postServerRules(channel) {
-  // Ana başlık embed
-  const titleEmbed = new EmbedBuilder()
-    .setTitle("| TA | Turkish Armed Forces'e Hoş Geldin 👋")
-    .setDescription(
-      "Seni burada gördüğümüz için mutluyuz. Aşağıda kuralları görebilirsin, " +
-      "sunucumuza giren her üyenin kuralları okuduğu varsayılır. " +
-      "Bu yüzden eğer moderatörler tarafından susturulur veya yasaklanırsan kurallara uymamışsındır."
-    )
-    .setColor(0xDC143C);
-    // Görsel eklemek istenirse: .setImage("URL_BURAYA")
-
-  await channel.send({ embeds: [titleEmbed] });
-
-  // 1. Discord Kullanım Şartları & Topluluk Kuralları
-  const rule1Embed = new EmbedBuilder()
-    .setTitle("1. Discord Kullanım Şartları & Topluluk Kuralları")
-    .setDescription(
-      "• Bu, sunucudaki en kapsayıcı kuraldır. Diğer tüm kurallarımız da bu kurala göre yazılmıştır. Bu kurallar sadece toplulukla ilgili değil, Discord'un kendince belirlediği kurallarla da ilgilidir.\n\n" +
-      ":TA_beyazyildiz: **Türk tarihine saygılı olun.**\n" +
-      "• Türk tarihine ve Türk tarihinin önemli sembollerine saygı duymamak ve saygısızlık yapmak yasaktır. Özellikle **Gazi Mustafa Kemal Atatürk**'ü sevmemek ve hakkında olumsuz konuşmak sunucumuzda kesinlike yasaktır.\n\n" +
-      "**1.1 Discord'u kullanmak için en az 13 yaşında olmanız gerekmektedir.**\n" +
-      "• Sunucuda bulunmak için en az 13 yaşında olmanız gerekmektedir. 13 yaşından küçük olduğunuzu belirtirseniz sunucudan yasaklanırsınız.\n\n" +
-      "**1.2 Kişisel bilgileri paylaşmayın.**\n" +
-      "• Herhangi bir kişinin özel, kişisel ve hassas bilgilerini ifşa etmek kesinlikle yasaktır. Üyeleri kişisel bilgilerini ifşa etmekle tehdit etmek de bunun içine dahildir. Telefon numaraları, isim-soyisim, kimlik numarası ve benzeri her türlü şeyi paylaşmak kesinlikle yasaktır.\n" +
-      "• Sunucu üyelerinin yüzünü, kendi yüzünüzü paylaşmak da güvenlik sebebiyle kesinlikle yasaktır.\n\n" +
-      "**1.3 Dolandırıcılık yapmayın, virüslü dosyalar ve zararlı bağlantılar paylaşmayın.**\n" +
-      "• Virüslü ve zararlı dosyalar göndermek Discord üzerinde yasaktır ve bu sunucuda ya da başka bir sunucuda paylaşımını yapmak yasaklanmanıza sebep olacaktır. Buna dahil olarak IP Loggerlar da yasaktır.\n" +
-      "• Bu dosyalar , bağlantılar hakkında vs. tartışmak yasak değildir fakat sesli kanallarda yayında göstermek yasaktır.\n\n" +
-      "**1.4 Sesli kanallarda izinsiz kayıt almayın.**\n" +
-      "• Sesli kanalları o kanaldaki üyelerin izni olmadan kaydetmek yasaktır.\n" +
-      "• Bu kuralın tek istisnası yetkililerin düzenlediği etkinliklerdir.\n\n" +
-      "**1.5 Bilet sistemini meşgul etmeyin.**\n" +
-      "• İhtiyacınız olmadığı hâlde, eğlencesine veya troll yapmak için bilet açmak yasaktır. Botu meşgul etmeyin, böylece diğer kişiler yardım alabilir."
-    )
-    .setColor(0xFF4444);
-
-  await channel.send({ embeds: [rule1Embed] });
-
-  // 2. NSFW ve Hassas İçerik
-  const rule2Embed = new EmbedBuilder()
-    .setTitle("2. NSFW / Hassas İçerik / Müstehcen Davranışlar")
-    .setDescription(
-      "**2.1 NSFW içerikler hakkında konuşmayın.**\n" +
-      "• NSFW ve pornografik içerikler hakkında tolerans yoktur. Bu içerikleri paylaşmak, ima etmek ve akılda uyandıracak görseller videolar yasaktır.\n\n" +
-      "**2.2 NSFL ve hassas içerikler.**\n" +
-      "• NSFL yani intihara, kendini zarar vermeye teşvik edici şeyler yasaktır. Üyeleri rahatsız edecek, midesini bulandıracak şeyler de bunun içine girer.\n\n" +
-      "**2.3 E-date benzeri şeyler yasaktır.**\n" +
-      "• Sunucumuz bir dating ve flörtleşme sunucusu değildir. Sunucumuzda reşit olmayan üyeler olduğu için bu kesinlikle yasaktır. DM'den, sohbetten veya herhangi bir kanalda flörtleşen kişiler yasaklanacaktır."
-    )
-    .setColor(0xFF6B6B);
-
-  await channel.send({ embeds: [rule2Embed] });
-
-  // 3. Tüm Üyelere Saygılı Olun
-  const rule3Embed = new EmbedBuilder()
-    .setTitle("3. Tüm Üyelere Saygılı Olun")
-    .setDescription(
-      "**3.1 Rütbe, yetki fark etmeksizin herkese saygılı olun.**\n" +
-      "• Sırf bir üye yetkili ve rütbeli değil diye o üyeye karşı ters tavırlar sergilemeyin. Buradaki herkesin de bir birey olduğunu unutmayın.\n\n" +
-      "**3.2 Hassas konulara girmekten kaçının.**\n" +
-      "• Herkesin hassas gözle baktığı konular olduğu için ve bu konuların muhabbetini yapmak tartışmalara sebep olabileceği için yasaktır.\n" +
-      "• Hassas konular şunları içerir: Politika, siyaset, din, cinsellik, futbol vs.\n" +
-      "  *İstisna olarak üst yetkililerin gözetimi altında bu konuların sohbetine izin verilir.*\n\n" +
-      "**3.3 Bilerek tartışma çıkarmayın.**\n" +
-      "• Tartışmasız, saygılı ve herkesin eğlenebileceği bir ortam yaratmaya çalışıyoruz. Bu yüzden küçük şakalara bir şey demesek de bilerek tartışma çıkarmayın, tartışma çıkaracak konulara girmeyin.\n\n" +
-      "**3.4 Irkçılık, Nazizm vs. yasaktır.**\n" +
-      "• Aşırı fikirlerin savunuculuğunu yapmak ve bunlara dair görseller, metinler paylaşmak yasaktır. Özellikle svastika ve benzeri sembolleri paylaşmak yasaktır."
-    )
-    .setColor(0x7C6AF7);
-
-  await channel.send({ embeds: [rule3Embed] });
-
-  // 4. Genel Sohbet Kuralları
-  const rule4Embed = new EmbedBuilder()
-    .setTitle("4. Genel Sohbet Kuralları")
-    .setDescription(
-      "**4.1 Spam ve flood yapmayın.**\n" +
-      "• Mesaj, video, resim, tepki spamlamak yasaktır.\n" +
-      "• Flood (Art arda bir sürü mesaj atmak) yasaktır. Arka arkaya başkası mesaj atmadan 4 mesaj atarsanız flood yapmış olursunuz.\n\n" +
-      "**4.2 Yüksek sesli/Çok parlak şeyler göndermeyin.**\n" +
-      "• İnsanların kulak sağlığı için aşırı yüksek sesli videolar göndermeyin ve ışığa duyarlı olan insanlar olabileceği için aşırı parlak, yanıp sönen videolar, gifler ya da fotoğraflar paylaşmayın.\n\n" +
-      "**4.3 Tag Kuralları**\n" +
-      "• @Ordu Yönetimi ve üstü rollere sahip olan kişileri sebepsiz yere etiketlemek ve rahatsız etmek yasaktır.\n" +
-      "• Eğer etiketlediğiniz kişi size izin veriyorsa bir sakınca yoktur.\n" +
-      "• Ghost Tag (Tag atıp silmek) yasaktır.\n\n" +
-      "**4.4 Otomodu aşmaya çalışmayın.**\n" +
-      "• Eğer otomod yüzünden susturulduysanız bir sebebi vardır. Otomod kurallarında yasaklanan kelimeler belirtilmiştir. Bu kelimelerden harf çıkararak, sıralarını değiştirerek susturulmadan yasaklı kelimeleri yazmaya çalışmayın.\n\n" +
-      "**4.5 Küfür, argo ve benzeri her türlü şey yasaktır.**\n" +
-      "• Sunucumuzdaki düzeni korumak adına küfür, argo ve benzeri her şey yasaklanmıştır. Lütfen moderatörlerin de uyarılarına uyun ve küfür benzeri hiçbir şey kullanmayın."
-    )
-    .setColor(0x4ECDC4);
-
-  await channel.send({ embeds: [rule4Embed] });
-
-  // 5. Reklam
-  const rule5Embed = new EmbedBuilder()
-    .setTitle("5. Reklam")
-    .setDescription(
-      "**5.1 DM'den üyelere reklam yapmayın.**\n" +
-      "• Herhangi bir şeyin DM'den reklamını yapmak yasaktır. Özellikle diğer roblox gruplarının reklamını lütfen yapmayın. DM reklamları ayrıca Discord'un hizmet şartları ve kullanım politikasına (TOS) aykırıdır.\n" +
-      "• İnsanlara sunucunuza katılmasını vs. söylemeyin. Eğer bir kişi sunucunuza katılmak istiyorsa ona DM'den yollayın, sunucumuzda davet bağlantısı yollamak yasaktır."
-    )
-    .setColor(0xFBBF24);
-
-  await channel.send({ embeds: [rule5Embed] });
-
-  // 6. Discord Profilleri
-  const rule6Embed = new EmbedBuilder()
-    .setTitle("6. Discord Profilleri")
-    .setDescription(
-      "**6.1 Discord profiliniz kurallarımıza uygun olmalıdır.**\n" +
-      "• Discord profilinize koyduğunuz şeyler Discord'un hizmet ve kullanım şartlarına ve sunucumuzun topluluk kurallarına uygun olmalıdır. Profil fotoğrafınıza, biyografinize, hitaplarınıza veya herhangi bir yere NSFW, ırkçı, cinsiyetçi şeyler koymayın. Profilinizdeki her şey sunucumuzun moderasyonuna dahildir ve bunlardan sorumlu tutulursunuz.\n\n" +
-      "**6.2 Yetkilileri taklit etmeyin.**\n" +
-      "• Yetkilileri, YK'leri, @sanker ve daha birçok yönetim üyesini taklit etmek yasaktır. Üyeleri dolandırmak gibi bir amacınız olmasa da bu yasaklanmıştır."
-    )
-    .setColor(0x95E1D3);
-
-  await channel.send({ embeds: [rule6Embed] });
-
-  // Son uyarı
-  const finalEmbed = new EmbedBuilder()
-    .setTitle("⚠️ Kuralları Aşmaya Çalışmayın")
-    .setDescription(
-      "Bilerek kuralları kendinize göre değiştirmek yasaktır. Sunucudaki her kural mükemmel değildir ve her yasaklı şeyi içeremez. Bu yüzden yasak olabilecek şeyleri düşünerek hareket edin.\n" +
-      "Eğer moderatörler sizi susturduysa veya yasakladıysa bunun kesinlikle bir sebebi vardır, moderatörlere sunucu kurallarını atarak \"Böyle bir kural yok.\" vesaire demeniz cezanızın artmasına sebep olabilir.\n" +
-      "Moderatörler sizi susturan kişinin adını ve diğer bilgilerini vermekle yükümlü değillerdir."
-    )
-    .setColor(0xFF6347);
-
-  await channel.send({ embeds: [finalEmbed] });
-}
-
-/**
- * Otomod kurallarını gönderir
- */
-async function postAutomodRules(channel) {
-  // Kişisel Bilgilerin Koruması
-  const automod1Embed = new EmbedBuilder()
-    .setTitle("🔒 1.0 Kişisel Bilgilerin Koruması")
-    .setDescription(
-      "Bazı kişilerin kişisel bilgilerinin korunması için oluşturulmuş otomod. " +
-      "Telefon numarası, isim-soyad vb. korumaya yardımcı olur."
-    )
-    .setColor(0xFF4444)
-    .addFields(
-      {
-        name: "Cezası",
-        value: "🚫 Sunucudan yasaklanmak."
-      }
-    );
-
-  await channel.send({ embeds: [automod1Embed] });
-
-  // Toksik Kelime Moderasyonu
-  const automod2Embed = new EmbedBuilder()
-    .setTitle("🚫 1.1 Toksik Kelime Moderasyonu")
-    .setDescription(
-      "Sohbetin ve diğer kanalların kalitesini korumak amacıyla oluşturulmuş otomod."
-    )
-    .setColor(0xFF6B6B)
-    .addFields(
-      {
-        name: "Etkilenmeyen Roller",
-        value: "@Ordu Yönetimi ve @Moderatör Ekibi\ndestek-sistemi biletlerinde etkilenilmez."
-      },
-      {
-        name: "Cezası",
-        value: "⏱️ 1 gün sunucudan susturulmak."
-      }
-    );
-
-  await channel.send({ embeds: [automod2Embed] });
-
-  // Siyasi Parti Moderasyonu
-  const automod3Embed = new EmbedBuilder()
-    .setTitle("🇹🇷 1.2 Siyasi Parti Moderasyonu")
-    .setDescription(
-      "Sohbette siyaset konuşulmaması, tartışma çıkmaması için oluşturulmuş otomod."
-    )
-    .setColor(0xFBBF24)
-    .addFields(
-      {
-        name: "Etkilenmeyen Roller",
-        value: "@Ordu Yönetimi ve @Moderatör Ekibi"
-      },
-      {
-        name: "Cezası",
-        value: "⏱️ 1 gün sunucudan susturulmak."
-      }
-    );
-
-  await channel.send({ embeds: [automod3Embed] });
-
-  // Discord Bağlantı Moderasyonu
-  const automod4Embed = new EmbedBuilder()
-    .setTitle("🔗 1.3 Discord Bağlantı Moderasyonu")
-    .setDescription(
-      "Sunucu içerisinde Discord davet bağlantıların atılmasını engellemek için oluşturulmuş otomod."
-    )
-    .setColor(0x7C6AF7)
-    .addFields(
-      {
-        name: "Etkilenmeyen Roller",
-        value: "@Ordu Yönetimi ve @Moderatör Ekibi\ndestek-sistemi biletlerinde etkilenilmez."
-      },
-      {
-        name: "Cezası",
-        value: "⏱️ 1 gün sunucudan susturulmak."
-      }
-    );
-
-  await channel.send({ embeds: [automod4Embed] });
-
-  // Etiket Spamları Engelle
-  const automod5Embed = new EmbedBuilder()
-    .setTitle("🏷️ 1.4 Etiket Spamları Engelle")
-    .setDescription(
-      "Sunucu içerisinde ghost tag ve belirli etiket spamları engellemek için oluşturulmuş otomod."
-    )
-    .setColor(0x4ECDC4)
-    .addFields(
-      {
-        name: "Etkilenmeyen Roller",
-        value: "@Ordu Yönetimi ve @Moderatör Ekibi"
-      },
-      {
-        name: "Etiket Sınırı",
-        value: "📊 Maksimum 3 etiket"
-      },
-      {
-        name: "Cezası",
-        value: "⏱️ 10 dakika sunucudan susturulmak."
-      }
-    );
-
-  await channel.send({ embeds: [automod5Embed] });
-}
+// ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
   postTMTRules,
   postServerRules,
   postAutomodRules,
-};
+}; df
