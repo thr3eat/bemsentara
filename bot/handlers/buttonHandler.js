@@ -43,15 +43,27 @@ async function handleButtonInteraction(interaction) {
     await interaction.deferReply({ ephemeral: true });
     
     try {
+      console.log(`[verify_button] User ${interaction.user.id} requesting role sync...`);
       const user = await User.findOne({ discordId: interaction.user.id });
       
-      if (!user || !user.robloxId) {
+      if (!user) {
+        console.log(`[verify_button] User ${interaction.user.id} not found in database`);
         return interaction.editReply({
           content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
           ephemeral: true,
         });
       }
 
+      if (!user.robloxId) {
+        console.log(`[verify_button] User ${interaction.user.id} has no robloxId`);
+        return interaction.editReply({
+          content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
+          ephemeral: true,
+        });
+      }
+
+      console.log(`[verify_button] Found user: Discord=${interaction.user.id}, Roblox=${user.robloxId}`);
+      
       // Rolleri senkronize et
       const success = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
       

@@ -355,22 +355,34 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
  */
 async function getUserRankInGroup(robloxUserId) {
   try {
+    console.log(`[TMT Role Sync] Fetching rank for Roblox user ${robloxUserId} in group ${ROBLOX_GROUP_ID}...`);
+    
     const response = await axios.get(
       `https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`,
-      { timeout: 5000 }
+      { timeout: 10000 } // Increased timeout from 5s to 10s
     );
 
+    console.log(`[TMT Role Sync] API Response status: ${response.status}, groups count: ${response.data.data.length}`);
+    
     const groupData = response.data.data.find(g => g.group.id === ROBLOX_GROUP_ID);
     if (groupData) {
+      console.log(`[TMT Role Sync] ✅ Found rank in group ${ROBLOX_GROUP_ID}: ${groupData.role.name} (Rank ${groupData.role.rank})`);
       return {
         rank: groupData.role.rank,
         roleName: groupData.role.name,
         roleId: groupData.role.id,
       };
     }
+    
+    console.warn(`[TMT Role Sync] User ${robloxUserId} not found in group ${ROBLOX_GROUP_ID}. Available groups:`, 
+      response.data.data.map(g => ({ id: g.group.id, name: g.group.name, rank: g.role.rank }))
+    );
     return null; // User not in group
   } catch (error) {
-    console.error(`[TMT Role Sync] Error fetching rank for user ${robloxUserId}:`, error.message);
+    console.error(`[TMT Role Sync] ❌ Error fetching rank for user ${robloxUserId}:`, error.message);
+    if (error.response) {
+      console.error(`[TMT Role Sync] API Error Status: ${error.response.status}`, error.response.data);
+    }
     return null;
   }
 }
@@ -380,6 +392,9 @@ async function getUserRankInGroup(robloxUserId) {
  */
 async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember = null) {
   try {
+    console.log(`\n[TMT Role Sync] ===== START SYNC =====`);
+    console.log(`[TMT Role Sync] Discord User: ${discordUserId}, Roblox User: ${robloxUserId}`);
+    
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
     if (!guild) {
       console.warn(`[TMT Role Sync] Guild ${TMT_GUILD_ID} not found`);
@@ -395,6 +410,8 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       console.warn(`[TMT Role Sync] Member ${discordUserId} not found in TMT guild`);
       return false;
     }
+
+    console.log(`[TMT Role Sync] Found Discord member: ${member.user.tag}`);
 
     // Get user's rank in Roblox group
     const userRank = await getUserRankInGroup(robloxUserId);

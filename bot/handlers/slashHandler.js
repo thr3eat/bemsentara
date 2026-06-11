@@ -252,7 +252,9 @@ async function handleSlashCommand(interaction) {
     if (commandName === "verify") {
       try {
         const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
-        const guildId = interaction.guildId;
+        const guildId = String(interaction.guildId); // Convert to string for comparison
+        
+        console.log(`[verify] User: ${interaction.user.id}, Guild: ${guildId}, TMT: ${TMT_GUILD_ID}, BEM: ${TARGET_GUILD_ID}`);
         
         if (!guildId) {
           return interaction.editReply({ content: "❌ Bu komut sunucuda kullanılmalıdır" });
@@ -273,15 +275,26 @@ async function handleSlashCommand(interaction) {
         const User = require("../../models/User");
         const dbUser = await User.findOne({ discordId: interaction.user.id });
 
-        if (!dbUser || !dbUser.robloxId) {
+        if (!dbUser) {
+          console.log(`[verify] User ${interaction.user.id} not in database`);
           return interaction.editReply({ 
             content: "❌ Roblox hesabınızı yetkilendirmediniz. `/authorize` komutunu kullanın" 
           });
         }
 
+        if (!dbUser.robloxId) {
+          console.log(`[verify] User ${interaction.user.id} has no robloxId`);
+          return interaction.editReply({ 
+            content: "❌ Roblox hesabınızı yetkilendirmediniz. `/authorize` komutunu kullanın" 
+          });
+        }
+
+        console.log(`[verify] Found user. Discord: ${interaction.user.id}, Roblox: ${dbUser.robloxId}, Guild: ${guildId}`);
+
         // Determine which server and sync accordingly
         let success = false;
         if (guildId === TMT_GUILD_ID) {
+          console.log(`[verify] Using TMT sync for guild ${guildId}`);
           const { syncTMTRoles } = require("../services/tmtRoleSyncService");
           success = await syncTMTRoles(
             interaction.client, 
@@ -289,10 +302,16 @@ async function handleSlashCommand(interaction) {
             dbUser.robloxId,
             member
           );
-        } else {
+        } else if (guildId === TARGET_GUILD_ID) {
+          console.log(`[verify] Using BEM sync for guild ${guildId}`);
           const { syncMemberRoles } = require("../services/roleSyncService");
           const result = await syncMemberRoles(member, dbUser.robloxId);
           success = result.success;
+        } else {
+          console.warn(`[verify] Unknown guild ${guildId}`);
+          return interaction.editReply({ 
+            content: "❌ Sunucu tanınmadı" 
+          });
         }
 
         if (success) {
@@ -308,6 +327,7 @@ async function handleSlashCommand(interaction) {
         console.error("[verify] Hata:", error);
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
+    }
     }
 
     if (commandName === "update") {
