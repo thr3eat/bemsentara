@@ -305,7 +305,7 @@ async function handleSlashCommand(interaction) {
         } else if (guildId === TARGET_GUILD_ID) {
           console.log(`[verify] Using BEM sync for guild ${guildId}`);
           const { syncMemberRoles } = require("../services/roleSyncService");
-          const result = await syncMemberRoles(member, dbUser.robloxId);
+          const result = await syncMemberRoles(guild, member, dbUser.robloxId, dbUser.robloxUsername);
           success = result.success;
         } else {
           console.warn(`[verify] Unknown guild ${guildId}`);

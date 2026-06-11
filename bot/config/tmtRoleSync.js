@@ -10,73 +10,70 @@ const TMT_GUILD_ID = "1514569307886063666";
 
 // ========== SEPARATOR ROLES (Visual dividers for each tier) ==========
 const SEPARATOR_ROLES = {
-  enlisted: "1514582899000000001",        // ▬▬▬▬▬▬▬▬▬▬▬▬▬ OR-1 to OR-9
-  officers: "1514582899000000002",        // ▬▬▬▬▬▬▬▬▬▬▬▬▬ OF-1/A to OF-1/C
-  seniorOfficers: "1514582899000000003",  // ▬▬▬▬▬▬▬▬▬▬▬▬▬ OF-2 to OF-5
-  generals: "1514582899000000004",        // ▬▬▬▬▬▬▬▬▬▬▬▬▬ OF-6 to OF-9 & Paşa
-  management: "1514582899000000005",      // ▬▬▬▬▬▬▬▬▬▬▬▬▬ Management ranks
+  enlisted: "1514582688114278460",        // ▬▬▬▬▬▬▬▬▬ OR-1 to OR-9
+  officers: "1514582692036087818",        // ▬▬▬▬▬▬▬▬▬ OF-1/A to OF-1/C
+  seniorOfficers: "1514582747056967772",  // ▬▬▬▬▬▬▬▬▬ OF-2 to OF-5
+  generals: "1514582756510793928",        // ▬▬▬▬▬▬▬▬▬ OF-6 to OF-9 & Paşa
+  management: "1514582673333420162",      // ▬▬▬▬▬▬▬▬▬ Management ranks
 };
 
 // ========== CATEGORY/TIER ROLES ==========
 const CATEGORY_ROLES = {
-  orduPersoneli: "1514582898000000001",           // Ordu Personeli
-  orduSubayi: "1514582898000000002",             // Ordu Subayı
-  kidemliorduSubayi: "1514582898000000003",      // Kıdemli Ordu Subayı
-  orduGenerali: "1514582898000000004",           // Ordu Generali
-  kidemliorduGenerali: "1514582898000000005",    // Kıdemli Ordu Generali
-  orduYonetimi: "1514582898000000006",           // Ordu Yönetimi
-  orduYönetimBaskanligi: "1514582898000000007",  // Ordu Yönetim Başkanlığı
-  maresal: "1514582898000000008",                // OF-10 Mareşal
+  orduPersoneli: "1514582773136887858",           // Ordu Personeli
+  orduSubayi: "1514582762093547560",             // Ordu Subayı
+  kidemliorduSubayi: "1514582757420830850",      // Kıdemli Ordu Subayı
+  orduGenerali: "1514582748394946591",           // Ordu Generali
+  kidemliorduGenerali: "1514582739691638885",    // Kıdemli Ordu Generali
+  orduYonetimi: "1514582649342132304",           // Ordu Yönetimi
+  orduYönetimBaskanligi: "1514582648121593969",  // Ordu Yönetim Başkanlığı
+  maresal: "1514582645051490415",                // OF-10 Mareşal
 };
 
 // ========== STATUS ROLES (Branch membership level) ==========
 const STATUS_ROLES = {
-  bransszPersonel: "1514582897000000001",        // Branşsız Personel
-  bransliPersonel: "1514582897000000002",        // Branşlı Personel
-  yetkliBransPersoneli: "1514582897000000003",   // Yetkili Branş Personeli
+  bransszPersonel: "1514582801343582279",        // Branşsız Personel
+  bransliPersonel: "1514582802618646798",        // Branşlı Personel
+  yetkliBransPersoneli: "1514582851579019454",   // Yetkili Branş Personeli
 };
 
 // ========== SPECIFIC RANK ROLES ==========
 const RANK_ROLES = {
-  "OR-1/A": "1514582896100000001",
-  "OR-1/B": "1514582896100000002",
-  "OR-1/C": "1514582896100000003",
-  "OR-2": "1514582896100000004",
-  "OR-3": "1514582896100000005",
-  "OR-4": "1514582896100000006",
-  "OR-5": "1514582896100000007",
-  "OR-6": "1514582896100000008",
-  "OR-7": "1514582896100000009",
-  "OR-8": "1514582896100000010",
-  "OR-9": "1514582896100000011",
-  "OF-1/A": "1514582896200000001",
-  "OF-1/B": "1514582896200000002",
-  "OF-1/C": "1514582896200000003",
-  "OF-2": "1514582896200000004",
-  "OF-3": "1514582896200000005",
-  "OF-4": "1514582896200000006",
-  "OF-5": "1514582896200000007",
-  "OF-6": "1514582896200000008",
-  "OF-7": "1514582896200000009",
-  "OF-8": "1514582896200000010",
-  "OF-9": "1514582896200000011",
-  "Paşa": "1514582896200000012",
-  "Konsey": "1514582896300000001",
-  "Ankara Heyeti": "1514582896300000002",
-  "Başkumandan": "1514582896300000003",
-  "Askeri Kurultay": "1514582896300000004",
-  "Disiplin Kurulu": "1514582896300000005",
-  "Lider": "1514582896300000006",
-  "Genelkurmay": "1514582896300000007",
-  "Genelkurmay Başkanı": "1514582896300000008",
-  "Yüksek Askerî Şûra": "1514582896300000009",
-  "Yönetim Kurulu": "1514582896300000010",
-  "YK Başkan Yardımcısı": "1514582896300000011",
-  "YK Başkanı": "1514582896300000012",
-  "Geliştirme Ofisi": "1514582896300000013",
-  "Holder": "1514582896300000014",
-  "OF-10 Mareşal": "1514582896300000015",
-  "Emekli Personel": "1514582896300000016",
+  "OR-1/A": "1514582788383440896",
+  "OR-1/B": "1514582787393454141",
+  "OR-1/C": "1514582786240020583",
+  "OR-2": "1514582785485045810",
+  "OR-3": "1514582784348520478",
+  "OR-4": "1514582782959947898",
+  "OR-5": "1514582781618028594",
+  "OR-6": "1514582779390726255",
+  "OR-7": "1514582778518441994",
+  "OR-8": "1514582777381650462",
+  "OR-9": "1514582776249061487",
+  "OF-1/A": "1514582766875054223",
+  "OF-1/B": "1514582765746782328",
+  "OF-1/C": "1514582764664389693",
+  "OF-2": "1514582763284729996",
+  "OF-3": "1514582759970967744",
+  "OF-4": "1514582759253741638",
+  "OF-5": "1514582758364676177",
+  "OF-6": "1514582753679773837",
+  "OF-7": "1514582752345723121",
+  "OF-8": "1514582750915727461",
+  "OF-9": "1514582749850239167",
+  "Paşa": "1514582755512553522",
+  "Askeri İnzibat Lideri": "1514582714664095878",
+  "Jandarma Lideri": "1514582715649888256",
+  "Sınır Müfettişleri Lideri": "1514582713732956252",
+  "Hava Kuvvetleri Lideri": "1514582712852283502",
+  "Özel Kuvvetler Lideri": "1514582712021815346",
+  "Kara Kuvvetleri Lideri": "1514582710713057300",
+  "Yüksek Askerî Şûra": "1514582741772013588",
+  "Yönetim Kurulu": "1514582653322661959",
+  "Yönetim Kurulu Başkan Y.": "1514582652433465474",
+  "Yönetim Kurulu Başkanı": "1514582651544010752",
+  "Geliştirme Ofisi": "1514582740496814172",
+  "OF-10 Mareşal": "1514582645051490415",
+  "Emekli Personel": "1514582769857069147",
 };
 
 // ========== ROLE MAPPINGS (Rank → Discord Roles) ==========
@@ -307,60 +304,68 @@ const TMT_ROLE_MAPPINGS = {
     ],
     name: "Paşa"
   },
-  // Management Ranks (150-252) - Kıdemli Ordu Generali / Ordu Yönetimi / Ordu Yönetim Başkanlığı
-  180: {  // Konsey (rank 180)
+  180: {  // Askeri İnzibat Lideri (rank 180)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Konsey"],
+      RANK_ROLES["Askeri İnzibat Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Konsey"
+    name: "Askeri İnzibat Lideri"
   },
-  185: {  // Ankara Heyeti (rank 185)
+  185: {  // Jandarma Lideri (rank 185)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Ankara Heyeti"],
+      RANK_ROLES["Jandarma Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Ankara Heyeti"
+    name: "Jandarma Lideri"
   },
-  190: {  // Başkumandan (rank 190)
+  190: {  // Sınır Müfettişleri Lideri (rank 190)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Başkumandan"],
+      RANK_ROLES["Sınır Müfettişleri Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Başkumandan"
+    name: "Sınır Müfettişleri Lideri"
   },
-  195: {  // Askeri Kurultay (rank 195)
+  195: {  // Hava Kuvvetleri Lideri (rank 195)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Askeri Kurultay"],
+      RANK_ROLES["Hava Kuvvetleri Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Askeri Kurultay"
+    name: "Hava Kuvvetleri Lideri"
   },
-  196: {  // Disiplin Kurulu (rank 196)
+  196: {  // Özel Kuvvetler Lideri (rank 196)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Disiplin Kurulu"],
+      RANK_ROLES["Özel Kuvvetler Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Disiplin Kurulu"
+    name: "Özel Kuvvetler Lideri"
   },
-  200: {  // Lider (rank 200)
+  200: {  // Kara Kuvvetleri Lideri (rank 200)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.kidemliorduGenerali,
-      RANK_ROLES["Lider"],
+      RANK_ROLES["Kara Kuvvetleri Lideri"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "Lider"
+    name: "Kara Kuvvetleri Lideri"
+  },
+  201: {  // Sınav Sorumlusu (rank 201)
+    discordRoleIds: [
+      SEPARATOR_ROLES.management,
+      CATEGORY_ROLES.kidemliorduGenerali,
+      RANK_ROLES["Sınav Sorumlusu"],
+      STATUS_ROLES.bransszPersonel,
+    ],
+    name: "Sınav Sorumlusu"
   },
   230: {  // Genelkurmay (rank 230)
     discordRoleIds: [
@@ -402,19 +407,19 @@ const TMT_ROLE_MAPPINGS = {
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.orduYönetimBaskanligi,
-      RANK_ROLES["YK Başkan Yardımcısı"],
+      RANK_ROLES["Yönetim Kurulu Başkan Y."],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "YK Başkan Yardımcısı"
+    name: "Yönetim Kurulu Başkan Y."
   },
   252: {  // Yönetim Kurulu Başkanı (rank 252)
     discordRoleIds: [
       SEPARATOR_ROLES.management,
       CATEGORY_ROLES.orduYönetimBaskanligi,
-      RANK_ROLES["YK Başkanı"],
+      RANK_ROLES["Yönetim Kurulu Başkanı"],
       STATUS_ROLES.bransszPersonel,
     ],
-    name: "YK Başkanı"
+    name: "Yönetim Kurulu Başkanı"
   },
   253: {  // Geliştirme Ofisi (rank 253)
     discordRoleIds: [
@@ -424,15 +429,6 @@ const TMT_ROLE_MAPPINGS = {
       STATUS_ROLES.bransszPersonel,
     ],
     name: "Geliştirme Ofisi"
-  },
-  254: {  // Holder (rank 254)
-    discordRoleIds: [
-      SEPARATOR_ROLES.management,
-      CATEGORY_ROLES.maresal,
-      RANK_ROLES["Holder"],
-      STATUS_ROLES.bransszPersonel,
-    ],
-    name: "Holder"
   },
   255: {  // OF-10 Mareşal (rank 255)
     discordRoleIds: [
