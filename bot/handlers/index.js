@@ -36,6 +36,8 @@ function initializeDiscordHandlers(client) {
     await ensureAlliedRobloxMenu(client);
     await ensureBemRobloxMenu(client);
     startAuditLogPoller(client);
+    const { startDiscordAbuseDetector } = require("../services/discordAbuseDetector");
+    startDiscordAbuseDetector(client);
     await ensureAlliedVerifyHelpMessage(client);
     await ensureAlliedSupportMessage(client);
     await initTMTInvites(client);
@@ -580,6 +582,12 @@ function initializeDiscordHandlers(client) {
       if (interaction.isModalSubmit() && interaction.customId?.startsWith('ad_link_modal_')) {
         const { handleAdLinkModal } = require('../services/ticketAI');
         await handleAdLinkModal(interaction, client);
+        return;
+      }
+      // ── Discord Sunucu Abuse Butonları ──────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith("disc_abuse_")) {
+        const { handleDiscordAbuseButton } = require("./discordAbuseButtonHandler");
+        await handleDiscordAbuseButton(interaction);
         return;
       }
       // ── Roblox Abuse Butonları ────────────────────────────────────────────
