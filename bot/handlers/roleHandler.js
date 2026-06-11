@@ -47,6 +47,42 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     );
   }
 
+  // TMT Guild check
+  const { TMT_GUILD_ID } = require("../../config");
+  if (guild.id === TMT_GUILD_ID) {
+    await interaction.deferReply(ephemeral ? deferEphemeral() : {});
+    try {
+      const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+      const fullMember = member.partial ? await member.fetch() : member;
+      const success = await syncTMTRoles(
+        interaction.client,
+        user.id,
+        dbUser.robloxId,
+        fullMember
+      );
+
+      if (success) {
+        const embed = new EmbedBuilder()
+          .setColor(0x00AA00)
+          .setTitle("✅ Roller Güncellendi")
+          .setDescription("Roblox hesabınızdan rolleriniz başarıyla senkronize edildi!")
+          .setFooter({ text: "TMT Rol Sistemi" })
+          .setTimestamp();
+        
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        return interaction.editReply({
+          content: "❌ Roller senkronize edilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+        });
+      }
+    } catch (err) {
+      console.error("TMT role sync error:", err);
+      return interaction.editReply({
+        content: `❌ Bir hata oluştu: ${err.message}`,
+      });
+    }
+  }
+
   await interaction.deferReply(ephemeral ? deferEphemeral() : {});
 
   try {
