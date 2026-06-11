@@ -505,7 +505,8 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
       }
     }
 
-    // Find or create/position separators
+    // Separator creation and position logic paused/disabled due to rate-limits and bugs
+    /*
     const separators = findSeparatorsForBranch(guild, branchConfig.discordRoleName, branchConfig.discordBranchRoleName);
     let topSepRole = separators.top;
     let bottomSepRole = separators.bottom;
@@ -539,6 +540,7 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
 
     if (topSepRole) desiredRoleIds.add(topSepRole.id);
     if (bottomSepRole) desiredRoleIds.add(bottomSepRole.id);
+    */
   }
 
   return desiredRoleIds;
@@ -680,7 +682,8 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
           }
         }
 
-        // Find or create/position separators
+        // Separator creation and position logic paused/disabled due to rate-limits and bugs
+        /*
         const separators = findSeparatorsForBranch(guild, branchConfig.discordRoleName, branchConfig.discordBranchRoleName);
         let topSepRole = separators.top;
         let bottomSepRole = separators.bottom;
@@ -715,6 +718,7 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
         if (topSepRole) {
           await member.roles.add(topSepRole, `TMT Branch Separator: ${branch.branchName}`);
         }
+        */
 
         if (mainBranchRole) {
           await member.roles.add(mainBranchRole, `TMT Branch: ${branch.branchName} (Rank ${branch.rank})`);
@@ -724,9 +728,11 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
           await member.roles.add(authorityRole, `TMT Branch Authority: ${branch.branchName} (Rank ${branch.rank})`);
         }
 
+        /*
         if (bottomSepRole) {
           await member.roles.add(bottomSepRole, `TMT Branch Separator: ${branch.branchName}`);
         }
+        */
 
         console.log(
           `[TMT Branch Sync] ✅ ${member.user.tag} → ${branch.branchName} (Rank ${branch.rank})`
