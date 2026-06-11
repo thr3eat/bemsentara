@@ -334,10 +334,13 @@ async function handleSlashCommand(interaction) {
 
       try {
         const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
-        const guildId = String(interaction.guildId); // Convert to string for comparison
+        // Normalize guild IDs for comparison
+        const guildId = String(interaction.guildId).trim();
+        const normalizedTMT = String(TMT_GUILD_ID).trim();
+        const normalizedBEM = String(TARGET_GUILD_ID).trim();
         const targetUser = interaction.options.getUser("user");
         
-        console.log(`[Update Command] Guild: ${guildId}, TMT: ${TMT_GUILD_ID}, BEM: ${TARGET_GUILD_ID}`);
+        console.log(`[Update Command] Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
         
         let userIds = [];
         if (targetUser) {
