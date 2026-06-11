@@ -5,7 +5,7 @@
  */
 
 const axios = require("axios");
-const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS } = require("../config/tmtRoleSync");
+const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES } = require("../config/tmtRoleSync");
 const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
 
 const ROBLOX_GROUP_ID = 11517908;
@@ -40,7 +40,8 @@ async function getUserBranchMemberships(robloxUserId) {
 }
 
 /**
- * Sync user's branch roles
+ * Sync user's branch roles and set appropriate status role
+ * Status roles: Branşsız Personel, Branşlı Personel, Yetkili Branş Personeli
  */
 async function syncBranchRoles(client, discordUserId, robloxUserId, discordMember = null) {
   try {
@@ -68,11 +69,49 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       });
     }
 
+    // Remove status roles before setting new ones
+    const statusRoleIds = Object.values(STATUS_ROLES);
+    const currentStatusRoles = member.roles.cache.filter(r => statusRoleIds.includes(r.id));
+    if (currentStatusRoles.size > 0) {
+      await member.roles.remove(Array.from(currentStatusRoles.keys()), "TMT Status Sync").catch(err => {
+        console.error(`[TMT Branch Sync] Error removing status roles:`, err.message);
+      });
+    }
+
     // Get user's branch memberships
     const branches = await getUserBranchMemberships(robloxUserId);
 
+    // Determine status: Branşsız / Branşlı / Yetkili Branş Personeli
+    let statusRoleId = STATUS_ROLES.bransszPersonel; // Default: Branşsız
+
+    if (branches.length > 0) {
+      // User is in at least one branch group
+      const hasAuthorityInAnyBranch = branches.some(branch => {
+        const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
+        return branch.rank >= authorityThreshold;
+      });
+
+      if (hasAuthorityInAnyBranch) {
+        statusRoleId = STATUS_ROLES.yetkliBransPersoneli; // Yetkili Branş Personeli
+      } else {
+        statusRoleId = STATUS_ROLES.bransliPersonel; // Branşlı Personel
+      }
+    }
+
+    // Add appropriate status role
+    try {
+      const statusRole = guild.roles.cache.get(statusRoleId);
+      if (statusRole) {
+        await member.roles.add(statusRole, "TMT Status Assignment").catch(err => {
+          console.error(`[TMT Branch Sync] Error adding status role:`, err.message);
+        });
+      }
+    } catch (err) {
+      console.error(`[TMT Branch Sync] Error with status role assignment:`, err.message);
+    }
+
     if (branches.length === 0) {
-      console.log(`[TMT Branch Sync] User ${discordUserId} is not in any branch groups`);
+      console.log(`[TMT Branch Sync] User ${discordUserId} has Branşsız Personel status`);
       return true;
     }
 
