@@ -237,7 +237,7 @@ const SERVER_RULES = [
       {
         name: "6.2 · Taklit Yasağı",
         value:
-          "Yetkilileri, YK'leri, @sanker ve diğer yönetim üyelerini taklit etmek, dolandırma amacı olmasa dahi yasaktır.",
+          "Yetkilileri, YK'leri, @ekonqt ve diğer yönetim üyelerini taklit etmek, dolandırma amacı olmasa dahi yasaktır.",
         inline: true,
       },
     ],
