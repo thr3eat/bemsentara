@@ -73,18 +73,35 @@ async function handleButtonInteraction(interaction) {
       const normalizedEKO = String(GUILD2_ID).trim();
       const normalizedAllied = String(ALLIED_GUILD_ID).trim();
 
-      console.log(`[verify_button] Guild check: ${normalizedGuildId} - TMT: ${normalizedTMT}, BEM: ${normalizedBEM}, EKO: ${normalizedEKO}, ALLIED: ${normalizedAllied}`);
+      console.log(`[verify_button] Sunucu Kontrolü:`);
+      console.log(`  Mevcut Guild ID: "${normalizedGuildId}"`);
+      console.log(`  Allied ID: "${normalizedAllied}" ${normalizedGuildId === normalizedAllied ? '✓ EŞLEŞTI' : ''}`);
+      console.log(`  TMT ID: "${normalizedTMT}" ${normalizedGuildId === normalizedTMT ? '✓ EŞLEŞTI' : ''}`);
+      console.log(`  BEM ID: "${normalizedBEM}" ${normalizedGuildId === normalizedBEM ? '✓ EŞLEŞTI' : ''}`);
+      console.log(`  EKO ID: "${normalizedEKO}" ${normalizedGuildId === normalizedEKO ? '✓ EŞLEŞTI' : ''}`);
       
-      if (normalizedGuildId === normalizedAllied || normalizedGuildId === normalizedEKO) {
+      if (normalizedGuildId === normalizedAllied) {
+        console.log(`[verify_button] ✓ Müttefik Orduları algılandı - Allied sync başlatılıyor`);
         const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
         result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
+        console.log(`[verify_button] Allied sync tamamlandı`);
+      } else if (normalizedGuildId === normalizedEKO) {
+        console.log(`[verify_button] ✓ EKOYILDIZ algılandı - Allied sync başlatılıyor`);
+        const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+        result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
+        console.log(`[verify_button] EKOYILDIZ sync tamamlandı`);
       } else if (normalizedGuildId === normalizedTMT) {
+        console.log(`[verify_button] ✓ TMT algılandı - TMT sync başlatılıyor`);
         const { syncTMTRoles } = require("../services/tmtRoleSyncService");
         result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+        console.log(`[verify_button] TMT sync tamamlandı`);
       } else if (normalizedGuildId === normalizedBEM) {
+        console.log(`[verify_button] ✓ BEM algılandı - BEM sync başlatılıyor`);
         const { syncMemberRoles } = require("../services/roleSyncService");
         result = await syncMemberRoles(interaction.client, interaction.user.id, user.robloxId);
+        console.log(`[verify_button] BEM sync tamamlandı`);
       } else {
+        console.error(`[verify_button] ✗ Sunucu tanınmadı! Guild ID: "${normalizedGuildId}"`);
         return interaction.editReply({
           content: `❌ Sunucu tanınmadı. Guild ID: ${normalizedGuildId}`,
           flags: MessageFlags.Ephemeral,

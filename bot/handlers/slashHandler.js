@@ -243,13 +243,20 @@ async function handleSlashCommand(interaction) {
 
     if (commandName === "verify") {
       try {
-        const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
+        const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
         // Normalize guild IDs for comparison (ensure they're strings and trimmed)
         const guildId = String(interaction.guildId).trim();
         const normalizedTMT = String(TMT_GUILD_ID).trim();
         const normalizedBEM = String(TARGET_GUILD_ID).trim();
+        const normalizedEKO = String(GUILD2_ID).trim();
+        const normalizedAllied = String(ALLIED_GUILD_ID).trim();
         
-        console.log(`[verify] User: ${interaction.user.id}, Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
+        console.log(`[verify] Sunucu Kontrolü:`);
+        console.log(`  Mevcut Guild ID: "${guildId}"`);
+        console.log(`  Allied ID: "${normalizedAllied}" ${guildId === normalizedAllied ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  TMT ID: "${normalizedTMT}" ${guildId === normalizedTMT ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  BEM ID: "${normalizedBEM}" ${guildId === normalizedBEM ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  EKO ID: "${normalizedEKO}" ${guildId === normalizedEKO ? '✓ EŞLEŞTI' : ''}`);
         
         if (!guildId) {
           return interaction.editReply({ content: "❌ Bu komut sunucuda kullanılmalıdır" });
@@ -283,35 +290,41 @@ async function handleSlashCommand(interaction) {
           });
         }
 
-        console.log(`[verify] Found user. Discord: ${interaction.user.id}, Roblox: ${dbUser.robloxId}, Guild: ${guildId}`);
-        console.log(`[verify] Guild comparison - guildId: "${guildId}" (type: ${typeof guildId}), TMT: "${normalizedTMT}" (type: ${typeof normalizedTMT}), Equal: ${guildId === normalizedTMT}`);
+        console.log(`[verify] Kullanıcı bulundu. Discord: ${interaction.user.id}, Roblox: ${dbUser.robloxId}`);
 
         // Determine which server and sync accordingly
         let success = false;
-        if (guildId === "1483482948320891074") {
-          console.log(`[verify] ✓ Müttefik sunucusu tespit edildi - Allied sync başlatılıyor`);
+        if (guildId === normalizedAllied) {
+          console.log(`[verify] ✓ Müttefik Orduları algılandı - Allied sync başlatılıyor`);
           const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
           const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(dbUser.robloxId, 10), guild);
           success = result.success;
-          console.log(`[verify] Müttefik sync sonucu: ${success}`);
+          console.log(`[verify] Allied sync sonucu: ${success}`);
         } else if (guildId === normalizedTMT) {
-          console.log(`[verify] ✓ TMT sunucusu tespit edildi - TMT sync başlatılıyor`);
+          console.log(`[verify] ✓ TMT algılandı - TMT sync başlatılıyor`);
           const { syncTMTRoles } = require("../services/tmtRoleSyncService");
-          success = await syncTMTRoles(
+          const result = await syncTMTRoles(
             interaction.client, 
             interaction.user.id, 
             parseInt(dbUser.robloxId, 10),
             member
           );
+          success = result?.success || false;
           console.log(`[verify] TMT sync sonucu: ${success}`);
         } else if (guildId === normalizedBEM) {
-          console.log(`[verify] ✓ BEM sunucusu tespit edildi - BEM sync başlatılıyor`);
+          console.log(`[verify] ✓ BEM algılandı - BEM sync başlatılıyor`);
           const { syncMemberRoles } = require("../services/roleSyncService");
           const result = await syncMemberRoles(guild, member, parseInt(dbUser.robloxId, 10), dbUser.robloxUsername);
-          success = result.success;
+          success = result?.success || false;
           console.log(`[verify] BEM sync sonucu: ${success}`);
+        } else if (guildId === normalizedEKO) {
+          console.log(`[verify] ✓ EKOYILDIZ algılandı - Allied sync başlatılıyor`);
+          const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+          const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(dbUser.robloxId, 10), guild);
+          success = result?.success || false;
+          console.log(`[verify] EKOYILDIZ sync sonucu: ${success}`);
         } else {
-          console.warn(`[verify] ✗ Sunucu tanınmadı - guildId: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
+          console.warn(`[verify] ✗ Sunucu tanınmadı! Guild ID: "${guildId}"`);
           return interaction.editReply({ 
             content: `❌ Sunucu tanınmadı (Guild: ${guildId})` 
           });
@@ -348,7 +361,12 @@ async function handleSlashCommand(interaction) {
         const normalizedAllied = String(ALLIED_GUILD_ID).trim();
         const targetUser = interaction.options.getUser("user");
         
-        console.log(`[Update Command] Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}, EKO: ${normalizedEKO}, ALLIED: ${normalizedAllied}`);
+        console.log(`[Update Command] Sunucu Kontrolü:`);
+        console.log(`  Mevcut Guild ID: "${guildId}"`);
+        console.log(`  Allied ID: "${normalizedAllied}" ${guildId === normalizedAllied ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  TMT ID: "${normalizedTMT}" ${guildId === normalizedTMT ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  BEM ID: "${normalizedBEM}" ${guildId === normalizedBEM ? '✓ EŞLEŞTI' : ''}`);
+        console.log(`  EKO ID: "${normalizedEKO}" ${guildId === normalizedEKO ? '✓ EŞLEŞTI' : ''}`);
         
         let userIds = [];
         if (targetUser) {
@@ -364,26 +382,31 @@ async function handleSlashCommand(interaction) {
 
         let updated = 0;
         if (guildId === normalizedAllied) {
-          console.log(`[Update Command] Allied Orduları sunucusu Update başlatılıyor...`);
+          console.log(`[Update Command] ✓ Müttefik Orduları sunucusu algılandı - Allied sync başlatılıyor...`);
           const { verifyAllAlliedRoles } = require("../services/alliedRoleSyncService");
           updated = await verifyAllAlliedRoles(interaction.client, userIds);
+          console.log(`[Update Command] Allied sync tamamlandı - ${updated} üye güncellendi`);
         } else if (guildId === normalizedTMT) {
-          console.log(`[Update Command] TMT Update başlatılıyor...`);
+          console.log(`[Update Command] ✓ TMT sunucusu algılandı - TMT sync başlatılıyor...`);
           // TMT Update Logic
           const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
           updated = await verifyAllTMTRoles(interaction.client, userIds);
+          console.log(`[Update Command] TMT sync tamamlandı - ${updated} üye güncellendi`);
         } else if (guildId === normalizedBEM) {
-          console.log(`[Update Command] BEM Update başlatılıyor...`);
+          console.log(`[Update Command] ✓ BEM sunucusu algılandı - BEM sync başlatılıyor...`);
           // BEM Update Logic
           const { handleUpdate } = require("./roleHandler");
           updated = await handleUpdate(interaction, null);
+          console.log(`[Update Command] BEM sync tamamlandı - ${updated} üye güncellendi`);
         } else if (guildId === normalizedEKO) {
-          console.log(`[Update Command] EKOYILDIZ Update başlatılıyor...`);
+          console.log(`[Update Command] ✓ EKOYILDIZ sunucusu algılandı - Allied sync başlatılıyor...`);
           const { verifyAllAlliedRoles } = require("../services/alliedRoleSyncService");
           updated = await verifyAllAlliedRoles(interaction.client, userIds);
+          console.log(`[Update Command] EKOYILDIZ sync tamamlandı - ${updated} üye güncellendi`);
         } else {
+          console.error(`[Update Command] ✗ Sunucu tanınmadı! Guild ID: "${guildId}"`);
           return interaction.editReply({ 
-            content: `❌ Sunucu tanınmadı. Güncel Guild ID: ${guildId}` 
+            content: `❌ Sunucu tanınmadı. Guild ID: ${guildId}` 
           });
         }
         
