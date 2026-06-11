@@ -214,14 +214,6 @@ async function handleSlashCommand(interaction) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    if (commandName === "verify") {
-      const { handleVerify } = require("./roleHandler");
-      const groupId = interaction.options.getNumber("grupid");
-      return handleVerify(interaction, groupId);
-    }
-
-    // Removed first update handler - using the corrected one below with proper guild detection
-
     if (commandName === "postrules") {
       // Admin check
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -272,7 +264,6 @@ async function handleSlashCommand(interaction) {
         }
 
         // Find user in database
-        const User = require("../../models/User");
         const dbUser = await User.findOne({ discordId: interaction.user.id });
 
         if (!dbUser) {
@@ -327,7 +318,6 @@ async function handleSlashCommand(interaction) {
         console.error("[verify] Hata:", error);
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
-    }
     }
 
     if (commandName === "update") {
