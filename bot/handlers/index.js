@@ -20,11 +20,14 @@ function initializeDiscordHandlers(client) {
     const { startStaffScheduler } = require("../services/staffSystem");
     const { RULE_PREFIX } = require("../services/tmtAutomodService");
     const { startAtaturkHistoryScheduler } = require("../services/ataturkHistoryAI");
+    const { initializeRoblox, ensureRobloxManagementMenu } = require("../services/robloxGroupManager");
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
     await ensureTMTSupportMessage(client);
     await ensureTMTRules(client);
+    await initializeRoblox();
+    await ensureRobloxManagementMenu(client);
     startCleanupScheduler();
     startStaffScheduler(client);
     startAtaturkHistoryScheduler(client);
@@ -351,6 +354,16 @@ function initializeDiscordHandlers(client) {
       if (interaction.isModalSubmit() && interaction.customId?.startsWith('ad_link_modal_')) {
         const { handleAdLinkModal } = require('../services/ticketAI');
         await handleAdLinkModal(interaction, client);
+        return;
+      }
+      // ── Roblox Etkileşimleri ──────────────────────────────────────────────
+      if (
+        (interaction.isStringSelectMenu() && interaction.customId === "roblox_group_select") ||
+        (interaction.isButton() && interaction.customId?.startsWith("rbx_btn_")) ||
+        (interaction.isModalSubmit() && interaction.customId?.startsWith("rbx_mod_"))
+      ) {
+        const { handleRobloxInteractions } = require("./robloxInteractionHandler");
+        await handleRobloxInteractions(interaction);
         return;
       }
       await handleInteraction(interaction);

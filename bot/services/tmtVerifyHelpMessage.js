@@ -23,25 +23,18 @@ async function postTMTVerifyHelpMessage(client) {
       .addFields(
         {
           name: "📋 Doğrulama Adımları",
-          value: 
+          value:
             "1. `/authorize` komutunu çalıştırın\n" +
             "2. Açılan linke tıklayın\n" +
             "3. **Aynı Discord hesabıyla** giriş yapın\n" +
             "4. Roblox hesabınızı bağlayın\n" +
-            "5. `/verify` komutunu çalıştırarak rollerinizi sinkronize edin",
+            "5. `/verify` komutunu çalıştırarak rollerinizi senkronize edin",
           inline: false,
         },
         {
-          name: "🔄 Roller Nasıl Sinkronize Edilir?",
+          name: "🔄 Roller Nasıl Senkronize Edilir?",
           value:
-            "**Ana Grup:** Roblox grup 11517908'deki rütbenize göre Discord rolleri atanır\n\n" +
-            "**Branş Grupları:**\n" +
-            "• Sınır Müfettişleri\n" +
-            "• Hava Kuvvetleri\n" +
-            "• Jandarma\n" +
-            "• Özel Kuvvetler\n" +
-            "• Kara Kuvvetleri\n" +
-            "• Askeri İnzibat\n\n" +
+            "**Ana Grup:** TMT'deki rütbenize göre Discord rolleri atanır\n\n" +
             "Her branşda bulunursanız o branşın rolü alırsınız. Rütbe 100+ ise branş yetkilisi rolü de eklenir.",
           inline: false,
         }
@@ -56,7 +49,7 @@ async function postTMTVerifyHelpMessage(client) {
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("verify_button")
-        .setLabel("✅ Rollerimi Sinkronize Et")
+        .setLabel("✅ Rollerimi Senkronize Et")
         .setStyle(ButtonStyle.Success)
     );
 
@@ -76,10 +69,10 @@ async function ensureTMTVerifyHelpMessage(client) {
   try {
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
     const channel = await guild.channels.fetch(TMT_VERIFY_HELP_CHANNEL_ID);
-    
+
     const messages = await channel.messages.fetch({ limit: 10 });
     const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
-    
+
     if (!existingMessage) {
       await postTMTVerifyHelpMessage(client);
     }
