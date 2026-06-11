@@ -34,7 +34,9 @@ async function initializeRoblox() {
 
   try {
     const currentUser = await noblox.setCookie(cookie);
-    console.log(`✅ [RobloxGroupManager] Roblox'a başarıyla giriş yapıldı! Kullanıcı: ${currentUser.UserName} (${currentUser.UserID})`);
+    const username = currentUser?.UserName || currentUser?.username || "Bilinmiyor";
+    const userId = currentUser?.UserID || currentUser?.userId || currentUser?.id || "Bilinmiyor";
+    console.log(`✅ [RobloxGroupManager] Roblox'a başarıyla giriş yapıldı! Kullanıcı: ${username} (${userId})`);
     return true;
   } catch (err) {
     console.error("❌ [RobloxGroupManager] Roblox giriş hatası (Cookie süresi dolmuş veya geçersiz olabilir):", err.message);

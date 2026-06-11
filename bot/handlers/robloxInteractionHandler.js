@@ -212,7 +212,7 @@ async function handleRobloxInteractions(interaction) {
 
         const options = roles.slice(0, 25).map(r => ({
           label: `${r.name} (Rank: ${r.rank})`,
-          value: `rbx_rank_${groupId}_${userId}_${r.rank}`,
+          value: `rbx_rank_${groupId}_${userId}_${r.rank}_${r.id}`,
           description: `Rütbe ID: ${r.rank}`
         }));
 
