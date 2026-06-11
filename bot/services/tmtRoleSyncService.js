@@ -6,7 +6,7 @@
 
 const axios = require("axios");
 const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES, SEPARATOR_ROLES, CATEGORY_ROLES, RANK_ROLES } = require("../config/tmtRoleSync");
-const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS, BRANCH_START_SEPARATOR, BRANCH_END_SEPARATOR } = require("../config/tmtBranchSync");
+const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
 
 const ROBLOX_GROUP_ID = 11517908;
 
@@ -102,10 +102,17 @@ function getRoleColorFromId(roleId) {
 function findRoleByName(guild, name) {
   if (!name) return null;
   const target = name.toLowerCase().trim();
+  const targetHasLines = target.includes("▬▬▬") || target.includes("▬");
+
   return (
     guild.roles.cache.find(
       (r) => {
         const rName = r.name.toLowerCase().trim();
+        const rHasLines = rName.includes("▬▬▬") || rName.includes("▬");
+
+        // If target has lines, r must also have lines to match (and vice versa)
+        if (targetHasLines !== rHasLines) return false;
+
         // Match exact name, or name stripped of ▬▬▬ or ▬ lines
         const strippedName = rName.replace(/[▬\s]+/g, "");
         const strippedTarget = target.replace(/[▬\s]+/g, "");
@@ -306,29 +313,11 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
     }
 
     if (roleConfig && roleConfig.discordRoleIds) {
-      // Find the separator in the mapping
-      let mainSeparator = null;
+      // Find the separator in the mapping and add ONLY that specific separator
       for (const roleId of roleConfig.discordRoleIds) {
         if (Object.values(SEPARATOR_ROLES).includes(roleId)) {
-          mainSeparator = roleId;
+          desiredRoleIds.add(roleId);
           break;
-        }
-      }
-
-      // If a separator was found, add it and all separators below it in hierarchy
-      if (mainSeparator) {
-        const SEPARATOR_HIERARCHY = [
-          SEPARATOR_ROLES.management,
-          SEPARATOR_ROLES.generals,
-          SEPARATOR_ROLES.seniorOfficers,
-          SEPARATOR_ROLES.officers,
-          SEPARATOR_ROLES.enlisted,
-        ];
-        const sepIndex = SEPARATOR_HIERARCHY.indexOf(mainSeparator);
-        if (sepIndex !== -1) {
-          for (let i = sepIndex; i < SEPARATOR_HIERARCHY.length; i++) {
-            desiredRoleIds.add(SEPARATOR_HIERARCHY[i]);
-          }
         }
       }
 
@@ -381,37 +370,25 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
   desiredRoleIds.add(statusRoleId);
 
   // 4. Process Branch Roles
-  if (activeBranches.length > 0) {
-    // Ensure start separator exists and add it
-    let startSepRole = findRoleByName(guild, BRANCH_START_SEPARATOR);
-    if (!startSepRole) {
-      startSepRole = await guild.roles.create({
-        name: BRANCH_START_SEPARATOR,
-        color: hexToDiscordColor("#808080"),
-        reason: "TMT Role Sync: Auto-created branch start separator",
-      });
-    }
-    if (startSepRole) {
-      desiredRoleIds.add(startSepRole.id);
-    }
-
-    // Ensure end separator exists and add it
-    let endSepRole = findRoleByName(guild, BRANCH_END_SEPARATOR);
-    if (!endSepRole) {
-      endSepRole = await guild.roles.create({
-        name: BRANCH_END_SEPARATOR,
-        color: hexToDiscordColor("#808080"),
-        reason: "TMT Role Sync: Auto-created branch end separator",
-      });
-    }
-    if (endSepRole) {
-      desiredRoleIds.add(endSepRole.id);
-    }
-  }
-
   for (const branch of activeBranches) {
     const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
     const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
+
+    // Ensure branch top separator exists and add it
+    if (branchConfig.discordRoleName) {
+      const topSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬`;
+      let topSepRole = findRoleByName(guild, topSepName);
+      if (!topSepRole) {
+        topSepRole = await guild.roles.create({
+          name: topSepName,
+          color: hexToDiscordColor("#808080"),
+          reason: `TMT Role Sync: Auto-created top separator for ${branchConfig.discordRoleName}`,
+        });
+      }
+      if (topSepRole) {
+        desiredRoleIds.add(topSepRole.id);
+      }
+    }
 
     // Find main branch role
     let mainRole = null;
@@ -448,6 +425,22 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
         desiredRoleIds.add(authRole.id);
       } else {
         unresolved.push(branchConfig.discordBranchRoleName || `${branchConfig.name} Yetkilisi` || `BranchAuth:${branch.groupId}`);
+      }
+    }
+
+    // Ensure branch bottom separator exists and add it
+    if (branchConfig.discordRoleName) {
+      const bottomSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬\u200b`;
+      let bottomSepRole = findRoleByName(guild, bottomSepName);
+      if (!bottomSepRole) {
+        bottomSepRole = await guild.roles.create({
+          name: bottomSepName,
+          color: hexToDiscordColor("#808080"),
+          reason: `TMT Role Sync: Auto-created bottom separator for ${branchConfig.discordRoleName}`,
+        });
+      }
+      if (bottomSepRole) {
+        desiredRoleIds.add(bottomSepRole.id);
       }
     }
   }
@@ -489,13 +482,16 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
         const role = findRoleByName(guild, groupConfig.discordBranchRoleName);
         if (role) resolvedBranchRoleIds.add(role.id);
       }
-    }
 
-    // Add branch separators to resolved list for cleanup
-    const startSep = findRoleByName(guild, BRANCH_START_SEPARATOR);
-    const endSep = findRoleByName(guild, BRANCH_END_SEPARATOR);
-    if (startSep) resolvedBranchRoleIds.add(startSep.id);
-    if (endSep) resolvedBranchRoleIds.add(endSep.id);
+      // Add top and bottom separators of this branch to cleanup set
+      if (groupConfig.discordRoleName) {
+        const topSep = findRoleByName(guild, `▬▬▬ ${groupConfig.discordRoleName} ▬▬▬`);
+        if (topSep) resolvedBranchRoleIds.add(topSep.id);
+
+        const bottomSep = findRoleByName(guild, `▬▬▬ ${groupConfig.discordRoleName} ▬▬▬\u200b`);
+        if (bottomSep) resolvedBranchRoleIds.add(bottomSep.id);
+      }
+    }
 
     // Remove all branch roles first
     const currentBranchRoles = member.roles.cache.filter(r => resolvedBranchRoleIds.has(r.id));
@@ -558,29 +554,28 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       return true;
     }
 
-    // Add start separator
-    try {
-      let startSepRole = findRoleByName(guild, BRANCH_START_SEPARATOR);
-      if (!startSepRole) {
-        startSepRole = await guild.roles.create({
-          name: BRANCH_START_SEPARATOR,
-          color: hexToDiscordColor("#808080"),
-          reason: "TMT Role Sync: Auto-created branch start separator",
-        });
-      }
-      if (startSepRole) {
-        await member.roles.add(startSepRole, "TMT Branch: Start Separator");
-      }
-    } catch (err) {
-      console.error(`[TMT Branch Sync] Error adding start separator:`, err.message);
-    }
-
-    // Sync each branch role
+    // Sync each branch role (including its start and end separators)
     for (const branch of activeBranches) {
       const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
       const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
       try {
+        // Add branch top separator
+        if (branchConfig.discordRoleName) {
+          const topSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬`;
+          let topSepRole = findRoleByName(guild, topSepName);
+          if (!topSepRole) {
+            topSepRole = await guild.roles.create({
+              name: topSepName,
+              color: hexToDiscordColor("#808080"),
+              reason: `TMT Role Sync: Auto-created top separator for ${branchConfig.discordRoleName}`,
+            });
+          }
+          if (topSepRole) {
+            await member.roles.add(topSepRole, `TMT Branch Separator: ${branch.branchName}`);
+          }
+        }
+
         // Find main branch role
         let mainBranchRole = null;
         if (branchConfig.discordRoleId) {
@@ -615,29 +610,28 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
           }
         }
 
+        // Add branch bottom separator
+        if (branchConfig.discordRoleName) {
+          const bottomSepName = `▬▬▬ ${branchConfig.discordRoleName} ▬▬▬\u200b`;
+          let bottomSepRole = findRoleByName(guild, bottomSepName);
+          if (!bottomSepRole) {
+            bottomSepRole = await guild.roles.create({
+              name: bottomSepName,
+              color: hexToDiscordColor("#808080"),
+              reason: `TMT Role Sync: Auto-created bottom separator for ${branchConfig.discordRoleName}`,
+            });
+          }
+          if (bottomSepRole) {
+            await member.roles.add(bottomSepRole, `TMT Branch Separator: ${branch.branchName}`);
+          }
+        }
+
         console.log(
           `[TMT Branch Sync] ✅ ${member.user.tag} → ${branch.branchName} (Rank ${branch.rank})`
         );
       } catch (err) {
         console.error(`[TMT Branch Sync] Error adding branch roles for ${branch.branchName}:`, err.message);
       }
-    }
-
-    // Add end separator
-    try {
-      let endSepRole = findRoleByName(guild, BRANCH_END_SEPARATOR);
-      if (!endSepRole) {
-        endSepRole = await guild.roles.create({
-          name: BRANCH_END_SEPARATOR,
-          color: hexToDiscordColor("#808080"),
-          reason: "TMT Role Sync: Auto-created branch end separator",
-        });
-      }
-      if (endSepRole) {
-        await member.roles.add(endSepRole, "TMT Branch: End Separator");
-      }
-    } catch (err) {
-      console.error(`[TMT Branch Sync] Error adding end separator:`, err.message);
     }
 
     return true;
@@ -739,9 +733,6 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     }
 
     // Get all managed TMT role IDs
-    const startSep = findRoleByName(guild, BRANCH_START_SEPARATOR);
-    const endSep = findRoleByName(guild, BRANCH_END_SEPARATOR);
-
     const allManagedTMTRoles = new Set([
       ...Object.values(SEPARATOR_ROLES),
       ...Object.values(CATEGORY_ROLES),
@@ -749,9 +740,6 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       ...Object.values(RANK_ROLES),
       ...Array.from(resolvedBranchRoleIds)
     ]);
-
-    if (startSep) allManagedTMTRoles.add(startSep.id);
-    if (endSep) allManagedTMTRoles.add(endSep.id);
 
     const toAdd = [];
     const toRemove = [];

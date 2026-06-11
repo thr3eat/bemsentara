@@ -127,13 +127,8 @@ const ALL_BRANCH_ROLE_IDS = new Set([
   "1514582807458877571", // Askeri İnzibat Branş Yetkilisi
 ]);
 
-const BRANCH_START_SEPARATOR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
-const BRANCH_END_SEPARATOR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
-
 module.exports = {
   TMT_BRANCH_GROUPS,
   BRANCH_AUTHORITY_THRESHOLDS,
   ALL_BRANCH_ROLE_IDS,
-  BRANCH_START_SEPARATOR,
-  BRANCH_END_SEPARATOR,
 };
