@@ -20,7 +20,7 @@ function getVerifyHelpEmbed() {
     .setTitle("🔐 Doğrulama ve Rol Güncelleme")
     .setDescription(
       "Roblox **BEM** grubundaki rütbenize göre Discord rolleriniz otomatik verilir.\n\n" +
-        "Aşağıdaki adımları sırayla uygulayın."
+      "Aşağıdaki adımları sırayla uygulayın."
     )
     .addFields(
       {
@@ -57,7 +57,7 @@ function getVerifyHelpEmbed() {
           `• Ana **[BEM grubunun](${MAIN_GROUP_URL})** üyesi olmalısınız\n` +
           "• Discord rol adları, Roblox rütbe adlarıyla aynı olmalıdır\n" +
           "• Branş daireniz varsa ilgili branş grubuna da üye olun\n" +
-          "• Sorun yaşarsanız ticket açın veya yetkililere yazın",
+          "• Sorun yaşarsanız ticket açınız veya yetkililere yazın",
         inline: false,
       }
     )
