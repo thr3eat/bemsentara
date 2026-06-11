@@ -244,9 +244,12 @@ async function handleSlashCommand(interaction) {
     if (commandName === "verify") {
       try {
         const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
-        const guildId = String(interaction.guildId); // Convert to string for comparison
+        // Normalize guild IDs for comparison (ensure they're strings and trimmed)
+        const guildId = String(interaction.guildId).trim();
+        const normalizedTMT = String(TMT_GUILD_ID).trim();
+        const normalizedBEM = String(TARGET_GUILD_ID).trim();
         
-        console.log(`[verify] User: ${interaction.user.id}, Guild: ${guildId}, TMT: ${TMT_GUILD_ID}, BEM: ${TARGET_GUILD_ID}`);
+        console.log(`[verify] User: ${interaction.user.id}, Guild: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
         
         if (!guildId) {
           return interaction.editReply({ content: "❌ Bu komut sunucuda kullanılmalıdır" });
@@ -281,27 +284,30 @@ async function handleSlashCommand(interaction) {
         }
 
         console.log(`[verify] Found user. Discord: ${interaction.user.id}, Roblox: ${dbUser.robloxId}, Guild: ${guildId}`);
+        console.log(`[verify] Guild comparison - guildId: "${guildId}" (type: ${typeof guildId}), TMT: "${normalizedTMT}" (type: ${typeof normalizedTMT}), Equal: ${guildId === normalizedTMT}`);
 
         // Determine which server and sync accordingly
         let success = false;
-        if (guildId === TMT_GUILD_ID) {
-          console.log(`[verify] Using TMT sync for guild ${guildId}`);
+        if (guildId === normalizedTMT) {
+          console.log(`[verify] ✓ TMT sunucusu tespit edildi - TMT sync başlatılıyor`);
           const { syncTMTRoles } = require("../services/tmtRoleSyncService");
           success = await syncTMTRoles(
             interaction.client, 
             interaction.user.id, 
-            dbUser.robloxId,
+            parseInt(dbUser.robloxId, 10),
             member
           );
-        } else if (guildId === TARGET_GUILD_ID) {
-          console.log(`[verify] Using BEM sync for guild ${guildId}`);
+          console.log(`[verify] TMT sync sonucu: ${success}`);
+        } else if (guildId === normalizedBEM) {
+          console.log(`[verify] ✓ BEM sunucusu tespit edildi - BEM sync başlatılıyor`);
           const { syncMemberRoles } = require("../services/roleSyncService");
-          const result = await syncMemberRoles(guild, member, dbUser.robloxId, dbUser.robloxUsername);
+          const result = await syncMemberRoles(guild, member, parseInt(dbUser.robloxId, 10), dbUser.robloxUsername);
           success = result.success;
+          console.log(`[verify] BEM sync sonucu: ${success}`);
         } else {
-          console.warn(`[verify] Unknown guild ${guildId}`);
+          console.warn(`[verify] ✗ Sunucu tanınmadı - guildId: ${guildId}, TMT: ${normalizedTMT}, BEM: ${normalizedBEM}`);
           return interaction.editReply({ 
-            content: "❌ Sunucu tanınmadı" 
+            content: `❌ Sunucu tanınmadı (Guild: ${guildId})` 
           });
         }
 
