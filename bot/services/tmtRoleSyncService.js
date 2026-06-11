@@ -245,6 +245,113 @@ async function getUserBranchMemberships(robloxUserId) {
  * Sync user's branch roles and set appropriate status role
  * Status roles: Branşsız Personel, Branşlı Personel, Yetkili Branş Personeli
  */
+/**
+ * Compute desired TMT roles based on Roblox main rank and branch memberships
+ */
+async function computeTMTRoles(guild, userRank, branches) {
+  const desiredRoleIds = new Set();
+
+  // 1. Process Main Group Rank and separators
+  if (userRank) {
+    let roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
+    if (!roleConfig) {
+      // Auto-create rank role if mapping doesn't exist
+      const nearestRoles = findNearestRanks(userRank.rank);
+      const createdRole = await createRoleForRank(guild, userRank, nearestRoles);
+      if (createdRole) {
+        roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
+      }
+    }
+
+    if (roleConfig && roleConfig.discordRoleIds) {
+      // Find the separator in the mapping
+      let mainSeparator = null;
+      for (const roleId of roleConfig.discordRoleIds) {
+        if (Object.values(SEPARATOR_ROLES).includes(roleId)) {
+          mainSeparator = roleId;
+          break;
+        }
+      }
+
+      // If a separator was found, add it and all separators below it in hierarchy
+      if (mainSeparator) {
+        const SEPARATOR_HIERARCHY = [
+          SEPARATOR_ROLES.management,
+          SEPARATOR_ROLES.generals,
+          SEPARATOR_ROLES.seniorOfficers,
+          SEPARATOR_ROLES.officers,
+          SEPARATOR_ROLES.enlisted,
+        ];
+        const sepIndex = SEPARATOR_HIERARCHY.indexOf(mainSeparator);
+        if (sepIndex !== -1) {
+          for (let i = sepIndex; i < SEPARATOR_HIERARCHY.length; i++) {
+            desiredRoleIds.add(SEPARATOR_HIERARCHY[i]);
+          }
+        }
+      }
+
+      // Ensure all mapping roles exist and add them (excluding separator and status roles)
+      for (const roleId of roleConfig.discordRoleIds) {
+        if (Object.values(STATUS_ROLES).includes(roleId)) continue;
+        if (Object.values(SEPARATOR_ROLES).includes(roleId)) continue;
+
+        try {
+          let role = guild.roles.cache.get(roleId);
+          if (!role) {
+            const roleName = getRoleNameFromId(roleId) || `TMT Role ${roleId}`;
+            const roleColor = getRoleColorFromId(roleId);
+            role = await ensureRoleExists(guild, roleId, roleName, roleColor);
+          }
+          if (role) {
+            desiredRoleIds.add(role.id);
+          }
+        } catch (err) {
+          console.error(`[computeTMTRoles] Error ensuring main role ${roleId}:`, err.message);
+        }
+      }
+    }
+  }
+
+  // 2. Filter branch memberships to ignore visitors/fans (ranks 0 and 1, or ignored names)
+  const ignoredBranchRanks = ["guest", "ziyaretçi", "taraftar", "fan", "beklemede", "ziyaretci", "acemi"];
+  const activeBranches = (branches || []).filter(b => {
+    const rankName = (b.roleName || "").toLowerCase().trim();
+    return b.rank > 1 && !ignoredBranchRanks.includes(rankName);
+  });
+
+  // 3. Process Status Role
+  let statusRoleId = STATUS_ROLES.bransszPersonel; // Default: Branşsız
+  if (activeBranches.length > 0) {
+    const hasAuthorityInAnyBranch = activeBranches.some(branch => {
+      const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
+      return branch.rank >= authorityThreshold;
+    });
+
+    if (hasAuthorityInAnyBranch) {
+      statusRoleId = STATUS_ROLES.yetkliBransPersoneli; // Yetkili Branş Personeli
+    } else {
+      statusRoleId = STATUS_ROLES.bransliPersonel; // Branşlı Personel
+    }
+  }
+  desiredRoleIds.add(statusRoleId);
+
+  // 4. Process Branch Roles
+  for (const branch of activeBranches) {
+    const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
+    const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
+
+    if (branchConfig.discordRoleId) {
+      desiredRoleIds.add(branchConfig.discordRoleId);
+    }
+
+    if (branchConfig.discordBranchRoleId && branch.rank >= authorityThreshold) {
+      desiredRoleIds.add(branchConfig.discordBranchRoleId);
+    }
+  }
+
+  return desiredRoleIds;
+}
+
 async function syncBranchRoles(client, discordUserId, robloxUserId, discordMember = null) {
   try {
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
@@ -282,13 +389,20 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
 
     // Get user's branch memberships
     const branches = await getUserBranchMemberships(robloxUserId);
+    
+    // Filter branch memberships to ignore visitors/fans (ranks 0 and 1, or ignored names)
+    const ignoredBranchRanks = ["guest", "ziyaretçi", "taraftar", "fan", "beklemede", "ziyaretci", "acemi"];
+    const activeBranches = branches.filter(b => {
+      const rankName = (b.roleName || "").toLowerCase().trim();
+      return b.rank > 1 && !ignoredBranchRanks.includes(rankName);
+    });
 
     // Determine status: Branşsız / Branşlı / Yetkili Branş Personeli
     let statusRoleId = STATUS_ROLES.bransszPersonel; // Default: Branşsız
 
-    if (branches.length > 0) {
+    if (activeBranches.length > 0) {
       // User is in at least one branch group
-      const hasAuthorityInAnyBranch = branches.some(branch => {
+      const hasAuthorityInAnyBranch = activeBranches.some(branch => {
         const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
         return branch.rank >= authorityThreshold;
       });
@@ -312,13 +426,13 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       console.error(`[TMT Branch Sync] Error with status role assignment:`, err.message);
     }
 
-    if (branches.length === 0) {
+    if (activeBranches.length === 0) {
       console.log(`[TMT Branch Sync] User ${discordUserId} has Branşsız Personel status`);
       return true;
     }
 
     // Sync each branch role
-    for (const branch of branches) {
+    for (const branch of activeBranches) {
       const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
       const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
@@ -418,110 +532,52 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     // Get user's rank in Roblox group
     const userRank = await getUserRankInGroup(robloxUserId);
 
-    // Remove all TMT roles first
-    const currentRoles = member.roles.cache.filter(r => ALL_TMT_ROLE_IDS.has(r.id));
-    if (currentRoles.size > 0) {
-      await member.roles.remove(Array.from(currentRoles.keys()), "TMT Role Sync").catch(err => {
+    // Get user's branch memberships
+    const branches = await getUserBranchMemberships(robloxUserId);
+
+    // Compute desired roles
+    const desiredRoleIds = await computeTMTRoles(guild, userRank, branches);
+
+    // Get all managed TMT role IDs
+    const allManagedTMTRoles = new Set([
+      ...Object.values(SEPARATOR_ROLES),
+      ...Object.values(CATEGORY_ROLES),
+      ...Object.values(STATUS_ROLES),
+      ...Object.values(RANK_ROLES),
+      ...Array.from(ALL_BRANCH_ROLE_IDS)
+    ]);
+
+    const toAdd = [];
+    const toRemove = [];
+
+    for (const roleId of desiredRoleIds) {
+      if (!member.roles.cache.has(roleId)) {
+        toAdd.push(roleId);
+      }
+    }
+
+    for (const roleId of allManagedTMTRoles) {
+      if (!desiredRoleIds.has(roleId) && member.roles.cache.has(roleId)) {
+        toRemove.push(roleId);
+      }
+    }
+
+    console.log(`[TMT Role Sync] Roles to add:`, toAdd);
+    console.log(`[TMT Role Sync] Roles to remove:`, toRemove);
+
+    if (toAdd.length > 0) {
+      await member.roles.add(toAdd, `TMT Role Sync (Add)`).catch(err => {
+        console.error(`[TMT Role Sync] Error adding roles:`, err.message);
+      });
+    }
+
+    if (toRemove.length > 0) {
+      await member.roles.remove(toRemove, `TMT Role Sync (Remove)`).catch(err => {
         console.error(`[TMT Role Sync] Error removing roles:`, err.message);
       });
     }
 
-    // If user not in group, don't add any roles
-    if (!userRank) {
-      console.log(`[TMT Role Sync] User ${discordUserId} not in Roblox group ${ROBLOX_GROUP_ID}`);
-      // Still sync branch roles
-      await syncBranchRoles(client, discordUserId, robloxUserId, member);
-      return true;
-    }
-
-    // Find and add appropriate roles based on rank
-    let roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
-    
-    if (roleConfig && roleConfig.discordRoleIds) {
-      // Role mapping exists - ensure all roles exist and add them
-      for (const roleId of roleConfig.discordRoleIds) {
-        try {
-          let role = guild.roles.cache.get(roleId);
-          
-          // If role doesn't exist, try to create it with appropriate name
-          if (!role) {
-            const roleName = getRoleNameFromId(roleId) || `TMT Role ${roleId}`;
-            const roleColor = getRoleColorFromId(roleId);
-            role = await ensureRoleExists(guild, roleId, roleName, roleColor);
-          }
-          
-          if (role) {
-            await member.roles.add(role, `TMT Sync: ${userRank.roleName} (Rank ${userRank.rank})`);
-          } else {
-            console.warn(`[TMT Role Sync] Could not add role ${roleId} - role missing and creation failed`);
-          }
-        } catch (err) {
-          console.error(`[TMT Role Sync] Error adding role ${roleId}:`, err.message);
-        }
-      }
-
-      console.log(
-        `[TMT Role Sync] ✅ ${member.user.tag} → ${userRank.roleName} (Roblox Rank ${userRank.rank})`
-      );
-    } else {
-      // No role mapping found - try to create one
-      console.warn(
-        `[TMT Role Sync] No Discord role mapping found for rank ${userRank.rank} (${userRank.roleName}) - attempting auto-creation...`
-      );
-
-      const nearestRoles = findNearestRanks(userRank.rank);
-      const createdRole = await createRoleForRank(guild, userRank, nearestRoles);
-
-      if (createdRole) {
-        try {
-          await member.roles.add(createdRole, `TMT Sync: ${userRank.roleName} (Auto-created, Rank ${userRank.rank})`);
-          console.log(
-            `[TMT Role Sync] ✅ ${member.user.tag} → ${userRank.roleName} (Auto-created role, Rank ${userRank.rank})`
-          );
-        } catch (err) {
-          console.error(`[TMT Role Sync] Error adding auto-created role:`, err.message);
-        }
-      } else {
-        console.error(
-          `[TMT Role Sync] ❌ Failed to create role for rank ${userRank.rank} (${userRank.roleName})`
-        );
-      }
-      
-      // Refresh roleConfig after auto-creation
-      roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
-    }
-
-    // Sync branch roles (this will set status role, so we need to re-add rank roles after)
-    await syncBranchRoles(client, discordUserId, robloxUserId, member);
-
-    // Re-add separator, category, and rank roles after branch sync
-    // (because syncBranchRoles removes all TMT roles before adding branch/status roles)
-    if (roleConfig && roleConfig.discordRoleIds) {
-      const rolesToReAdd = roleConfig.discordRoleIds.filter(roleId => {
-        // Don't re-add status roles (those are handled by syncBranchRoles)
-        return !Object.values(STATUS_ROLES).includes(roleId);
-      });
-
-      for (const roleId of rolesToReAdd) {
-        try {
-          let role = guild.roles.cache.get(roleId);
-          
-          // If role doesn't exist, try to create it
-          if (!role) {
-            const roleName = getRoleNameFromId(roleId) || `TMT Role ${roleId}`;
-            const roleColor = getRoleColorFromId(roleId);
-            role = await ensureRoleExists(guild, roleId, roleName, roleColor);
-          }
-          
-          if (role) {
-            await member.roles.add(role, `TMT Sync: ${userRank.roleName} - Tier role (Post-branch)`);
-          }
-        } catch (err) {
-          console.error(`[TMT Role Sync] Error re-adding role ${roleId}:`, err.message);
-        }
-      }
-    }
-
+    console.log(`[TMT Role Sync] ✅ Sync completed for ${member.user.tag}`);
     return true;
   } catch (error) {
     console.error(`[TMT Role Sync] Fatal error:`, error.message);
