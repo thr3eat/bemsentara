@@ -15,6 +15,7 @@ let lastBomUser = null;
 
 // Word Game State
 let lastWordLetter = null;
+let lastWordUser = null;
 const usedWords = new Set();
 
 /**
@@ -78,8 +79,9 @@ async function handleTMTGames(message, client) {
     
     // Aynı kişi üst üste yazamaz
     if (message.author.id === lastBomUser && currentBomNumber !== 1) {
-      await message.react("❌").catch(() => {});
-      await message.reply("Aynı kişi üst üste oynayamaz! Sıranı bekle.").then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send(`<@${message.author.id}>, aynı kişi üst üste oynayamaz! Sıranı bekle.`);
+      setTimeout(() => reply.delete().catch(() => {}), 3000);
       return true;
     }
 
@@ -103,16 +105,25 @@ async function handleTMTGames(message, client) {
       currentBomNumber++;
       lastBomUser = message.author.id;
     } else {
-      await message.react("❌").catch(() => {});
-      await message.reply(`BOM! Hatalı giriş. **${isMultipleOfFive ? "bom" : currentBomNumber}** demen gerekiyordu. Oyun **1**'den tekrar başlıyor.`);
-      currentBomNumber = 1;
-      lastBomUser = null;
+      await message.delete().catch(() => {});
+      const expected = isMultipleOfFive ? "bom" : currentBomNumber;
+      const reply = await message.channel.send(`<@${message.author.id}>, hatalı giriş! **${expected}** demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
+      setTimeout(() => reply.delete().catch(() => {}), 4000);
+      // Datayı kaybetmemek için sıfırlamıyoruz
     }
     return true;
   }
 
   // 5. Kelime Oyunu
   if (channelId === TMT_WORDGAME_CHANNEL_ID) {
+    // Aynı kişi üst üste oynayamaz
+    if (message.author.id === lastWordUser && lastWordLetter !== null) {
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send(`<@${message.author.id}>, aynı kişi üst üste oynayamaz! Sıranı bekle.`);
+      setTimeout(() => reply.delete().catch(() => {}), 3000);
+      return true;
+    }
+
     // Sadece ilk kelimeyi baz alalım, boşlukları temizleyelim
     const word = message.content.trim().split(" ")[0].toLowerCase();
 
@@ -125,24 +136,26 @@ async function handleTMTGames(message, client) {
     if (!lastWordLetter) {
       // İlk oyun
       lastWordLetter = word.slice(-1);
+      lastWordUser = message.author.id;
       usedWords.add(word);
       await message.react("✅").catch(() => {});
     } else {
       // Oyun devam ediyor
       if (word.startsWith(lastWordLetter)) {
         if (usedWords.has(word)) {
-          await message.react("❌").catch(() => {});
-          await message.reply(`"${word}" kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`).then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
           await message.delete().catch(() => {});
+          const reply = await message.channel.send(`<@${message.author.id}>, "${word}" kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`);
+          setTimeout(() => reply.delete().catch(() => {}), 3000);
         } else {
           lastWordLetter = word.slice(-1);
+          lastWordUser = message.author.id;
           usedWords.add(word);
           await message.react("✅").catch(() => {});
         }
       } else {
-        await message.react("❌").catch(() => {});
-        await message.reply(`Kelime **"${lastWordLetter}"** harfi ile başlamalı!`).then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
         await message.delete().catch(() => {});
+        const reply = await message.channel.send(`<@${message.author.id}>, kelime **"${lastWordLetter}"** harfi ile başlamalı!`);
+        setTimeout(() => reply.delete().catch(() => {}), 3000);
       }
     }
     return true;
