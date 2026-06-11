@@ -1,20 +1,7 @@
 const cron = require("node-cron");
 const { EmbedBuilder } = require("discord.js");
+const axios = require("axios");
 const { chatWithAI } = require("./aiService");
-
-// Yüksek kaliteli tarihi Atatürk fotoğrafları (Gerçek linklerle değiştirilmeli/zenginleştirilmeli)
-const ATATURK_PHOTOS = [
-  "https://upload.wikimedia.org/wikipedia/commons/e/e0/Mustafa_Kemal_Atat%C3%BCrk_in_1932.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/4/46/Mustafa_Kemal_Atat%C3%BCrk_in_1923.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/c/c5/Mustafa_Kemal_Atat%C3%BCrk_in_1928.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/2/23/Mustafa_Kemal_Atat%C3%BCrk_on_the_balcony_of_the_Erzurum_Congress_building.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/7/77/Mustafa_Kemal_Atat%C3%BCrk_in_1938.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/e/ec/Gazi_Mustafa_Kemal_Pasha_in_1923.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/1/1b/Mustafa_Kemal_Atat%C3%BCrk_on_the_cover_of_Time_magazine%2C_1923.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/1/19/Atat%C3%BCrk_inspecting_troops.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/3/30/Atat%C3%BCrk_at_the_opening_of_the_Grand_National_Assembly_of_Turkey.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/d/d4/Atat%C3%BCrk_and_Ismet_Inonu.jpg"
-];
 
 const TARGET_CHANNEL_ID = "1514583020680777760";
 
@@ -62,8 +49,16 @@ async function postAtaturkHistory(client) {
       aiContent = `${dateStr} gününde Atatürk'ün tarihimize kattığı eşsiz değerleri saygıyla anıyoruz. (Yapay zeka servisinde anlık bir sorun oluştu)`;
     }
 
-    // Rastgele bir fotoğraf seç
-    const randomPhoto = ATATURK_PHOTOS[Math.floor(Math.random() * ATATURK_PHOTOS.length)];
+    // API'den rastgele fotoğraf çek
+    let randomPhoto = "https://upload.wikimedia.org/wikipedia/commons/e/e0/Mustafa_Kemal_Atat%C3%BCrk_in_1932.jpg"; // Fallback
+    try {
+      const response = await axios.get("https://api.avokadogames.com/discord/ataturk");
+      if (response.data && response.data.mesaj) {
+        randomPhoto = response.data.mesaj;
+      }
+    } catch (apiErr) {
+      console.error("❌ [AtaturkHistoryAI] Fotoğraf API isteği başarısız:", apiErr.message);
+    }
 
     const embed = new EmbedBuilder()
       .setTitle(`📅 Tarihte Bugün - ${dateStr}`)
