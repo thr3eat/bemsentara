@@ -78,7 +78,7 @@ const TMT_SUPPORT_CATEGORIES = {
 };
 
 // ── Allied Orduları Sunucusu (Merkezi Detaylı Loglama) ───────────────────────
-const ALLIED_GUILD_ID = process.env.ALLIED_GUILD_ID || "1514691009668321360"; 
+const ALLIED_GUILD_ID = process.env.ALLIED_GUILD_ID || "1483482948320891074"; 
 const ALLIED_LOG_CHANNEL_ID = process.env.ALLIED_LOG_CHANNEL_ID || "1514691009668321360";
 
 const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
