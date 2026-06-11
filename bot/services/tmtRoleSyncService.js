@@ -97,6 +97,8 @@ function getRoleColorFromId(roleId) {
 }
 
 /**
+ * Ensure a role exists in Discord, create if missing
+ */
 async function ensureRoleExists(guild, roleId, roleName, roleColor = "#808080", position = null) {
   try {
     // Check if role already exists

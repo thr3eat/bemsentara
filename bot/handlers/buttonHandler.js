@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits, MessageFlags } = require("discord.js");
 const Ticket = require("../../models/Ticket");
 const {
   getSupportMenuEmbed,
@@ -40,7 +40,7 @@ async function handleButtonInteraction(interaction) {
   if (interaction.customId === "verify_button") {
     const User = require("../../models/User");
     
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
     try {
       console.log(`[verify_button] User ${interaction.user.id} requesting role sync...`);
@@ -50,7 +50,7 @@ async function handleButtonInteraction(interaction) {
         console.log(`[verify_button] User ${interaction.user.id} not found in database`);
         return interaction.editReply({
           content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -58,7 +58,7 @@ async function handleButtonInteraction(interaction) {
         console.log(`[verify_button] User ${interaction.user.id} has no robloxId`);
         return interaction.editReply({
           content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
