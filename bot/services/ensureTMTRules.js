@@ -35,15 +35,34 @@ async function ensureTMTRules(client) {
       if (honeypotChannel) {
         const messages = await honeypotChannel.messages.fetch({ limit: 10 }).catch(() => null);
         
-        // Eğer kanalda uyarı mesajımız yoksa atalım (botun attığı mesaj var mı diye bakıyoruz)
-        const hasWarning = messages && messages.some(m => m.author.id === client.user.id && m.content.includes("BURAYA MESAJ GÖNDERMEYİN"));
+        let shouldSend = true;
+        if (messages && messages.size > 0) {
+          const ourEmbedMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title && m.embeds[0].title.includes("GÜVENLİK UYARISI"));
+          if (ourEmbedMessage) {
+            shouldSend = false;
+          } else {
+            // Eski mesajları temizle
+            await honeypotChannel.bulkDelete(messages).catch(() => {});
+          }
+        }
         
-        if (!hasWarning) {
-          console.log("[TMT Honeypot] Uyarı mesajı eksik, gönderiliyor...");
-          await honeypotChannel.send(
-            "**BURAYA MESAJ GÖNDERMEYİN**\n" +
-            "Bu kanal botlar ve çalınmış hesapları tespit etmek içindir, mesaj yazmak SUNUCUDAN ATILMAK ile sonuçlanacaktır."
-          ).catch(() => {});
+        if (shouldSend) {
+          console.log("[TMT Honeypot] Uyarı embedi eksik, gönderiliyor...");
+          
+          const honeypotEmbed = new EmbedBuilder()
+            .setTitle("🚨 GÜVENLİK UYARISI 🚨")
+            .setDescription(
+              "**BURAYA KESİNLİKLE MESAJ GÖNDERMEYİN!**\n\n" +
+              "Bu kanal, sunucu güvenliğini tehdit eden bot hesapları ve çalınmış hesapları tespit etmek amacıyla oluşturulmuş bir **tuzak (honeypot) kanalıdır**.\n\n" +
+              "⚠️ **DİKKAT:** Bu kanala mesaj yazan herhangi bir kullanıcı, sebebi ne olursa olsun sistem tarafından **OTOMATİK OLARAK SUNUCUDAN ATILACAKTIR** (Kick).\n\n" +
+              "Lütfen bu kanalı görmezden gelin ve sohbet için diğer kanalları kullanın."
+            )
+            .setColor(0xFF0000)
+            .setThumbnail(client.user.displayAvatarURL())
+            .setFooter({ text: "TMT Otomatik Güvenlik Sistemi" })
+            .setTimestamp();
+
+          await honeypotChannel.send({ embeds: [honeypotEmbed] }).catch(() => {});
         }
       }
     }
