@@ -307,29 +307,36 @@ function applyActionFields(embed, entry, actionType) {
 // ─── Tek grup polling ─────────────────────────────────────────────────────────
 async function pollGroup(client, groupId, groupName, logChannel) {
   try {
-    const result = await noblox.getAuditLog({
-      group:     parseInt(groupId),
-      sortOrder: "Desc",
-      limit:     FETCH_LIMIT
-    });
+    // noblox.getAuditLog(group, actionType, userId, sortOrder, limit, cursor)
+    // actionType="" → tüm eylemler
+    const result = await noblox.getAuditLog(parseInt(groupId), "", undefined, "Desc", FETCH_LIMIT);
 
-    if (!result || !result.data || result.data.length === 0) return;
+    // noblox.js sonucu: { data: [...], nextPageCursor }
+    const entries = result?.data || result;
+    if (!entries || !Array.isArray(entries) || entries.length === 0) return;
 
     const sinceTime  = lastSeenTime[groupId] || null;
     const newEntries = [];
 
-    for (const entry of result.data) {
+    for (const entry of entries) {
       const entryTime = new Date(entry.created);
+
+      // İlk çalışmada: sadece timestamp'i başlat, mesaj GÖNDERME
       if (!sinceTime) {
         lastSeenTime[groupId] = entryTime;
-        return;
+        console.log(`[AuditLogPoller] ${groupName} (${groupId}) — timestamp başlatıldı: ${entryTime.toISOString()}`);
+        return; // Bu gruptan çık (ama diğer gruplar devam etsin)
       }
-      if (entryTime <= sinceTime) break;
+
+      if (entryTime <= sinceTime) break; // Eski kayıda ulaştık
       newEntries.push(entry);
     }
 
     if (newEntries.length === 0) return;
+
+    // En yeni zamanı kaydet
     lastSeenTime[groupId] = new Date(newEntries[0].created);
+    console.log(`[AuditLogPoller] ${groupName} — ${newEntries.length} yeni kayıt bulundu.`);
 
     // Eski → yeni sırayla işle
     for (const entry of newEntries.reverse()) {
@@ -338,7 +345,7 @@ async function pollGroup(client, groupId, groupName, logChannel) {
 
       const actor     = entry.actor?.user;
       const actorName = actor?.username || "Bilinmeyen";
-      const actorId   = actor?.userId || null;
+      const actorId   = actor?.userId   || null;
       const actorRole = entry.actor?.role;
       const unixSec   = Math.floor(new Date(entry.created).getTime() / 1000);
 
@@ -388,10 +395,16 @@ async function pollGroup(client, groupId, groupName, logChannel) {
       await new Promise(r => setTimeout(r, 600));
     }
   } catch (err) {
-    if (err.message?.includes("403") || err.message?.includes("Unauthorized") || err.message?.includes("insufficient")) {
-      // Bot bu grupta audit log yetkisi yok — sessizce atla
+    // Hata detayını her zaman logla — sessiz yutma yok artık
+    const errMsg = err.message || String(err);
+    if (errMsg.includes("403") || errMsg.includes("Unauthorized") || errMsg.includes("insufficient")) {
+      // İlk seferde bir kere logla
+      if (!lastSeenTime[`_err_${groupId}`]) {
+        console.warn(`[AuditLogPoller] ⚠️ Grup ${groupId} (${groupName}) — Audit Log yetkisi yok (403/Unauthorized). Atlanacak.`);
+        lastSeenTime[`_err_${groupId}`] = true;
+      }
     } else {
-      console.warn(`[AuditLogPoller] Grup ${groupId} (${groupName}) poll hatası:`, err.message);
+      console.error(`[AuditLogPoller] ❌ Grup ${groupId} (${groupName}) poll hatası:`, errMsg);
     }
   }
 }
@@ -401,18 +414,28 @@ async function pollAllGroups(client) {
   let logChannel = null;
   try {
     const guild = client.guilds.cache.get(AUDIT_LOG_GUILD_ID);
-    if (!guild) return;
+    if (!guild) {
+      console.error(`[AuditLogPoller] ❌ Müttefik sunucusu (${AUDIT_LOG_GUILD_ID}) cache'de bulunamadı. Bot bu sunucuda mı?`);
+      return;
+    }
     logChannel = guild.channels.cache.get(AUDIT_LOG_CHANNEL_ID);
-    if (!logChannel || !logChannel.isTextBased()) return;
+    if (!logChannel || !logChannel.isTextBased()) {
+      console.error(`[AuditLogPoller] ❌ Log kanalı (${AUDIT_LOG_CHANNEL_ID}) sunucuda bulunamadı veya text-based değil.`);
+      return;
+    }
   } catch (err) {
     console.error("[AuditLogPoller] Log kanalı alınamadı:", err.message);
     return;
   }
 
+  console.log(`[AuditLogPoller] Tüm gruplar poll ediliyor... (${Object.keys(ROBLOX_GROUPS).length} grup)`);
+
   for (const groupId of Object.keys(ROBLOX_GROUPS)) {
     await pollGroup(client, groupId, ROBLOX_GROUPS[groupId], logChannel);
     await new Promise(r => setTimeout(r, 1500));
   }
+
+  console.log(`[AuditLogPoller] Poll turu tamamlandı.`);
 }
 
 // ─── Başlatma fonksiyonu ──────────────────────────────────────────────────────
