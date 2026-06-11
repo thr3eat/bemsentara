@@ -97,6 +97,19 @@ function getRoleColorFromId(roleId) {
 }
 
 /**
+ * Find a role in Discord guild by name (case-insensitive)
+ */
+function findRoleByName(guild, name) {
+  if (!name) return null;
+  const target = name.toLowerCase().trim();
+  return (
+    guild.roles.cache.find(
+      (r) => r.name.toLowerCase() === target && !r.managed && r.id !== guild.id
+    ) || null
+  );
+}
+
+/**
  * Ensure a role exists in Discord, create if missing
  */
 async function ensureRoleExists(guild, roleId, roleName, roleColor = "#808080", position = null) {
