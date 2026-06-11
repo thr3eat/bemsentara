@@ -87,7 +87,7 @@ const TMT_ROLE_MAPPINGS = {
     name: "OF-5 Albay"
   },
   115: {  // OF-6 Tuğgeneral (rank 115)
-    discordRoleIds: ["1514582748394946591"], // Ordu Generali
+    discordRoleIds: ["1514582757420830850"], // Kıdemli Ordu Subayı
     name: "OF-6 Tuğgeneral"
   },
   120: {  // OF-7 Tümgeneral (rank 120)
@@ -99,71 +99,71 @@ const TMT_ROLE_MAPPINGS = {
     name: "OF-8 Korgeneral"
   },
   135: {  // OF-9 Orgeneral (rank 135)
-    discordRoleIds: ["1514582748394946591"], // Ordu Generali
+    discordRoleIds: ["1514582748394946591", "1514582757420830850"], // Ordu Generali + Kıdemli Ordu Subayı
     name: "OF-9 Orgeneral"
   },
   150: {  // Paşa (rank 150)
-    discordRoleIds: ["1514582748394946591", "1514582755512553522"], // Ordu Generali + Paşa
+    discordRoleIds: ["1514582748394946591", "1514582755512553522", "1514582749850239167"], // Ordu Generali + Paşa + OF-9 Orgeneral
     name: "Paşa"
   },
   180: {  // Konsey (rank 180)
-    discordRoleIds: ["1514582742749417624"], // Genelkurmay Başkanı
+    discordRoleIds: ["1514582741772013588", "1514582742749417624"], // Yüksek Askerî Şûra + Genelkurmay Başkanı
     name: "Konsey"
   },
   185: {  // Ankara Heyeti (rank 185)
-    discordRoleIds: ["1514582742749417624"], // Genelkurmay Başkanı
+    discordRoleIds: ["1514582741772013588", "1514582742749417624", "1514582653322661959"], // Yüksek Askerî Şûra + Genelkurmay Başkanı + Yönetim Kurulu
     name: "Ankara Heyeti"
   },
   190: {  // Başkumandan (rank 190)
-    discordRoleIds: ["1514582742749417624", "1514582651544010752"], // Genelkurmay + YK Başkanı
+    discordRoleIds: ["1514582651544010752", "1514582653322661959", "1514582742749417624", "1514582741772013588"], // YK Başkanı + Yönetim Kurulu + Genelkurmay Başkanı + Yüksek Askerî Şûra
     name: "Başkumandan"
   },
   195: {  // Askeri Kurultay (rank 195)
-    discordRoleIds: ["1514582741772013588"], // Yüksek Askerî Şûra
+    discordRoleIds: ["1514582741772013588", "1514582653322661959"], // Yüksek Askerî Şûra + Yönetim Kurulu
     name: "Askeri Kurultay"
   },
   196: {  // Disiplin Kurulu (rank 196)
-    discordRoleIds: ["1514582741772013588"], // Yüksek Askerî Şûra
+    discordRoleIds: ["1514582741772013588", "1514582653322661959"], // Yüksek Askerî Şûra + Yönetim Kurulu
     name: "Disiplin Kurulu"
   },
   200: {  // Lider (rank 200)
-    discordRoleIds: ["1514582651544010752"], // Yönetim Kurulu Başkanı
+    discordRoleIds: ["1514582651544010752", "1514582653322661959"], // YK Başkanı + Yönetim Kurulu
     name: "Lider"
   },
   230: {  // Genelkurmay (rank 230)
-    discordRoleIds: ["1514582744708026468"], // Genelkurmay
+    discordRoleIds: ["1514582744708026468", "1514582742749417624", "1514582653322661959"], // Genelkurmay + Genelkurmay Başkanı + Yönetim Kurulu
     name: "Genelkurmay"
   },
   235: {  // Genelkurmay Başkanı (rank 235)
-    discordRoleIds: ["1514582742749417624"], // Genelkurmay Başkanı
+    discordRoleIds: ["1514582742749417624", "1514582744708026468", "1514582653322661959", "1514582741772013588"], // Genelkurmay Başkanı + Genelkurmay + Yönetim Kurulu + Yüksek Askerî Şûra
     name: "Genelkurmay Başkanı"
   },
   240: {  // Yüksek Askerî Şûra (rank 240)
-    discordRoleIds: ["1514582741772013588"], // Yüksek Askerî Şûra
+    discordRoleIds: ["1514582741772013588", "1514582653322661959"], // Yüksek Askerî Şûra + Yönetim Kurulu
     name: "Yüksek Askerî Şûra"
   },
   250: {  // Yönetim Kurulu (rank 250)
-    discordRoleIds: ["1514582653322661959"], // Yönetim Kurulu
+    discordRoleIds: ["1514582653322661959", "1514582741772013588"], // Yönetim Kurulu + Yüksek Askerî Şûra
     name: "Yönetim Kurulu"
   },
   251: {  // Yönetim Kurulu Başkan Y. (rank 251)
-    discordRoleIds: ["1514582652433465474"], // Yönetim Kurulu Başkan Y.
+    discordRoleIds: ["1514582652433465474", "1514582653322661959"], // YK Başkan Yardımcısı + Yönetim Kurulu
     name: "YK Başkan Yardımcısı"
   },
   252: {  // Yönetim Kurulu Başkanı (rank 252)
-    discordRoleIds: ["1514582651544010752"], // Yönetim Kurulu Başkanı
+    discordRoleIds: ["1514582651544010752", "1514582653322661959", "1514582741772013588", "1514582742749417624"], // YK Başkanı + Yönetim Kurulu + Yüksek Askerî Şûra + Genelkurmay Başkanı
     name: "YK Başkanı"
   },
   253: {  // Geliştirme Ofisi (rank 253)
-    discordRoleIds: ["1514582740496814172"], // Geliştirme Ofisi
+    discordRoleIds: ["1514582740496814172", "1514582653322661959"], // Geliştirme Ofisi + Yönetim Kurulu
     name: "Geliştirme Ofisi"
   },
   254: {  // Holder (rank 254)
-    discordRoleIds: ["1514582651544010752"], // Yönetim Kurulu Başkanı
+    discordRoleIds: ["1514582651544010752", "1514582653322661959", "1514582740496814172"], // YK Başkanı + Yönetim Kurulu + Geliştirme Ofisi
     name: "Holder"
   },
   255: {  // OF-10 Mareşal (rank 255)
-    discordRoleIds: ["1514582645051490415"], // OF-10 Mareşal
+    discordRoleIds: ["1514582645051490415", "1514582651544010752", "1514582653322661959", "1514582742749417624", "1514582741772013588"], // OF-10 Mareşal + YK Başkanı + Yönetim Kurulu + Genelkurmay Başkanı + Yüksek Askerî Şûra
     name: "OF-10 Mareşal"
   },
 };
@@ -176,6 +176,7 @@ const ALL_TMT_ROLE_IDS = new Set([
   "1514582762093547560", // Ordu Subayı
   "1514582757420830850", // Kıdemli Ordu Subayı
   "1514582748394946591", // Ordu Generali
+  "1514582749850239167", // OF-9 Orgeneral
   "1514582755512553522", // Paşa
   "1514582742749417624", // Genelkurmay Başkanı
   "1514582741772013588", // Yüksek Askerî Şûra
