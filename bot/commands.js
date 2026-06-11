@@ -20,6 +20,17 @@ const botSlashCommands = [
     .setName("posttmtrules")
     .setDescription("TMT sunucu kurallarını gönder (Admin Sadece)")
     .setDefaultMemberPermissions(0), // Admin only
+  new SlashCommandBuilder()
+    .setName("tmtverify")
+    .setDescription("TMT sunucu rollerini senkronize et")
+    .setDMPermission(true),
+  new SlashCommandBuilder()
+    .setName("tmtupdate")
+    .setDescription("TMT rollerini güncelle (Admin)")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("Kullanıcı seç (boş bırakılırsa herkesi güncelle").setRequired(false)
+    )
+    .setDefaultMemberPermissions(0), // Admin only
 ].map((c) => c.toJSON());
 
 async function registerDiscordCommands() {

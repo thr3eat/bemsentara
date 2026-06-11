@@ -246,6 +246,94 @@ async function handleSlashCommand(interaction) {
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
     }
+
+    if (commandName === "tmtverify") {
+      try {
+        // Check if user is in TMT guild
+        const { TMT_GUILD_ID } = require("../config/tmtRoleSync");
+        const tmtGuild = await interaction.client.guilds.fetch(TMT_GUILD_ID).catch(() => null);
+        
+        if (!tmtGuild) {
+          return interaction.editReply({ content: "❌ TMT sunucusu bulunamadı" });
+        }
+
+        const member = await tmtGuild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) {
+          return interaction.editReply({ content: "❌ TMT sunucusunda bulunmuyorsunuz" });
+        }
+
+        // Find user in database
+        const User = require("../../models/User");
+        const dbUser = await User.findOne({ discordId: interaction.user.id });
+
+        if (!dbUser || !dbUser.robloxId) {
+          return interaction.editReply({ 
+            content: "❌ Roblox hesabınızı yetkilendirmediniz. `/authorize` komutunu kullanın" 
+          });
+        }
+
+        // Sync roles
+        const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+        const success = await syncTMTRoles(
+          interaction.client, 
+          interaction.user.id, 
+          dbUser.robloxId,
+          member
+        );
+
+        if (success) {
+          return interaction.editReply({ 
+            content: "✅ TMT rolleriniz senkronize edildi" 
+          });
+        } else {
+          return interaction.editReply({ 
+            content: "❌ Rol senkronizasyonunda bir hata oluştu" 
+          });
+        }
+      } catch (error) {
+        console.error("[tmtverify] Hata:", error);
+        return interaction.editReply({ content: `❌ Hata: ${error.message}` });
+      }
+    }
+
+    if (commandName === "tmtupdate") {
+      // Admin check
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkili değilsiniz" });
+      }
+
+      try {
+        const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
+        const targetUser = interaction.options.getUser("user");
+        
+        let userIds = [];
+        if (targetUser) {
+          userIds = [targetUser.id];
+          await interaction.editReply({ 
+            content: `⏳ ${targetUser.username} için TMT rolleri güncelleniyor...` 
+          });
+        } else {
+          await interaction.editReply({ 
+            content: "⏳ Tüm kullanıcılar için TMT rolleri güncelleniyor... (Bu birkaç dakika alabilir)" 
+          });
+        }
+
+        const updated = await verifyAllTMTRoles(interaction.client, userIds);
+        
+        if (targetUser) {
+          return interaction.editReply({ 
+            content: `✅ ${targetUser.username} için TMT rolleri güncellendi` 
+          });
+        } else {
+          return interaction.editReply({ 
+            content: `✅ TMT rolleri güncellendi - ${updated} üye sync edildi` 
+          });
+        }
+      } catch (error) {
+        console.error("[tmtupdate] Hata:", error);
+        return interaction.editReply({ content: `❌ Hata: ${error.message}` });
+      }
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });
