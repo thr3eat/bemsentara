@@ -2,8 +2,9 @@ const noblox = require("noblox.js");
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 require("dotenv").config(); // Ensure env variables are loaded if not already
 
-// TMT Roblox Group IDs mapped to their names (from user prompt and tmtBranchSync)
+// Roblox Group IDs mapped to their names
 const ROBLOX_GROUPS = {
+  // TMT Groups
   "35212138": "TMT Akademi",
   "33709461": "TMT Askeri İnzibat",
   "35430592": "TMT Birimler Bölükler",
@@ -17,10 +18,17 @@ const ROBLOX_GROUPS = {
   "33708598": "TMT Özel Kuvvetler Komutanlığı",
   "11517908": "TMT Turkish Armed Forces",
   "35528598": "TMT RAIDERS",
-  "35528556": "TMT Sürücü Okulu"
+  "35528556": "TMT Sürücü Okulu",
+  // EkoYıldız Groups
+  "35431216": "EkoYıldız",
+  "995918688": "EkoYıldız Video Ekibi",
+  "130659145": "EkoYıldız Moderatör Ekibi",
+  "813826297": "EkoYıldız Moderatör Okulu",
+  "564097968": "Müttefik Ordular"
 };
 
 const ROBLOX_MENU_CHANNEL_ID = "1514659720751874150";
+const EKOYILDIZ_MENU_CHANNEL_ID = "1514673268085227550";
 
 /**
  * Initializes Roblox connection using TMTCOOKIE
@@ -69,14 +77,30 @@ async function ensureRobloxManagementMenu(client) {
         .setFooter({ text: "TMT Yüksek Güvenlikli Otomasyon Sistemi" });
 
       // Create dropdown options
-      const options = Object.entries(ROBLOX_GROUPS).map(([id, name]) => ({
+      const tmtGroups = {
+        "35212138": "TMT Akademi",
+        "33709461": "TMT Askeri İnzibat",
+        "35430592": "TMT Birimler Bölükler",
+        "5415548": "TMT Deniz Kuvvetleri Komutanlığı",
+        "35212127": "TMT Genel Branş Komutanlığı",
+        "33709391": "TMT Hava Kuvvetleri",
+        "35432150": "TMT Hudut Müfettişleri",
+        "12008462": "TMT Jandarma Genel Komutanlığı",
+        "33714381": "TMT Kara Kuvvetleri Komutanlığı",
+        "35528574": "TMT Ministry of Foreign Affairs",
+        "33708598": "TMT Özel Kuvvetler Komutanlığı",
+        "11517908": "TMT Turkish Armed Forces",
+        "35528598": "TMT RAIDERS",
+        "35528556": "TMT Sürücü Okulu"
+      };
+
+      const options = Object.entries(tmtGroups).map(([id, name]) => ({
         label: name,
         value: `rbx_grp_${id}`,
         description: `ID: ${id}`,
         emoji: "🏢"
       }));
 
-      // A Select Menu can only hold up to 25 options, we have 14, so it fits perfectly.
       const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId("roblox_group_select")
@@ -92,8 +116,64 @@ async function ensureRobloxManagementMenu(client) {
   }
 }
 
+/**
+ * Posts or ensures the EkoYıldız Roblox Group Management menu exists in the target channel
+ * @param {import('discord.js').Client} client 
+ */
+async function ensureEkoYildizRobloxMenu(client) {
+  try {
+    const channel = await client.channels.fetch(EKOYILDIZ_MENU_CHANNEL_ID).catch(() => null);
+    if (!channel || !channel.isTextBased()) {
+      console.warn("⚠️ [RobloxGroupManager] EkoYıldız Roblox yönetim kanalı bulunamadı:", EKOYILDIZ_MENU_CHANNEL_ID);
+      return;
+    }
+
+    // Look for existing message
+    const messages = await channel.messages.fetch({ limit: 10 });
+    const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "🛡️ EkoYıldız Roblox Grup Yönetimi");
+
+    if (!existingMessage) {
+      const embed = new EmbedBuilder()
+        .setTitle("🛡️ EkoYıldız Roblox Grup Yönetimi")
+        .setDescription("Aşağıdaki menüden işlem yapmak istediğiniz EkoYıldız Roblox grubunu seçin.\n\n**⚠️ GÜVENLİK UYARISI:**\nBu sistem sadece **Yönetim** ekibi tarafından kullanılabilir. Yapılan tüm rütbe değişiklikleri ve katılım onayları sistem tarafından kayıt altına alınmaktadır.")
+        .setColor(0xF39C12) // Altın sarısı / turuncu renk
+        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514662015845793833/Gemini_Generated_Image_6ahowd6ahowd6aho_1.png?ex=6a2c2e6d&is=6a2adced&hm=15771d7c335f3c79642a0026f75dbe2ee149e93e6da0fb97850f03b14f2dee79&=&format=webp&quality=lossless&width=1872&height=592")
+        .setFooter({ text: "EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi" });
+
+      const ekoyildizGroups = {
+        "35431216": "EkoYıldız",
+        "995918688": "EkoYıldız Video Ekibi",
+        "130659145": "EkoYıldız Moderatör Ekibi",
+        "813826297": "EkoYıldız Moderatör Okulu",
+        "564097968": "Müttefik Ordular"
+      };
+
+      // Create dropdown options
+      const options = Object.entries(ekoyildizGroups).map(([id, name]) => ({
+        label: name,
+        value: `rbx_grp_${id}`,
+        description: `ID: ${id}`,
+        emoji: "🏢"
+      }));
+
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("roblox_group_select")
+          .setPlaceholder("Yönetmek istediğiniz EkoYıldız grubunu seçin...")
+          .addOptions(options)
+      );
+
+      await channel.send({ embeds: [embed], components: [row] });
+      console.log("✅ [RobloxGroupManager] EkoYıldız Roblox Grup Yönetim menüsü gönderildi.");
+    }
+  } catch (error) {
+    console.error("❌ [RobloxGroupManager] EkoYıldız menüsü oluşturulurken hata:", error.message);
+  }
+}
+
 module.exports = {
   initializeRoblox,
   ensureRobloxManagementMenu,
+  ensureEkoYildizRobloxMenu,
   ROBLOX_GROUPS
 };
