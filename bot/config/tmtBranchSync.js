@@ -11,6 +11,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582844373205053", // Sınır Müfettişleri Branş Yetkilisi
     discordRoleName: "Sınır Müfettişleri",
     discordBranchRoleName: "Sınır Müfettişleri Branş Yetkilisi",
+    color: "#2ECC71",
   },
   33709391: {  // TMT Hava Kuvvetleri (Air Force)
     name: "Hava Kuvvetleri",
@@ -18,6 +19,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582819458777117", // Hava Kuvvetleri Branş Yetkilisi
     discordRoleName: "Hava Kuvvetleri Komutanlığı",
     discordBranchRoleName: "Hava Kuvvetleri Branş Yetkilisi",
+    color: "#3498DB",
   },
   12008462: {  // TMT Jandarma (Gendarmerie)
     name: "Jandarma",
@@ -25,6 +27,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582838404714676", // Jandarma Branş Yetkilisi
     discordRoleName: "Jandarma",
     discordBranchRoleName: "Jandarma Branş Yetkilisi",
+    color: "#1ABC9C",
   },
   33708598: {  // TMT Özel Kuvvetler Komutanlığı (Special Forces)
     name: "Özel Kuvvetler",
@@ -32,6 +35,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582811850444870", // Özel Kuvvetler Branş Yetkilisi
     discordRoleName: "Özel Kuvvetler Komutanlığı",
     discordBranchRoleName: "Özel Kuvvetler Branş Yetkilisi",
+    color: "#9B59B6",
   },
   33714381: {  // TMT Kara Kuvvetleri Komutanlığı (Land Forces)
     name: "Kara Kuvvetleri",
@@ -39,6 +43,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582827751178311", // Kara Kuvvetleri Branş Yetkilisi
     discordRoleName: "Kara Kuvvetleri Komutanlığı",
     discordBranchRoleName: "Kara Kuvvetleri Branş Yetkilisi",
+    color: "#27AE60",
   },
   33709461: {  // TMT Askeri İnzibat (Military Police)
     name: "Askeri İnzibat",
@@ -46,6 +51,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: "1514582807458877571", // Askeri İnzibat Branş Yetkilisi
     discordRoleName: "Askeri İnzibat",
     discordBranchRoleName: "Askeri İnzibat Branş Yetkilisi",
+    color: "#95A5A6",
   },
   35528556: {  // TMT Sürücü Okulu (Driver School)
     name: "Sürücü Okulu",
@@ -53,6 +59,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: null,
     discordRoleName: "Sürücü Okulu",
     discordBranchRoleName: "Sürücü Okulu Yetkilisi",
+    color: "#E67E22",
   },
   35528574: {  // TMT Foreign Affairs (Dışişleri Bakanlığı)
     name: "Dışişleri Bakanlığı",
@@ -60,6 +67,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: null,
     discordRoleName: "Dışişleri Bakanlığı",
     discordBranchRoleName: "Dışişleri Yetkilisi",
+    color: "#34495E",
   },
   35212138: {  // TMT Akademi (Academy)
     name: "Akademi",
@@ -67,6 +75,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: null,
     discordRoleName: "Akademi",
     discordBranchRoleName: "Akademi Yetkilisi",
+    color: "#F1C40F",
   },
   35212127: {  // TMT Genel Branş Komutanlığı
     name: "Genel Branş Komutanlığı",
@@ -74,6 +83,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: null,
     discordRoleName: "Genel Branş Komutanlığı",
     discordBranchRoleName: "Genel Branş Yetkilisi",
+    color: "#E74C3C",
   },
   35528598: {  // TMT Raiders
     name: "RAIDERS",
@@ -81,6 +91,7 @@ const TMT_BRANCH_GROUPS = {
     discordBranchRoleId: null,
     discordRoleName: "Raiders",
     discordBranchRoleName: "Raiders Yetkilisi",
+    color: "#E74C3C",
   },
 };
 

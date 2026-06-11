@@ -104,9 +104,36 @@ function findRoleByName(guild, name) {
   const target = name.toLowerCase().trim();
   return (
     guild.roles.cache.find(
-      (r) => r.name.toLowerCase() === target && !r.managed && r.id !== guild.id
+      (r) => {
+        const rName = r.name.toLowerCase().trim();
+        // Match exact name, or name stripped of ▬▬▬ or ▬ lines
+        const strippedName = rName.replace(/[▬\s]+/g, "");
+        const strippedTarget = target.replace(/[▬\s]+/g, "");
+        return rName === target || strippedName === strippedTarget;
+      }
     ) || null
   );
+}
+
+/**
+ * Create a missing branch role with styled name and color
+ */
+async function createBranchRole(guild, roleName, colorHex) {
+  try {
+    const styledName = `▬▬▬ ${roleName} ▬▬▬`;
+    console.log(`[TMT Role Sync] Auto-creating missing branch role: "${styledName}" with color "${colorHex}"`);
+
+    const role = await guild.roles.create({
+      name: styledName,
+      color: hexToDiscordColor(colorHex),
+      reason: `TMT Role Sync: Auto-created missing branch role`,
+    });
+
+    return role;
+  } catch (error) {
+    console.error(`[TMT Role Sync] Error creating branch role "${roleName}":`, error.message);
+    return null;
+  }
 }
 
 /**
@@ -366,6 +393,9 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
     }
     if (!mainRole && branchConfig.discordRoleName) {
       mainRole = findRoleByName(guild, branchConfig.discordRoleName);
+      if (!mainRole) {
+        mainRole = await createBranchRole(guild, branchConfig.discordRoleName, branchConfig.color || "#808080");
+      }
     }
 
     if (mainRole) {
@@ -382,6 +412,9 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
       }
       if (!authRole && branchConfig.discordBranchRoleName) {
         authRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
+        if (!authRole) {
+          authRole = await createBranchRole(guild, branchConfig.discordBranchRoleName, branchConfig.color || "#808080");
+        }
       }
 
       if (authRole) {
@@ -505,6 +538,9 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
         }
         if (!mainBranchRole && branchConfig.discordRoleName) {
           mainBranchRole = findRoleByName(guild, branchConfig.discordRoleName);
+          if (!mainBranchRole) {
+            mainBranchRole = await createBranchRole(guild, branchConfig.discordRoleName, branchConfig.color || "#808080");
+          }
         }
 
         if (mainBranchRole) {
@@ -519,6 +555,9 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
           }
           if (!authorityRole && branchConfig.discordBranchRoleName) {
             authorityRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
+            if (!authorityRole) {
+              authorityRole = await createBranchRole(guild, branchConfig.discordBranchRoleName, branchConfig.color || "#808080");
+            }
           }
 
           if (authorityRole) {
