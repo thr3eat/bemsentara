@@ -21,6 +21,8 @@ function initializeDiscordHandlers(client) {
     const { RULE_PREFIX } = require("../services/tmtAutomodService");
     const { startAtaturkHistoryScheduler } = require("../services/ataturkHistoryAI");
     const { initializeRoblox, ensureRobloxManagementMenu } = require("../services/robloxGroupManager");
+    const { initTMTInvites, ensureTMTLogEmbed } = require("../services/tmtLogger");
+
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
@@ -28,6 +30,9 @@ function initializeDiscordHandlers(client) {
     await ensureTMTRules(client);
     await initializeRoblox();
     await ensureRobloxManagementMenu(client);
+    await initTMTInvites(client);
+    await ensureTMTLogEmbed(client);
+
     startCleanupScheduler();
     startStaffScheduler(client);
     startAtaturkHistoryScheduler(client);
@@ -46,6 +51,8 @@ function initializeDiscordHandlers(client) {
         targetRoleId = UNVERIFIED_ROLE_ID;
       } else if (member.guild.id === TMT_GUILD_ID) {
         targetRoleId = TMT_UNVERIFIED_ROLE_ID;
+        const { logTMTMemberJoin } = require("../services/tmtLogger");
+        logTMTMemberJoin(member);
       } else {
         return;
       }
@@ -93,19 +100,74 @@ function initializeDiscordHandlers(client) {
   client.on("autoModerationActionExecution", async (execution) => {
     try {
       const { TMT_GUILD_ID } = require("../../config");
-      const { RULE_PREFIX } = require("../services/tmtAutomodService");
-      if (execution.guild.id === TMT_GUILD_ID && execution.ruleTriggerType === 1) { // 1 = Keyword
-        const rule = await execution.guild.autoModerationRules.fetch(execution.ruleId).catch(() => null);
-        if (rule && rule.name === `${RULE_PREFIX}1.0 Kişisel Bilgiler`) {
-          const member = await execution.guild.members.fetch(execution.userId).catch(() => null);
-          if (member && member.bannable) {
-            await member.ban({ reason: "Otomod: 1.0 Kişisel Bilgilerin Koruması İhlali (Sistem Banı)" });
-            console.log(`[TMT AutoMod] ${member.user.tag} (ID: ${member.id}) Kişisel Bilgi paylaştığı için yasaklandı.`);
+      if (execution.guild.id === TMT_GUILD_ID) {
+        const { handleTMTAutoModViolation } = require("../services/tmtWarningSystem");
+        await handleTMTAutoModViolation(execution, client);
+
+        const { RULE_PREFIX } = require("../services/tmtAutomodService");
+        if (execution.ruleTriggerType === 1) { // 1 = Keyword
+          const rule = await execution.guild.autoModerationRules.fetch(execution.ruleId).catch(() => null);
+          if (rule && rule.name === `${RULE_PREFIX}1.0 Kişisel Bilgiler`) {
+            const member = await execution.guild.members.fetch(execution.userId).catch(() => null);
+            if (member && member.bannable) {
+              await member.ban({ reason: "Otomod: 1.0 Kişisel Bilgilerin Koruması İhlali (Sistem Banı)" });
+              console.log(`[TMT AutoMod] ${member.user.tag} (ID: ${member.id}) Kişisel Bilgi paylaştığı için yasaklandı.`);
+            }
           }
         }
       }
     } catch (err) {
-      console.error("AutoMod Ban hatası:", err);
+      console.error("AutoMod execution hatası:", err);
+    }
+  });
+
+  client.on("guildMemberRemove", async (member) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (member.guild.id === TMT_GUILD_ID) {
+        const { logTMTMemberLeave } = require("../services/tmtLogger");
+        logTMTMemberLeave(member);
+      }
+    } catch (err) {
+      console.error("guildMemberRemove hatası:", err);
+    }
+  });
+
+  client.on("guildMemberUpdate", async (oldMember, newMember) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      if (newMember.guild.id === TMT_GUILD_ID) {
+        const { logTMTMemberUpdate } = require("../services/tmtLogger");
+        logTMTMemberUpdate(oldMember, newMember);
+      }
+    } catch (err) {
+      console.error("guildMemberUpdate hatası:", err);
+    }
+  });
+
+  client.on("messageDelete", async (message) => {
+    try {
+      if (message.partial) return;
+      const { TMT_GUILD_ID } = require("../../config");
+      if (message.guild && message.guild.id === TMT_GUILD_ID && !message.author?.bot) {
+        const { logTMTMessageDelete } = require("../services/tmtLogger");
+        logTMTMessageDelete(message);
+      }
+    } catch (err) {
+      console.error("messageDelete hatası:", err);
+    }
+  });
+
+  client.on("messageUpdate", async (oldMessage, newMessage) => {
+    try {
+      if (oldMessage.partial || newMessage.partial) return;
+      const { TMT_GUILD_ID } = require("../../config");
+      if (newMessage.guild && newMessage.guild.id === TMT_GUILD_ID && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
+        const { logTMTMessageUpdate } = require("../services/tmtLogger");
+        logTMTMessageUpdate(oldMessage, newMessage);
+      }
+    } catch (err) {
+      console.error("messageUpdate hatası:", err);
     }
   });
 
@@ -138,10 +200,20 @@ function initializeDiscordHandlers(client) {
 
       if (!oldState.channelId && newState.channelId) {
         // Sese girdi
+        const { TMT_GUILD_ID } = require("../../config");
+        if (guildId === TMT_GUILD_ID) {
+          const { logTMTVoiceStateUpdate } = require("../services/tmtLogger");
+          logTMTVoiceStateUpdate(oldState, newState);
+        }
         voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
         if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
       } else if (oldState.channelId && !newState.channelId) {
         // Sesten çıktı
+        const { TMT_GUILD_ID } = require("../../config");
+        if (guildId === TMT_GUILD_ID) {
+          const { logTMTVoiceStateUpdate } = require("../services/tmtLogger");
+          logTMTVoiceStateUpdate(oldState, newState);
+        }
         const session = voiceSessions.get(userId);
         voiceSessions.delete(userId);
 
@@ -163,6 +235,13 @@ function initializeDiscordHandlers(client) {
               console.warn(`[voiceStateUpdate] addVoiceXP error for ${userId}:`, err.message);
             });
           }
+        }
+      } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+        // Kanal değiştirdi
+        const { TMT_GUILD_ID } = require("../../config");
+        if (guildId === TMT_GUILD_ID) {
+          const { logTMTVoiceStateUpdate } = require("../services/tmtLogger");
+          logTMTVoiceStateUpdate(oldState, newState);
         }
       }
     } catch (err) {

@@ -5,6 +5,7 @@ const {
   SUPPORT_CATEGORIES,
   GUILD2_ID,
   GUILD2_TICKET_LOG_ID,
+  TMT_GUILD_ID,
 } = require("../../config");
 const { getDiscordClient } = require("../discordClient");
 
@@ -26,10 +27,16 @@ async function resolveLogChannel(ticket) {
   // guildId ticket'ta saklıysa kullan, yoksa ana sunucu
   const guildId = ticket.guildId || TARGET_GUILD_ID;
   const isGuild2 = guildId === GUILD2_ID;
+  const isTMT = guildId === TMT_GUILD_ID;
 
-  const logChannelId = isGuild2
-    ? (GUILD2_TICKET_LOG_ID || null)
-    : TICKET_LOG_CHANNEL_ID;
+  let logChannelId;
+  if (isTMT) {
+    logChannelId = "1514583177849606204";
+  } else if (isGuild2) {
+    logChannelId = GUILD2_TICKET_LOG_ID || null;
+  } else {
+    logChannelId = TICKET_LOG_CHANNEL_ID;
+  }
 
   if (!logChannelId) return null;
 

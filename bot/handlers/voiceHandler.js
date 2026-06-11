@@ -1,9 +1,15 @@
 const { logBanAdd, logBanRemove } = require("../services/banLog");
 const { handleJoinToCreate, handleVoiceLeave } = require("../services/voiceManager");
+const { TMT_GUILD_ID } = require("../../config");
 
 function initializeVoiceAndBanHandlers(client) {
   client.on("guildBanAdd", async (ban) => {
-    logBanAdd(ban);
+    if (ban.guild.id === TMT_GUILD_ID) {
+      const { logTMTBanAdd } = require("../services/tmtLogger");
+      logTMTBanAdd(ban);
+    } else {
+      logBanAdd(ban);
+    }
     // Discord'dan ban atılınca site ban da uygula
     try {
       const User = require("../../models/User");
@@ -22,7 +28,12 @@ function initializeVoiceAndBanHandlers(client) {
   });
 
   client.on("guildBanRemove", async (ban) => {
-    logBanRemove(ban);
+    if (ban.guild.id === TMT_GUILD_ID) {
+      const { logTMTBanRemove } = require("../services/tmtLogger");
+      logTMTBanRemove(ban);
+    } else {
+      logBanRemove(ban);
+    }
     // Discord'dan ban kaldırılınca site ban da kaldır
     try {
       const User = require("../../models/User");

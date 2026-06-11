@@ -23,6 +23,12 @@ async function handleModerationCommand(interaction) {
 
       await interaction.channel.bulkDelete(miktar);
 
+      const { TMT_GUILD_ID } = require("../../config");
+      if (interaction.guild.id === TMT_GUILD_ID) {
+        const { logTMTModAction } = require("../services/tmtLogger");
+        await logTMTModAction(interaction, commandName, null, `${miktar} mesaj silindi.`);
+      }
+
       const embed = new EmbedBuilder()
         .setTitle("✅ Mesajlar Silindi")
         .setColor(0xed4245)
@@ -44,6 +50,12 @@ async function handleModerationCommand(interaction) {
 
       const duration = parseDuration(sure || "10m");
       await member.timeout(duration, `Sebep: ${sebep}`);
+
+      const { TMT_GUILD_ID } = require("../../config");
+      if (interaction.guild.id === TMT_GUILD_ID) {
+        const { logTMTModAction } = require("../services/tmtLogger");
+        await logTMTModAction(interaction, commandName, kullanici, `Süre: ${sure || "10 dakika"}, Sebep: ${sebep}`);
+      }
 
       const embed = new EmbedBuilder()
         .setTitle("🔇 Kullanıcı Susturuldu")
@@ -68,6 +80,12 @@ async function handleModerationCommand(interaction) {
 
       await member.timeout(null);
 
+      const { TMT_GUILD_ID } = require("../../config");
+      if (interaction.guild.id === TMT_GUILD_ID) {
+        const { logTMTModAction } = require("../services/tmtLogger");
+        await logTMTModAction(interaction, commandName, kullanici, `Susturma kaldırıldı.`);
+      }
+
       const embed = new EmbedBuilder()
         .setTitle("🔊 Susturma Kaldırıldı")
         .setColor(0x4ade80)
@@ -83,6 +101,12 @@ async function handleModerationCommand(interaction) {
 
       try {
         await interaction.guild.members.ban(kullanici.id, { reason: sebep });
+
+        const { TMT_GUILD_ID } = require("../../config");
+        if (interaction.guild.id === TMT_GUILD_ID) {
+          const { logTMTModAction } = require("../services/tmtLogger");
+          await logTMTModAction(interaction, commandName, kullanici, `Sebep: ${sebep}`);
+        }
 
         // Site ban da uygula
         try {
@@ -122,6 +146,12 @@ async function handleModerationCommand(interaction) {
 
       try {
         await interaction.guild.bans.remove(kullanici.id);
+
+        const { TMT_GUILD_ID } = require("../../config");
+        if (interaction.guild.id === TMT_GUILD_ID) {
+          const { logTMTModAction } = require("../services/tmtLogger");
+          await logTMTModAction(interaction, commandName, kullanici, `Yasaklama kaldırıldı.`);
+        }
 
         // Site ban da kaldır
         try {
