@@ -7,6 +7,7 @@
 const axios = require("axios");
 const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES, SEPARATOR_ROLES, CATEGORY_ROLES, RANK_ROLES } = require("../config/tmtRoleSync");
 const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
+const { TMT_UNVERIFIED_ROLE_ID, TMT_VERIFIED_ROLE_ID } = require("../../config");
 
 const ROBLOX_GROUP_ID = 11517908;
 
@@ -862,6 +863,14 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       if (!desiredRoleIds.has(roleId) && member.roles.cache.has(roleId)) {
         toRemove.push(roleId);
       }
+    }
+
+    // Doğrulama rollerini ayarla
+    if (TMT_VERIFIED_ROLE_ID && !member.roles.cache.has(TMT_VERIFIED_ROLE_ID)) {
+      toAdd.push(TMT_VERIFIED_ROLE_ID);
+    }
+    if (TMT_UNVERIFIED_ROLE_ID && member.roles.cache.has(TMT_UNVERIFIED_ROLE_ID)) {
+      toRemove.push(TMT_UNVERIFIED_ROLE_ID);
     }
 
     console.log(`[TMT Role Sync] Roles to add:`, toAdd);

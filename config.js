@@ -43,6 +43,17 @@ const TMT_VERIFY_HELP_CHANNEL_ID = "1514583038598713404";
 /** Destek sistemi kanalı */
 const TMT_SUPPORT_CHANNEL_ID     = "1514583035327156254";
 
+// ── TMT Rolleri ──────────────────────────────────────────────────────────────
+const TMT_UNVERIFIED_ROLE_ID     = "1514642404932718724";
+const TMT_VERIFIED_ROLE_ID       = "1514582790639980635";
+
+// ── TMT Oyun ve Özel Kanallar ────────────────────────────────────────────────
+const TMT_HONEYPOT_CHANNEL_ID    = "1514583028331184229"; // Mesaj atanların atılacağı kanal
+const TMT_OWO_CHANNEL_ID         = "1514583077308072036";
+const TMT_TUTTU_CHANNEL_ID       = "1514583081304985640";
+const TMT_BOM_CHANNEL_ID         = "1514583084190924871";
+const TMT_WORDGAME_CHANNEL_ID    = "1514583088129376316";
+
 const SUPPORT_CATEGORIES = {
   ban:        { name: "🔨 Ban/Şikayet Talebi",  color: 0xff4444 },
   reklam:     { name: "📢 Reklam Satın Al",      color: 0xfbbf24 },
@@ -96,6 +107,13 @@ module.exports = {
   TMT_AUTOMOD_RULES_CHANNEL_ID,
   TMT_VERIFY_HELP_CHANNEL_ID,
   TMT_SUPPORT_CHANNEL_ID,
+  TMT_UNVERIFIED_ROLE_ID,
+  TMT_VERIFIED_ROLE_ID,
+  TMT_HONEYPOT_CHANNEL_ID,
+  TMT_OWO_CHANNEL_ID,
+  TMT_TUTTU_CHANNEL_ID,
+  TMT_BOM_CHANNEL_ID,
+  TMT_WORDGAME_CHANNEL_ID,
   ADMIN_IDS,
   DATA_DIR,
   SUPPORT_CATEGORIES,

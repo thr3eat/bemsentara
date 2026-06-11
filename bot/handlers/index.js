@@ -15,12 +15,14 @@ function initializeDiscordHandlers(client) {
     const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
     const { ensureTMTVerifyHelpMessage } = require("../services/tmtVerifyHelpMessage");
     const { ensureTMTSupportMessage } = require("../services/tmtSupportMessage");
+    const { ensureTMTRules } = require("../services/ensureTMTRules");
     const { startCleanupScheduler } = require("../services/ticketCleanup");
     const { startStaffScheduler } = require("../services/staffSystem");
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
     await ensureTMTSupportMessage(client);
+    await ensureTMTRules(client);
     startCleanupScheduler();
     startStaffScheduler(client);
   });
@@ -28,14 +30,22 @@ function initializeDiscordHandlers(client) {
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
   client.on("guildMemberAdd", async (member) => {
     try {
-      const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID } = require("../../config");
+      const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID, TMT_GUILD_ID, TMT_UNVERIFIED_ROLE_ID } = require("../../config");
       const { PermissionFlagsBits } = require('discord.js');
       
-      if (member.guild.id !== TARGET_GUILD_ID) return;
       if (member.user.bot) return;
+
+      let targetRoleId = null;
+      if (member.guild.id === TARGET_GUILD_ID) {
+        targetRoleId = UNVERIFIED_ROLE_ID;
+      } else if (member.guild.id === TMT_GUILD_ID) {
+        targetRoleId = TMT_UNVERIFIED_ROLE_ID;
+      } else {
+        return;
+      }
       
-      if (!UNVERIFIED_ROLE_ID) {
-        console.warn('[guildMemberAdd] UNVERIFIED_ROLE_ID not configured');
+      if (!targetRoleId) {
+        console.warn(`[guildMemberAdd] Unverified role not configured for guild ${member.guild.id}`);
         return;
       }
 
@@ -55,9 +65,9 @@ function initializeDiscordHandlers(client) {
         return;
       }
 
-      const role = member.guild.roles.cache.get(UNVERIFIED_ROLE_ID);
+      const role = member.guild.roles.cache.get(targetRoleId);
       if (!role) {
-        console.warn(`[guildMemberAdd] Role ${UNVERIFIED_ROLE_ID} not found in guild`);
+        console.warn(`[guildMemberAdd] Role ${targetRoleId} not found in guild`);
         return;
       }
 
@@ -174,6 +184,13 @@ function initializeDiscordHandlers(client) {
     }
 
     if (message.author.bot || !message.guild) return;
+
+    // ── TMT Oyunlar ve Honeypot ─────────────────────────────────────────────
+    try {
+      const { handleTMTGames } = require('../services/tmtGames');
+      const handled = await handleTMTGames(message, client);
+      if (handled) return;
+    } catch (_) {}
 
     // ── Abone fotoğraf doğrulama (Eko Yıldız) ──────────────────────────────
     try {
