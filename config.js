@@ -46,6 +46,8 @@ const TMT_SUPPORT_CHANNEL_ID     = "1514583035327156254";
 const TMT_VOICE_PANEL_CHANNEL_ID = "1514583184275279992";
 /** Ses kanalı oluşturma kanalı */
 const TMT_VOICE_JOIN_CHANNEL_ID = "1514583245260329001";
+/** Roblox Grup Yönetimi Rütbe Değiştirme Log Kanalı */
+const TMT_ROBLOX_RANK_LOG_CHANNEL_ID = "1514583232111317054";
 
 // ── TMT Rolleri ──────────────────────────────────────────────────────────────
 const TMT_UNVERIFIED_ROLE_ID     = "1514642404932718724";
@@ -120,6 +122,7 @@ module.exports = {
   TMT_WORDGAME_CHANNEL_ID,
   TMT_VOICE_PANEL_CHANNEL_ID,
   TMT_VOICE_JOIN_CHANNEL_ID,
+  TMT_ROBLOX_RANK_LOG_CHANNEL_ID,
   ADMIN_IDS,
   DATA_DIR,
   SUPPORT_CATEGORIES,

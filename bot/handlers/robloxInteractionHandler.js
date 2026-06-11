@@ -83,7 +83,43 @@ async function handleRobloxInteractions(interaction) {
         const newRankId = parseInt(parts[4]);
 
         const username = await noblox.getUsernameFromId(userId).catch(() => `User:${userId}`);
+        
+        let oldRoleName = "Bilinmiyor / Grupta Değil";
+        try {
+          oldRoleName = await noblox.getRankNameInGroup(parseInt(groupId), userId);
+        } catch (_) {}
+
         const newRole = await noblox.setRank({ group: parseInt(groupId), target: userId, rank: newRankId });
+
+        // Ayrıntılı Loglama
+        try {
+          const { TMT_GUILD_ID, TMT_ROBLOX_RANK_LOG_CHANNEL_ID } = require("../../config");
+          const guild = interaction.client.guilds.cache.get(TMT_GUILD_ID) || interaction.guild;
+          if (guild) {
+            const logChannel = guild.channels.cache.get(TMT_ROBLOX_RANK_LOG_CHANNEL_ID);
+            if (logChannel && logChannel.isTextBased()) {
+              const groupName = ROBLOX_GROUPS[groupId] || `Grup ID: ${groupId}`;
+              const embed = new EmbedBuilder()
+                .setTitle("🛡️ Roblox Rütbe Değişikliği Logu")
+                .setColor(0x2ECC71) // Yeşil
+                .addFields(
+                  { name: "👤 Yetkili (İşlemi Yapan)", value: `${interaction.user.toString()}\n\`${interaction.user.tag}\``, inline: true },
+                  { name: "🆔 Yetkili ID", value: `\`${interaction.user.id}\``, inline: true },
+                  { name: "🏢 Roblox Grubu", value: `**${groupName}**\nID: \`${groupId}\``, inline: true },
+                  { name: "👤 Hedef Roblox Kullanıcısı", value: `**${username}**\nID: \`${userId}\``, inline: true },
+                  { name: "⏪ Eski Rütbe", value: `**${oldRoleName}**`, inline: true },
+                  { name: "🆕 Atanan Yeni Rütbe", value: `**${newRole.name}**\nRank ID: \`${newRankId}\``, inline: true }
+                )
+                .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`)
+                .setTimestamp()
+                .setFooter({ text: "TMT Roblox Grup Yönetim Sistemi", iconURL: interaction.client.user.displayAvatarURL() });
+
+              await logChannel.send({ embeds: [embed] });
+            }
+          }
+        } catch (logErr) {
+          console.error("[Roblox Rank Select Log Error]", logErr);
+        }
 
         return interaction.editReply({ content: `✅ İşlem Başarılı!\n**${username}** kullanıcısının rütbesi başarıyla **${newRole.name}** yapıldı.` });
       } catch (err) {
