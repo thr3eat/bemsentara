@@ -6,7 +6,7 @@
 
 const axios = require("axios");
 const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES, SEPARATOR_ROLES, CATEGORY_ROLES, RANK_ROLES } = require("../config/tmtRoleSync");
-const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
+const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS, BRANCH_START_SEPARATOR, BRANCH_END_SEPARATOR } = require("../config/tmtBranchSync");
 
 const ROBLOX_GROUP_ID = 11517908;
 
@@ -109,7 +109,7 @@ function findRoleByName(guild, name) {
         // Match exact name, or name stripped of ▬▬▬ or ▬ lines
         const strippedName = rName.replace(/[▬\s]+/g, "");
         const strippedTarget = target.replace(/[▬\s]+/g, "");
-        return rName === target || strippedName === strippedTarget;
+        return rName === target || (strippedTarget !== "" && strippedName === strippedTarget);
       }
     ) || null
   );
@@ -120,11 +120,10 @@ function findRoleByName(guild, name) {
  */
 async function createBranchRole(guild, roleName, colorHex) {
   try {
-    const styledName = `▬▬▬ ${roleName} ▬▬▬`;
-    console.log(`[TMT Role Sync] Auto-creating missing branch role: "${styledName}" with color "${colorHex}"`);
+    console.log(`[TMT Role Sync] Auto-creating missing branch role: "${roleName}" with color "${colorHex}"`);
 
     const role = await guild.roles.create({
-      name: styledName,
+      name: roleName,
       color: hexToDiscordColor(colorHex),
       reason: `TMT Role Sync: Auto-created missing branch role`,
     });
@@ -382,6 +381,34 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
   desiredRoleIds.add(statusRoleId);
 
   // 4. Process Branch Roles
+  if (activeBranches.length > 0) {
+    // Ensure start separator exists and add it
+    let startSepRole = findRoleByName(guild, BRANCH_START_SEPARATOR);
+    if (!startSepRole) {
+      startSepRole = await guild.roles.create({
+        name: BRANCH_START_SEPARATOR,
+        color: hexToDiscordColor("#808080"),
+        reason: "TMT Role Sync: Auto-created branch start separator",
+      });
+    }
+    if (startSepRole) {
+      desiredRoleIds.add(startSepRole.id);
+    }
+
+    // Ensure end separator exists and add it
+    let endSepRole = findRoleByName(guild, BRANCH_END_SEPARATOR);
+    if (!endSepRole) {
+      endSepRole = await guild.roles.create({
+        name: BRANCH_END_SEPARATOR,
+        color: hexToDiscordColor("#808080"),
+        reason: "TMT Role Sync: Auto-created branch end separator",
+      });
+    }
+    if (endSepRole) {
+      desiredRoleIds.add(endSepRole.id);
+    }
+  }
+
   for (const branch of activeBranches) {
     const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
     const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
@@ -464,6 +491,12 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       }
     }
 
+    // Add branch separators to resolved list for cleanup
+    const startSep = findRoleByName(guild, BRANCH_START_SEPARATOR);
+    const endSep = findRoleByName(guild, BRANCH_END_SEPARATOR);
+    if (startSep) resolvedBranchRoleIds.add(startSep.id);
+    if (endSep) resolvedBranchRoleIds.add(endSep.id);
+
     // Remove all branch roles first
     const currentBranchRoles = member.roles.cache.filter(r => resolvedBranchRoleIds.has(r.id));
     if (currentBranchRoles.size > 0) {
@@ -525,6 +558,23 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       return true;
     }
 
+    // Add start separator
+    try {
+      let startSepRole = findRoleByName(guild, BRANCH_START_SEPARATOR);
+      if (!startSepRole) {
+        startSepRole = await guild.roles.create({
+          name: BRANCH_START_SEPARATOR,
+          color: hexToDiscordColor("#808080"),
+          reason: "TMT Role Sync: Auto-created branch start separator",
+        });
+      }
+      if (startSepRole) {
+        await member.roles.add(startSepRole, "TMT Branch: Start Separator");
+      }
+    } catch (err) {
+      console.error(`[TMT Branch Sync] Error adding start separator:`, err.message);
+    }
+
     // Sync each branch role
     for (const branch of activeBranches) {
       const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
@@ -571,6 +621,23 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       } catch (err) {
         console.error(`[TMT Branch Sync] Error adding branch roles for ${branch.branchName}:`, err.message);
       }
+    }
+
+    // Add end separator
+    try {
+      let endSepRole = findRoleByName(guild, BRANCH_END_SEPARATOR);
+      if (!endSepRole) {
+        endSepRole = await guild.roles.create({
+          name: BRANCH_END_SEPARATOR,
+          color: hexToDiscordColor("#808080"),
+          reason: "TMT Role Sync: Auto-created branch end separator",
+        });
+      }
+      if (endSepRole) {
+        await member.roles.add(endSepRole, "TMT Branch: End Separator");
+      }
+    } catch (err) {
+      console.error(`[TMT Branch Sync] Error adding end separator:`, err.message);
     }
 
     return true;
@@ -672,6 +739,9 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     }
 
     // Get all managed TMT role IDs
+    const startSep = findRoleByName(guild, BRANCH_START_SEPARATOR);
+    const endSep = findRoleByName(guild, BRANCH_END_SEPARATOR);
+
     const allManagedTMTRoles = new Set([
       ...Object.values(SEPARATOR_ROLES),
       ...Object.values(CATEGORY_ROLES),
@@ -679,6 +749,9 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       ...Object.values(RANK_ROLES),
       ...Array.from(resolvedBranchRoleIds)
     ]);
+
+    if (startSep) allManagedTMTRoles.add(startSep.id);
+    if (endSep) allManagedTMTRoles.add(endSep.id);
 
     const toAdd = [];
     const toRemove = [];
