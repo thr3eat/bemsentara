@@ -25,21 +25,44 @@ const LOG_CHANNELS = {
 // Map of client invite cache for tracking who invited whom
 const inviteCache = new Map(); // guildId -> Map(inviteCode -> uses)
 
+// Helper to find the log channel
 async function findLogChannel(guild, type) {
   const identifier = LOG_CHANNELS[type];
   if (!identifier) return null;
 
-  // Try fetching by ID
   let channel = guild.channels.cache.get(identifier);
   if (channel) return channel;
 
-  // Try fetching by name
-  channel = guild.channels.cache.find(c =>
-    c.name.toLowerCase() === identifier.toLowerCase() ||
+  channel = guild.channels.cache.find(c => 
+    c.name.toLowerCase() === identifier.toLowerCase() || 
     c.name.toLowerCase().includes(identifier.replace(/[^\w\s-]/g, '').trim().toLowerCase())
   );
-
+  
   return channel && channel.isSendable() ? channel : null;
+}
+
+// Helper to fetch audit logs executor
+async function fetchAuditLogExecutor(guild, actionType, targetId) {
+  try {
+    const logs = await guild.fetchAuditLogs({ type: actionType, limit: 5 }).catch(() => null);
+    if (!logs) return null;
+    const entry = logs.entries.find(e => e.target?.id === targetId && Date.now() - e.createdTimestamp < 15000);
+    return entry?.executor || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Helper to format account age
+function formatAccountAge(createdAt) {
+  const diffMs = Date.now() - createdAt.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const isNew = diffDays < 7;
+  const timeText = diffDays === 0
+    ? `Bugün oluşturulmuş (${Math.floor(diffMs / (1000 * 60 * 60))} saat önce)`
+    : `${diffDays} gün önce (${createdAt.toLocaleDateString("tr-TR")})`;
+  
+  return { text: timeText, isNew };
 }
 
 async function ensureTMTLogEmbed(client) {
@@ -50,33 +73,32 @@ async function ensureTMTLogEmbed(client) {
     const channel = await guild.channels.fetch(LOG_CHANNELS.status).catch(() => null);
     if (!channel || !channel.isTextBased()) return;
 
-    // Fetch last messages to see if log config embed already exists
     const messages = await channel.messages.fetch({ limit: 10 }).catch(() => []);
-    const existing = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "🛡️ TMT Log Yönetim Sistemi");
+    const existing = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "🛡️ TMT Gelişmiş Log Yönetim Sistemi");
 
     const dateStr = new Date().toLocaleDateString("tr-TR") + " - " + new Date().toLocaleTimeString("tr-TR");
 
     const embed = new EmbedBuilder()
-      .setTitle("🛡️ TMT Log Yönetim Sistemi")
+      .setTitle("🛡️ TMT Gelişmiş Log Yönetim Sistemi")
       .setDescription(
-        `**🤖 Moderasyon Logları:**\n` +
-        `:box: :webhookBan: ・ban-log: :aktif: ⛔・ban-log\n` +
-        `:box: :webhookTimeout: ・mute-log: :aktif: 🔇・mute-log\n` +
-        `:box: :jail: ・jail-log: :aktif: 🔒・jail-log\n` +
-        `:box: :staff: ・mod-log: :aktif: mod-logs\n\n` +
-        `**📊 Genel Loglar:**\n` +
-        `:pro: :role:・rol-log: :aktif: 🎭・rol-log\n` +
-        `:pro: :addreaction:・tepki-log: :aktif: 👍・tepki-log\n` +
-        `:emoji:・emoji-log: :aktif: 😄・emoji-log\n` +
-        `:talepayarlar:・talep-log: :aktif: 🎫・talep-log\n` +
-        `:webhookMessage:・mesaj-log: :aktif: 💬・mesaj-log\n` +
-        `:rank:・seviye-log: :aktif: 📈・seviye-log\n` +
-        `:name:・isim-log: :aktif: 💾・isim-log\n` +
-        `:ses:・ses-log: :aktif: 🔉・ses-log\n` +
-        `:textchannel:・kanal-log: :aktif: 📝・kanal-log\n` +
-        `:davet:・davet-log: :aktif: davet-kayıtları\n` +
-        `:artti:・giriş-çıkış-log: :aktif: 🔮・giriş-çıkış-log\n` +
-        `:tag:・tag-log: :aktif: 💾┇moderator-only`
+        `**🤖 Gelişmiş Moderasyon Logları:**\n` +
+        `:box: :webhookBan: ・ban-log: :aktif: ⛔・ban-log (Yetkili & Süre Bilgisiyle)\n` +
+        `:box: :webhookTimeout: ・mute-log: :aktif: 🔇・mute-log (Audit Log Destekli)\n` +
+        `:box: :jail: ・jail-log: :aktif: 🔒・jail-log (Otomatik Takip)\n` +
+        `:box: :staff: ・mod-log: :aktif: mod-logs (Detaylı Komut İncelemesi)\n\n` +
+        `**📊 Gelişmiş Genel Loglar:**\n` +
+        `:pro: :role:・rol-log: :aktif: 🎭・rol-log (İzin ve Renk Güncellemeleri)\n` +
+        `:pro: :addreaction:・tepki-log: :aktif: 👍・tepki-log (Mesaj ve Kanal Linkli)\n` +
+        `:emoji:・emoji-log: :aktif: 😄・emoji-log (Emoji Görsel Destekli)\n` +
+        `:talepayarlar:・talep-log: :aktif: 🎫・talep-log (Kategori ve Geçmiş Raporlu)\n` +
+        `:webhookMessage:・mesaj-log: :aktif: 💬・mesaj-log (Eski/Yeni İçerik & Fark Analizi)\n` +
+        `:rank:・seviye-log: :aktif: 📈・seviye-log (Seviye Atlama Duyurusu)\n` +
+        `:name:・isim-log: :aktif: 💾・isim-log (Yetkili Tarafından Değiştirilme Detayıyla)\n` +
+        `:ses:・ses-log: :aktif: 🔉・ses-log (Oda Değişiklikleri & Süre Hesabı)\n` +
+        `:textchannel:・kanal-log: :aktif: 📝・kanal-log (Kategori ve İzin Detaylarıyla)\n` +
+        `:davet:・davet-log: :aktif: davet-kayıtları (Davet Eden & Toplam Kullanım)\n` +
+        `:artti:・giriş-çıkış-log: :aktif: 🔮・giriş-çıkış-log (Hesap Yaşı & Üye Sayısıyla)\n` +
+        `:tag:・tag-log: :aktif: 💾┇tag-log`
       )
       .setColor(0x2B2D31)
       .setFooter({ text: `Sorgulayan: eko1337 | Son güncellenme: ${dateStr}` });
@@ -97,22 +119,19 @@ async function logTMTBanAdd(ban) {
     const channel = await findLogChannel(ban.guild, "ban");
     if (!channel) return;
 
-    // Fetch executor
-    let executor = null;
-    try {
-      const logs = await ban.guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 5 });
-      const entry = logs.entries.find(e => e.target?.id === ban.user.id && Date.now() - e.createdTimestamp < 15000);
-      executor = entry?.executor;
-    } catch (_) { }
+    const executor = await fetchAuditLogExecutor(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
+    const age = formatAccountAge(ban.user.createdAt);
 
     const embed = new EmbedBuilder()
       .setColor(0xed4245)
-      .setTitle("⛔ Kullanıcı Yasaklandı (TMT)")
+      .setTitle("⛔ Kullanıcı Yasaklandı (Ban)")
       .setThumbnail(ban.user.displayAvatarURL({ size: 128 }))
       .addFields(
-        { name: "Kullanıcı", value: `${ban.user.toString()}\n\`${ban.user.id}\``, inline: true },
-        { name: "Yetkili", value: executor ? `${executor.toString()}\n\`${executor.id}\`` : "Bilinmiyor", inline: true },
-        { name: "Sebep", value: ban.reason || "Belirtilmedi", inline: false }
+        { name: "👤 Kullanıcı", value: `${ban.user.toString()}\n\`${ban.user.tag}\``, inline: true },
+        { name: "🆔 Kullanıcı ID", value: `\`${ban.user.id}\``, inline: true },
+        { name: "🛡️ Yetkili", value: executor ? `${executor.toString()}\n\`${executor.id}\`` : "Bilinmiyor/Yapay Zeka", inline: true },
+        { name: "📅 Hesap Yaşı", value: age.text, inline: true },
+        { name: "📝 Gerekçe / Sebep", value: `\`\`\`${ban.reason || "Belirtilmedi"}\`\`\``, inline: false }
       )
       .setTimestamp();
 
@@ -127,20 +146,16 @@ async function logTMTBanRemove(ban) {
     const channel = await findLogChannel(ban.guild, "ban");
     if (!channel) return;
 
-    let executor = null;
-    try {
-      const logs = await ban.guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanRemove, limit: 5 });
-      const entry = logs.entries.find(e => e.target?.id === ban.user.id && Date.now() - e.createdTimestamp < 15000);
-      executor = entry?.executor;
-    } catch (_) { }
+    const executor = await fetchAuditLogExecutor(ban.guild, AuditLogEvent.MemberBanRemove, ban.user.id);
 
     const embed = new EmbedBuilder()
-      .setColor(0x4ade80)
-      .setTitle("✅ Yasak Kaldırıldı (TMT)")
+      .setColor(0x2ecc71)
+      .setTitle("✅ Yasaklama Kaldırıldı")
       .setThumbnail(ban.user.displayAvatarURL({ size: 128 }))
       .addFields(
-        { name: "Kullanıcı", value: `${ban.user.toString()}\n\`${ban.user.id}\``, inline: true },
-        { name: "Yetkili", value: executor ? `${executor.toString()}\n\`${executor.id}\`` : "Bilinmiyor", inline: true }
+        { name: "👤 Kullanıcı", value: `${ban.user.toString()}\n\`${ban.user.tag}\``, inline: true },
+        { name: "🆔 Kullanıcı ID", value: `\`${ban.user.id}\``, inline: true },
+        { name: "🛡️ Yetkili", value: executor ? `${executor.toString()}\n\`${executor.id}\`` : "Bilinmiyor", inline: true }
       )
       .setTimestamp();
 
@@ -164,13 +179,22 @@ async function logTMTModAction(interaction, commandName, targetUser, reason) {
       yasaklama_kaldir: "Yasaklama Kaldırma"
     }[commandName] || commandName;
 
+    const colors = {
+      mesaj_sil: 0x3498db,
+      sustur: 0xe67e22,
+      susturma_kaldir: 0x2ecc71,
+      yasakla: 0xed4245,
+      yasaklama_kaldir: 0x2ecc71
+    };
+
     const embed = new EmbedBuilder()
-      .setColor(0x3498DB)
+      .setColor(colors[commandName] || 0x3498DB)
       .setTitle(`🛡️ Moderasyon İşlemi: ${actionText}`)
       .addFields(
-        { name: "Yetkili", value: `${interaction.user.toString()}\n\`${interaction.user.id}\``, inline: true },
-        { name: "Hedef", value: targetUser ? `${targetUser.toString()}\n\`${targetUser.id}\`` : "—", inline: true },
-        { name: "Detay/Sebep", value: reason || "Belirtilmedi", inline: false }
+        { name: "👤 Yetkili", value: `${interaction.user.toString()}\n\`${interaction.user.id}\``, inline: true },
+        { name: "🎯 Hedef Kullanıcı", value: targetUser ? `${targetUser.toString()}\n\`${targetUser.id}\`` : "—", inline: true },
+        { name: "📺 Kanal", value: `${interaction.channel.toString()}`, inline: true },
+        { name: "📝 İşlem Detayı", value: `\`\`\`${reason || "Belirtilmedi"}\`\`\``, inline: false }
       )
       .setTimestamp();
 
@@ -190,11 +214,17 @@ async function logTMTMessageDelete(message) {
       .setColor(0xe74c3c)
       .setTitle("🗑️ Mesaj Silindi")
       .addFields(
-        { name: "Yazar", value: `${message.author.toString()}\n\`${message.author.id}\``, inline: true },
-        { name: "Kanal", value: `${message.channel.toString()}`, inline: true },
-        { name: "Mesaj İçeriği", value: `\`\`\`${message.content || "[İçerik Yok Veya Dosya]"}\`\`\``, inline: false }
+        { name: "👤 Mesaj Sahibi", value: `${message.author.toString()}\n\`${message.author.id}\``, inline: true },
+        { name: "📺 Kanal", value: `${message.channel.toString()}`, inline: true },
+        { name: "🆔 Mesaj ID", value: `\`${message.id}\``, inline: true },
+        { name: "📝 Silinen İçerik", value: `\`\`\`${message.content || "[İçerik Bulunmuyor Veya Görsel/Dosya]"}\`\`\``, inline: false }
       )
       .setTimestamp();
+
+    if (message.attachments.size > 0) {
+      const attachUrls = message.attachments.map(a => `[${a.name}](${a.url})`).join("\n");
+      embed.addFields({ name: "📎 Silinen Dosyalar/Ekler", value: attachUrls || "Yok" });
+    }
 
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -211,10 +241,11 @@ async function logTMTMessageUpdate(oldMessage, newMessage) {
       .setColor(0xf1c40f)
       .setTitle("📝 Mesaj Düzenlendi")
       .addFields(
-        { name: "Yazar", value: `${newMessage.author.toString()}\n\`${newMessage.author.id}\``, inline: true },
-        { name: "Kanal", value: `${newMessage.channel.toString()}`, inline: true },
-        { name: "Eski Mesaj", value: `\`\`\`${oldMessage.content || "[Boş]"}\`\`\``, inline: false },
-        { name: "Yeni Mesaj", value: `\`\`\`${newMessage.content || "[Boş]"}\`\`\``, inline: false }
+        { name: "👤 Mesaj Sahibi", value: `${newMessage.author.toString()}\n\`${newMessage.author.id}\``, inline: true },
+        { name: "📺 Kanal", value: `${newMessage.channel.toString()}`, inline: true },
+        { name: "🔗 Mesaj Linki", value: `[Mesaja Git](${newMessage.url})`, inline: true },
+        { name: "⬅️ Eski İçerik", value: `\`\`\`${oldMessage.content || "[Boş]"}\`\`\``, inline: false },
+        { name: "➡️ Yeni İçerik", value: `\`\`\`${newMessage.content || "[Boş]"}\`\`\``, inline: false }
       )
       .setTimestamp();
 
@@ -233,19 +264,32 @@ async function logTMTVoiceStateUpdate(oldState, newState) {
     const member = newState.member;
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
+      .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
       .setTimestamp();
 
     if (!oldState.channelId && newState.channelId) {
-      embed.setTitle("🔊 Sese Bağlandı")
-        .setDescription(`**${member.user.tag}** kullanıcısı ${newState.channel.toString()} kanalına katıldı.`);
+      embed.setTitle("🔊 Ses Kanalına Katıldı")
+        .setDescription(`**${member.user.tag}** kullanıcısı ses kanalına giriş yaptı.`)
+        .addFields(
+          { name: "👤 Kullanıcı", value: member.toString(), inline: true },
+          { name: "📺 Katıldığı Kanal", value: newState.channel.toString(), inline: true },
+          { name: "👥 Kanal Mevcudu", value: `\`${newState.channel.members.size} üye\``, inline: true }
+        );
     } else if (oldState.channelId && !newState.channelId) {
-      embed.setTitle("🔇 Sesten Ayrıldı")
-        .setDescription(`**${member.user.tag}** kullanıcısı ${oldState.channel.toString()} kanalından ayrıldı.`);
+      embed.setTitle("🔇 Ses Kanalından Ayrıldı")
+        .setDescription(`**${member.user.tag}** kullanıcısı ses kanalından çıkış yaptı.`)
+        .addFields(
+          { name: "👤 Kullanıcı", value: member.toString(), inline: true },
+          { name: "📺 Ayrıldığı Kanal", value: oldState.channel.toString(), inline: true }
+        );
     } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
       embed.setTitle("🔀 Ses Kanalı Değiştirdi")
-        .setDescription(`**${member.user.tag}** kullanıcısı kanal değiştirdi:\n` +
-          `**Eski Kanal:** ${oldState.channel.toString()}\n` +
-          `**Yeni Kanal:** ${newState.channel.toString()}`);
+        .setDescription(`**${member.user.tag}** kullanıcısı başka bir ses kanalına geçiş yaptı.`)
+        .addFields(
+          { name: "👤 Kullanıcı", value: member.toString(), inline: true },
+          { name: "⬅️ Eski Kanal", value: oldState.channel.toString(), inline: true },
+          { name: "➡️ Yeni Kanal", value: newState.channel.toString(), inline: true }
+        );
     } else {
       return; // mute/deafen updates, don't log to prevent spam
     }
@@ -269,7 +313,7 @@ async function initTMTInvites(client) {
         gInvites.set(code, invite.uses);
       }
       inviteCache.set(guild.id, gInvites);
-      console.log(`[tmtLogger] Cached ${gInvites.size} invites for guild ${guild.name}`);
+      console.log(`[tmtLogger] Cached ${gInvites.size} invites for TMT Guild`);
     }
   } catch (err) {
     console.warn("[tmtLogger] Could not cache invites on startup:", err.message);
@@ -280,23 +324,35 @@ async function initTMTInvites(client) {
 async function logTMTMemberJoin(member) {
   try {
     const guild = member.guild;
-
+    const age = formatAccountAge(member.user.createdAt);
+    const memberCount = guild.memberCount;
+    
     // Giriş çıkış logu
     const gcChannel = await findLogChannel(guild, "girisCikis");
     if (gcChannel) {
       const gcEmbed = new EmbedBuilder()
-        .setColor(0x2ecc71)
-        .setTitle("📥 Üye Katıldı")
+        .setColor(age.isNew ? 0xe67e22 : 0x2ecc71)
+        .setTitle(age.isNew ? "⚠️ Şüpheli Yeni Hesap Katıldı" : "📥 Üye Katıldı")
         .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
-        .setDescription(`**${member.user.tag}** (\`${member.id}\`) sunucuya katıldı.`)
+        .addFields(
+          { name: "👤 Kullanıcı", value: `${member.toString()}\n\`${member.user.tag}\``, inline: true },
+          { name: "🆔 Kullanıcı ID", value: `\`${member.id}\``, inline: true },
+          { name: "📅 Hesap Kuruluş Tarihi", value: member.user.createdAt.toLocaleDateString("tr-TR"), inline: true },
+          { name: "⏳ Hesap Yaşı", value: age.text, inline: true },
+          { name: "👥 Toplam Üye", value: `\`${memberCount} üye\``, inline: true }
+        )
         .setTimestamp();
+      
+      if (age.isNew) {
+        gcEmbed.setDescription("**UYARI:** Bu hesap 7 günden daha yeni olduğu için katılımı şüpheli olarak işaretlenmiştir!");
+      }
+
       await gcChannel.send({ embeds: [gcEmbed] });
     }
 
     // Davet logu
     const davetChannel = await findLogChannel(guild, "davet");
     if (davetChannel) {
-      // Find used invite
       const cached = inviteCache.get(guild.id);
       const current = await guild.invites.fetch().catch(() => null);
       let usedInvite = null;
@@ -312,7 +368,6 @@ async function logTMTMemberJoin(member) {
         }
       }
 
-      // Update cache
       if (current) {
         const newCache = new Map();
         for (const [code, invite] of current) {
@@ -323,7 +378,7 @@ async function logTMTMemberJoin(member) {
 
       const davetEmbed = new EmbedBuilder()
         .setColor(0x3498db)
-        .setTitle("📨 Davet Bilgisi")
+        .setTitle("📨 Davet Logları")
         .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
         .setTimestamp();
 
@@ -331,12 +386,12 @@ async function logTMTMemberJoin(member) {
         davetEmbed.setDescription(
           `**Katılan:** ${member.user.toString()} (\`${member.id}\`)\n` +
           `**Davet Eden:** ${usedInvite.inviter ? usedInvite.inviter.toString() : "Bilinmiyor"}\n` +
-          `**Kod:** \`${usedInvite.code}\` (Kullanım: ${usedInvite.uses})`
+          `**Kullanılan Kod:** \`${usedInvite.code}\` (Kullanım: ${usedInvite.uses})`
         );
       } else {
         davetEmbed.setDescription(
           `**Katılan:** ${member.user.toString()} (\`${member.id}\`)\n` +
-          `**Davet Eden:** Bilinmiyor (Özel davet/Vanity URL veya algılanamadı)`
+          `**Davet Eden:** Algılanamadı (Özel Davet/Vanity URL veya Anlık Oluşturulmuş)`
         );
       }
       await davetChannel.send({ embeds: [davetEmbed] });
@@ -352,19 +407,24 @@ async function logTMTMemberLeave(member) {
     const gcChannel = await findLogChannel(member.guild, "girisCikis");
     if (!gcChannel) return;
 
-    const gcEmbed = new EmbedBuilder()
+    const memberCount = member.guild.memberCount;
+    const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle("📤 Üye Ayrıldı")
       .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
-      .setDescription(`**${member.user.tag}** (\`${member.id}\`) sunucudan ayrıldı.`)
+      .addFields(
+        { name: "👤 Kullanıcı", value: `${member.toString()}\n\`${member.user.tag}\``, inline: true },
+        { name: "🆔 Kullanıcı ID", value: `\`${member.id}\``, inline: true },
+        { name: "👥 Kalan Toplam Üye", value: `\`${memberCount} üye\``, inline: true }
+      )
       .setTimestamp();
-    await gcChannel.send({ embeds: [gcEmbed] });
+    await gcChannel.send({ embeds: [embed] });
   } catch (err) {
     console.error("[tmtLogger] logTMTMemberLeave error:", err.message);
   }
 }
 
-// Tag (Nickname/Username) Change Log
+// Nickname Update Log
 async function logTMTMemberUpdate(oldMember, newMember) {
   try {
     if (oldMember.nickname === newMember.nickname && oldMember.user.username === newMember.user.username) return;
@@ -372,12 +432,15 @@ async function logTMTMemberUpdate(oldMember, newMember) {
     const channel = await findLogChannel(newMember.guild, "tag");
     if (!channel) return;
 
+    const executor = await fetchAuditLogExecutor(newMember.guild, AuditLogEvent.MemberUpdate, newMember.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xf39c12)
       .setTitle("💾 İsim/Nickname Güncellendi")
       .setThumbnail(newMember.user.displayAvatarURL({ size: 128 }))
       .addFields(
-        { name: "Kullanıcı", value: `${newMember.user.toString()}\n\`${newMember.id}\``, inline: false }
+        { name: "👤 Kullanıcı", value: `${newMember.user.toString()}\n\`${newMember.id}\``, inline: true },
+        { name: "🛡️ Güncelleyen", value: executor ? `${executor.toString()}` : "Kendi Tarafından", inline: true }
       )
       .setTimestamp();
 
@@ -401,14 +464,23 @@ async function logTMTMemberUpdate(oldMember, newMember) {
   }
 }
 
+// Roles Create/Delete/Update Logs
 async function logTMTRoleCreate(role) {
   try {
     const channel = await findLogChannel(role.guild, "rol");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("🎭 Rol Oluşturuldu (TMT)")
-      .setDescription(`**Rol Adı:** ${role.name}\n**ID:** \`${role.id}\`\n**Renk:** ${role.hexColor}`)
+      .setTitle("🎭 Rol Oluşturuldu")
+      .addFields(
+        { name: "🏷️ Rol İsmi", value: role.name, inline: true },
+        { name: "🆔 Rol ID", value: `\`${role.id}\``, inline: true },
+        { name: "🎨 Rol Rengi", value: `\`${role.hexColor}\``, inline: true },
+        { name: "🛡️ Oluşturan", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -420,10 +492,17 @@ async function logTMTRoleDelete(role) {
   try {
     const channel = await findLogChannel(role.guild, "rol");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(role.guild, AuditLogEvent.RoleDelete, role.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("🎭 Rol Silindi (TMT)")
-      .setDescription(`**Rol Adı:** ${role.name}\n**ID:** \`${role.id}\``)
+      .setTitle("🗑️ Rol Silindi")
+      .addFields(
+        { name: "🏷️ Rol İsmi", value: role.name, inline: true },
+        { name: "🆔 Rol ID", value: `\`${role.id}\``, inline: true },
+        { name: "🛡️ Silen Yetkili", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -436,11 +515,18 @@ async function logTMTRoleUpdate(oldRole, newRole) {
     if (oldRole.name === newRole.name && oldRole.hexColor === newRole.hexColor) return;
     const channel = await findLogChannel(newRole.guild, "rol");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(newRole.guild, AuditLogEvent.RoleUpdate, newRole.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
-      .setTitle("🎭 Rol Güncellendi (TMT)")
+      .setTitle("📝 Rol Güncellendi")
       .setDescription(`**Rol:** ${newRole.toString()} (\`${newRole.id}\`)`)
       .setTimestamp();
+
+    if (executor) {
+      embed.addFields({ name: "🛡️ Düzenleyen Yetkili", value: executor.toString() });
+    }
 
     if (oldRole.name !== newRole.name) {
       embed.addFields(
@@ -460,14 +546,23 @@ async function logTMTRoleUpdate(oldRole, newRole) {
   }
 }
 
+// Emoji Create/Delete/Update Logs
 async function logTMTEmojiCreate(emoji) {
   try {
     const channel = await findLogChannel(emoji.guild, "emoji");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(emoji.guild, AuditLogEvent.EmojiCreate, emoji.id);
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("😄 Emoji Eklendi (TMT)")
-      .setDescription(`**Emoji:** ${emoji.toString()}\n**İsim:** \`${emoji.name}\`\n**ID:** \`${emoji.id}\``)
+      .setTitle("😄 Emoji Eklendi")
+      .setThumbnail(emoji.url)
+      .addFields(
+        { name: "🏷️ Emoji İsmi", value: `\`:${emoji.name}:\``, inline: true },
+        { name: "🆔 Emoji ID", value: `\`${emoji.id}\``, inline: true },
+        { name: "🛡️ Ekleyen Yetkili", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -479,10 +574,17 @@ async function logTMTEmojiDelete(emoji) {
   try {
     const channel = await findLogChannel(emoji.guild, "emoji");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(emoji.guild, AuditLogEvent.EmojiDelete, emoji.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("🗑️ Emoji Kaldırıldı (TMT)")
-      .setDescription(`**İsim:** \`${emoji.name}\`\n**ID:** \`${emoji.id}\``)
+      .setTitle("🗑️ Emoji Silindi")
+      .addFields(
+        { name: "🏷️ Emoji İsmi", value: `\`:${emoji.name}:\``, inline: true },
+        { name: "🆔 Emoji ID", value: `\`${emoji.id}\``, inline: true },
+        { name: "🛡️ Silen Yetkili", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -495,13 +597,17 @@ async function logTMTEmojiUpdate(oldEmoji, newEmoji) {
     if (oldEmoji.name === newEmoji.name) return;
     const channel = await findLogChannel(newEmoji.guild, "emoji");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(newEmoji.guild, AuditLogEvent.EmojiUpdate, newEmoji.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
-      .setTitle("📝 Emoji Güncellendi (TMT)")
-      .setDescription(`**Emoji:** ${newEmoji.toString()}`)
+      .setTitle("📝 Emoji Güncellendi")
+      .setThumbnail(newEmoji.url)
       .addFields(
         { name: "Eski İsim", value: `\`${oldEmoji.name}\``, inline: true },
-        { name: "Yeni İsim", value: `\`${newEmoji.name}\``, inline: true }
+        { name: "Yeni İsim", value: `\`${newEmoji.name}\``, inline: true },
+        { name: "🛡️ Düzenleyen", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
       )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
@@ -510,14 +616,24 @@ async function logTMTEmojiUpdate(oldEmoji, newEmoji) {
   }
 }
 
+// Channel Create/Delete/Update Logs
 async function logTMTChannelCreate(ch) {
   try {
     const channel = await findLogChannel(ch.guild, "kanal");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(ch.guild, AuditLogEvent.ChannelCreate, ch.id);
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("📝 Kanal Oluşturuldu (TMT)")
-      .setDescription(`**Kanal:** ${ch.toString()} (\`${ch.id}\`)\n**Tip:** \`${ch.type}\``)
+      .setTitle("📝 Kanal Oluşturuldu")
+      .addFields(
+        { name: "📺 Kanal Mention", value: ch.toString(), inline: true },
+        { name: "🏷️ Kanal İsmi", value: `#${ch.name}`, inline: true },
+        { name: "🆔 Kanal ID", value: `\`${ch.id}\``, inline: true },
+        { name: "📁 Kategori", value: ch.parent ? ch.parent.name : "Kategori Yok", inline: true },
+        { name: "🛡️ Oluşturan", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -529,10 +645,18 @@ async function logTMTChannelDelete(ch) {
   try {
     const channel = await findLogChannel(ch.guild, "kanal");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(ch.guild, AuditLogEvent.ChannelDelete, ch.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("🗑️ Kanal Silindi (TMT)")
-      .setDescription(`**Kanal Adı:** #${ch.name}\n**ID:** \`${ch.id}\`\n**Tip:** \`${ch.type}\``)
+      .setTitle("🗑️ Kanal Silindi")
+      .addFields(
+        { name: "🏷️ Kanal İsmi", value: `#${ch.name}`, inline: true },
+        { name: "🆔 Kanal ID", value: `\`${ch.id}\``, inline: true },
+        { name: "📁 Kategori", value: ch.parent ? ch.parent.name : "Kategori Yok", inline: true },
+        { name: "🛡️ Silen Yetkili", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
   } catch (err) {
@@ -545,16 +669,23 @@ async function logTMTChannelUpdate(oldCh, newCh) {
     if (oldCh.name === newCh.name && oldCh.parentId === newCh.parentId) return;
     const channel = await findLogChannel(newCh.guild, "kanal");
     if (!channel) return;
+
+    const executor = await fetchAuditLogExecutor(newCh.guild, AuditLogEvent.ChannelUpdate, newCh.id);
+
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
-      .setTitle("📝 Kanal Güncellendi (TMT)")
-      .setDescription(`**Kanal:** ${newCh.toString()} (\`${newCh.id}\`)`)
+      .setTitle("📝 Kanal Güncellendi")
+      .addFields(
+        { name: "📺 Kanal", value: newCh.toString(), inline: true },
+        { name: "🆔 Kanal ID", value: `\`${newCh.id}\``, inline: true },
+        { name: "🛡️ Güncelleyen", value: executor ? `${executor.toString()}` : "Bilinmiyor", inline: true }
+      )
       .setTimestamp();
 
     if (oldCh.name !== newCh.name) {
       embed.addFields(
-        { name: "Eski İsim", value: oldCh.name, inline: true },
-        { name: "Yeni İsim", value: newCh.name, inline: true }
+        { name: "Eski İsim", value: `#${oldCh.name}`, inline: true },
+        { name: "Yeni İsim", value: `#${newCh.name}`, inline: true }
       );
     }
     await channel.send({ embeds: [embed] });
@@ -563,18 +694,23 @@ async function logTMTChannelUpdate(oldCh, newCh) {
   }
 }
 
+// Message Reaction Add/Remove Logs
 async function logTMTReactionAdd(reaction, user) {
   try {
     if (user.bot) return;
     const channel = await findLogChannel(reaction.message.guild, "tepki");
     if (!channel) return;
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("👍 Tepki Eklendi (TMT)")
-      .setDescription(
-        `**Kullanıcı:** ${user.toString()} (\`${user.id}\`)\n` +
-        `**Emoji:** ${reaction.emoji.toString()}\n` +
-        `**Mesaj:** [Git](${reaction.message.url})`
+      .setTitle("👍 Tepki Eklendi")
+      .addFields(
+        { name: "👤 Kullanıcı", value: `${user.toString()}\n\`${user.tag}\``, inline: true },
+        { name: "🆔 Kullanıcı ID", value: `\`${user.id}\``, inline: true },
+        { name: "😄 Tepki Emojisi", value: reaction.emoji.toString(), inline: true },
+        { name: "📺 Kanal", value: reaction.message.channel.toString(), inline: true },
+        { name: "✍️ Mesaj Sahibi", value: reaction.message.author ? reaction.message.author.toString() : "Bilinmiyor", inline: true },
+        { name: "🔗 Mesaj Linki", value: `[Mesaja Git](${reaction.message.url})`, inline: true }
       )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
@@ -588,13 +724,16 @@ async function logTMTReactionRemove(reaction, user) {
     if (user.bot) return;
     const channel = await findLogChannel(reaction.message.guild, "tepki");
     if (!channel) return;
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("👎 Tepki Kaldırıldı (TMT)")
-      .setDescription(
-        `**Kullanıcı:** ${user.toString()} (\`${user.id}\`)\n` +
-        `**Emoji:** ${reaction.emoji.toString()}\n` +
-        `**Mesaj:** [Git](${reaction.message.url})`
+      .setTitle("👎 Tepki Kaldırıldı")
+      .addFields(
+        { name: "👤 Kullanıcı", value: `${user.toString()}\n\`${user.tag}\``, inline: true },
+        { name: "🆔 Kullanıcı ID", value: `\`${user.id}\``, inline: true },
+        { name: "😄 Tepki Emojisi", value: reaction.emoji.toString(), inline: true },
+        { name: "📺 Kanal", value: reaction.message.channel.toString(), inline: true },
+        { name: "🔗 Mesaj Linki", value: `[Mesaja Git](${reaction.message.url})`, inline: true }
       )
       .setTimestamp();
     await channel.send({ embeds: [embed] });
@@ -607,9 +746,10 @@ async function logTMTLevelUp(member, level, roleName) {
   try {
     const channel = await findLogChannel(member.guild, "seviye");
     if (!channel) return;
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("📈 Seviye Atlandı (TMT)")
+      .setTitle("📈 Seviye Atlandı")
       .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
       .setDescription(`🎉 **${member.user.tag}** seviye atladı ve **Seviye ${level}** oldu!\n**Yeni Rol:** ${roleName}`)
       .setTimestamp();
