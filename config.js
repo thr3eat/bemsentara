@@ -77,6 +77,10 @@ const TMT_SUPPORT_CATEGORIES = {
   game:       { name: "💂🏻 Oyun Destek",        color: 0x57F287, description: "Oyunumuzda yaşanan sorunlar veya yardımlar için açılması gereken destek bileti." },
 };
 
+// ── Allied Orduları Sunucusu (Merkezi Detaylı Loglama) ───────────────────────
+const ALLIED_GUILD_ID = process.env.ALLIED_GUILD_ID || "1514691009668321360"; 
+const ALLIED_LOG_CHANNEL_ID = process.env.ALLIED_LOG_CHANNEL_ID || "1514691009668321360";
+
 const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
   .split(",")
   .map((id) => id.trim())
@@ -127,4 +131,7 @@ module.exports = {
   DATA_DIR,
   SUPPORT_CATEGORIES,
   TMT_SUPPORT_CATEGORIES,
+  // Allied Orduları (Merkezi Loglama)
+  ALLIED_GUILD_ID,
+  ALLIED_LOG_CHANNEL_ID,
 };

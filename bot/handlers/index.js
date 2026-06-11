@@ -5,10 +5,14 @@ const { handleGeneralCommand } = require("./generalCommandHandler");
 const { handleEconomyCommand } = require("./economyCommandHandler");
 const { handleFunCommand } = require("./funCommandHandler");
 const { handleModerationCommand } = require("./moderationCommandHandler");
+const { setupCentralAuditHandler } = require("./centralAuditHandler");
 
 function initializeDiscordHandlers(client) {
   const { initializeVoiceAndBanHandlers } = require("./voiceHandler");
   initializeVoiceAndBanHandlers(client);
+  
+  // Merkezi Denetim Günlüğü Handler'ını başlat
+  setupCentralAuditHandler(client);
 
   client.once("ready", async () => {
     const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
