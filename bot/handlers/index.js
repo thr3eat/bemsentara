@@ -18,6 +18,8 @@ function initializeDiscordHandlers(client) {
     const { ensureTMTRules } = require("../services/ensureTMTRules");
     const { startCleanupScheduler } = require("../services/ticketCleanup");
     const { startStaffScheduler } = require("../services/staffSystem");
+    const { RULE_PREFIX } = require("../services/tmtAutomodService");
+    const { startAtaturkHistoryScheduler } = require("../services/ataturkHistoryAI");
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
@@ -25,6 +27,7 @@ function initializeDiscordHandlers(client) {
     await ensureTMTRules(client);
     startCleanupScheduler();
     startStaffScheduler(client);
+    startAtaturkHistoryScheduler(client);
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -81,6 +84,25 @@ function initializeDiscordHandlers(client) {
       console.log(`[guildMemberAdd] ${member.user.tag} → doğrulanmamış rolü verildi`);
     } catch (err) {
       console.error("[guildMemberAdd] Fatal error:", err.message);
+    }
+  });
+
+  client.on("autoModerationActionExecution", async (execution) => {
+    try {
+      const { TMT_GUILD_ID } = require("../../config");
+      const { RULE_PREFIX } = require("../services/tmtAutomodService");
+      if (execution.guild.id === TMT_GUILD_ID && execution.ruleTriggerType === 1) { // 1 = Keyword
+        const rule = await execution.guild.autoModerationRules.fetch(execution.ruleId).catch(() => null);
+        if (rule && rule.name === `${RULE_PREFIX}1.0 Kişisel Bilgiler`) {
+          const member = await execution.guild.members.fetch(execution.userId).catch(() => null);
+          if (member && member.bannable) {
+            await member.ban({ reason: "Otomod: 1.0 Kişisel Bilgilerin Koruması İhlali (Sistem Banı)" });
+            console.log(`[TMT AutoMod] ${member.user.tag} (ID: ${member.id}) Kişisel Bilgi paylaştığı için yasaklandı.`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("AutoMod Ban hatası:", err);
     }
   });
 

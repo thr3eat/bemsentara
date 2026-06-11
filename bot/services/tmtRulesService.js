@@ -10,6 +10,7 @@ const {
   TMT_RULES_CHANNEL_ID,
   TMT_AUTOMOD_RULES_CHANNEL_ID,
 } = require("../../config");
+const { ensureTMTAutoMod } = require("./tmtAutomodService");
 
 // ─── Sabitler ────────────────────────────────────────────────────────────────
 
@@ -440,6 +441,9 @@ async function postTMTRules(client, { clear = false } = {}) {
 
     console.log("📤 Otomod kuralları gönderiliyor...");
     await postAutomodRules(automodChannel);
+
+    console.log("🛠️ TMT Otomatik Moderasyon sistemleri doğrulanıyor...");
+    await ensureTMTAutoMod(client);
 
     console.log("✅ TMT sunucu kuralları başarıyla gönderildi.");
     return true;
