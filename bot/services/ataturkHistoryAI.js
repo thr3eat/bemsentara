@@ -1,42 +1,8 @@
 const cron = require("node-cron");
 const { EmbedBuilder } = require("discord.js");
-const axios = require("axios");
 const { chatWithAI } = require("./aiService");
 
 const TARGET_CHANNEL_ID = "1514583020680777760";
-
-/**
- * Wikimedia Commons üzerinden rastgele Atatürk fotoğrafı çeker.
- */
-async function randomAtaturkPhoto() {
-  const BASE = 'https://commons.wikimedia.org/w/api.php';
-
-  // 1. Listeyi çek
-  const listRes = await axios.get(
-    `${BASE}?action=query&list=categorymembers` +
-    `&cmtitle=Category:Photographs_of_Mustafa_Kemal_Atat%C3%BCrk` +
-    `&cmlimit=500&cmtype=file&format=json&origin=*`
-  );
-  
-  const files = listRes.data.query.categorymembers;
-  if (!files || files.length === 0) {
-    throw new Error("Wikimedia'dan fotoğraf listesi alınamadı.");
-  }
-
-  // 2. Rastgele seç
-  const file = files[Math.floor(Math.random() * files.length)];
-
-  // 3. URL'yi al
-  const imgRes = await axios.get(
-    `${BASE}?action=query&titles=${encodeURIComponent(file.title)}` +
-    `&prop=imageinfo&iiprop=url&format=json&origin=*`
-  );
-  
-  const pages = imgRes.data.query.pages;
-  const url = Object.values(pages)[0].imageinfo[0].url;
-
-  return url;
-}
 
 /**
  * Her gün sabah 09:00'da Atatürk ile ilgili tarihi bilgi atar.
@@ -82,19 +48,10 @@ async function postAtaturkHistory(client) {
       aiContent = `${dateStr} gününde Atatürk'ün tarihimize kattığı eşsiz değerleri saygıyla anıyoruz. (Yapay zeka servisinde anlık bir sorun oluştu)`;
     }
 
-    // API'den rastgele fotoğraf çek
-    let randomPhoto = "https://upload.wikimedia.org/wikipedia/commons/e/e0/Mustafa_Kemal_Atat%C3%BCrk_in_1932.jpg"; // Fallback
-    try {
-      randomPhoto = await randomAtaturkPhoto();
-    } catch (apiErr) {
-      console.error("❌ [AtaturkHistoryAI] Fotoğraf API isteği başarısız:", apiErr.message);
-    }
-
     const embed = new EmbedBuilder()
       .setTitle(`📅 Tarihte Bugün - ${dateStr}`)
       .setDescription(aiContent)
       .setColor(0xdc143c) // Kırmızı
-      .setImage(randomPhoto)
       .setFooter({ text: "TMT Yapay Zeka Tarih Sistemi", iconURL: client.user.displayAvatarURL() })
       .setTimestamp();
 
