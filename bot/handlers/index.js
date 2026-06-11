@@ -20,7 +20,7 @@ function initializeDiscordHandlers(client) {
     const { startStaffScheduler } = require("../services/staffSystem");
     const { RULE_PREFIX } = require("../services/tmtAutomodService");
     const { startAtaturkHistoryScheduler } = require("../services/ataturkHistoryAI");
-    const { initializeRoblox, ensureRobloxManagementMenu, ensureEkoYildizRobloxMenu } = require("../services/robloxGroupManager");
+    const { initializeRoblox, ensureRobloxManagementMenu, ensureEkoYildizRobloxMenu, ensureAlliedRobloxMenu } = require("../services/robloxGroupManager");
     const { initTMTInvites, ensureTMTLogEmbed } = require("../services/tmtLogger");
     const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
 
@@ -32,6 +32,7 @@ function initializeDiscordHandlers(client) {
     await initializeRoblox();
     await ensureRobloxManagementMenu(client);
     await ensureEkoYildizRobloxMenu(client);
+    await ensureAlliedRobloxMenu(client);
     await ensureAlliedVerifyHelpMessage(client);
     await ensureAlliedSupportMessage(client);
     await initTMTInvites(client);

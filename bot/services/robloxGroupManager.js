@@ -24,11 +24,18 @@ const ROBLOX_GROUPS = {
   "995918688": "EkoYıldız Video Ekibi",
   "130659145": "EkoYıldız Moderatör Ekibi",
   "813826297": "EkoYıldız Moderatör Okulu",
-  "564097968": "Müttefik Ordular"
+  "564097968": "Müttefik Ordular",
+  // Allied Guild Extra Groups
+  "35898429": "TTC",
+  "35757415": "Cezaevi Genel Müdürlüğü Topluluğu",
+  "17241052": "TFD",
+  "33499704": "TMA",
+  "8505535": "BEM"
 };
 
 const ROBLOX_MENU_CHANNEL_ID = "1514659720751874150";
 const EKOYILDIZ_MENU_CHANNEL_ID = "1514673268085227550";
+const ALLIED_MENU_CHANNEL_ID = "1514676815489138789";
 
 /**
  * Initializes Roblox connection using TMTCOOKIE
@@ -171,9 +178,67 @@ async function ensureEkoYildizRobloxMenu(client) {
   }
 }
 
+/**
+ * Posts or ensures the Allied Guild Roblox Group Management menu exists in the target channel
+ * @param {import('discord.js').Client} client 
+ */
+async function ensureAlliedRobloxMenu(client) {
+  try {
+    const channel = await client.channels.fetch(ALLIED_MENU_CHANNEL_ID).catch(() => null);
+    if (!channel || !channel.isTextBased()) {
+      console.warn("⚠️ [RobloxGroupManager] Müttefik Roblox yönetim kanalı bulunamadı:", ALLIED_MENU_CHANNEL_ID);
+      return;
+    }
+
+    // Look for existing message
+    const messages = await channel.messages.fetch({ limit: 10 });
+    const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "🛡️ Müttefik Orduları Roblox Grup Yönetimi");
+
+    if (!existingMessage) {
+      const embed = new EmbedBuilder()
+        .setTitle("🛡️ Müttefik Orduları Roblox Grup Yönetimi")
+        .setDescription("Aşağıdaki menüden işlem yapmak istediğiniz Müttefik Roblox grubunu seçin.\n\n**⚠️ GÜVENLİK UYARISI:**\nBu sistem sadece **Yönetim** ekibi tarafından kullanılabilir. Yapılan tüm rütbe değişiklikleri ve katılım onayları sistem tarafından kayıt altına alınmaktadır.")
+        .setColor(0x00FF7F) // Yeşil / spring green
+        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514674220645355621/dfdfa.png?ex=6a2c39cb&is=6a2ae84b&hm=a00ea0f68ffe436ce90ed373f83ffcc35fa0f9ca678e8167429bb0a4336462bd&=&format=webp&quality=lossless&width=960&height=960")
+        .setFooter({ text: "Müttefik Orduları Yüksek Güvenlikli Otomasyon Sistemi" });
+
+      const alliedGroups = {
+        "35898429": "TTC",
+        "35431216": "EkoYıldız",
+        "35757415": "Cezaevi Genel Müdürlüğü Topluluğu",
+        "17241052": "TFD",
+        "11517908": "TMT",
+        "33499704": "TMA",
+        "8505535": "BEM"
+      };
+
+      // Create dropdown options
+      const options = Object.entries(alliedGroups).map(([id, name]) => ({
+        label: name,
+        value: `rbx_grp_${id}`,
+        description: `ID: ${id}`,
+        emoji: "🏢"
+      }));
+
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("roblox_group_select")
+          .setPlaceholder("Yönetmek istediğiniz Müttefik grubunu seçin...")
+          .addOptions(options)
+      );
+
+      await channel.send({ embeds: [embed], components: [row] });
+      console.log("✅ [RobloxGroupManager] Müttefik Roblox Grup Yönetim menüsü gönderildi.");
+    }
+  } catch (error) {
+    console.error("❌ [RobloxGroupManager] Müttefik menüsü oluşturulurken hata:", error.message);
+  }
+}
+
 module.exports = {
   initializeRoblox,
   ensureRobloxManagementMenu,
   ensureEkoYildizRobloxMenu,
+  ensureAlliedRobloxMenu,
   ROBLOX_GROUPS
 };
