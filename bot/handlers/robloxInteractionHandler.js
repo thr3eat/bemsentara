@@ -73,7 +73,7 @@ async function handleRobloxInteractions(interaction) {
       return interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
     }
 
-    if (interaction.customId === "roblox_rank_select") {
+    if (interaction.customId.startsWith("roblox_rank_select")) {
       await interaction.deferReply({ ephemeral: true });
       try {
         const parts = interaction.values[0].split("_");
@@ -210,25 +210,31 @@ async function handleRobloxInteractions(interaction) {
           currentRoleName = await noblox.getRankNameInGroup(parseInt(groupId), userId);
         } catch (_) {}
 
-        const options = roles.slice(0, 25).map(r => ({
-          label: `${r.name} (Rank: ${r.rank})`,
-          value: `rbx_rank_${groupId}_${userId}_${r.rank}_${r.id}`,
-          description: `Rütbe ID: ${r.rank}`
-        }));
+        const selectRows = [];
+        const chunkSize = 25;
+        for (let i = 0; i < roles.length; i += chunkSize) {
+          const chunk = roles.slice(i, i + chunkSize);
+          const options = chunk.map(r => ({
+            label: `${r.name} (Rank: ${r.rank})`,
+            value: `rbx_rank_${groupId}_${userId}_${r.rank}_${r.id}`,
+            description: `Rütbe ID: ${r.rank}`
+          }));
 
-        const selectRow = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId("roblox_rank_select")
-            .setPlaceholder("Yeni rütbeyi seçin...")
-            .addOptions(options)
-        );
+          const part = Math.floor(i / chunkSize) + 1;
+          const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId(`roblox_rank_select_${part}`)
+            .setPlaceholder(`Yeni rütbeyi seçin (Kısım ${part})...`)
+            .addOptions(options);
+
+          selectRows.push(new ActionRowBuilder().addComponents(selectMenu));
+        }
 
         const embed = new EmbedBuilder()
           .setTitle("🪖 Rütbe Değiştir (Aşama 2)")
           .setDescription(`**Kullanıcı:** ${username} (\`${userId}\`)\n**Mevcut Rütbe:** ${currentRoleName}\n\nAşağıdaki menüden atamak istediğiniz yeni rütbeyi seçin:`)
           .setColor(0x3498DB);
 
-        return interaction.editReply({ embeds: [embed], components: [selectRow] });
+        return interaction.editReply({ embeds: [embed], components: selectRows });
       }
 
       if (action === "manual") {
