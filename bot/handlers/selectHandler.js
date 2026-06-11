@@ -6,9 +6,10 @@ const {
 } = require("discord.js");
 
 function handleSelectInteraction(interaction) {
-  if (interaction.customId !== "support_category") return null;
+  if (interaction.customId !== "support_category" && interaction.customId !== "tmt_support_category") return null;
 
   const category = interaction.values[0];
+  const isTMT = interaction.customId === "tmt_support_category";
 
   // Kategori bazlı başlık ve placeholder
   const categoryTitles = {
@@ -30,13 +31,18 @@ function handleSelectInteraction(interaction) {
     account:   'Hesap sorununuzu açıklayın',
     genel:     'Sorunuzu veya talebinizi yazın',
     other:     'Konunuzu açıklayın',
+    // TMT Categories
+    discord:   'Discord ile ilgili sorununuzu açıklayın',
+    game:      'Oyun içindeki sorununuzu açıklayın',
   };
 
   const title = categoryTitles[category] || 'Destek Talebi';
   const descHint = categoryDescHints[category] || 'Sorununuzu açıklayın';
 
+  const modalCustomId = isTMT ? `tmt_support_modal_${category}` : `support_modal_${category}`;
+
   const modal = new ModalBuilder()
-    .setCustomId(`support_modal_${category}`)
+    .setCustomId(modalCustomId)
     .setTitle(`🎫 ${title}`);
 
   modal.addComponents(

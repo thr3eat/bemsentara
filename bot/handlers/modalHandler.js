@@ -8,7 +8,7 @@ const {
 } = require("discord.js");
 const Ticket = require("../../models/Ticket");
 const { generateTicketId } = require("../../utils/ticketId");
-const { SUPPORT_CATEGORIES, TARGET_GUILD_ID, TARGET_CHANNEL_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID, GUILD2_TICKET_LOG_ID } = require("../../config");
+const { SUPPORT_CATEGORIES, TARGET_GUILD_ID, TARGET_CHANNEL_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID, GUILD2_TICKET_LOG_ID, TMT_GUILD_ID } = require("../../config");
 const {
   buildTicketEmbed,
   buildCloseButton,
@@ -17,7 +17,7 @@ const {
 
 async function handleModalSubmit(interaction) {
   // ── Ticket oluşturma modal'ı ─────────────────────────────────────────────
-  if (interaction.customId.startsWith("support_modal_")) {
+  if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_")) {
     return handleSupportModal(interaction);
   }
 
@@ -53,7 +53,8 @@ async function handleModalSubmit(interaction) {
 // Yeni ticket oluşturma
 // ─────────────────────────────────────────────────────────────────────────────
 async function handleSupportModal(interaction) {
-  const category = interaction.customId.replace("support_modal_", "");
+  const isTMT = interaction.customId.startsWith("tmt_support_modal_");
+  const category = interaction.customId.replace("support_modal_", "").replace("tmt_support_modal_", "");
   const subject = interaction.fields.getTextInputValue("support_subject");
   const description = interaction.fields.getTextInputValue("support_description");
 
@@ -108,8 +109,11 @@ async function handleSupportModal(interaction) {
     const sourceGuildId = interaction.guild?.id;
     const isGuild2 = sourceGuildId === GUILD2_ID;
 
-    // Hedef sunucu: her zaman ticket'ın açıldığı sunucu
-    const targetGuildId = isGuild2 ? GUILD2_ID : TARGET_GUILD_ID;
+    // Hedef sunucu: TMT ise TMT sunucusu, Guild2 ise Guild2, yoksa Target Guild
+    let targetGuildId = TARGET_GUILD_ID;
+    if (isTMT) targetGuildId = TMT_GUILD_ID;
+    else if (isGuild2) targetGuildId = GUILD2_ID;
+
     const targetGuild = await interaction.client.guilds.fetch(targetGuildId);
     if (!targetGuild) throw new Error("Hedef sunucu bulunamadı.");
 
@@ -160,6 +164,23 @@ async function handleSupportModal(interaction) {
         name: `ticket-${ticketId.toLowerCase()}`,
         type: ChannelType.GuildText,
         parent: GUILD2_TICKET_CATEGORY_ID || undefined,
+        permissionOverwrites: validOverwrites,
+      });
+    } else if (isTMT) {
+      // TMT: DESTEK TALEPLERİ kategorisine aç
+      let ticketCategory = targetGuild.channels.cache.find(
+        (c) => c.name.toLowerCase() === "destek talepleri" && c.type === ChannelType.GuildCategory
+      );
+      if (!ticketCategory) {
+        ticketCategory = await targetGuild.channels.create({
+          name: "DESTEK TALEPLERİ",
+          type: ChannelType.GuildCategory,
+        });
+      }
+      ticketChannel = await targetGuild.channels.create({
+        name: `ticket-${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: ticketCategory.id,
         permissionOverwrites: validOverwrites,
       });
     } else {
