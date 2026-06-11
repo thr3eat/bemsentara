@@ -60,14 +60,32 @@ async function createRoleForRank(guild, userRank, nearestRoles) {
     const roleName = userRank.roleName;
     const color = hexToDiscordColor(getRoleColorByRank(userRank.rank));
 
-    // Get separator role from nearest tier
+    // Get separator and category roles from nearest tier
     let separatorRoleId = null;
+    let categoryRoleId = null;
+    let statusRoleId = STATUS_ROLES.bransszPersonel; // Default status
+
     if (nearestRoles.lower) {
       const lowerConfig = TMT_ROLE_MAPPINGS[nearestRoles.lower];
-      if (lowerConfig && lowerConfig.discordRoleIds && lowerConfig.discordRoleIds[0]) {
-        const lowerRole = guild.roles.cache.get(lowerConfig.discordRoleIds[0]);
-        if (lowerRole) {
-          separatorRoleId = lowerRole.id;
+      if (lowerConfig && lowerConfig.discordRoleIds) {
+        // Get separator role (first element)
+        if (lowerConfig.discordRoleIds[0]) {
+          separatorRoleId = lowerConfig.discordRoleIds[0];
+        }
+        // Get category role (second element)
+        if (lowerConfig.discordRoleIds[1]) {
+          categoryRoleId = lowerConfig.discordRoleIds[1];
+        }
+      }
+    } else if (nearestRoles.upper) {
+      // Fallback to upper rank if lower doesn't exist
+      const upperConfig = TMT_ROLE_MAPPINGS[nearestRoles.upper];
+      if (upperConfig && upperConfig.discordRoleIds) {
+        if (upperConfig.discordRoleIds[0]) {
+          separatorRoleId = upperConfig.discordRoleIds[0];
+        }
+        if (upperConfig.discordRoleIds[1]) {
+          categoryRoleId = upperConfig.discordRoleIds[1];
         }
       }
     }
@@ -84,10 +102,16 @@ async function createRoleForRank(guild, userRank, nearestRoles) {
     // Add to role cache (update ALL_TMT_ROLE_IDS)
     ALL_TMT_ROLE_IDS.add(newRole.id);
 
-    // Create role config entry for future use
+    // Create role config entry for future use with all required roles
     if (!TMT_ROLE_MAPPINGS[userRank.rank]) {
+      const roleIds = [];
+      if (separatorRoleId) roleIds.push(separatorRoleId);
+      if (categoryRoleId) roleIds.push(categoryRoleId);
+      roleIds.push(newRole.id); // Add the specific rank role
+      roleIds.push(statusRoleId); // Add status role
+
       TMT_ROLE_MAPPINGS[userRank.rank] = {
-        discordRoleIds: [newRole.id],
+        discordRoleIds: roleIds,
         name: roleName,
         autoCreated: true,
       };
@@ -306,7 +330,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     }
 
     // Find and add appropriate roles based on rank
-    const roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
+    let roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
     
     if (roleConfig && roleConfig.discordRoleIds) {
       // Role mapping exists - use it
@@ -349,10 +373,33 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
           `[TMT Role Sync] ❌ Failed to create role for rank ${userRank.rank} (${userRank.roleName})`
         );
       }
+      
+      // Refresh roleConfig after auto-creation
+      roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
     }
 
-    // Sync branch roles
+    // Sync branch roles (this will set status role, so we need to re-add rank roles after)
     await syncBranchRoles(client, discordUserId, robloxUserId, member);
+
+    // Re-add separator, category, and rank roles after branch sync
+    // (because syncBranchRoles removes all TMT roles before adding branch/status roles)
+    if (roleConfig && roleConfig.discordRoleIds) {
+      const rolesToReAdd = roleConfig.discordRoleIds.filter(roleId => {
+        // Don't re-add status roles (those are handled by syncBranchRoles)
+        return !Object.values(STATUS_ROLES).includes(roleId);
+      });
+
+      for (const roleId of rolesToReAdd) {
+        try {
+          const role = guild.roles.cache.get(roleId);
+          if (role) {
+            await member.roles.add(role, `TMT Sync: ${userRank.roleName} - Tier role (Post-branch)`);
+          }
+        } catch (err) {
+          console.error(`[TMT Role Sync] Error re-adding role ${roleId}:`, err.message);
+        }
+      }
+    }
 
     return true;
   } catch (error) {
