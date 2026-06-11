@@ -9,9 +9,12 @@ const {
   VOICE_PANEL_CHANNEL_ID,
   GUILD2_ID,
   GUILD2_VOICE_PANEL_ID,
+  TMT_GUILD_ID,
+  TMT_VOICE_PANEL_CHANNEL_ID,
 } = require("../../config");
 
 const VOICE_PANEL_MARKER = "Sentara-Voice-Panel-v1";
+
 
 function getVoicePanelEmbed() {
   return new EmbedBuilder()
@@ -122,6 +125,10 @@ async function ensureVoicePanelMessage(client) {
   // İkinci sunucu
   if (GUILD2_ID && GUILD2_VOICE_PANEL_ID) {
     await ensureVoicePanelForGuild(client, GUILD2_ID, GUILD2_VOICE_PANEL_ID);
+  }
+  // TMT Sunucusu
+  if (TMT_GUILD_ID && TMT_VOICE_PANEL_CHANNEL_ID) {
+    await ensureVoicePanelForGuild(client, TMT_GUILD_ID, TMT_VOICE_PANEL_CHANNEL_ID);
   }
 }
 

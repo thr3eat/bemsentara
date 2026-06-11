@@ -14,13 +14,21 @@ const channelOwners = new Map();
 
 // ── Sunucuya göre join-to-create kanalını döndür ─────────────────────────────
 function getJoinChannelId(guildId) {
+  const { TMT_GUILD_ID, TMT_VOICE_JOIN_CHANNEL_ID } = require("../../config");
   if (guildId === GUILD2_ID) return GUILD2_VOICE_JOIN_ID;
+  if (guildId === TMT_GUILD_ID) return TMT_VOICE_JOIN_CHANNEL_ID;
   return VOICE_JOIN_CHANNEL_ID;
 }
 
 // ── Sunucuya göre ses kategorisini döndür ────────────────────────────────────
-function getVoiceCategoryId(guildId) {
+function getVoiceCategoryId(guildId, guild) {
+  const { TMT_GUILD_ID } = require("../../config");
   if (guildId === GUILD2_ID) return GUILD2_VOICE_CATEGORY_ID || null;
+  if (guildId === TMT_GUILD_ID) {
+    const joinChannelId = getJoinChannelId(guildId);
+    const joinChannel = guild?.channels.cache.get(joinChannelId);
+    return joinChannel?.parentId || null;
+  }
   return VOICE_CATEGORY_ID;
 }
 
@@ -91,7 +99,7 @@ function defaultOverwrites(guild, ownerId) {
 }
 
 async function createPrivateChannel(guild, member) {
-  const categoryId = getVoiceCategoryId(guild.id);
+  const categoryId = getVoiceCategoryId(guild.id, guild);
 
   const existingId = ownerChannels.get(member.id);
   if (existingId) {
