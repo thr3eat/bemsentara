@@ -5,10 +5,100 @@
  */
 
 const axios = require("axios");
-const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES } = require("../config/tmtRoleSync");
+const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS, STATUS_ROLES, SEPARATOR_ROLES, CATEGORY_ROLES, RANK_ROLES } = require("../config/tmtRoleSync");
 const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
 
 const ROBLOX_GROUP_ID = 11517908;
+
+// ========== HELPER FUNCTIONS ==========
+
+/**
+ * Find nearest ranks that have role mappings (one below, one above)
+ */
+function findNearestRanks(currentRank) {
+  const allRanks = Object.keys(TMT_ROLE_MAPPINGS).map(Number).sort((a, b) => a - b);
+  
+  let lowerRank = null;
+  let upperRank = null;
+
+  for (const rank of allRanks) {
+    if (rank < currentRank) {
+      lowerRank = rank;
+    } else if (rank > currentRank && !upperRank) {
+      upperRank = rank;
+      break;
+    }
+  }
+
+  return { lowerRank, upperRank };
+}
+
+/**
+ * Get color for role based on rank tier
+ */
+function getRoleColorByRank(rank) {
+  if (rank <= 65) return "#808080"; // Gray - Enlisted (OR)
+  if (rank <= 90) return "#4169E1"; // Royal Blue - Officers (OF-1)
+  if (rank <= 110) return "#20B2AA"; // Light Sea Green - Senior Officers
+  if (rank <= 150) return "#FFD700"; // Gold - Generals (OF-6+)
+  if (rank <= 240) return "#DC143C"; // Crimson - Management/Council
+  return "#FF4500"; // Orange Red - Top tier (Mareşal, etc)
+}
+
+/**
+ * Get Discord color code from hex
+ */
+function hexToDiscordColor(hex) {
+  return parseInt(hex.replace("#", ""), 16);
+}
+
+/**
+ * Automatically create a role for a rank in Discord
+ */
+async function createRoleForRank(guild, userRank, nearestRoles) {
+  try {
+    const roleName = userRank.roleName;
+    const color = hexToDiscordColor(getRoleColorByRank(userRank.rank));
+
+    // Get separator role from nearest tier
+    let separatorRoleId = null;
+    if (nearestRoles.lower) {
+      const lowerConfig = TMT_ROLE_MAPPINGS[nearestRoles.lower];
+      if (lowerConfig && lowerConfig.discordRoleIds && lowerConfig.discordRoleIds[0]) {
+        const lowerRole = guild.roles.cache.get(lowerConfig.discordRoleIds[0]);
+        if (lowerRole) {
+          separatorRoleId = lowerRole.id;
+        }
+      }
+    }
+
+    // Create the new role
+    const newRole = await guild.roles.create({
+      name: roleName,
+      color: color,
+      reason: `Auto-created for missing rank ${userRank.rank} (${roleName})`,
+    });
+
+    console.log(`[TMT Role Sync] 🎯 Created new role: ${roleName} (ID: ${newRole.id}) for rank ${userRank.rank}`);
+
+    // Add to role cache (update ALL_TMT_ROLE_IDS)
+    ALL_TMT_ROLE_IDS.add(newRole.id);
+
+    // Create role config entry for future use
+    if (!TMT_ROLE_MAPPINGS[userRank.rank]) {
+      TMT_ROLE_MAPPINGS[userRank.rank] = {
+        discordRoleIds: [newRole.id],
+        name: roleName,
+        autoCreated: true,
+      };
+    }
+
+    return newRole;
+  } catch (error) {
+    console.error(`[TMT Role Sync] Error creating role for rank ${userRank.rank}:`, error.message);
+    return null;
+  }
+}
 
 /**
  * Get all branch groups user is in and their ranks
@@ -150,7 +240,10 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
   }
 }
 
-
+/**
+ * Get user's rank in the main TMT Roblox group
+ */
+async function getUserRankInGroup(robloxUserId) {
   try {
     const response = await axios.get(
       `https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`,
@@ -214,7 +307,9 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
 
     // Find and add appropriate roles based on rank
     const roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
+    
     if (roleConfig && roleConfig.discordRoleIds) {
+      // Role mapping exists - use it
       for (const roleId of roleConfig.discordRoleIds) {
         try {
           const role = guild.roles.cache.get(roleId);
@@ -232,9 +327,28 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
         `[TMT Role Sync] ✅ ${member.user.tag} → ${userRank.roleName} (Roblox Rank ${userRank.rank})`
       );
     } else {
+      // No role mapping found - try to create one
       console.warn(
-        `[TMT Role Sync] No Discord role mapping found for rank ${userRank.rank} (${userRank.roleName})`
+        `[TMT Role Sync] No Discord role mapping found for rank ${userRank.rank} (${userRank.roleName}) - attempting auto-creation...`
       );
+
+      const nearestRoles = findNearestRanks(userRank.rank);
+      const createdRole = await createRoleForRank(guild, userRank, nearestRoles);
+
+      if (createdRole) {
+        try {
+          await member.roles.add(createdRole, `TMT Sync: ${userRank.roleName} (Auto-created, Rank ${userRank.rank})`);
+          console.log(
+            `[TMT Role Sync] ✅ ${member.user.tag} → ${userRank.roleName} (Auto-created role, Rank ${userRank.rank})`
+          );
+        } catch (err) {
+          console.error(`[TMT Role Sync] Error adding auto-created role:`, err.message);
+        }
+      } else {
+        console.error(
+          `[TMT Role Sync] ❌ Failed to create role for rank ${userRank.rank} (${userRank.roleName})`
+        );
+      }
     }
 
     // Sync branch roles
