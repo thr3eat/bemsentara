@@ -32,6 +32,13 @@ const GUILD2_VOICE_CATEGORY_ID   = process.env.GUILD2_VOICE_CATEGORY_ID   || "14
 /** Ses sistemi panel kanalı */
 const GUILD2_VOICE_PANEL_ID      = process.env.GUILD2_VOICE_PANEL_ID      || "1505505849924255955";
 
+// ── Üçüncü sunucu (TMT - Türk Silahlı Kuvvetleri) ──────────────────────────────
+const TMT_GUILD_ID               = "1514569307886063666";
+/** Sunucu kuralları kanalı */
+const TMT_RULES_CHANNEL_ID       = "1514583014208700519";
+/** Otomod kuralları kanalı */
+const TMT_AUTOMOD_RULES_CHANNEL_ID = "1514583015412600832";
+
 const SUPPORT_CATEGORIES = {
   ban:        { name: "🔨 Ban/Şikayet Talebi",  color: 0xff4444 },
   reklam:     { name: "📢 Reklam Satın Al",      color: 0xfbbf24 },
@@ -73,6 +80,10 @@ module.exports = {
   GUILD2_VOICE_JOIN_ID,
   GUILD2_VOICE_CATEGORY_ID,
   GUILD2_VOICE_PANEL_ID,
+  // Üçüncü sunucu (TMT)
+  TMT_GUILD_ID,
+  TMT_RULES_CHANNEL_ID,
+  TMT_AUTOMOD_RULES_CHANNEL_ID,
   ADMIN_IDS,
   DATA_DIR,
   SUPPORT_CATEGORIES,

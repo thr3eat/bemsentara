@@ -16,6 +16,10 @@ const botSlashCommands = [
     .setDMPermission(true),
   new SlashCommandBuilder().setName("profile").setDescription("Profil bilgilerini göster").setDMPermission(true),
   new SlashCommandBuilder().setName("authorize").setDescription("Roblox hesabını yetkilendir").setDMPermission(true),
+  new SlashCommandBuilder()
+    .setName("posttmtrules")
+    .setDescription("TMT sunucu kurallarını gönder (Admin Sadece)")
+    .setDefaultMemberPermissions(0), // Admin only
 ].map((c) => c.toJSON());
 
 async function registerDiscordCommands() {

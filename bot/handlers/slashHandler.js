@@ -225,6 +225,27 @@ async function handleSlashCommand(interaction) {
       const groupId = interaction.options.getNumber("grupid");
       return handleUpdate(interaction, groupId);
     }
+
+    if (commandName === "posttmtrules") {
+      // Admin check
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkili değilsiniz" });
+      }
+
+      try {
+        const { postTMTRules } = require("../services/tmtRulesService");
+        const success = await postTMTRules(interaction.client);
+        
+        if (success) {
+          return interaction.editReply({ content: "✅ TMT kuralları başarıyla gönderildi" });
+        } else {
+          return interaction.editReply({ content: "❌ TMT kuralları gönderilirken bir hata oluştu" });
+        }
+      } catch (error) {
+        console.error("[posttmtrules] Hata:", error);
+        return interaction.editReply({ content: `❌ Hata: ${error.message}` });
+      }
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });
