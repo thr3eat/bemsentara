@@ -81,13 +81,11 @@ async function handleRobloxInteractions(interaction) {
       await interaction.deferReply({ ephemeral: true });
       try {
         const roles = await noblox.getRoles(parseInt(groupId));
-        // Maksimum rütbe güvenliği
-        const allowedRoles = roles.filter(r => r.rank > 0 && r.rank <= 200); 
 
-        const rolesText = allowedRoles.map(r => `• **${r.name}** (Rank ID: ${r.rank})`).join("\n");
+        const rolesText = roles.map(r => `• **${r.name}** (Rank ID: ${r.rank})`).join("\n");
         const embed = new EmbedBuilder()
-          .setTitle(`📜 ${groupName} - Verilebilir Rütbeler`)
-          .setDescription(`Maksimum 200 yetkisine kadar olan rütbeler listelenmiştir:\n\n${rolesText}`)
+          .setTitle(`📜 ${groupName} - Tüm Rütbeler`)
+          .setDescription(`Gruptaki tüm rütbeler listelenmiştir:\n\n${rolesText}`)
           .setColor(0x2ECC71);
         
         return interaction.editReply({ embeds: [embed] });
@@ -113,7 +111,7 @@ async function handleRobloxInteractions(interaction) {
           new TextInputBuilder()
             .setCustomId("roblox_newrank")
             .setLabel("Yeni Rütbe Numarası (Rank ID)")
-            .setPlaceholder("Örn: 10, 50, 200 vb. (Rütbe Listesine bakın)")
+            .setPlaceholder("Örn: 10, 50, 254 vb. (Rütbe Listesine bakın)")
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -165,9 +163,9 @@ async function handleRobloxInteractions(interaction) {
         const newRankId = parseInt(newRankStr);
         if (isNaN(newRankId)) return interaction.editReply({ content: "❌ Lütfen Rütbe ID'si olarak geçerli bir sayı girin." });
 
-        // Güvenlik Sınırı
-        if (newRankId > 200) {
-          return interaction.editReply({ content: "❌ Güvenlik Sınırı: Discord üzerinden 200'den yüksek bir rütbe (Yetkili/Owner) verilemez!" });
+        // Güvenlik Sınırı (Roblox rank limits: 0-255)
+        if (newRankId < 0 || newRankId > 255) {
+          return interaction.editReply({ content: "❌ Geçersiz Rütbe ID: Rütbe ID'si 0 ile 255 arasında olmalıdır." });
         }
 
         const newRole = await noblox.setRank({ group: parseInt(groupId), target: userId, rank: newRankId });
