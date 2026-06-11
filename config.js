@@ -38,6 +38,10 @@ const TMT_GUILD_ID               = "1514569307886063666";
 const TMT_RULES_CHANNEL_ID       = "1514583014208700519";
 /** Otomod kuralları kanalı */
 const TMT_AUTOMOD_RULES_CHANNEL_ID = "1514583015412600832";
+/** Doğrulama yardım mesajı kanalı */
+const TMT_VERIFY_HELP_CHANNEL_ID = "1514583038598713404";
+/** Destek sistemi kanalı */
+const TMT_SUPPORT_CHANNEL_ID     = "1514583035327156254";
 
 const SUPPORT_CATEGORIES = {
   ban:        { name: "🔨 Ban/Şikayet Talebi",  color: 0xff4444 },
@@ -48,6 +52,12 @@ const SUPPORT_CATEGORIES = {
   account:    { name: "👤 Hesap Sorunu",         color: 0x95e1d3 },
   genel:      { name: "💬 Genel Destek",         color: 0x7c6af7 },
   other:      { name: "📝 Diğer",               color: 0xaa96da },
+};
+
+// TMT sunucusu için destek kategorileri
+const TMT_SUPPORT_CATEGORIES = {
+  discord:    { name: "📚 Discord Destek",      color: 0x5865F2, description: "Discord sunucularımız ile ilgili bir sorun olması halinde açılması gereken destek bileti." },
+  game:       { name: "💂🏻 Oyun Destek",        color: 0x57F287, description: "Oyunumuzda yaşanan sorunlar veya yardımlar için açılması gereken destek bileti." },
 };
 
 const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
@@ -84,7 +94,10 @@ module.exports = {
   TMT_GUILD_ID,
   TMT_RULES_CHANNEL_ID,
   TMT_AUTOMOD_RULES_CHANNEL_ID,
+  TMT_VERIFY_HELP_CHANNEL_ID,
+  TMT_SUPPORT_CHANNEL_ID,
   ADMIN_IDS,
   DATA_DIR,
   SUPPORT_CATEGORIES,
+  TMT_SUPPORT_CATEGORIES,
 };

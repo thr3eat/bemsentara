@@ -13,10 +13,14 @@ function initializeDiscordHandlers(client) {
   client.once("ready", async () => {
     const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
     const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
+    const { ensureTMTVerifyHelpMessage } = require("../services/tmtVerifyHelpMessage");
+    const { ensureTMTSupportMessage } = require("../services/tmtSupportMessage");
     const { startCleanupScheduler } = require("../services/ticketCleanup");
     const { startStaffScheduler } = require("../services/staffSystem");
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
+    await ensureTMTVerifyHelpMessage(client);
+    await ensureTMTSupportMessage(client);
     startCleanupScheduler();
     startStaffScheduler(client);
   });

@@ -17,16 +17,16 @@ const botSlashCommands = [
   new SlashCommandBuilder().setName("profile").setDescription("Profil bilgilerini göster").setDMPermission(true),
   new SlashCommandBuilder().setName("authorize").setDescription("Roblox hesabını yetkilendir").setDMPermission(true),
   new SlashCommandBuilder()
-    .setName("posttmtrules")
-    .setDescription("TMT sunucu kurallarını gönder (Admin Sadece)")
+    .setName("postrules")
+    .setDescription("Sunucu kurallarını gönder (Admin Sadece)")
     .setDefaultMemberPermissions(0), // Admin only
   new SlashCommandBuilder()
-    .setName("tmtverify")
-    .setDescription("TMT sunucu rollerini senkronize et")
+    .setName("verify")
+    .setDescription("Sunucu rollerini senkronize et")
     .setDMPermission(true),
   new SlashCommandBuilder()
-    .setName("tmtupdate")
-    .setDescription("TMT rollerini güncelle (Admin)")
+    .setName("update")
+    .setDescription("Rollerini güncelle (Admin)")
     .addUserOption((o) =>
       o.setName("user").setDescription("Kullanıcı seç (boş bırakılırsa herkesi güncelle").setRequired(false)
     )

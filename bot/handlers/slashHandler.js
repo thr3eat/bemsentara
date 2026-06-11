@@ -226,40 +226,51 @@ async function handleSlashCommand(interaction) {
       return handleUpdate(interaction, groupId);
     }
 
-    if (commandName === "posttmtrules") {
+    if (commandName === "postrules") {
       // Admin check
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkili değilsiniz" });
       }
 
       try {
-        const { postTMTRules } = require("../services/tmtRulesService");
-        const success = await postTMTRules(interaction.client);
+        const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
         
-        if (success) {
-          return interaction.editReply({ content: "✅ TMT kuralları başarıyla gönderildi" });
+        if (interaction.guildId === TMT_GUILD_ID) {
+          const { postTMTRules } = require("../services/tmtRulesService");
+          const success = await postTMTRules(interaction.client);
+          
+          if (success) {
+            return interaction.editReply({ content: "✅ TMT kuralları başarıyla gönderildi" });
+          } else {
+            return interaction.editReply({ content: "❌ TMT kuralları gönderilirken bir hata oluştu" });
+          }
         } else {
-          return interaction.editReply({ content: "❌ TMT kuralları gönderilirken bir hata oluştu" });
+          return interaction.editReply({ content: "❌ Bu komut sadece TMT sunucusunda kullanılabilir" });
         }
       } catch (error) {
-        console.error("[posttmtrules] Hata:", error);
+        console.error("[postrules] Hata:", error);
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
     }
 
-    if (commandName === "tmtverify") {
+    if (commandName === "verify") {
       try {
-        // Check if user is in TMT guild
-        const { TMT_GUILD_ID } = require("../config/tmtRoleSync");
-        const tmtGuild = await interaction.client.guilds.fetch(TMT_GUILD_ID).catch(() => null);
+        const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
+        const guildId = interaction.guildId;
         
-        if (!tmtGuild) {
-          return interaction.editReply({ content: "❌ TMT sunucusu bulunamadı" });
+        if (!guildId) {
+          return interaction.editReply({ content: "❌ Bu komut sunucuda kullanılmalıdır" });
         }
 
-        const member = await tmtGuild.members.fetch(interaction.user.id).catch(() => null);
+        // Get appropriate guild
+        const guild = await interaction.client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+          return interaction.editReply({ content: "❌ Sunucu bulunamadı" });
+        }
+
+        const member = await guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member) {
-          return interaction.editReply({ content: "❌ TMT sunucusunda bulunmuyorsunuz" });
+          return interaction.editReply({ content: "❌ Bu sunucuda bulunmuyorsunuz" });
         }
 
         // Find user in database
@@ -272,18 +283,25 @@ async function handleSlashCommand(interaction) {
           });
         }
 
-        // Sync roles
-        const { syncTMTRoles } = require("../services/tmtRoleSyncService");
-        const success = await syncTMTRoles(
-          interaction.client, 
-          interaction.user.id, 
-          dbUser.robloxId,
-          member
-        );
+        // Determine which server and sync accordingly
+        let success = false;
+        if (guildId === TMT_GUILD_ID) {
+          const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+          success = await syncTMTRoles(
+            interaction.client, 
+            interaction.user.id, 
+            dbUser.robloxId,
+            member
+          );
+        } else {
+          const { syncMemberRoles } = require("../services/roleSyncService");
+          const result = await syncMemberRoles(member, dbUser.robloxId);
+          success = result.success;
+        }
 
         if (success) {
           return interaction.editReply({ 
-            content: "✅ TMT rolleriniz senkronize edildi" 
+            content: "✅ Rolleriniz senkronize edildi" 
           });
         } else {
           return interaction.editReply({ 
@@ -291,46 +309,66 @@ async function handleSlashCommand(interaction) {
           });
         }
       } catch (error) {
-        console.error("[tmtverify] Hata:", error);
+        console.error("[verify] Hata:", error);
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
     }
 
-    if (commandName === "tmtupdate") {
+    if (commandName === "update") {
       // Admin check
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkili değilsiniz" });
       }
 
       try {
-        const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
+        const { TARGET_GUILD_ID, TMT_GUILD_ID } = require("../../config");
+        const guildId = interaction.guildId;
         const targetUser = interaction.options.getUser("user");
         
         let userIds = [];
         if (targetUser) {
           userIds = [targetUser.id];
           await interaction.editReply({ 
-            content: `⏳ ${targetUser.username} için TMT rolleri güncelleniyor...` 
+            content: `⏳ ${targetUser.username} için roller güncelleniyor...` 
           });
         } else {
           await interaction.editReply({ 
-            content: "⏳ Tüm kullanıcılar için TMT rolleri güncelleniyor... (Bu birkaç dakika alabilir)" 
+            content: "⏳ Tüm kullanıcılar için roller güncelleniyor... (Bu birkaç dakika alabilir)" 
           });
         }
 
-        const updated = await verifyAllTMTRoles(interaction.client, userIds);
+        let updated = 0;
+        if (guildId === TMT_GUILD_ID) {
+          const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
+          updated = await verifyAllTMTRoles(interaction.client, userIds);
+        } else {
+          // BEM update logic (existing)
+          const { syncMemberRoles } = require("../services/roleSyncService");
+          const guild = await interaction.client.guilds.fetch(guildId);
+          if (targetUser) {
+            const member = await guild.members.fetch(targetUser.id).catch(() => null);
+            if (member) {
+              const User = require("../../models/User");
+              const dbUser = await User.findOne({ discordId: targetUser.id });
+              if (dbUser && dbUser.robloxId) {
+                const result = await syncMemberRoles(member, dbUser.robloxId);
+                if (result.success) updated++;
+              }
+            }
+          }
+        }
         
         if (targetUser) {
           return interaction.editReply({ 
-            content: `✅ ${targetUser.username} için TMT rolleri güncellendi` 
+            content: `✅ ${targetUser.username} için roller güncellendi` 
           });
         } else {
           return interaction.editReply({ 
-            content: `✅ TMT rolleri güncellendi - ${updated} üye sync edildi` 
+            content: `✅ Roller güncellendi - ${updated} üye sync edildi` 
           });
         }
       } catch (error) {
-        console.error("[tmtupdate] Hata:", error);
+        console.error("[update] Hata:", error);
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
     }

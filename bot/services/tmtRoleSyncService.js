@@ -1,17 +1,117 @@
 /**
  * TMT Role Sync Service
- * Syncs roles between Roblox group 11517908 and Discord TMT server
+ * Syncs roles between Roblox groups and Discord TMT server
+ * Includes main group and branch-specific groups
  */
 
 const axios = require("axios");
 const { TMT_GUILD_ID, TMT_ROLE_MAPPINGS, ALL_TMT_ROLE_IDS } = require("../config/tmtRoleSync");
+const { TMT_BRANCH_GROUPS, BRANCH_AUTHORITY_THRESHOLDS, ALL_BRANCH_ROLE_IDS } = require("../config/tmtBranchSync");
 
 const ROBLOX_GROUP_ID = 11517908;
 
 /**
- * Get user's rank in Roblox group
+ * Get all branch groups user is in and their ranks
  */
-async function getUserRankInGroup(robloxUserId) {
+async function getUserBranchMemberships(robloxUserId) {
+  try {
+    const response = await axios.get(
+      `https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`,
+      { timeout: 5000 }
+    );
+
+    const branches = [];
+    for (const groupData of response.data.data) {
+      const groupId = groupData.group.id;
+      if (TMT_BRANCH_GROUPS[groupId]) {
+        branches.push({
+          groupId,
+          branchName: TMT_BRANCH_GROUPS[groupId].name,
+          rank: groupData.role.rank,
+          roleName: groupData.role.name,
+        });
+      }
+    }
+    return branches;
+  } catch (error) {
+    console.error(`[TMT Branch Sync] Error fetching branches for user ${robloxUserId}:`, error.message);
+    return [];
+  }
+}
+
+/**
+ * Sync user's branch roles
+ */
+async function syncBranchRoles(client, discordUserId, robloxUserId, discordMember = null) {
+  try {
+    const guild = await client.guilds.fetch(TMT_GUILD_ID);
+    if (!guild) {
+      console.warn(`[TMT Branch Sync] Guild ${TMT_GUILD_ID} not found`);
+      return false;
+    }
+
+    let member = discordMember;
+    if (!member) {
+      member = await guild.members.fetch(discordUserId).catch(() => null);
+    }
+
+    if (!member) {
+      console.warn(`[TMT Branch Sync] Member ${discordUserId} not found in TMT guild`);
+      return false;
+    }
+
+    // Remove all branch roles first
+    const currentBranchRoles = member.roles.cache.filter(r => ALL_BRANCH_ROLE_IDS.has(r.id));
+    if (currentBranchRoles.size > 0) {
+      await member.roles.remove(Array.from(currentBranchRoles.keys()), "TMT Branch Sync").catch(err => {
+        console.error(`[TMT Branch Sync] Error removing branch roles:`, err.message);
+      });
+    }
+
+    // Get user's branch memberships
+    const branches = await getUserBranchMemberships(robloxUserId);
+
+    if (branches.length === 0) {
+      console.log(`[TMT Branch Sync] User ${discordUserId} is not in any branch groups`);
+      return true;
+    }
+
+    // Sync each branch role
+    for (const branch of branches) {
+      const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
+      const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
+
+      try {
+        // Always add the main branch role
+        const mainBranchRole = guild.roles.cache.get(branchConfig.discordRoleId);
+        if (mainBranchRole) {
+          await member.roles.add(mainBranchRole, `TMT Branch: ${branch.branchName} (Rank ${branch.rank})`);
+        }
+
+        // Add branch authority role if rank is high enough
+        if (branch.rank >= authorityThreshold) {
+          const authorityRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+          if (authorityRole) {
+            await member.roles.add(authorityRole, `TMT Branch Authority: ${branch.branchName} (Rank ${branch.rank})`);
+          }
+        }
+
+        console.log(
+          `[TMT Branch Sync] ✅ ${member.user.tag} → ${branch.branchName} (Rank ${branch.rank})`
+        );
+      } catch (err) {
+        console.error(`[TMT Branch Sync] Error adding branch roles for ${branch.branchName}:`, err.message);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[TMT Branch Sync] Fatal error:`, error.message);
+    return false;
+  }
+}
+
+
   try {
     const response = await axios.get(
       `https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`,
@@ -68,6 +168,8 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     // If user not in group, don't add any roles
     if (!userRank) {
       console.log(`[TMT Role Sync] User ${discordUserId} not in Roblox group ${ROBLOX_GROUP_ID}`);
+      // Still sync branch roles
+      await syncBranchRoles(client, discordUserId, robloxUserId, member);
       return true;
     }
 
@@ -90,13 +192,16 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       console.log(
         `[TMT Role Sync] ✅ ${member.user.tag} → ${userRank.roleName} (Roblox Rank ${userRank.rank})`
       );
-      return true;
     } else {
       console.warn(
         `[TMT Role Sync] No Discord role mapping found for rank ${userRank.rank} (${userRank.roleName})`
       );
-      return true;
     }
+
+    // Sync branch roles
+    await syncBranchRoles(client, discordUserId, robloxUserId, member);
+
+    return true;
   } catch (error) {
     console.error(`[TMT Role Sync] Fatal error:`, error.message);
     return false;
@@ -154,4 +259,6 @@ module.exports = {
   getUserRankInGroup,
   syncTMTRoles,
   verifyAllTMTRoles,
+  getUserBranchMemberships,
+  syncBranchRoles,
 };
