@@ -17,7 +17,7 @@ const ROBLOX_GROUP_ID = 11517908;
  */
 function findNearestRanks(currentRank) {
   const allRanks = Object.keys(TMT_ROLE_MAPPINGS).map(Number).sort((a, b) => a - b);
-  
+
   let lowerRank = null;
   let upperRank = null;
 
@@ -60,22 +60,22 @@ function getRoleNameFromId(roleId) {
   for (const [key, id] of Object.entries(SEPARATOR_ROLES)) {
     if (id === roleId) return `▬▬▬ ${key}`;
   }
-  
+
   // Search in CATEGORY_ROLES
   for (const [key, id] of Object.entries(CATEGORY_ROLES)) {
     if (id === roleId) return key;
   }
-  
+
   // Search in STATUS_ROLES
   for (const [key, id] of Object.entries(STATUS_ROLES)) {
     if (id === roleId) return key;
   }
-  
+
   // Search in RANK_ROLES
   for (const [key, id] of Object.entries(RANK_ROLES)) {
     if (id === roleId) return key;
   }
-  
+
   return null;
 }
 
@@ -87,12 +87,12 @@ function getRoleColorFromId(roleId) {
   for (const [key, id] of Object.entries(SEPARATOR_ROLES)) {
     if (id === roleId) return "#808080"; // Gray
   }
-  
+
   // Check if it's a status role
   for (const [key, id] of Object.entries(STATUS_ROLES)) {
     if (id === roleId) return "#9B59B6"; // Purple
   }
-  
+
   return "#808080"; // Default gray
 }
 
@@ -149,7 +149,7 @@ async function ensureRoleExists(guild, roleId, roleName, roleColor = "#808080", 
 
     // Role doesn't exist - create it
     console.warn(`[TMT Role Sync] Creating missing role: ${roleName} (was ID: ${roleId})`);
-    
+
     const newRole = await guild.roles.create({
       name: roleName,
       color: hexToDiscordColor(roleColor),
@@ -157,13 +157,13 @@ async function ensureRoleExists(guild, roleId, roleName, roleColor = "#808080", 
     });
 
     // Update the ID in config
-    if (roleName.includes("OR-") || roleName.includes("OF-") || roleName.includes("Paşa") || 
-        roleName === "Konsey" || roleName === "Ankara Heyeti" || roleName === "Başkumandan" ||
-        roleName === "Askeri Kurultay" || roleName === "Disiplin Kurulu" || roleName === "Lider" ||
-        roleName === "Genelkurmay" || roleName === "Genelkurmay Başkanı" || roleName === "Yüksek Askerî Şûra" ||
-        roleName === "Yönetim Kurulu" || roleName === "YK Başkan Yardımcısı" || roleName === "YK Başkanı" ||
-        roleName === "Geliştirme Ofisi" || roleName === "Holder" || roleName === "OF-10 Mareşal" ||
-        roleName === "Emekli Personel") {
+    if (roleName.includes("OR-") || roleName.includes("OF-") || roleName.includes("Paşa") ||
+      roleName === "Konsey" || roleName === "Ankara Heyeti" || roleName === "Başkumandan" ||
+      roleName === "Askeri Kurultay" || roleName === "Disiplin Kurulu" || roleName === "Lider" ||
+      roleName === "Genelkurmay" || roleName === "Genelkurmay Başkanı" || roleName === "Yüksek Askerî Şûra" ||
+      roleName === "Yönetim Kurulu" || roleName === "YK Başkan Yardımcısı" || roleName === "YK Başkanı" ||
+      roleName === "Geliştirme Ofisi" || roleName === "Holder" || roleName === "OF-10 Mareşal" ||
+      roleName === "Emekli Personel") {
       // Update RANK_ROLES
       Object.entries(RANK_ROLES).forEach(([key, id]) => {
         if (id === roleId) {
@@ -455,7 +455,7 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
         const role = findRoleByName(guild, groupConfig.discordRoleName);
         if (role) resolvedBranchRoleIds.add(role.id);
       }
-      
+
       if (groupConfig.discordBranchRoleId) {
         resolvedBranchRoleIds.add(groupConfig.discordBranchRoleId);
       } else if (groupConfig.discordBranchRoleName) {
@@ -483,7 +483,7 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
 
     // Get user's branch memberships
     const branches = await getUserBranchMemberships(robloxUserId);
-    
+
     // Filter branch memberships to ignore visitors/fans (ranks 0 and 1, or ignored names)
     const ignoredBranchRanks = ["guest", "ziyaretçi", "taraftar", "fan", "beklemede", "ziyaretci", "acemi"];
     const activeBranches = branches.filter(b => {
@@ -586,14 +586,14 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
 async function getUserRankInGroup(robloxUserId) {
   try {
     console.log(`[TMT Role Sync] Fetching rank for Roblox user ${robloxUserId} in group ${ROBLOX_GROUP_ID}...`);
-    
+
     const response = await axios.get(
       `https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`,
       { timeout: 10000 } // Increased timeout from 5s to 10s
     );
 
     console.log(`[TMT Role Sync] API Response status: ${response.status}, groups count: ${response.data.data.length}`);
-    
+
     const groupData = response.data.data.find(g => g.group.id === ROBLOX_GROUP_ID);
     if (groupData) {
       console.log(`[TMT Role Sync] ✅ Found rank in group ${ROBLOX_GROUP_ID}: ${groupData.role.name} (Rank ${groupData.role.rank})`);
@@ -603,8 +603,8 @@ async function getUserRankInGroup(robloxUserId) {
         roleId: groupData.role.id,
       };
     }
-    
-    console.warn(`[TMT Role Sync] User ${robloxUserId} not found in group ${ROBLOX_GROUP_ID}. Available groups:`, 
+
+    console.warn(`[TMT Role Sync] User ${robloxUserId} not found in group ${ROBLOX_GROUP_ID}. Available groups:`,
       response.data.data.map(g => ({ id: g.group.id, name: g.group.name, rank: g.role.rank }))
     );
     return null; // User not in group
@@ -624,7 +624,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
   try {
     console.log(`\n[TMT Role Sync] ===== START SYNC =====`);
     console.log(`[TMT Role Sync] Discord User: ${discordUserId}, Roblox User: ${robloxUserId}`);
-    
+
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
     if (!guild) {
       console.warn(`[TMT Role Sync] Guild ${TMT_GUILD_ID} not found`);
@@ -662,7 +662,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
         const role = findRoleByName(guild, groupConfig.discordRoleName);
         if (role) resolvedBranchRoleIds.add(role.id);
       }
-      
+
       if (groupConfig.discordBranchRoleId) {
         resolvedBranchRoleIds.add(groupConfig.discordBranchRoleId);
       } else if (groupConfig.discordBranchRoleName) {
@@ -744,7 +744,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       unresolved: unresolvedRoles
     };
   } catch (error) {
-    console.error(`[TMT Role Sync] Fatal error:`, error.message);
+    console.error(`[TMT Role Sync] Fatal errors:`, error.message);
     return { success: false, error: error.message };
   }
 }
@@ -765,14 +765,14 @@ async function verifyAllTMTRoles(client, users = []) {
 
     // Get all members with TMT roles
     const membersWithRoles = await guild.members.fetch();
-    const membersToCheck = users.length > 0 
+    const membersToCheck = users.length > 0
       ? membersWithRoles.filter(m => users.includes(m.id))
       : membersWithRoles.filter(m => {
-          const hasAnyTMTRole = Array.from(ALL_TMT_ROLE_IDS).some(roleId => 
-            m.roles.cache.has(roleId)
-          );
-          return !m.user.bot && hasAnyTMTRole;
-        });
+        const hasAnyTMTRole = Array.from(ALL_TMT_ROLE_IDS).some(roleId =>
+          m.roles.cache.has(roleId)
+        );
+        return !m.user.bot && hasAnyTMTRole;
+      });
 
     console.log(`[TMT Role Sync] Verifying ${membersToCheck.size} members...`);
 
