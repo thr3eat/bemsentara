@@ -136,7 +136,7 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 0,
     weeklyReports:    0,
     description: '3 ticket + 10 gün aktif',
-    promotionBonus: { points: 150, xp: 200 },
+    promotionBonus: { points: 250, xp: 350 },
   },
   2: {
     ticketsSolved:    15,
@@ -145,7 +145,7 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 10,
     weeklyReports:    2,
     description: '15 ticket + 5 anket + 10 mod işlem + 2 rapor + 30 gün aktif',
-    promotionBonus: { points: 300, xp: 400 },
+    promotionBonus: { points: 500, xp: 750 },
   },
   3: {
     ticketsSolved:    50,
@@ -154,9 +154,9 @@ const PROMOTION_REQUIREMENTS = {
     moderationActions: 30,
     weeklyReports:    8,
     description: '50 ticket + 15 anket + 30 mod işlem + 8 rapor + 90 gün aktif',
-    promotionBonus: { points: 500, xp: 750 },
+    promotionBonus: { points: 1000, xp: 1500 },
   },
-  4: { promotionBonus: { points: 1000, xp: 1500 } },
+  4: { promotionBonus: { points: 2000, xp: 3000 } },
 };
 
 function todayStr() {
@@ -324,21 +324,57 @@ async function checkDailyCompletion(progress, client) {
   if (!progress.daily) progress.daily = { date: '', greeted: false, voiceMinutes: 0 };
   if (!progress.warnings) progress.warnings = { count: 0 };
   
+  const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const greetDone = progress.daily.greeted;
   const voiceDone = progress.daily.voiceMinutes >= req.voiceMinutes;
 
-  if (greetDone && voiceDone) {
-    const today = todayStr();
-    if (!progress.stats.lastCompleteDay || progress.stats.lastCompleteDay !== today) {
-      progress.stats.activeDays      = (progress.stats.activeDays || 0) + 1;
-      progress.stats.consecutiveDays = (progress.stats.consecutiveDays || 0) + 1;
-      progress.stats.lastCompleteDay  = today;
-      progress.warnings.count         = 0;
-      await progress.save();
-      console.log(`[staffSystem] ${progress.userId} günlük görev tamamlandı — ${progress.stats.activeDays} gün`);
-      await checkPromotion(progress, client);
+  // ✅ BUGFIX: lastCompleteDay'in bugün olup olmadığını kontrol et
+  const alreadyCompletedToday = progress.stats.lastCompleteDay === today;
+
+  if (greetDone && voiceDone && !alreadyCompletedToday) {
+    // Görev tamamlandı ve bugün ilk kez tamamlanıyor
+    progress.stats.activeDays      = (progress.stats.activeDays || 0) + 1;
+    progress.stats.consecutiveDays = (progress.stats.consecutiveDays || 0) + 1;
+    progress.stats.lastCompleteDay = today;
+    progress.warnings.count = 0;
+    
+    // 🎮 Gamification: Günlük görev tamamlama ödülü
+    if (!progress.gamification) {
+      progress.gamification = { totalPoints: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0 } };
     }
+    const levelMultiplier = 1 + (progress.level * 0.25); // Seviye arttıkça daha fazla ödül
+    progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + Math.floor(25 * levelMultiplier); // Günlük 25+ puan
+    progress.gamification.currentXP = (progress.gamification.currentXP || 0) + Math.floor(100 * levelMultiplier); // Günlük 100+ XP
+    
+    // Level up kontrol et
+    const nextLevelXp = getXpForLevel((progress.gamification.level || 1) + 1);
+    if (progress.gamification.currentXP >= nextLevelXp) {
+      progress.gamification.level = (progress.gamification.level || 1) + 1;
+      progress.gamification.currentXP = 0;
+      
+      // Level up mesajı gönder
+      if (client && progress.gamification.level > 1) {
+        const levelEmbed = new EmbedBuilder()
+          .setColor(0xff006e)
+          .setTitle(`🎉 LEVEL UP! ${progress.gamification.level}`)
+          .setDescription(`Seni görüyoruz! Her görev seni daha güçlü yapıyor! 🚀`)
+          .setFooter({ text: 'Eko Yıldız • Gamification' })
+          .setTimestamp();
+        
+        try {
+          const user = await client.users.fetch(progress.userId);
+          await user.send({ embeds: [levelEmbed] });
+        } catch (_) {}
+      }
+    }
+    
+    await progress.save().catch(err => {
+      console.error('[staffSystem] Save failed in checkDailyCompletion:', err.message);
+    });
+    
+    console.log(`[staffSystem] ${progress.userId} günlük görev tamamlandı — ${progress.stats.activeDays} gün`);
+    await checkPromotion(progress, client);
   }
 }
 
@@ -376,10 +412,10 @@ async function recordTicketSolved(userId, client) {
       };
     }
     
-    // 📊 Seviye-bazlı puan artışı (sınıflandırma teşviki)
-    const levelMultiplier = 1 + (p.level * 0.2); // Level arttıkça daha fazla puan (0.15 → 0.2)
-    const xpGain = Math.floor(55 * levelMultiplier); // Ticket başına 55+ XP (50 → 55)
-    const pointsGain = Math.floor(12 * levelMultiplier); // Ticket başına 12+ puan (10 → 12)
+    // 📊 Seviye-bazlı puan artışı (sınıflandırma teşviki) - ⬆️ ARTTIRILDI
+    const levelMultiplier = 1 + (p.level * 0.25); // Level arttıkça daha fazla puan (0.2 → 0.25)
+    const xpGain = Math.floor(85 * levelMultiplier); // Ticket başına 85+ XP (55 → 85)
+    const pointsGain = Math.floor(20 * levelMultiplier); // Ticket başına 20+ puan (12 → 20)
     p.gamification.totalPoints = (p.gamification.totalPoints || 0) + pointsGain;
     p.gamification.currentXP = (p.gamification.currentXP || 0) + xpGain;
     
@@ -409,7 +445,7 @@ async function recordTicketSolved(userId, client) {
     if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
     p.stats.dailyTicketsToday += 1;
     
-    if (p.stats.dailyTicketsToday % 3 === 0) {
+    if (p.stats.dailyTicketsToday % 2 === 0) {
       p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
       await sendBreakRewardDM(p, client).catch(err => {
         console.warn(`[staffSystem] sendBreakRewardDM error for ${userId}:`, err.message);
@@ -1142,6 +1178,7 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
 async function resignFromStaff(userId, reason, client) {
   const p = await StaffProgress.findOne({ userId });
   if (!p) return { success: false, message: 'Personel sisteminde kayıtlı değilsin.' };
+  if (p.status === 'resigned') return { success: false, message: 'Zaten istifa etmişsin.' };
   if (p.status === 'retired') return { success: false, message: 'Zaten emeklisin.' };
 
   const levelName = ROLE_NAMES[p.level];
@@ -1149,12 +1186,6 @@ async function resignFromStaff(userId, reason, client) {
 
   // Emeklilik hakkı var mı kontrol (90+ gün = emekli olabilir)
   const canRetire = totalDays >= 90;
-
-  // İstifa kaydı
-  p.status       = 'resigned';
-  p.resignedAt   = new Date();
-  p.resignReason = reason?.slice(0, 200) || 'Belirtilmedi';
-  await p.save();
 
   // Rolleri kaldır
   try {
@@ -1169,6 +1200,19 @@ async function resignFromStaff(userId, reason, client) {
     }
   } catch (_) {}
 
+  // İstifa kaydını işle
+  if (canRetire) {
+    // 90+ gün: Emeklilik statüsüne çevir, kaydı tut
+    p.status     = 'retired';
+    p.retiredAt  = new Date();
+    await p.save();
+    console.log(`[staffSystem] İstifa → Emeklilik: ${userId} (${levelName})`);
+  } else {
+    // 90 günden az: Kaydı tamamen sil
+    await StaffProgress.deleteOne({ userId });
+    console.log(`[staffSystem] İstifa & Kayıt Silinme: ${userId} (${levelName})`);
+  }
+
   // Kullanıcıya DM
   try {
     const user = await client.users.fetch(userId);
@@ -1180,7 +1224,7 @@ async function resignFromStaff(userId, reason, client) {
         `**Geçirdiğin süre:** ${totalDays}+ aktif gün\n` +
         `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
         canRetire
-          ? `💡 **90+ gün aktif kaldığın için** emeklilik talep edebilirsin!\n\`/emeklilik\` komutunu kullan.`
+          ? `🏅 **90+ gün aktif kaldığın için** emeklilik statüsüne geçtiniz!\n**Kaydın sistemde korunmaktadır.**\n\`/emeklilik\` komutunu kullanarak resmi olarak emekli olabilirsin.`
           : `Tekrar başvurmak istersen yöneticilere yazabilirsin. Başarılar!`
       )
       .setFooter({ text: 'Eko Yıldız • Teşekkürler!' })
@@ -1188,8 +1232,7 @@ async function resignFromStaff(userId, reason, client) {
     await user.send({ embeds: [embed] });
   } catch (_) {}
 
-  console.log(`[staffSystem] İstifa: ${userId} (${levelName})`);
-  return { success: true, canRetire };
+  return { success: true, canRetire, recordDeleted: !canRetire };
 }
 
 // ── EMEKLİLİK sistemi ──────────────────────────────────────────────────────

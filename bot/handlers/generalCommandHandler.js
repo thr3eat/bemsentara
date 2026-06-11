@@ -92,9 +92,14 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ ${result.message}` });
       }
       
-      const message = result.canRetire
-        ? `✅ İstifan kabul edildi. 90+ gün aktif kaldığın için emeklilik talep edebilirsin! \`/emeklilik\` komutunu kullan.`
-        : `✅ İstifan kabul edildi. Teşekkürler! Tekrar başvurmak istersen yöneticilere yazabilirsin.`;
+      let message;
+      if (result.canRetire) {
+        message = `✅ İstifan kabul edildi. 90+ gün aktif kaldığın için emeklilik statüsüne geçtiniz! Kaydınız sistemde korunmaktadır.\n\`/emeklilik\` komutunu kullanarak resmi olarak emekli olabilirsin.`;
+      } else if (result.recordDeleted) {
+        message = `✅ İstifan kabul edildi ve kaydın tamamen silinmiştir. Tekrar başvurmak istersen yöneticilere yazabilirsin.`;
+      } else {
+        message = `✅ İstifan kabul edildi. Teşekkürler!`;
+      }
       
       return interaction.editReply({ content: message });
     } catch (err) {
