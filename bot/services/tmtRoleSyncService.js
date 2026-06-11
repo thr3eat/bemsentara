@@ -359,21 +359,35 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
     const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
     const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
+    // Find main branch role
+    let mainRole = null;
     if (branchConfig.discordRoleId) {
-      const role = guild.roles.cache.get(branchConfig.discordRoleId);
-      if (role) {
-        desiredRoleIds.add(branchConfig.discordRoleId);
-      } else {
-        unresolved.push(branchConfig.name || `id:${branchConfig.discordRoleId}`);
-      }
+      mainRole = guild.roles.cache.get(branchConfig.discordRoleId);
+    }
+    if (!mainRole && branchConfig.discordRoleName) {
+      mainRole = findRoleByName(guild, branchConfig.discordRoleName);
     }
 
-    if (branchConfig.discordBranchRoleId && branch.rank >= authorityThreshold) {
-      const role = guild.roles.cache.get(branchConfig.discordBranchRoleId);
-      if (role) {
-        desiredRoleIds.add(branchConfig.discordBranchRoleId);
+    if (mainRole) {
+      desiredRoleIds.add(mainRole.id);
+    } else {
+      unresolved.push(branchConfig.discordRoleName || branchConfig.name || `Branch:${branch.groupId}`);
+    }
+
+    // Find branch authority role if rank is high enough
+    if (branch.rank >= authorityThreshold) {
+      let authRole = null;
+      if (branchConfig.discordBranchRoleId) {
+        authRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+      }
+      if (!authRole && branchConfig.discordBranchRoleName) {
+        authRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
+      }
+
+      if (authRole) {
+        desiredRoleIds.add(authRole.id);
       } else {
-        unresolved.push(`${branchConfig.name} Yetkilisi` || `id:${branchConfig.discordBranchRoleId}`);
+        unresolved.push(branchConfig.discordBranchRoleName || `${branchConfig.name} Yetkilisi` || `BranchAuth:${branch.groupId}`);
       }
     }
   }
@@ -399,8 +413,26 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       return false;
     }
 
+    // Dynamically resolve all branch role IDs (hardcoded and looked up by name)
+    const resolvedBranchRoleIds = new Set();
+    for (const groupConfig of Object.values(TMT_BRANCH_GROUPS)) {
+      if (groupConfig.discordRoleId) {
+        resolvedBranchRoleIds.add(groupConfig.discordRoleId);
+      } else if (groupConfig.discordRoleName) {
+        const role = findRoleByName(guild, groupConfig.discordRoleName);
+        if (role) resolvedBranchRoleIds.add(role.id);
+      }
+      
+      if (groupConfig.discordBranchRoleId) {
+        resolvedBranchRoleIds.add(groupConfig.discordBranchRoleId);
+      } else if (groupConfig.discordBranchRoleName) {
+        const role = findRoleByName(guild, groupConfig.discordBranchRoleName);
+        if (role) resolvedBranchRoleIds.add(role.id);
+      }
+    }
+
     // Remove all branch roles first
-    const currentBranchRoles = member.roles.cache.filter(r => ALL_BRANCH_ROLE_IDS.has(r.id));
+    const currentBranchRoles = member.roles.cache.filter(r => resolvedBranchRoleIds.has(r.id));
     if (currentBranchRoles.size > 0) {
       await member.roles.remove(Array.from(currentBranchRoles.keys()), "TMT Branch Sync").catch(err => {
         console.error(`[TMT Branch Sync] Error removing branch roles:`, err.message);
@@ -466,15 +498,29 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
       try {
-        // Always add the main branch role
-        const mainBranchRole = guild.roles.cache.get(branchConfig.discordRoleId);
+        // Find main branch role
+        let mainBranchRole = null;
+        if (branchConfig.discordRoleId) {
+          mainBranchRole = guild.roles.cache.get(branchConfig.discordRoleId);
+        }
+        if (!mainBranchRole && branchConfig.discordRoleName) {
+          mainBranchRole = findRoleByName(guild, branchConfig.discordRoleName);
+        }
+
         if (mainBranchRole) {
           await member.roles.add(mainBranchRole, `TMT Branch: ${branch.branchName} (Rank ${branch.rank})`);
         }
 
         // Add branch authority role if rank is high enough
         if (branch.rank >= authorityThreshold) {
-          const authorityRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+          let authorityRole = null;
+          if (branchConfig.discordBranchRoleId) {
+            authorityRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+          }
+          if (!authorityRole && branchConfig.discordBranchRoleName) {
+            authorityRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
+          }
+
           if (authorityRole) {
             await member.roles.add(authorityRole, `TMT Branch Authority: ${branch.branchName} (Rank ${branch.rank})`);
           }
@@ -568,13 +614,31 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     const unresolvedRoles = [];
     const desiredRoleIds = await computeTMTRoles(guild, userRank, branches, unresolvedRoles);
 
+    // Dynamically resolve all branch role IDs (hardcoded and looked up by name)
+    const resolvedBranchRoleIds = new Set();
+    for (const groupConfig of Object.values(TMT_BRANCH_GROUPS)) {
+      if (groupConfig.discordRoleId) {
+        resolvedBranchRoleIds.add(groupConfig.discordRoleId);
+      } else if (groupConfig.discordRoleName) {
+        const role = findRoleByName(guild, groupConfig.discordRoleName);
+        if (role) resolvedBranchRoleIds.add(role.id);
+      }
+      
+      if (groupConfig.discordBranchRoleId) {
+        resolvedBranchRoleIds.add(groupConfig.discordBranchRoleId);
+      } else if (groupConfig.discordBranchRoleName) {
+        const role = findRoleByName(guild, groupConfig.discordBranchRoleName);
+        if (role) resolvedBranchRoleIds.add(role.id);
+      }
+    }
+
     // Get all managed TMT role IDs
     const allManagedTMTRoles = new Set([
       ...Object.values(SEPARATOR_ROLES),
       ...Object.values(CATEGORY_ROLES),
       ...Object.values(STATUS_ROLES),
       ...Object.values(RANK_ROLES),
-      ...Array.from(ALL_BRANCH_ROLE_IDS)
+      ...Array.from(resolvedBranchRoleIds)
     ]);
 
     const toAdd = [];
