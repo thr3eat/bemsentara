@@ -220,11 +220,7 @@ async function handleSlashCommand(interaction) {
       return handleVerify(interaction, groupId);
     }
 
-    if (commandName === "update") {
-      const { handleUpdate } = require("./roleHandler");
-      const groupId = interaction.options.getNumber("grupid");
-      return handleUpdate(interaction, groupId);
-    }
+    // Removed first update handler - using the corrected one below with proper guild detection
 
     if (commandName === "postrules") {
       // Admin check
@@ -339,23 +335,13 @@ async function handleSlashCommand(interaction) {
 
         let updated = 0;
         if (guildId === TMT_GUILD_ID) {
+          // TMT Update Logic
           const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");
           updated = await verifyAllTMTRoles(interaction.client, userIds);
         } else {
-          // BEM update logic (existing)
-          const { syncMemberRoles } = require("../services/roleSyncService");
-          const guild = await interaction.client.guilds.fetch(guildId);
-          if (targetUser) {
-            const member = await guild.members.fetch(targetUser.id).catch(() => null);
-            if (member) {
-              const User = require("../../models/User");
-              const dbUser = await User.findOne({ discordId: targetUser.id });
-              if (dbUser && dbUser.robloxId) {
-                const result = await syncMemberRoles(member, dbUser.robloxId);
-                if (result.success) updated++;
-              }
-            }
-          }
+          // BEM Update Logic
+          const { handleUpdate } = require("./roleHandler");
+          updated = await handleUpdate(interaction, null);
         }
         
         if (targetUser) {

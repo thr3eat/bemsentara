@@ -8,8 +8,77 @@ const {
   buildCloseButton,
 } = require("../embeds");
 const { BASE_URL } = require("../../config");
+const { syncTMTRoles } = require("../services/tmtRoleSyncService");
 
 async function handleButtonInteraction(interaction) {
+  // ── TMT Yetkilendirme Butonu ─────────────────────────────────────────────
+  if (interaction.customId === "authorize_button") {
+    const User = require("../../models/User");
+    
+    try {
+      const user = await User.findOne({ discordId: interaction.user.id });
+      
+      const embed = new EmbedBuilder()
+        .setColor(0x4169E1)
+        .setTitle("🔐 Roblox Hesap Bağlama")
+        .setDescription(
+          user?.robloxId
+            ? `✅ **Zaten Bağlı!**\n\nRoblox ID: \`${user.robloxId}\`\n\nRollerinizi güncellemek için aşağıdaki butona tıklayın.`
+            : `🔗 **Roblox hesabını bağlamak için:**\n\n[Buraya Tıklayarak Yetkilendir](${BASE_URL}/auth/roblox)\n\nSonra \`/verify\` komutunu çalıştırın!`
+        )
+        .setFooter({ text: "TMT Yetkilendirme Sistemi" })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    } catch (error) {
+      console.error("[authorize_button] Error:", error);
+      return interaction.reply({ content: "❌ Bir hata oluştu.", ephemeral: true });
+    }
+  }
+
+  // ── TMT Rol Senkronizasyon Butonu ────────────────────────────────────────
+  if (interaction.customId === "verify_button") {
+    const User = require("../../models/User");
+    
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const user = await User.findOne({ discordId: interaction.user.id });
+      
+      if (!user || !user.robloxId) {
+        return interaction.editReply({
+          content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
+          ephemeral: true,
+        });
+      }
+
+      // Rolleri senkronize et
+      const success = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+      
+      if (success) {
+        const embed = new EmbedBuilder()
+          .setColor(0x00AA00)
+          .setTitle("✅ Roller Güncellendi")
+          .setDescription("Roblox hesabınızdan rolleriniz başarıyla senkronize edildi!")
+          .setFooter({ text: "TMT Rol Sistemi" })
+          .setTimestamp();
+        
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        return interaction.editReply({
+          content: "❌ Roller senkronize edilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+          ephemeral: true,
+        });
+      }
+    } catch (error) {
+      console.error("[verify_button] Error:", error);
+      return interaction.editReply({
+        content: "❌ Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+        ephemeral: true,
+      });
+    }
+  }
+
   // ── Doğrulama yardım butonu ──────────────────────────────────────────────
   if (interaction.customId === "verify_help_refresh") {
     const embed = new EmbedBuilder()
