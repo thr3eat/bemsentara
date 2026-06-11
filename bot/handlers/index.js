@@ -582,6 +582,12 @@ function initializeDiscordHandlers(client) {
         await handleAdLinkModal(interaction, client);
         return;
       }
+      // ── Roblox Abuse Butonları ────────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith("rbx_abuse_demote_") || interaction.customId?.startsWith("rbx_abuse_ignore_"))) {
+        const { handleAbuseButton } = require("./robloxInteractionHandler");
+        await handleAbuseButton(interaction);
+        return;
+      }
       // ── Roblox Etkileşimleri ──────────────────────────────────────────────
       if (
         (interaction.isStringSelectMenu() && (interaction.customId === "roblox_group_select" || interaction.customId.startsWith("roblox_rank_select"))) ||
