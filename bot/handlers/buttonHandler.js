@@ -65,15 +65,40 @@ async function handleButtonInteraction(interaction) {
       console.log(`[verify_button] Found user: Discord=${interaction.user.id}, Roblox=${user.robloxId}`);
       
       // Rolleri senkronize et
-      const success = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+      const result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
       
-      if (success) {
+      if (result && result.success) {
+        const formatRoleList = (roles) => {
+          if (!roles || !roles.length) return "None";
+          return roles.map((r) => `<@&${r.id}>`).join("\n");
+        };
+
         const embed = new EmbedBuilder()
           .setColor(0x00AA00)
-          .setTitle("✅ Roller Güncellendi")
-          .setDescription("Roblox hesabınızdan rolleriniz başarıyla senkronize edildi!")
-          .setFooter({ text: "TMT Rol Sistemi" })
+          .setTitle("Update")
+          .addFields(
+            { name: "Nickname", value: result.nickname || interaction.user.username, inline: false },
+            { name: "Added Roles", value: formatRoleList(result.added || []), inline: false },
+            { name: "Removed Roles", value: formatRoleList(result.removed || []), inline: false }
+          )
+          .setFooter({ text: "TMT • Rol Senkronizasyonu" })
           .setTimestamp();
+        
+        if (result.tier) {
+          embed.addFields({
+            name: "Seviye Rolü",
+            value: result.tier,
+            inline: true,
+          });
+        }
+
+        if (result.unresolved && result.unresolved.length > 0) {
+          embed.addFields({
+            name: "⚠️ Eşleşmeyen Roller",
+            value: result.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+            inline: false,
+          });
+        }
         
         return interaction.editReply({ embeds: [embed] });
       } else {

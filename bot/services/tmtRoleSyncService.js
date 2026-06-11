@@ -248,7 +248,10 @@ async function getUserBranchMemberships(robloxUserId) {
 /**
  * Compute desired TMT roles based on Roblox main rank and branch memberships
  */
-async function computeTMTRoles(guild, userRank, branches) {
+/**
+ * Compute desired TMT roles based on Roblox main rank and branch memberships
+ */
+async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
   const desiredRoleIds = new Set();
 
   // 1. Process Main Group Rank and separators
@@ -304,9 +307,12 @@ async function computeTMTRoles(guild, userRank, branches) {
           }
           if (role) {
             desiredRoleIds.add(role.id);
+          } else {
+            unresolved.push(`id:${roleId}`);
           }
         } catch (err) {
           console.error(`[computeTMTRoles] Error ensuring main role ${roleId}:`, err.message);
+          unresolved.push(`id:${roleId}`);
         }
       }
     }
@@ -341,11 +347,21 @@ async function computeTMTRoles(guild, userRank, branches) {
     const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
     if (branchConfig.discordRoleId) {
-      desiredRoleIds.add(branchConfig.discordRoleId);
+      const role = guild.roles.cache.get(branchConfig.discordRoleId);
+      if (role) {
+        desiredRoleIds.add(branchConfig.discordRoleId);
+      } else {
+        unresolved.push(branchConfig.name || `id:${branchConfig.discordRoleId}`);
+      }
     }
 
     if (branchConfig.discordBranchRoleId && branch.rank >= authorityThreshold) {
-      desiredRoleIds.add(branchConfig.discordBranchRoleId);
+      const role = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+      if (role) {
+        desiredRoleIds.add(branchConfig.discordBranchRoleId);
+      } else {
+        unresolved.push(`${branchConfig.name} Yetkilisi` || `id:${branchConfig.discordBranchRoleId}`);
+      }
     }
   }
 
@@ -514,7 +530,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     const guild = await client.guilds.fetch(TMT_GUILD_ID);
     if (!guild) {
       console.warn(`[TMT Role Sync] Guild ${TMT_GUILD_ID} not found`);
-      return false;
+      return { success: false, error: "guild_not_found" };
     }
 
     let member = discordMember;
@@ -524,7 +540,7 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
 
     if (!member) {
       console.warn(`[TMT Role Sync] Member ${discordUserId} not found in TMT guild`);
-      return false;
+      return { success: false, error: "member_not_found" };
     }
 
     console.log(`[TMT Role Sync] Found Discord member: ${member.user.tag}`);
@@ -536,7 +552,8 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
     const branches = await getUserBranchMemberships(robloxUserId);
 
     // Compute desired roles
-    const desiredRoleIds = await computeTMTRoles(guild, userRank, branches);
+    const unresolvedRoles = [];
+    const desiredRoleIds = await computeTMTRoles(guild, userRank, branches, unresolvedRoles);
 
     // Get all managed TMT role IDs
     const allManagedTMTRoles = new Set([
@@ -577,11 +594,42 @@ async function syncTMTRoles(client, discordUserId, robloxUserId, discordMember =
       });
     }
 
+    const addedRoles = toAdd.map(id => guild.roles.cache.get(id)).filter(Boolean);
+    const removedRoles = toRemove.map(id => guild.roles.cache.get(id)).filter(Boolean);
+
+    // Find if user has a category/tier role
+    let tierRoleName = null;
+    if (userRank) {
+      const roleConfig = TMT_ROLE_MAPPINGS[userRank.rank];
+      if (roleConfig && roleConfig.discordRoleIds) {
+        const catRoleId = roleConfig.discordRoleIds.find(id => Object.values(CATEGORY_ROLES).includes(id));
+        if (catRoleId) {
+          const role = guild.roles.cache.get(catRoleId);
+          if (role) {
+            tierRoleName = role.name;
+          } else {
+            const key = Object.keys(CATEGORY_ROLES).find(k => CATEGORY_ROLES[k] === catRoleId);
+            tierRoleName = key || "Bilinmeyen Tier";
+          }
+        }
+      }
+    }
+
+    const User = require("../../models/User");
+    const dbUser = await User.findOne({ discordId: discordUserId });
+
     console.log(`[TMT Role Sync] ✅ Sync completed for ${member.user.tag}`);
-    return true;
+    return {
+      success: true,
+      nickname: dbUser ? dbUser.robloxUsername : member.displayName,
+      added: addedRoles,
+      removed: removedRoles,
+      tier: tierRoleName,
+      unresolved: unresolvedRoles
+    };
   } catch (error) {
     console.error(`[TMT Role Sync] Fatal error:`, error.message);
-    return false;
+    return { success: false, error: error.message };
   }
 }
 
@@ -616,8 +664,8 @@ async function verifyAllTMTRoles(client, users = []) {
       try {
         const dbUser = await User.findOne({ discordId: member.id });
         if (dbUser && dbUser.robloxId) {
-          const success = await syncTMTRoles(client, member.id, dbUser.robloxId, member);
-          if (success) updated++;
+          const result = await syncTMTRoles(client, member.id, dbUser.robloxId, member);
+          if (result && result.success) updated++;
         }
       } catch (err) {
         console.error(`[TMT Role Sync] Error verifying member ${member.id}:`, err.message);

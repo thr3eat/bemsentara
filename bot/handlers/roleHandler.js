@@ -54,20 +54,31 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
     try {
       const { syncTMTRoles } = require("../services/tmtRoleSyncService");
       const fullMember = member.partial ? await member.fetch() : member;
-      const success = await syncTMTRoles(
+      const result = await syncTMTRoles(
         interaction.client,
         user.id,
         dbUser.robloxId,
         fullMember
       );
 
-      if (success) {
-        const embed = new EmbedBuilder()
-          .setColor(0x00AA00)
-          .setTitle("✅ Roller Güncellendi")
-          .setDescription("Roblox hesabınızdan rolleriniz başarıyla senkronize edildi!")
-          .setFooter({ text: "TMT Rol Sistemi" })
-          .setTimestamp();
+      if (result && result.success) {
+        const embed = buildUpdateEmbed(fullMember, result);
+        
+        if (result.tier) {
+          embed.addFields({
+            name: "Seviye Rolü",
+            value: result.tier,
+            inline: true,
+          });
+        }
+
+        if (result.unresolved && result.unresolved.length > 0) {
+          embed.addFields({
+            name: "⚠️ Eşleşmeyen Roller",
+            value: result.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+            inline: false,
+          });
+        }
         
         return interaction.editReply({ embeds: [embed] });
       } else {
