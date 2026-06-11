@@ -8,9 +8,42 @@
  * Log Hedefi: Allied Orduları: 1514691009668321360
  */
 
-const { EmbedBuilder, Colors, ChannelType, PermissionsBitField } = require("discord.js");
+const { EmbedBuilder, Colors, ChannelType, PermissionsBitField, AuditLogEvent } = require("discord.js");
 const { ALLIED_GUILD_ID, ALLIED_LOG_CHANNEL_ID, TARGET_GUILD_ID, GUILD2_ID, TMT_GUILD_ID } = require("../../config");
 const { getDiscordClient } = require("../discordClient");
+
+/**
+ * İşlemi yapan kişinin bilgisini audit log'dan çek
+ * @param {Object} guild - Discord Guild nesnesi
+ * @param {string} targetId - İşlem yapılan hedefin ID'si
+ * @param {string} auditType - Audit log event tipi
+ * @returns {Promise<Object>} Executor bilgileri
+ */
+async function getExecutor(guild, targetId, auditType) {
+  try {
+    if (!guild.members.me?.permissions.has(PermissionsBitField.Flags.ViewAuditLog)) {
+      return null;
+    }
+
+    const auditLogs = await guild.fetchAuditLogs({ limit: 10, type: auditType }).catch(() => null);
+    if (!auditLogs?.entries) return null;
+
+    // Son entry'yi bul (en son işlem)
+    const entry = auditLogs.entries.first();
+    if (!entry || !entry.executor) return null;
+
+    return {
+      id: entry.executor.id,
+      tag: entry.executor.tag,
+      username: entry.executor.username,
+      avatar: entry.executor.displayAvatarURL({ size: 256 }),
+      timestamp: entry.createdTimestamp
+    };
+  } catch (err) {
+    console.error("[CentralAudit] Executor bilgisi alınamadı:", err.message);
+    return null;
+  }
+}
 
 // Sunucu ID'leri ve isimleri
 const SERVER_INFO = {
@@ -66,8 +99,9 @@ async function sendCentralLog(embed) {
  * @param {string} description - Açıklama
  * @param {object} details - Detaylar
  * @param {string} eventType - Olay tipi (member, message, role, channel, vb)
+ * @param {Object} executor - İşlemi yapan kişinin bilgileri { id, tag, avatar }
  */
-function createDetailedEmbed(guildId, title, description, details = {}, eventType = "general") {
+function createDetailedEmbed(guildId, title, description, details = {}, eventType = "general", executor = null) {
   const serverInfo = SERVER_INFO[guildId] || { name: "Bilinmeyen Sunucu", color: Colors.Greyple, icon: "❓" };
   
   const colorMap = {
@@ -87,8 +121,17 @@ function createDetailedEmbed(guildId, title, description, details = {}, eventTyp
     .setColor(colorMap[eventType] || serverInfo.color)
     .setTitle(`${serverInfo.icon} ${title}`)
     .setDescription(description || "Açıklama yok")
-    .setThumbnail(serverInfo.name === "🏛️ BEM Sentara" ? "https://cdn.discordapp.com/avatars/1286046699693289513/e42da9e8fa7f1c28e27a8ee9b234b5f1.webp" : null)
-    .setFooter({ text: serverInfo.name })
+    .setThumbnail(serverInfo.name === "🏛️ BEM Sentara" ? "https://cdn.discordapp.com/avatars/1286046699693289513/e42da9e8fa7f1c28e27a8ee9b234b5f1.webp" : null);
+
+  // Executor (işlemi yapan kişi) bilgisini başlığa ekle
+  if (executor) {
+    embed.setAuthor({
+      name: `${executor.tag} tarafından`,
+      iconURL: executor.avatar
+    });
+  }
+
+  embed.setFooter({ text: serverInfo.name })
     .setTimestamp();
 
   // Detayları embed'e ekle
@@ -228,9 +271,11 @@ async function logMemberUpdate(oldMember, newMember) {
  * Mesaj silindi
  */
 async function logMessageDelete(message) {
-  if (!message?.guild || message.author?.bot) return; // Bot mesajları logla
+  if (!message?.guild || message.author?.bot) return;
   
   const contentPreview = message.content.slice(0, 500) || "_(boş veya embed)_";
+  
+  const executor = await getExecutor(message.guild, message.author.id, AuditLogEvent.MessageDelete);
 
   const embed = createDetailedEmbed(
     message.guild.id,
@@ -246,7 +291,8 @@ async function logMessageDelete(message) {
       "Mention Sayısı": message.mentions.size,
       "Reaksiyon Sayısı": message.reactions.cache.size
     },
-    "message"
+    "message",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -262,6 +308,8 @@ async function logMessageUpdate(oldMessage, newMessage) {
   const oldContent = oldMessage.content.slice(0, 300) || "_(boş)_";
   const newContent = newMessage.content.slice(0, 300) || "_(boş)_";
 
+  const executor = await getExecutor(oldMessage.guild, oldMessage.author.id, AuditLogEvent.MessageDelete);
+
   const embed = createDetailedEmbed(
     oldMessage.guild.id,
     "✏️ MESAJ DÜZELTİLDİ",
@@ -274,7 +322,8 @@ async function logMessageUpdate(oldMessage, newMessage) {
       "YENİ İçerik": newContent,
       "Düzenleme Zamanı": `<t:${Math.floor(Date.now() / 1000)}:R>`
     },
-    "message"
+    "message",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -320,6 +369,9 @@ async function logRoleCreate(role) {
   if (!role?.guild) return;
 
   const permissions = role.permissions.toArray().join(", ").slice(0, 1000) || "Yok";
+  
+  // Executor bilgisini al
+  const executor = await getExecutor(role.guild, role.id, AuditLogEvent.RoleCreate);
 
   const embed = createDetailedEmbed(
     role.guild.id,
@@ -335,7 +387,8 @@ async function logRoleCreate(role) {
       "Yönetilen Rol": role.managed ? "✅" : "❌",
       "Oluşturma Zamanı": `<t:${Math.floor(role.createdTimestamp / 1000)}:F>`
     },
-    "role"
+    "role",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -347,6 +400,8 @@ async function logRoleCreate(role) {
 async function logRoleDelete(role) {
   if (!role?.guild) return;
 
+  const executor = await getExecutor(role.guild, role.id, AuditLogEvent.RoleDelete);
+
   const embed = createDetailedEmbed(
     role.guild.id,
     "🗑️ ROL SİLİNDİ",
@@ -357,7 +412,8 @@ async function logRoleDelete(role) {
       "Silim Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
       "Üye Sayısı": role.guild.roles.cache.get(role.id)?.members?.size || "Bilinmiyor"
     },
-    "role"
+    "role",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -396,6 +452,8 @@ async function logRoleUpdate(oldRole, newRole) {
 
   if (changes.length === 0) return;
 
+  const executor = await getExecutor(oldRole.guild, oldRole.id, AuditLogEvent.RoleUpdate);
+
   const embed = createDetailedEmbed(
     oldRole.guild.id,
     "✏️ ROL GÜNCELLEMESI",
@@ -405,7 +463,8 @@ async function logRoleUpdate(oldRole, newRole) {
       "Rol ID": `\`${newRole.id}\``,
       "Değişim Sayısı": changes.length
     },
-    "role"
+    "role",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -428,6 +487,8 @@ async function logChannelCreate(channel) {
     [ChannelType.Forum]: "💬 Forum"
   };
 
+  const executor = await getExecutor(channel.guild, channel.id, AuditLogEvent.ChannelCreate);
+
   const embed = createDetailedEmbed(
     channel.guild.id,
     "✨ YENİ KANAL OLUŞTURULDU",
@@ -441,7 +502,8 @@ async function logChannelCreate(channel) {
       "Oluşturma Zamanı": `<t:${Math.floor(channel.createdTimestamp / 1000)}:F>`,
       "Konumlandırma": channel.position
     },
-    "channel"
+    "channel",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -453,6 +515,8 @@ async function logChannelCreate(channel) {
 async function logChannelDelete(channel) {
   if (!channel?.guild) return;
 
+  const executor = await getExecutor(channel.guild, channel.id, AuditLogEvent.ChannelDelete);
+
   const embed = createDetailedEmbed(
     channel.guild.id,
     "🗑️ KANAL SİLİNDİ",
@@ -462,7 +526,8 @@ async function logChannelDelete(channel) {
       "Kanal ID": `\`${channel.id}\``,
       "Silim Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
     },
-    "channel"
+    "channel",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -488,6 +553,8 @@ async function logChannelUpdate(oldChannel, newChannel) {
 
   if (changes.length === 0) return;
 
+  const executor = await getExecutor(oldChannel.guild, oldChannel.id, AuditLogEvent.ChannelUpdate);
+
   const embed = createDetailedEmbed(
     oldChannel.guild.id,
     "✏️ KANAL GÜNCELLEMESI",
@@ -497,7 +564,8 @@ async function logChannelUpdate(oldChannel, newChannel) {
       "Kanal ID": `\`${newChannel.id}\``,
       "Değişim Sayısı": changes.length
     },
-    "channel"
+    "channel",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -513,6 +581,8 @@ async function logChannelUpdate(oldChannel, newChannel) {
 async function logUserBan(ban) {
   if (!ban?.guild) return;
 
+  const executor = await getExecutor(ban.guild, ban.user.id, AuditLogEvent.MemberBanAdd);
+
   const embed = createDetailedEmbed(
     ban.guild.id,
     "🔴 KULLANICI BANLANDI",
@@ -523,7 +593,8 @@ async function logUserBan(ban) {
       "Ban Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
       "Hesap Yaşı": `${Math.floor((Date.now() - ban.user.createdTimestamp) / (1000 * 60 * 60 * 24))} gün`
     },
-    "ban"
+    "ban",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -535,6 +606,8 @@ async function logUserBan(ban) {
 async function logUserUnban(ban) {
   if (!ban?.guild) return;
 
+  const executor = await getExecutor(ban.guild, ban.user.id, AuditLogEvent.MemberBanRemove);
+
   const embed = createDetailedEmbed(
     ban.guild.id,
     "🟢 BAN KALDIRILDI",
@@ -544,7 +617,8 @@ async function logUserUnban(ban) {
       "Ban Sebebi": ban.reason || "Sebep belirtilmedi",
       "Ban Kaldırma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
     },
-    "moderation"
+    "moderation",
+    executor
   );
 
   await sendCentralLog(embed);
@@ -676,6 +750,7 @@ async function logVoiceMove(oldState, newState) {
 module.exports = {
   sendCentralLog,
   createDetailedEmbed,
+  getExecutor,
   
   // Members
   logMemberJoin,
