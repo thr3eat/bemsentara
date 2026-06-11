@@ -21,6 +21,31 @@ function isUserAuthorized(member) {
   return member.permissions.has(PermissionsBitField.Flags.Administrator);
 }
 
+function getDetailedRobloxError(err) {
+  const msg = err.message || String(err);
+  let detail = `**Orijinal Hata:** \`${msg}\`\n\n`;
+
+  if (msg.includes("You are not logged in") || msg.includes("Cookie") || msg.includes("login") || msg.includes("401")) {
+    detail += "🔑 **Muhtemel Neden:** Botun Roblox oturumu (TMTCOOKIE) geçersiz, süresi dolmuş veya hatalı tanımlanmış.\n" +
+              "💡 **Çözüm:** `.env` dosyasındaki veya Render.com'daki `TMTCOOKIE` değerini güncelleyin ve botu yeniden başlatın.";
+  } else if (msg.includes("403") || msg.includes("Forbidden") || msg.includes("permission") || msg.includes("cannot set the rank") || msg.includes("Roleset is not assignable")) {
+    detail += "🚫 **Muhtemel Neden:** Yetki yetersizliği. Botun Roblox grubundaki rütbesi bu işlemi yapmaya yetmiyor.\n" +
+              "💡 **Çözüm:** Botun Roblox hesabının grupta **'Manage Lower Ranks' (Alt Rütbeleri Yönet)** yetkisine sahip olduğundan ve hedef kullanıcının rütbesinin botun rütbesinden düşük olduğundan emin olun. (Bot grup sahibinin veya kendisinden üst/eşit bir rütbenin rolünü değiştiremez).";
+  } else if (msg.includes("not in group") || msg.includes("is not in group") || msg.includes("400")) {
+    detail += "👤 **Muhtemel Neden:** Hedef kullanıcı belirtilen Roblox grubunun üyesi değil veya gruptan çıkmış/atılmış.\n" +
+              "💡 **Çözüm:** Kullanıcının gruba katıldığından emin olun.";
+  } else if (msg.includes("Too many requests") || msg.includes("429") || msg.includes("rate limit")) {
+    detail += "⏳ **Muhtemel Neden:** Roblox API istek sınırı (Rate Limit) aşıldı.\n" +
+              "💡 **Çözüm:** Lütfen birkaç dakika bekleyin ve işlemi tekrar deneyin.";
+  } else {
+    detail += "❓ **Muhtemel Neden:** Roblox API sunucularından kaynaklı geçici bir bağlantı sorunu veya bilinmeyen bir hata oluştu.\n" +
+              "💡 **Çözüm:** Giriş bilgilerini ve grup ID'lerini kontrol edip tekrar deneyin.";
+  }
+
+  return detail;
+}
+
+
 async function handleRobloxInteractions(interaction) {
   // --- 1. SEÇİM MENÜLERİ (GRUP VE RÜTBE SEÇİMİ) ---
   if (interaction.isStringSelectMenu()) {
@@ -124,7 +149,8 @@ async function handleRobloxInteractions(interaction) {
         return interaction.editReply({ content: `✅ İşlem Başarılı!\n**${username}** kullanıcısının rütbesi başarıyla **${newRole.name}** yapıldı.` });
       } catch (err) {
         console.error("[Roblox Rank Select Error]", err);
-        return interaction.editReply({ content: `❌ Roblox API Hatası:\n\`${err.message}\`` });
+        const detailedError = getDetailedRobloxError(err);
+        return interaction.editReply({ content: `❌ **Rütbe Değiştirme Hatası**\n\n${detailedError}` });
       }
     }
   }
@@ -152,7 +178,9 @@ async function handleRobloxInteractions(interaction) {
         
         return interaction.editReply({ embeds: [embed] });
       } catch (err) {
-        return interaction.editReply({ content: `❌ Rütbeler çekilemedi: ${err.message}` });
+        console.error("[Roblox Get Ranks Error]", err);
+        const detailedError = getDetailedRobloxError(err);
+        return interaction.editReply({ content: `❌ **Rütbe Listesi Çekilemedi**\n\n${detailedError}` });
       }
     }
 
@@ -215,7 +243,9 @@ async function handleRobloxInteractions(interaction) {
 
         return interaction.editReply({ content: `✅ İşlem Başarılı! Toplam **${count}** bekleyen istek **${isAccept ? "kabul edildi" : "reddedildi"}**.` });
       } catch (err) {
-        return interaction.editReply({ content: `❌ İstekler işlenirken hata oluştu: ${err.message}` });
+        console.error("[Roblox Handle Join Requests Error]", err);
+        const detailedError = getDetailedRobloxError(err);
+        return interaction.editReply({ content: `❌ **Katılım İstekleri İşlenirken Hata Oluştu**\n\n${detailedError}` });
       }
     }
   }
@@ -288,7 +318,8 @@ async function handleRobloxInteractions(interaction) {
       }
     } catch (err) {
       console.error("[Roblox Interaction Error]", err);
-      return interaction.editReply({ content: `❌ Roblox API Hatası:\n\`${err.message}\`` });
+      const detailedError = getDetailedRobloxError(err);
+      return interaction.editReply({ content: `❌ **İşlem Formu Gönderim Hatası**\n\n${detailedError}` });
     }
   }
 
