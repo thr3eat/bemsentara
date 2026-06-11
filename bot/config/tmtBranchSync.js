@@ -108,7 +108,7 @@ const BRANCH_AUTHORITY_THRESHOLDS = {
   35528574: 25,  // Foreign Affairs
   35212138: 25,  // Akademi
   35212127: 25,  // Genel Branş Komutanlığı
-  35528598: 25,  // Raiders
+  35528598: 25,  // Raiderss
 };
 
 // All branch role IDs for cleanup
@@ -127,7 +127,7 @@ const ALL_BRANCH_ROLE_IDS = new Set([
   "1514582807458877571", // Askeri İnzibat Branş Yetkilisi
 ]);
 
-const BRANCH_START_SEPARATOR = "▬▬▬ BRANŞLAR ▬▬▬";
+const BRANCH_START_SEPARATOR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 const BRANCH_END_SEPARATOR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
 module.exports = {
