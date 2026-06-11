@@ -79,37 +79,6 @@ async function handlePhotoUpload(message, client) {
 // Button: "Hayır Abone Değil" tıklandığında
 async function handleNoSubscriberButton(interaction, client) {
   try {
-    // ── MODERATÖR KONTROLÜ ──────────────────────────────────────────────────
-    let isModerator = false;
-  role: MODERATOR_ROLE_ID = '1475082184896548864'; // Moderatör rolü ID'si
-
-    // Önce interaction.member üzerinden kontrol et (çoğu durumda çalışır)                
-     try {
-      const member = await interaction.guild.members.fetch(interaction.user.id);
-    } catch (_) {
-      // Member partial olabilir, bunun yerine guild'den çek
-      const guild = await client.guilds.fetch(GUILD2_ID).catch(() => null);
-      if (guild) {
-        try {
-          const freshMember = await guild.members.fetch(interaction.user.id).catch(() => null);
-          if (freshMember) {
-            if (freshMember.permissions?.has('ManageMembers') || 
-                freshMember.permissions?.has('ManageMessages') ||
-                freshMember.permissions?.has('ManageChannels')) {
-              isModerator = true;
-            }
-          }
-        } catch (_) {}
-      }
-    }
-
-    if (!isModerator) {
-      return interaction.reply({
-        content: '❌ Bu işlemi sadece moderatörler yapabilir!',
-        ephemeral: true,
-      });
-    }
-
     const userId = interaction.customId.split('_').pop();
 
     // Modal aç: "Neden?"
