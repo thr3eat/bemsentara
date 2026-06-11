@@ -27,6 +27,9 @@ async function handleModerationCommand(interaction) {
       if (interaction.guild.id === TMT_GUILD_ID) {
         const { logTMTModAction } = require("../services/tmtLogger");
         await logTMTModAction(interaction, commandName, null, `${miktar} mesaj silindi.`);
+      } else if (interaction.guild.id === "1483482948320891074") {
+        const { logAlliedModAction } = require("../services/alliedRoleSyncService");
+        await logAlliedModAction(interaction, commandName, null, `${miktar} mesaj silindi.`);
       }
 
       const embed = new EmbedBuilder()
@@ -55,6 +58,9 @@ async function handleModerationCommand(interaction) {
       if (interaction.guild.id === TMT_GUILD_ID) {
         const { logTMTModAction } = require("../services/tmtLogger");
         await logTMTModAction(interaction, commandName, kullanici, `Süre: ${sure || "10 dakika"}, Sebep: ${sebep}`);
+      } else if (interaction.guild.id === "1483482948320891074") {
+        const { logAlliedModAction } = require("../services/alliedRoleSyncService");
+        await logAlliedModAction(interaction, commandName, kullanici, `Süre: ${sure || "10 dakika"}, Sebep: ${sebep}`);
       }
 
       const embed = new EmbedBuilder()
@@ -84,6 +90,9 @@ async function handleModerationCommand(interaction) {
       if (interaction.guild.id === TMT_GUILD_ID) {
         const { logTMTModAction } = require("../services/tmtLogger");
         await logTMTModAction(interaction, commandName, kullanici, `Susturma kaldırıldı.`);
+      } else if (interaction.guild.id === "1483482948320891074") {
+        const { logAlliedModAction } = require("../services/alliedRoleSyncService");
+        await logAlliedModAction(interaction, commandName, kullanici, `Susturma kaldırıldı.`);
       }
 
       const embed = new EmbedBuilder()
@@ -106,6 +115,9 @@ async function handleModerationCommand(interaction) {
         if (interaction.guild.id === TMT_GUILD_ID) {
           const { logTMTModAction } = require("../services/tmtLogger");
           await logTMTModAction(interaction, commandName, kullanici, `Sebep: ${sebep}`);
+        } else if (interaction.guild.id === "1483482948320891074") {
+          const { logAlliedModAction } = require("../services/alliedRoleSyncService");
+          await logAlliedModAction(interaction, commandName, kullanici, `Sebep: ${sebep}`);
         }
 
         // Site ban da uygula
@@ -151,6 +163,9 @@ async function handleModerationCommand(interaction) {
         if (interaction.guild.id === TMT_GUILD_ID) {
           const { logTMTModAction } = require("../services/tmtLogger");
           await logTMTModAction(interaction, commandName, kullanici, `Yasaklama kaldırıldı.`);
+        } else if (interaction.guild.id === "1483482948320891074") {
+          const { logAlliedModAction } = require("../services/alliedRoleSyncService");
+          await logAlliedModAction(interaction, commandName, kullanici, `Yasaklama kaldırıldı.`);
         }
 
         // Site ban da kaldır

@@ -73,7 +73,7 @@ async function ensureRobloxManagementMenu(client) {
         .setTitle("🛡️ TMT Roblox Grup Yönetimi")
         .setDescription("Aşağıdaki menüden işlem yapmak istediğiniz Roblox grubunu seçin.\n\n**⚠️ GÜVENLİK UYARISI:**\nBu sistem sadece **Yönetim** ekibi tarafından kullanılabilir. Yapılan tüm rütbe değişiklikleri ve katılım onayları sistem tarafından kayıt altına alınmaktadır.")
         .setColor(0x2B2D31)
-        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514662015845793833/Gemini_Generated_Image_6ahowd6ahowd6aho_1.png?ex=6a2c2e6d&is=6a2adced&hm=15771d7c335f3c79642a0026f75dbe2ee149e93e6da0fb97850f03b14f2dee79&=&format=webp&quality=lossless&width=1872&height=592") // Roblox Icon or TMT Icon
+        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514674220645355621/dfdfa.png?ex=6a2c39cb&is=6a2ae84b&hm=a00ea0f68ffe436ce90ed373f83ffcc35fa0f9ca678e8167429bb0a4336462bd&=&format=webp&quality=lossless&width=960&height=960") // Roblox Icon or TMT Icon
         .setFooter({ text: "TMT Yüksek Güvenlikli Otomasyon Sistemi" });
 
       // Create dropdown options
@@ -137,7 +137,7 @@ async function ensureEkoYildizRobloxMenu(client) {
         .setTitle("🛡️ EkoYıldız Roblox Grup Yönetimi")
         .setDescription("Aşağıdaki menüden işlem yapmak istediğiniz EkoYıldız Roblox grubunu seçin.\n\n**⚠️ GÜVENLİK UYARISI:**\nBu sistem sadece **Yönetim** ekibi tarafından kullanılabilir. Yapılan tüm rütbe değişiklikleri ve katılım onayları sistem tarafından kayıt altına alınmaktadır.")
         .setColor(0xF39C12) // Altın sarısı / turuncu renk
-        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514662015845793833/Gemini_Generated_Image_6ahowd6ahowd6aho_1.png?ex=6a2c2e6d&is=6a2adced&hm=15771d7c335f3c79642a0026f75dbe2ee149e93e6da0fb97850f03b14f2dee79&=&format=webp&quality=lossless&width=1872&height=592")
+        .setThumbnail("https://media.discordapp.net/attachments/1437481457344974992/1514674220645355621/dfdfa.png?ex=6a2c39cb&is=6a2ae84b&hm=a00ea0f68ffe436ce90ed373f83ffcc35fa0f9ca678e8167429bb0a4336462bd&=&format=webp&quality=lossless&width=960&height=960")
         .setFooter({ text: "EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi" });
 
       const ekoyildizGroups = {

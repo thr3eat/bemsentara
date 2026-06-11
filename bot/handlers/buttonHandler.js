@@ -65,7 +65,13 @@ async function handleButtonInteraction(interaction) {
       console.log(`[verify_button] Found user: Discord=${interaction.user.id}, Roblox=${user.robloxId}`);
       
       // Rolleri senkronize et
-      const result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+      let result;
+      if (interaction.guild && interaction.guild.id === "1483482948320891074") {
+        const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+        result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
+      } else {
+        result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
+      }
       
       if (result && result.success) {
         const formatRoleList = (roles) => {

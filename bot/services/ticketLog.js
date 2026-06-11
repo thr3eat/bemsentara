@@ -28,12 +28,15 @@ async function resolveLogChannel(ticket) {
   const guildId = ticket.guildId || TARGET_GUILD_ID;
   const isGuild2 = guildId === GUILD2_ID;
   const isTMT = guildId === TMT_GUILD_ID;
+  const isAllied = guildId === "1483482948320891074";
 
   let logChannelId;
   if (isTMT) {
     logChannelId = "1514583177849606204";
   } else if (isGuild2) {
     logChannelId = GUILD2_TICKET_LOG_ID || null;
+  } else if (isAllied) {
+    logChannelId = "1483483313225203732";
   } else {
     logChannelId = TICKET_LOG_CHANNEL_ID;
   }

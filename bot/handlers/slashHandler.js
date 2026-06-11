@@ -288,7 +288,13 @@ async function handleSlashCommand(interaction) {
 
         // Determine which server and sync accordingly
         let success = false;
-        if (guildId === normalizedTMT) {
+        if (guildId === "1483482948320891074") {
+          console.log(`[verify] ✓ Müttefik sunucusu tespit edildi - Allied sync başlatılıyor`);
+          const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+          const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(dbUser.robloxId, 10), guild);
+          success = result.success;
+          console.log(`[verify] Müttefik sync sonucu: ${success}`);
+        } else if (guildId === normalizedTMT) {
           console.log(`[verify] ✓ TMT sunucusu tespit edildi - TMT sync başlatılıyor`);
           const { syncTMTRoles } = require("../services/tmtRoleSyncService");
           success = await syncTMTRoles(
@@ -355,7 +361,11 @@ async function handleSlashCommand(interaction) {
         }
 
         let updated = 0;
-        if (guildId === TMT_GUILD_ID) {
+        if (guildId === "1483482948320891074") {
+          console.log(`[Update Command] Müttefik sunucusu Update başlatılıyor...`);
+          const { verifyAllAlliedRoles } = require("../services/alliedRoleSyncService");
+          updated = await verifyAllAlliedRoles(interaction.client, userIds);
+        } else if (guildId === TMT_GUILD_ID) {
           console.log(`[Update Command] TMT Update başlatılıyor...`);
           // TMT Update Logic
           const { verifyAllTMTRoles } = require("../services/tmtRoleSyncService");

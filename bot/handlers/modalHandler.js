@@ -108,10 +108,12 @@ async function handleSupportModal(interaction) {
     // Hangi sunucudan geldiğini belirle
     const sourceGuildId = interaction.guild?.id;
     const isGuild2 = sourceGuildId === GUILD2_ID;
+    const isAllied = sourceGuildId === "1483482948320891074";
 
-    // Hedef sunucu: TMT ise TMT sunucusu, Guild2 ise Guild2, yoksa Target Guild
+    // Hedef sunucu: TMT ise TMT sunucusu, Guild2 ise Guild2, Allied ise Allied, yoksa Target Guild
     let targetGuildId = TARGET_GUILD_ID;
-    if (isTMT) targetGuildId = TMT_GUILD_ID;
+    if (isAllied) targetGuildId = "1483482948320891074";
+    else if (isTMT) targetGuildId = TMT_GUILD_ID;
     else if (isGuild2) targetGuildId = GUILD2_ID;
 
     const targetGuild = await interaction.client.guilds.fetch(targetGuildId);
@@ -164,6 +166,23 @@ async function handleSupportModal(interaction) {
         name: `ticket-${ticketId.toLowerCase()}`,
         type: ChannelType.GuildText,
         parent: GUILD2_TICKET_CATEGORY_ID || undefined,
+        permissionOverwrites: validOverwrites,
+      });
+    } else if (isAllied) {
+      // Müttefik Sunucusu: DESTEK TALEPLERİ kategorisine aç
+      let ticketCategory = targetGuild.channels.cache.find(
+        (c) => c.name.toLowerCase() === "destek talepleri" && c.type === ChannelType.GuildCategory
+      );
+      if (!ticketCategory) {
+        ticketCategory = await targetGuild.channels.create({
+          name: "DESTEK TALEPLERİ",
+          type: ChannelType.GuildCategory,
+        });
+      }
+      ticketChannel = await targetGuild.channels.create({
+        name: `ticket-${ticketId.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: ticketCategory.id,
         permissionOverwrites: validOverwrites,
       });
     } else if (isTMT) {
