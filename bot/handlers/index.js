@@ -639,6 +639,90 @@ function initializeDiscordHandlers(client) {
         await statusMsg.edit(resultText);
       }
     }
+
+    if (message.content === "!emojiguncelle" || message.content === "!emojigüncelle") {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      let guild = message.client.guilds.cache.get("1514569307886063666");
+      if (!guild) {
+        guild = await message.client.guilds.fetch("1514569307886063666").catch(() => null);
+      }
+
+      if (!guild) {
+        return message.reply("❌ Hedef sunucu (1514569307886063666) bulunamadı veya bot bu sunucuda değil.");
+      }
+
+      const statusMsg = await message.reply("🔄 Emojiler kontrol ediliyor ve güncelleniyor, lütfen bekleyin...");
+
+      const updated = [];
+      const failed = [];
+      let skippedCount = 0;
+
+      try {
+        const emojis = await guild.emojis.fetch();
+
+        for (const emoji of emojis.values()) {
+          const oldName = emoji.name;
+          if (!oldName) continue;
+
+          let newName = null;
+
+          if (oldName.startsWith("TA")) {
+            newName = oldName.replace(/^TA/, "TMT");
+          } else if (!oldName.startsWith("TMT")) {
+            newName = "TMT_" + oldName;
+          }
+
+          if (newName && newName !== oldName) {
+            try {
+              await emoji.setName(newName);
+              updated.push({ oldName, newName });
+            } catch (err) {
+              console.error(`Emoji ${oldName} güncellenirken hata:`, err);
+              failed.push({ name: oldName, error: err.message || "Bilinmeyen hata" });
+            }
+          } else {
+            skippedCount++;
+          }
+        }
+
+        let replyText = `**Emoji Güncelleme Sonucu (Sunucu: ${guild.name}):**\n\n`;
+        replyText += `✅ **Güncellenen Emojiler (${updated.length}):**\n`;
+        if (updated.length > 0) {
+          updated.forEach(item => {
+            replyText += `- \`${item.oldName}\` ➡️ \`${item.newName}\`\n`;
+          });
+        } else {
+          replyText += `Hiçbir emoji güncellenmedi.\n`;
+        }
+
+        replyText += `\n⏭️ **Değişiklik Yapılmayanlar (Zaten TMT ile başlayanlar vb.):** ${skippedCount} adet\n`;
+
+        if (failed.length > 0) {
+          replyText += `\n❌ **Başarısız Olanlar (${failed.length}):**\n`;
+          failed.forEach(item => {
+            replyText += `- \`${item.name}\`: ${item.error}\n`;
+          });
+        }
+
+        if (replyText.length > 2000) {
+          const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];
+          await statusMsg.edit(chunks[0]);
+          for (let i = 1; i < chunks.length; i++) {
+            await message.reply(chunks[i]);
+          }
+        } else {
+          await statusMsg.edit(replyText);
+        }
+
+      } catch (err) {
+        console.error("Emoji listesi çekilirken hata:", err);
+        await statusMsg.edit(`❌ Emojiler güncellenirken genel bir hata oluştu: ${err.message}`);
+      }
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {
