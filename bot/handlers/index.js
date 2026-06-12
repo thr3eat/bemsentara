@@ -534,9 +534,9 @@ function initializeDiscordHandlers(client) {
       const channels = message.guild.channels.cache
         .sort((a, b) => a.position - b.position);
 
-      let replyText = "**Sunucudaki Kanallar (İsim ID):**\n\n";
+      let replyText = "**Sunucudaki Kanallar (İsim = ID):**\n\n";
       channels.forEach((channel) => {
-        replyText += `${channel.name} ${channel.id}\n`;
+        replyText += `${channel.name} = ${channel.id}\n`;
       });
 
       if (replyText.length > 2000) {
