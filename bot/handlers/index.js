@@ -524,6 +524,121 @@ function initializeDiscordHandlers(client) {
         await message.reply(replyText);
       }
     }
+
+    if (message.content === "!tumkanallar" || message.content === "!tümkanallar") {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Kanalları Yönet` veya `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const channels = message.guild.channels.cache
+        .sort((a, b) => a.position - b.position);
+
+      let replyText = "**Sunucudaki Kanallar (İsim ID):**\n\n";
+      channels.forEach((channel) => {
+        replyText += `${channel.name} ${channel.id}\n`;
+      });
+
+      if (replyText.length > 2000) {
+        const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];
+        for (const chunk of chunks) await message.reply(chunk);
+      } else {
+        await message.reply(replyText);
+      }
+    }
+
+    if (message.content.startsWith("!tumkanallaraciklama") || message.content.startsWith("!tümkanallaraciklama")) {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Kanalları Yönet` veya `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const lines = message.content.split("\n");
+      const pairs = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (i === 0) {
+          if (line.startsWith("!tumkanallaraciklama")) {
+            line = line.slice("!tumkanallaraciklama".length).trim();
+          } else if (line.startsWith("!tümkanallaraciklama")) {
+            line = line.slice("!tümkanallaraciklama".length).trim();
+          }
+        }
+        
+        if (!line) continue;
+        
+        const parts = line.split("-----");
+        if (parts.length >= 2) {
+          const channelId = parts[0].trim();
+          const description = parts.slice(1).join("-----").trim();
+          if (channelId) {
+            pairs.push({ channelId, description });
+          }
+        }
+      }
+
+      if (pairs.length === 0) {
+        return message.reply("❌ Lütfen güncellenecek kanalları şu formatta belirtin:\n`!tümkanallaraciklama`\n`kanal_id ----- yeni_açıklama`\n`kanal_id_2 ----- yeni_açıklama_2`");
+      }
+
+      const statusMsg = await message.reply(`🔄 ${pairs.length} kanalın açıklaması güncelleniyor, lütfen bekleyin...`);
+      
+      const success = [];
+      const failed = [];
+
+      for (const pair of pairs) {
+        const { channelId, description } = pair;
+        try {
+          let channel = message.guild.channels.cache.get(channelId);
+          if (!channel) {
+            channel = await message.guild.channels.fetch(channelId).catch(() => null);
+          }
+
+          if (!channel) {
+            failed.push({ channelId, reason: "Kanal bulunamadı." });
+            continue;
+          }
+
+          if (typeof channel.setTopic !== 'function') {
+            failed.push({ channel: channel.name, channelId, reason: "Bu kanal türü açıklama/topic desteklemiyor." });
+            continue;
+          }
+
+          await channel.setTopic(description, `Yetkili: ${message.author.tag} tarafından güncellendi.`);
+          success.push({ name: channel.name, id: channel.id });
+        } catch (err) {
+          console.error(`Kanal ${channelId} açıklaması güncellenirken hata:`, err);
+          failed.push({ channelId, reason: err.message || "Bilinmeyen hata." });
+        }
+      }
+
+      let resultText = `**Açıklama Güncelleme Sonucu:**\n\n`;
+      if (success.length > 0) {
+        resultText += `✅ **Başarıyla Güncellenenler:**\n`;
+        success.forEach(s => {
+          resultText += `- #${s.name} (${s.id})\n`;
+        });
+        resultText += `\n`;
+      }
+      if (failed.length > 0) {
+        resultText += `❌ **Başarısız Olanlar:**\n`;
+        failed.forEach(f => {
+          const nameStr = f.channel ? `#${f.channel} ` : "";
+          resultText += `- ${nameStr}(${f.channelId}): ${f.reason}\n`;
+        });
+      }
+
+      if (resultText.length > 2000) {
+        const chunks = resultText.match(/[\s\S]{1,1999}/g) || [];
+        await statusMsg.edit(chunks[0]);
+        for (let i = 1; i < chunks.length; i++) {
+          await message.reply(chunks[i]);
+        }
+      } else {
+        await statusMsg.edit(resultText);
+      }
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {
