@@ -273,9 +273,9 @@ async function getFrogProfile(userId, client) {
 
   const currentRole  = FROG_ROLES[p.level];
   const nextRole     = FROG_ROLES[p.level + 1];
-  const currentXP    = p.xp - totalXpForLevel(p.level);
+  const currentXP    = Math.max(0, p.xp - totalXpForLevel(p.level));
   const neededXP     = p.level < FROG_ROLES.length - 1 ? xpToNextLevel(p.level) : 0;
-  const progress     = neededXP > 0 ? Math.floor((currentXP / neededXP) * 10) : 10;
+  const progress     = neededXP > 0 ? Math.min(10, Math.max(0, Math.floor((currentXP / neededXP) * 10))) : 10;
   const bar          = '█'.repeat(progress) + '░'.repeat(10 - progress);
 
   return {
