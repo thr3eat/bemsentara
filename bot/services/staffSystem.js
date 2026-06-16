@@ -1208,7 +1208,11 @@ async function resignFromStaff(userId, reason, client) {
     await p.save();
     console.log(`[staffSystem] İstifa → Emeklilik: ${userId} (${levelName})`);
   } else {
-    // 90 günden az: Kaydı tamamen sil
+    // 90 günden az: Önce status'u güncelle (silme başarısız olursa DM gitmemesi için), sonra kaydı sil
+    p.status = 'resigned';
+    p.resignedAt = new Date();
+    p.resignReason = reason?.slice(0, 300) || 'Belirtilmedi';
+    await p.save();
     await StaffProgress.deleteOne({ userId });
     console.log(`[staffSystem] İstifa & Kayıt Silinme: ${userId} (${levelName})`);
   }
@@ -1412,7 +1416,7 @@ function startStaffScheduler(client) {
   // 09:00 — Sabah brifing (tüm personele)
   scheduleAt(9, 0, async () => {
     console.log('[staffSystem] 09:00 sabah brifing gönderiliyor...');
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       await sendMorningBriefing(p, client).catch(() => {});
     }
@@ -1422,7 +1426,7 @@ function startStaffScheduler(client) {
   scheduleAt(13, 0, async () => {
     console.log('[staffSystem] 13:00 öğlen hatırlatması...');
     const today        = todayStr();
-    const allProgress  = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress  = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= getDailyRequirements(p.level, p.stats?.consecutiveDays || 0).voiceMinutes;
       if (!isComplete) {
@@ -1435,7 +1439,7 @@ function startStaffScheduler(client) {
   scheduleAt(19, 0, async () => {
     console.log('[staffSystem] 19:00 akşam uyarısı...');
     const today       = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
@@ -1448,7 +1452,7 @@ function startStaffScheduler(client) {
   // 15:00 — Öğleden sonra motivasyon mesajı (aktif olan personele)
   scheduleAt(15, 0, async () => {
     console.log('[staffSystem] 15:00 motivasyon mesajları gönderiliyor...');
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       // %50 şansla motivasyon gönder (tüm gruba yazarsak spam olur)
       if (Math.random() > 0.5) {
@@ -1460,7 +1464,7 @@ function startStaffScheduler(client) {
   // 18:00 — Akşam eğlenceleri (gamification fun message'ları)
   scheduleAt(18, 0, async () => {
     console.log('[staffSystem] 18:00 eğlenceli mesajları gönderiliyor...');
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       // %60 şansla eğlenceli mesaj gönder
       if (Math.random() > 0.4) {
@@ -1473,7 +1477,7 @@ function startStaffScheduler(client) {
   scheduleAt(21, 0, async () => {
     console.log('[staffSystem] 21:00 gece motivasyonu...');
     const today       = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: { $ne: 'retired' } });
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;

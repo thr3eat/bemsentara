@@ -59,7 +59,7 @@ async function startCoachSession(interaction) {
 
   // Personel mi kontrol et
   const progress = await StaffProgress.findOne({ userId }).catch(() => null);
-  if (!progress || progress.status === 'resigned' || progress.status === 'retired') {
+  if (!progress || progress.status === 'resigned' || progress.status === 'retired' || progress.status === 'dismissed') {
     return interaction.editReply({
       content: '❌ Koç hizmeti sadece aktif personele açıktır. Personel sistemine kayıtlı değilsin.',
     });
