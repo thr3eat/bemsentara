@@ -25,6 +25,20 @@ function initializeVoiceAndBanHandlers(client) {
     } catch (err) {
       console.warn("[guildBanAdd] Site ban uygulanamadı:", err.message);
     }
+
+    // Banlanan kullanıcıya itiraz DM'i gönder
+    try {
+      const { sendAppealDM } = require("../services/banAppeal");
+      await sendAppealDM(
+        ban.user,
+        ban.guild.name,
+        ban.guild.id,
+        ban.reason || "Belirtilmedi",
+        "ban"
+      );
+    } catch (err) {
+      console.warn("[guildBanAdd] İtiraz DM gönderilemedi:", err.message);
+    }
   });
 
   client.on("guildBanRemove", async (ban) => {

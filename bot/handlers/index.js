@@ -799,6 +799,24 @@ function initializeDiscordHandlers(client) {
         await handleAbuseButton(interaction);
         return;
       }
+      // ── Ban İtiraz Butonu (DM'den tıklanan) ────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('ban_appeal_')) {
+        const { handleAppealButton } = require('../services/banAppeal');
+        await handleAppealButton(interaction);
+        return;
+      }
+      // ── Ban İtiraz Karar Butonları (Onayla/Reddet) ─────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('appeal_accept_') || interaction.customId?.startsWith('appeal_reject_'))) {
+        const { handleAppealDecisionButton } = require('../services/banAppeal');
+        await handleAppealDecisionButton(interaction, client);
+        return;
+      }
+      // ── Ban İtiraz Modal Submit ─────────────────────────────────────────────
+      if (interaction.isModalSubmit() && interaction.customId?.startsWith('ban_appeal_modal_')) {
+        const { handleAppealModalSubmit } = require('../services/banAppeal');
+        await handleAppealModalSubmit(interaction, client);
+        return;
+      }
       // ── Roblox Etkileşimleri ──────────────────────────────────────────────
       if (
         (interaction.isStringSelectMenu() && (interaction.customId === "roblox_group_select" || interaction.customId.startsWith("roblox_rank_select"))) ||

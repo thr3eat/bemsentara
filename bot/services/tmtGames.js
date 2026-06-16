@@ -133,6 +133,19 @@ async function handleTMTGames(message, client) {
     try {
       // Mesajı sil
       await message.delete().catch(() => {});
+
+      // Kick'lemeden önce itiraz DM'i gönder (kick sonrası DM gönderilemeyebilir)
+      try {
+        const { sendAppealDM } = require('./banAppeal');
+        await sendAppealDM(
+          message.author,
+          message.guild.name,
+          message.guild.id,
+          'Honeypot (Tuzak) kanalına mesaj gönderdi.',
+          'honeypot'
+        );
+      } catch (_) {}
+
       // Kullanıcıyı sunucudan at
       if (message.member && message.member.kickable) {
         await message.member.kick("Honeypot (Tuzak) kanalına mesaj gönderdi.");
