@@ -10,13 +10,112 @@ const {
 // --- In-Memory States for Games ---
 
 // Bom Game State
-let currentBomNumber = 1;
+let currentBomNumber = null; // null = henüz senkronize edilmedi
 let lastBomUser = null;
+let bomSynced = false;
 
 // Word Game State
 let lastWordLetter = null;
 let lastWordUser = null;
 const usedWords = new Set();
+let wordSynced = false;
+
+/**
+ * Bom oyununu kanal geçmişinden senkronize et.
+ * Son mesajlara bakarak currentBomNumber'ı belirle.
+ */
+async function syncBomFromHistory(channel) {
+  if (bomSynced) return;
+  bomSynced = true;
+
+  try {
+    // Son 50 mesajı çek (bot mesajları dahil)
+    const messages = await channel.messages.fetch({ limit: 50 });
+    // Kronolojik sırayla (eskiden yeniye)
+    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    let foundNumber = 0;
+    let foundUser = null;
+
+    // En yeniden eskiye doğru tara, ilk geçerli sayı veya "bom" mesajını bul
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const msg = sorted[i];
+      if (msg.author.bot) continue;
+
+      const content = msg.content.trim().toLowerCase();
+
+      // Sayı mı kontrol et
+      const num = parseInt(content, 10);
+      if (!isNaN(num) && num > 0 && num.toString() === content) {
+        foundNumber = num;
+        foundUser = msg.author.id;
+        break;
+      }
+
+      // "bom" yazılmışsa, o mesajdan önceki sayıyı bulmamız gerekiyor
+      if (content.includes("bom")) {
+        // Bu "bom" mesajından önceki sayıyı bul
+        for (let j = i - 1; j >= 0; j--) {
+          const prevMsg = sorted[j];
+          if (prevMsg.author.bot) continue;
+          const prevNum = parseInt(prevMsg.content.trim(), 10);
+          if (!isNaN(prevNum) && prevNum > 0) {
+            foundNumber = prevNum + 1; // bom'dan sonraki sayı = prevNum + 1
+            foundUser = msg.author.id;
+            break;
+          }
+        }
+        if (foundNumber > 0) break;
+      }
+    }
+
+    if (foundNumber > 0) {
+      currentBomNumber = foundNumber + 1; // Bir sonraki sayı
+      lastBomUser = foundUser;
+      console.log(`[tmtGames] Bom senkronize edildi: son sayı=${foundNumber}, sıradaki=${currentBomNumber}`);
+    } else {
+      currentBomNumber = 1;
+      lastBomUser = null;
+      console.log('[tmtGames] Bom geçmişi boş, 1\'den başlıyor');
+    }
+  } catch (err) {
+    console.error('[tmtGames] Bom senkronizasyon hatası:', err.message);
+    if (currentBomNumber === null) currentBomNumber = 1;
+  }
+}
+
+/**
+ * Kelime oyununu kanal geçmişinden senkronize et.
+ * Son mesajlara bakarak lastWordLetter ve usedWords'ü belirle.
+ */
+async function syncWordFromHistory(channel) {
+  if (wordSynced) return;
+  wordSynced = true;
+
+  try {
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    for (const msg of sorted) {
+      if (msg.author.bot) continue;
+      const word = msg.content.trim().split(" ")[0].toLowerCase();
+      if (/[^a-zğüşıöç]/i.test(word)) continue;
+      if (word.length === 0) continue;
+
+      usedWords.add(word);
+      lastWordLetter = word.slice(-1);
+      lastWordUser = msg.author.id;
+    }
+
+    if (lastWordLetter) {
+      console.log(`[tmtGames] Kelime oyunu senkronize edildi: son harf="${lastWordLetter}", ${usedWords.size} kelime hafızada`);
+    } else {
+      console.log('[tmtGames] Kelime oyunu geçmişi boş, sıfırdan başlıyor');
+    }
+  } catch (err) {
+    console.error('[tmtGames] Kelime oyunu senkronizasyon hatası:', err.message);
+  }
+}
 
 /**
  * Handle incoming messages for TMT specific channels (games & honeypot).
@@ -75,6 +174,9 @@ async function handleTMTGames(message, client) {
 
   // 4. Bom Game
   if (channelId === TMT_BOM_CHANNEL_ID) {
+    // İlk mesajda kanal geçmişinden senkronize et
+    await syncBomFromHistory(message.channel);
+
     const content = message.content.toLowerCase().trim();
     
     // Aynı kişi üst üste yazamaz
@@ -116,6 +218,9 @@ async function handleTMTGames(message, client) {
 
   // 5. Kelime Oyunu
   if (channelId === TMT_WORDGAME_CHANNEL_ID) {
+    // İlk mesajda kanal geçmişinden senkronize et
+    await syncWordFromHistory(message.channel);
+
     // Aynı kişi üst üste oynayamaz
     if (message.author.id === lastWordUser && lastWordLetter !== null) {
       await message.delete().catch(() => {});
