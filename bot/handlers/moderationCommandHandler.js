@@ -5,7 +5,7 @@ async function handleModerationCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
 
-  if (!["mesaj_sil", "sustur", "susturma_kaldir", "yasakla", "yasaklama_kaldir"].includes(commandName)) return null;
+  if (!["mesaj_sil", "sustur", "susturma_kaldir", "yasakla", "yasaklama_kaldir", "modislem"].includes(commandName)) return null;
 
   await interaction.deferReply(deferEphemeral());
 
@@ -195,6 +195,19 @@ async function handleModerationCommand(interaction) {
       } catch (err) {
         return interaction.editReply({ content: `❌ Yasak kaldırma başarısız: ${err.message}` });
       }
+    }
+
+    if (commandName === "modislem") {
+      const kullanici = interaction.options.getUser("kullanici");
+      const sebep = interaction.options.getString("sebep");
+      const kanit = interaction.options.getAttachment("kanit") || null;
+
+      if (!kullanici || !sebep) {
+        return interaction.editReply({ content: "❌ Kullanıcı ve sebep belirtilmelidir." });
+      }
+
+      const { executeModAction } = require("../services/modActionService");
+      return executeModAction(interaction, kullanici, sebep, kanit);
     }
 
     return null;

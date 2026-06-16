@@ -20,28 +20,28 @@ const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1504201250160246886"
 const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || "1505511498095788063";
 
 // ── İkinci sunucu (EKOYILDIZ) ────────────────────────────────────────────────
-const GUILD2_ID                  = process.env.GUILD2_ID                  || "1367646464804655104";
+const GUILD2_ID = process.env.GUILD2_ID || "1367646464804655104";
 /** Ticket kanallarının açılacağı kategori */
-const GUILD2_TICKET_CATEGORY_ID  = process.env.GUILD2_TICKET_CATEGORY_ID  || "1493662634044559440";
+const GUILD2_TICKET_CATEGORY_ID = process.env.GUILD2_TICKET_CATEGORY_ID || "1493662634044559440";
 /** Ticket log kanalı (isteğe bağlı, boş bırakılabilir) */
-const GUILD2_TICKET_LOG_ID       = process.env.GUILD2_TICKET_LOG_ID       || "1412828986240929852";
+const GUILD2_TICKET_LOG_ID = process.env.GUILD2_TICKET_LOG_ID || "1412828986240929852";
 /** Join-to-create ses kanalı */
-const GUILD2_VOICE_JOIN_ID       = process.env.GUILD2_VOICE_JOIN_ID       || "1466134451191943291";
+const GUILD2_VOICE_JOIN_ID = process.env.GUILD2_VOICE_JOIN_ID || "1466134451191943291";
 /** Ses kanallarının oluşturulacağı kategori (join kanalıyla aynı kategori kullanılır) */
-const GUILD2_VOICE_CATEGORY_ID   = process.env.GUILD2_VOICE_CATEGORY_ID   || "1460284319183536190";
+const GUILD2_VOICE_CATEGORY_ID = process.env.GUILD2_VOICE_CATEGORY_ID || "1460284319183536190";
 /** Ses sistemi panel kanalı */
-const GUILD2_VOICE_PANEL_ID      = process.env.GUILD2_VOICE_PANEL_ID      || "1505505849924255955";
+const GUILD2_VOICE_PANEL_ID = process.env.GUILD2_VOICE_PANEL_ID || "1505505849924255955";
 
 // ── Üçüncü sunucu (TMT - Türk Silahlı Kuvvetleri) ──────────────────────────────
-const TMT_GUILD_ID               = "1514569307886063666";
+const TMT_GUILD_ID = "1514569307886063666";
 /** Sunucu kuralları kanalı */
-const TMT_RULES_CHANNEL_ID       = "1514583014208700519";
+const TMT_RULES_CHANNEL_ID = "1514583014208700519";
 /** Otomod kuralları kanalı */
 const TMT_AUTOMOD_RULES_CHANNEL_ID = "1514583015412600832";
 /** Doğrulama yardım mesajı kanalı */
 const TMT_VERIFY_HELP_CHANNEL_ID = "1514583038598713404";
 /** Destek sistemi kanalı */
-const TMT_SUPPORT_CHANNEL_ID     = "1514583035327156254";
+const TMT_SUPPORT_CHANNEL_ID = "1514583035327156254";
 /** Ses paneli kanalı */
 const TMT_VOICE_PANEL_CHANNEL_ID = "1514583184275279992";
 /** Ses kanalı oluşturma kanalı */
@@ -50,41 +50,49 @@ const TMT_VOICE_JOIN_CHANNEL_ID = "1514583245260329001";
 const TMT_ROBLOX_RANK_LOG_CHANNEL_ID = "1514583232111317054";
 
 // ── TMT Rolleri ──────────────────────────────────────────────────────────────
-const TMT_UNVERIFIED_ROLE_ID     = "1514642404932718724";
-const TMT_VERIFIED_ROLE_ID       = "1514582790639980635";
+const TMT_UNVERIFIED_ROLE_ID = "1514642404932718724";
+const TMT_VERIFIED_ROLE_ID = "1514582790639980635";
 
 // ── TMT Oyun ve Özel Kanallar ────────────────────────────────────────────────
-const TMT_HONEYPOT_CHANNEL_ID    = "1514583028331184229"; // Mesaj atanların atılacağı kanal
-const TMT_OWO_CHANNEL_ID         = "1514583077308072036";
-const TMT_TUTTU_CHANNEL_ID       = "1514583081304985640";
-const TMT_BOM_CHANNEL_ID         = "1514583084190924871";
-const TMT_WORDGAME_CHANNEL_ID    = "1514583088129376316";
+const TMT_HONEYPOT_CHANNEL_ID = "1514583028331184229"; // Mesaj atanların atılacağı kanal
+const TMT_OWO_CHANNEL_ID = "1514583077308072036";
+const TMT_TUTTU_CHANNEL_ID = "1514583081304985640";
+const TMT_BOM_CHANNEL_ID = "1514583084190924871";
+const TMT_WORDGAME_CHANNEL_ID = "1514583088129376316";
 
 const SUPPORT_CATEGORIES = {
-  ban:        { name: "🔨 Ban/Şikayet Talebi",  color: 0xff4444 },
-  reklam:     { name: "📢 Reklam Satın Al",      color: 0xfbbf24 },
-  report:     { name: "🚨 Kullanıcı Şikayet",    color: 0xff6b6b },
-  billing:    { name: "💳 Ödeme Sorunu",         color: 0xf38181 },
-  technical:  { name: "🔧 Teknik Sorun",         color: 0x4ecdc4 },
-  account:    { name: "👤 Hesap Sorunu",         color: 0x95e1d3 },
-  genel:      { name: "💬 Genel Destek",         color: 0x7c6af7 },
-  other:      { name: "📝 Diğer",               color: 0xaa96da },
+  ban: { name: "🔨 Ban/Şikayet Talebi", color: 0xff4444 },
+  reklam: { name: "📢 Reklam Satın Al", color: 0xfbbf24 },
+  report: { name: "🚨 Kullanıcı Şikayet", color: 0xff6b6b },
+  billing: { name: "💳 Ödeme Sorunu", color: 0xf38181 },
+  technical: { name: "🔧 Teknik Sorun", color: 0x4ecdc4 },
+  account: { name: "👤 Hesap Sorunu", color: 0x95e1d3 },
+  genel: { name: "💬 Genel Destek", color: 0x7c6af7 },
+  other: { name: "📝 Diğer", color: 0xaa96da },
 };
 
 // TMT sunucusu için destek kategorileri
 const TMT_SUPPORT_CATEGORIES = {
-  discord:    { name: "📚 Discord Destek",      color: 0x5865F2, description: "Discord sunucularımız ile ilgili bir sorun olması halinde açılması gereken destek bileti." },
-  game:       { name: "💂🏻 Oyun Destek",        color: 0x57F287, description: "Oyunumuzda yaşanan sorunlar veya yardımlar için açılması gereken destek bileti." },
+  discord: { name: "📚 Discord Destek", color: 0x5865F2, description: "Discord sunucularımız ile ilgili bir sorun olması halinde açılması gereken destek bileti." },
+  game: { name: "💂🏻 Oyun Destek", color: 0x57F287, description: "Oyunumuzda yaşanan sorunlar veya yardımlar için açılması gereken destek bileti." },
 };
 
 // ── Allied Orduları Sunucusu (Merkezi Detaylı Loglama) ───────────────────────
-const ALLIED_GUILD_ID = process.env.ALLIED_GUILD_ID || "1483482948320891074"; 
+const ALLIED_GUILD_ID = process.env.ALLIED_GUILD_ID || "1483482948320891074";
 const ALLIED_LOG_CHANNEL_ID = process.env.ALLIED_LOG_CHANNEL_ID || "1514691009668321360";
 
 const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
   .split(",")
   .map((id) => id.trim())
   .filter(Boolean);
+
+// ── EkoYıldız Moderasyon Rolleri ve Kanalları ──────────────────────────────────
+/** Yazma engeli rolü (SendMessages deny) */
+const EKOYILDIZ_YAZMA_ENGELI_ROLE_ID = process.env.EKOYILDIZ_YAZMA_ENGELI_ROLE_ID || "1437506814148087941";
+/** Fotoğraf engeli rolü (AttachFiles+EmbedLinks deny) */
+const EKOYILDIZ_FOTO_ENGELI_ROLE_ID = process.env.EKOYILDIZ_FOTO_ENGELI_ROLE_ID || "1437506814148087941";
+/** Mod işlem log kanalı */
+const EKOYILDIZ_MOD_LOG_CHANNEL_ID = process.env.EKOYILDIZ_MOD_LOG_CHANNEL_ID || "1437506814148087941";
 
 // ── Sunucu Davet Linkleri (Gece Ban Sistemi İçin) ──────────────────────────────
 const SERVER_INVITE_LINKS = {
@@ -143,4 +151,8 @@ module.exports = {
   ALLIED_LOG_CHANNEL_ID,
   // Sunucu Davet Linkleri (Gece Ban Sistemi)
   SERVER_INVITE_LINKS,
+  // EkoYıldız Moderasyon
+  EKOYILDIZ_YAZMA_ENGELI_ROLE_ID,
+  EKOYILDIZ_FOTO_ENGELI_ROLE_ID,
+  EKOYILDIZ_MOD_LOG_CHANNEL_ID,
 };

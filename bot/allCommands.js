@@ -397,6 +397,48 @@ const moderationCommands = [
     .addUserOption((o) =>
       o.setName("kullanici").setDescription("Hedef Kullanıcı").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("modislem")
+    .setDescription("Kullanıcıya moderasyon işlemi uygula (sebebe göre otomatik ceza)")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Ceza verilecek kullanıcı").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("İhlal sebebi").setRequired(true)
+        .addChoices(
+          { name: "🤬 Küfür / Hakaret", value: "KUFUR" },
+          { name: "🤬 Ağır Küfür", value: "AGIR_KUFUR" },
+          { name: "🚫 Irkçılık / Nefret Söylemi", value: "IRKCILIK" },
+          { name: "🔞 Cinsel İçerik / NSFW", value: "NSFW" },
+          { name: "📨 Spam / Flood", value: "SPAM" },
+          { name: "📢 Reklam / Tanıtım", value: "REKLAM" },
+          { name: "🔒 Kişisel Bilgi Paylaşma", value: "KISISEL_BILGI" },
+          { name: "⚔️ Tehdit / Şiddet", value: "TEHDIT" },
+          { name: "🎭 Trolleme / Provokasyon", value: "TROLLEME" },
+          { name: "🔤 Büyük Harf Spam", value: "BUYUKHARF" },
+          { name: "😂 Emoji / Sticker Spam", value: "EMOJI_SPAM" },
+          { name: "📌 Yanlış Kanal Kullanımı", value: "YANLIS_KANAL" },
+          { name: "😏 Alay / Dalga Geçme", value: "ALAY" },
+          { name: "🛡️ Saygısızlık (Yetkililere)", value: "SAYGISIZLIK" },
+          { name: "🤥 Sahte Bilgi / Yalan", value: "YALAN" },
+          { name: "🔊 Sesli Kanalda Rahatsızlık", value: "SES_RAHATSIZLIK" },
+          { name: "🖼️ Uygunsuz Profil / Fotoğraf", value: "UYGUNSUZ_PROFIL" },
+          { name: "🔗 Link Paylaşma (İzinsiz)", value: "LINK_PAYLASMA" },
+          { name: "👥 Alt Hesap / Yan Hesap", value: "ALT_HESAP" },
+          { name: "✉️ DM Rahatsızlık", value: "DM_RAHATSIZLIK" },
+          { name: "⚖️ Moderatör Kararına İtiraz", value: "MOD_ITIRAZ" },
+          { name: "📋 Kanal Kurallarını İhlal", value: "KANAL_KURALLARI" },
+          { name: "🔥 Tartışma Başlatma / Kışkırtma", value: "KISKIRTMA" },
+          { name: "🔄 Tekrarlayan İhlal", value: "TEKRAR_IHLAL" },
+          { name: "💀 Dolandırıcılık / Scam", value: "DOLANDIRICILIK" }
+        )
+    )
+    .addAttachmentOption((o) =>
+      o.setName("kanit").setDescription("Kanıt ekran görüntüsü (opsiyonel)").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setDMPermission(false),
 ];
 
 // JSON'a dönüştürülmüş komut listesi (Deploy etmek için)

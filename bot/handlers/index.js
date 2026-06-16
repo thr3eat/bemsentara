@@ -817,6 +817,12 @@ function initializeDiscordHandlers(client) {
         await handleAppealModalSubmit(interaction, client);
         return;
       }
+      // ── Mod İşlem Onay/Red Butonları ────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith("modact_approve_") || interaction.customId?.startsWith("modact_reject_"))) {
+        const { handleModActionApproval } = require("../services/modActionService");
+        await handleModActionApproval(interaction);
+        return;
+      }
       // ── Roblox Etkileşimleri ──────────────────────────────────────────────
       if (
         (interaction.isStringSelectMenu() && (interaction.customId === "roblox_group_select" || interaction.customId.startsWith("roblox_rank_select"))) ||
