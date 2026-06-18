@@ -168,18 +168,28 @@ function findSeparatorsForBranch(guild, mainRoleName, authRoleName) {
   const highestIndex = Math.min(...indices);
   const lowestIndex = Math.max(...indices);
 
-  // The top separator should be at highestIndex - 1 (higher position = lower index)
+  const isSeparator = (role) => {
+    if (!role) return false;
+    const name = role.name;
+    return (name.includes("▬▬▬") || name.includes("▬")) && name.replace(/[▬\s]+/g, "") === "";
+  };
+
+  // Search upwards for top separator (higher position = lower index in sorted array)
   let topSep = null;
-  const potentialTop = roles[highestIndex - 1];
-  if (potentialTop && (potentialTop.name.includes("▬▬▬") || potentialTop.name.includes("▬")) && potentialTop.name.replace(/[▬\s]+/g, "") === "") {
-    topSep = potentialTop;
+  for (let i = highestIndex - 1; i >= 0; i--) {
+    if (isSeparator(roles[i])) {
+      topSep = roles[i];
+      break;
+    }
   }
 
-  // The bottom separator should be at lowestIndex + 1 (lower position = higher index)
+  // Search downwards for bottom separator (lower position = higher index in sorted array)
   let bottomSep = null;
-  const potentialBottom = roles[lowestIndex + 1];
-  if (potentialBottom && (potentialBottom.name.includes("▬▬▬") || potentialBottom.name.includes("▬")) && potentialBottom.name.replace(/[▬\s]+/g, "") === "") {
-    bottomSep = potentialBottom;
+  for (let i = lowestIndex + 1; i < roles.length; i++) {
+    if (isSeparator(roles[i])) {
+      bottomSep = roles[i];
+      break;
+    }
   }
 
   return { top: topSep, bottom: bottomSep };
@@ -505,42 +515,12 @@ async function computeTMTRoles(guild, userRank, branches, unresolved = []) {
       }
     }
 
-    // Separator creation and position logic paused/disabled due to rate-limits and bugs
-    /*
-    const separators = findSeparatorsForBranch(guild, branchConfig.discordRoleName, branchConfig.discordBranchRoleName);
-    let topSepRole = separators.top;
-    let bottomSepRole = separators.bottom;
-
+    // Add branch separators if they exist in the guild
     if (mainRole) {
-      const highestPos = authRole ? Math.max(mainRole.position, authRole.position) : mainRole.position;
-      const lowestPos = authRole ? Math.min(mainRole.position, authRole.position) : mainRole.position;
-
-      if (!topSepRole) {
-        topSepRole = await guild.roles.create({
-          name: "▬▬▬▬▬▬▬▬▬",
-          color: hexToDiscordColor("#808080"),
-          position: highestPos + 1,
-          reason: `TMT Role Sync: Auto-created top separator for ${branchConfig.discordRoleName}`,
-        });
-      } else if (topSepRole.position !== highestPos + 1) {
-        await topSepRole.setPosition(highestPos + 1).catch(err => console.warn(`Could not set top separator position:`, err.message));
-      }
-
-      if (!bottomSepRole) {
-        bottomSepRole = await guild.roles.create({
-          name: "▬▬▬▬▬▬▬▬▬",
-          color: hexToDiscordColor("#808080"),
-          position: lowestPos - 1,
-          reason: `TMT Role Sync: Auto-created bottom separator for ${branchConfig.discordRoleName}`,
-        });
-      } else if (bottomSepRole.position !== lowestPos - 1) {
-        await bottomSepRole.setPosition(lowestPos - 1).catch(err => console.warn(`Could not set bottom separator position:`, err.message));
-      }
+      const separators = findSeparatorsForBranch(guild, branchConfig.discordRoleName, branchConfig.discordBranchRoleName);
+      if (separators.top) desiredRoleIds.add(separators.top.id);
+      if (separators.bottom) desiredRoleIds.add(separators.bottom.id);
     }
-
-    if (topSepRole) desiredRoleIds.add(topSepRole.id);
-    if (bottomSepRole) desiredRoleIds.add(bottomSepRole.id);
-    */
   }
 
   return desiredRoleIds;
@@ -589,23 +569,6 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       }
     }
 
-    // Remove all branch roles first
-    const currentBranchRoles = member.roles.cache.filter(r => resolvedBranchRoleIds.has(r.id));
-    if (currentBranchRoles.size > 0) {
-      await member.roles.remove(Array.from(currentBranchRoles.keys()), "TMT Branch Sync").catch(err => {
-        console.error(`[TMT Branch Sync] Error removing branch roles:`, err.message);
-      });
-    }
-
-    // Remove status roles before setting new ones
-    const statusRoleIds = Object.values(STATUS_ROLES);
-    const currentStatusRoles = member.roles.cache.filter(r => statusRoleIds.includes(r.id));
-    if (currentStatusRoles.size > 0) {
-      await member.roles.remove(Array.from(currentStatusRoles.keys()), "TMT Status Sync").catch(err => {
-        console.error(`[TMT Branch Sync] Error removing status roles:`, err.message);
-      });
-    }
-
     // Get user's branch memberships
     const branches = await getUserBranchMemberships(robloxUserId);
 
@@ -633,69 +596,85 @@ async function syncBranchRoles(client, discordUserId, robloxUserId, discordMembe
       }
     }
 
-    // Add appropriate status role
-    try {
-      const statusRole = guild.roles.cache.get(statusRoleId);
-      if (statusRole) {
-        await member.roles.add(statusRole, "TMT Status Assignment").catch(err => {
-          console.error(`[TMT Branch Sync] Error adding status role:`, err.message);
-        });
-      }
-    } catch (err) {
-      console.error(`[TMT Branch Sync] Error with status role assignment:`, err.message);
-    }
+    const desiredRoleIds = new Set();
+    desiredRoleIds.add(statusRoleId);
 
-    if (activeBranches.length === 0) {
-      console.log(`[TMT Branch Sync] User ${discordUserId} has Branşsız Personel status`);
-      return true;
-    }
-
-    // Sync each branch role (including its start and end separators)
+    // Process branch roles and separators
     for (const branch of activeBranches) {
       const branchConfig = TMT_BRANCH_GROUPS[branch.groupId];
       const authorityThreshold = BRANCH_AUTHORITY_THRESHOLDS[branch.groupId];
 
-      try {
-        // Find main branch role
-        let mainBranchRole = null;
-        if (branchConfig.discordRoleId) {
-          mainBranchRole = guild.roles.cache.get(branchConfig.discordRoleId);
-        }
-        if (!mainBranchRole && branchConfig.discordRoleName) {
-          mainBranchRole = findRoleByName(guild, branchConfig.discordRoleName);
-          if (!mainBranchRole) {
-            mainBranchRole = await createBranchRole(guild, branchConfig.discordRoleName, branchConfig.color || "#808080");
-          }
-        }
-
-        // Add branch authority role if rank is high enough
-        let authorityRole = null;
-        if (branch.rank >= authorityThreshold) {
-          if (branchConfig.discordBranchRoleId) {
-            authorityRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
-          }
-          if (!authorityRole && branchConfig.discordBranchRoleName) {
-            authorityRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
-            if (!authorityRole) {
-              authorityRole = await createBranchRole(guild, branchConfig.discordBranchRoleName, branchConfig.color || "#808080");
-            }
-          }
-        }
-
-        if (mainBranchRole) {
-          await member.roles.add(mainBranchRole, `TMT Branch: ${branch.branchName} (Rank ${branch.rank})`);
-        }
-
-        if (authorityRole) {
-          await member.roles.add(authorityRole, `TMT Branch Authority: ${branch.branchName} (Rank ${branch.rank})`);
-        }
-
-        console.log(
-          `[TMT Branch Sync] ✅ ${member.user.tag} → ${branch.branchName} (Rank ${branch.rank})`
-        );
-      } catch (err) {
-        console.error(`[TMT Branch Sync] Error adding branch roles for ${branch.branchName}:`, err.message);
+      // Find main branch role
+      let mainBranchRole = null;
+      if (branchConfig.discordRoleId) {
+        mainBranchRole = guild.roles.cache.get(branchConfig.discordRoleId);
       }
+      if (!mainBranchRole && branchConfig.discordRoleName) {
+        mainBranchRole = findRoleByName(guild, branchConfig.discordRoleName);
+        if (!mainBranchRole) {
+          mainBranchRole = await createBranchRole(guild, branchConfig.discordRoleName, branchConfig.color || "#808080");
+        }
+      }
+
+      if (mainBranchRole) {
+        desiredRoleIds.add(mainBranchRole.id);
+      }
+
+      // Add branch authority role if rank is high enough
+      let authorityRole = null;
+      if (branch.rank >= authorityThreshold) {
+        if (branchConfig.discordBranchRoleId) {
+          authorityRole = guild.roles.cache.get(branchConfig.discordBranchRoleId);
+        }
+        if (!authorityRole && branchConfig.discordBranchRoleName) {
+          authorityRole = findRoleByName(guild, branchConfig.discordBranchRoleName);
+          if (!authorityRole) {
+            authorityRole = await createBranchRole(guild, branchConfig.discordBranchRoleName, branchConfig.color || "#808080");
+          }
+        }
+      }
+
+      if (authorityRole) {
+        desiredRoleIds.add(authorityRole.id);
+      }
+
+      // Add branch separators
+      if (mainBranchRole) {
+        const separators = findSeparatorsForBranch(guild, branchConfig.discordRoleName, branchConfig.discordBranchRoleName);
+        if (separators.top) desiredRoleIds.add(separators.top.id);
+        if (separators.bottom) desiredRoleIds.add(separators.bottom.id);
+      }
+    }
+
+    // Determine roles to add and remove
+    const statusRoleIds = Object.values(STATUS_ROLES);
+    const managedRoleIds = new Set([...Array.from(resolvedBranchRoleIds), ...statusRoleIds]);
+
+    const toAdd = [];
+    const toRemove = [];
+
+    for (const roleId of desiredRoleIds) {
+      if (!member.roles.cache.has(roleId)) {
+        toAdd.push(roleId);
+      }
+    }
+
+    for (const roleId of managedRoleIds) {
+      if (!desiredRoleIds.has(roleId) && member.roles.cache.has(roleId)) {
+        toRemove.push(roleId);
+      }
+    }
+
+    if (toAdd.length > 0) {
+      await member.roles.add(toAdd, "TMT Branch Sync (Add)").catch(err => {
+        console.error(`[TMT Branch Sync] Error adding roles:`, err.message);
+      });
+    }
+
+    if (toRemove.length > 0) {
+      await member.roles.remove(toRemove, "TMT Branch Sync (Remove)").catch(err => {
+        console.error(`[TMT Branch Sync] Error removing roles:`, err.message);
+      });
     }
 
     return true;
