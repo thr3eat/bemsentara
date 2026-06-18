@@ -25,8 +25,11 @@ app.use((req, res, next) => {
   next();
 });
 
+const FileSessionStore = require("./sessionStore");
+
 app.use(
   session({
+    store: new FileSessionStore(),
     secret: SESSION_SECRET,
     resave: true,
     saveUninitialized: false,

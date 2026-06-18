@@ -2539,7 +2539,7 @@ function renderAdminPage(user) {
       <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">⚙️ Admin Paneli</h1>
       <p class="text-muted mb-3">Kullanıcı yetkileri ve ban yönetimi.</p>
       <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
-        <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;">
+        <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;" onkeydown="if(event.key==='Enter') adminSearchUsers()">
         <button type="button" class="btn" onclick="adminSearchUsers()">Ara</button>
       </div>
       <div id="admin-results"></div>
