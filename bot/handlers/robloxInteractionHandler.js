@@ -235,9 +235,8 @@ async function handleRobloxInteractions(interaction) {
       }
 
       // Arkadaşlıktan çıkar
-      await noblox.removeFriend({ userId: parseInt(robloxId, 10), jar: friendJar }).catch(err => {
-        console.error(`[Verification] Unfriend failed for user ${username} (${robloxId}):`, err.message);
-      });
+      const { unfriendUser } = require("../services/robloxGroupManager");
+      await unfriendUser(parseInt(robloxId, 10));
 
       if (syncSuccess) {
         return interaction.editReply({ 

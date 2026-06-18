@@ -1367,9 +1367,8 @@ router.post("/api/auth/roblox/friend-verify", async (req, res) => {
     }
 
     // Arkadaşlıktan çıkar
-    await noblox.removeFriend({ userId: parseInt(robloxId, 10), jar: friendJar }).catch(unfErr => {
-      console.error(`[API Friend Verify] Unfriend failed for ${username} (${robloxId}):`, unfErr.message);
-    });
+    const { unfriendUser } = require("../../bot/services/robloxGroupManager");
+    await unfriendUser(parseInt(robloxId, 10));
 
     res.json({ success: true });
   } catch (err) {

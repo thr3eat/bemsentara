@@ -63,6 +63,61 @@ function getFriendJar() {
   return friendCookie ? { session: friendCookie } : null;
 }
 
+const axios = require("axios");
+
+async function unfriendUser(targetUserId) {
+  if (!friendCookie) {
+    console.warn("⚠️ [unfriendUser] friendCookie (TOKENFRIEND) is not set.");
+    return false;
+  }
+  
+  const formattedCookie = friendCookie.includes(".ROBLOSECURITY=")
+    ? friendCookie
+    : `.ROBLOSECURITY=${friendCookie};`;
+
+  try {
+    // 1. Get X-CSRF-TOKEN
+    let csrfToken = null;
+    try {
+      await axios.post("https://auth.roblox.com/v2/logout", {}, {
+        headers: {
+          Cookie: formattedCookie
+        }
+      });
+    } catch (err) {
+      csrfToken = err.response?.headers?.["x-csrf-token"];
+    }
+
+    if (!csrfToken) {
+      throw new Error("Could not retrieve X-CSRF-TOKEN from Roblox");
+    }
+
+    // 2. Perform Unfriend request
+    const response = await axios.post(
+      `https://friends.roblox.com/v1/users/${targetUserId}/unfriend`,
+      {},
+      {
+        headers: {
+          Cookie: formattedCookie,
+          "X-CSRF-TOKEN": csrfToken,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    if (response.status === 200) {
+      console.log(`✅ [unfriendUser] Successfully unfriended user ${targetUserId}`);
+      return true;
+    } else {
+      throw new Error(`Roblox unfriend API returned status ${response.status}`);
+    }
+  } catch (error) {
+    const errorData = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+    console.error(`❌ [unfriendUser] Failed to unfriend ${targetUserId}:`, errorData);
+    return false;
+  }
+}
+
 let friendBotRobloxId = null;
 
 async function getOrFetchFriendBotId() {
@@ -349,7 +404,8 @@ module.exports = {
   getBotRobloxId,
   getFriendCookie,
   getFriendJar,
-  getOrFetchFriendBotId
+  getOrFetchFriendBotId,
+  unfriendUser
 };
 
 
