@@ -251,6 +251,38 @@ const generalCommands = [
     .addUserOption((o) =>
       o.setName("kullanici").setDescription("Rolleri iade edilecek kullanıcı").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("izin_iste")
+    .setDescription("Kişisel izin kotandan izin günü talep et")
+    .addStringOption((o) =>
+      o.setName("tarih").setDescription("İzin tarihi (YYYY-MM-DD formatında, örn: 2026-06-20)").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("İzin talep sebebi").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("izin_ver")
+    .setDescription("[Yönetici] Bir personele izin günü tanımlar")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("İzin verilecek personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("tarih").setDescription("İzin tarihi (YYYY-MM-DD formatında, örn: 2026-06-20)").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("İzin verilme sebebi").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("izin_kullan")
+    .setDescription("Birikmiş izin kredini kullanarak bugünlük görevlerini pas geç (skip et)"),
+
+  new SlashCommandBuilder()
+    .setName("izin_durum")
+    .setDescription("Mevcut izin kotanı ve birikmiş izin kredilerini görüntüle"),
 ];
 
 const economyCommands = [

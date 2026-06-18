@@ -32,6 +32,10 @@ const GENERAL_COMMANDS = new Set([
   "challenge",
   "ekobang",
   "ekobangerial",
+  "izin_iste",
+  "izin_ver",
+  "izin_kullan",
+  "izin_durum",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -332,6 +336,110 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[personeldurum] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── izin_iste ──────────────────────────────────────────────────────────────
+  if (commandName === "izin_iste") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { requestLeave } = require('../services/staffSystem');
+      const date = interaction.options.getString('tarih');
+      const reason = interaction.options.getString('sebep');
+      
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return interaction.editReply({ content: "❌ Geçersiz tarih formatı. Lütfen `YYYY-MM-DD` formatında girin (Örn: 2026-06-20)." });
+      }
+
+      const result = await requestLeave(interaction.user.id, date, reason);
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ ${result.message}` });
+      }
+      return interaction.editReply({ content: `✅ İzin talebiniz başarıyla onaylandı!\n📅 **Tarih:** ${date}\n📝 **Sebep:** ${reason}\n📅 **Kalan Aylık İzin Hakkınız:** ${result.remaining} gün` });
+    } catch (err) {
+      console.error('[izin_iste] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── izin_ver ───────────────────────────────────────────────────────────────
+  if (commandName === "izin_ver") {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { requestLeave } = require('../services/staffSystem');
+      const targetUser = interaction.options.getUser('kullanici');
+      const date = interaction.options.getString('tarih');
+      const reason = interaction.options.getString('sebep') || "Yönetici izni";
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return interaction.editReply({ content: "❌ Geçersiz tarih formatı. Lütfen `YYYY-MM-DD` formatında girin." });
+      }
+
+      const result = await requestLeave(targetUser.id, date, reason);
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ ${result.message}` });
+      }
+      return interaction.editReply({ content: `✅ <@${targetUser.id}> personeline izin tanımlandı!\n📅 **Tarih:** ${date}\n📝 **Sebep:** ${reason}` });
+    } catch (err) {
+      console.error('[izin_ver] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── izin_kullan ────────────────────────────────────────────────────────────
+  if (commandName === "izin_kullan") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { useLeaveCredit } = require('../services/staffSystem');
+      const result = await useLeaveCredit(interaction.user.id);
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ ${result.message}` });
+      }
+      return interaction.editReply({ content: `✅ **İzin krediniz kullanıldı!** Bugünü başarıyla pas geçtiniz (görevleriniz yapılmış sayıldı).\n📅 **Kalan İzin Krediniz:** ${result.creditsRemaining}` });
+    } catch (err) {
+      console.error('[izin_kullan] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── izin_durum ─────────────────────────────────────────────────────────────
+  if (commandName === "izin_durum") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { getLeaveStatus } = require('../services/staffSystem');
+      const status = await getLeaveStatus(interaction.user.id);
+      if (!status) {
+        return interaction.editReply({ content: "❌ İzin durumunuz çekilemedi veya sisteme kayıtlı değilsiniz." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x4ade80)
+        .setTitle(`📅 İzin Durumu — ${interaction.user.username}`)
+        .addFields(
+          { name: '🎟️ Birikmiş İzin Kredisi (Ticket Ödülü)', value: `**${status.totalCredits}** gün`, inline: false },
+          { name: '📅 Bu Ay Kullanılan İzin', value: `**${status.monthlyUsed}** gün`, inline: true },
+          { name: '📅 Bu Ay Kalan İzin', value: `**${status.monthlyRemaining}** gün`, inline: true },
+          { name: '📅 Bu Hafta Kullanılan İzin', value: `**${status.weeklyUsed}** / 1 gün`, inline: false },
+          { name: '📋 İzinli Günler', value: status.usedDays.length > 0 ? status.usedDays.map(d => `• ${d}`).join('\n') : 'Henüz izin kullanılmamış.', inline: false }
+        )
+        .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[izin_durum] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
