@@ -793,6 +793,12 @@ function initializeDiscordHandlers(client) {
         await handleDiscordAbuseButton(interaction);
         return;
       }
+      // ── Gece Otomatik Ban Geri Al Butonu ────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith("night_unban_")) {
+        const { handleNightUnbanButton } = require("../services/discordAbuseDetector");
+        await handleNightUnbanButton(interaction);
+        return;
+      }
       // ── Roblox Abuse Butonları ────────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith("rbx_abuse_demote_") || interaction.customId?.startsWith("rbx_abuse_ignore_"))) {
         const { handleAbuseButton } = require("./robloxInteractionHandler");

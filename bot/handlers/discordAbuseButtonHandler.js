@@ -10,8 +10,14 @@ const { MONITORED_GUILDS } = require("../services/discordAbuseDetector");
  *   disc_abuse_ignore_{guildId}_{userId}
  */
 async function handleDiscordAbuseButton(interaction) {
-  // Sadece yöneticiler kullanabilir
-  if (!interaction.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+  // Sadece yöneticiler ve sistem sahibi kullanabilir
+  const { ADMIN_IDS } = require("../../config");
+  const isOwner = interaction.user.id === "1031620522406072350";
+  const isAdmin = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) 
+               || ADMIN_IDS.includes(interaction.user.id) 
+               || isOwner;
+
+  if (!isAdmin) {
     return interaction.reply({ content: "❌ Bu butonu kullanmak için **Yönetici** yetkisi gereklidir.", ephemeral: true });
   }
 
@@ -21,6 +27,10 @@ async function handleDiscordAbuseButton(interaction) {
   const guildId  = parts[3];
   const userId   = parts[4];
   const gName    = MONITORED_GUILDS[guildId] || `Sunucu \`${guildId}\``;
+
+  // Gece modu sayacını iptal et (eğer varsa)
+  const { cancelPendingNightBan } = require("../services/discordAbuseDetector");
+  cancelPendingNightBan(guildId, userId);
 
   // Tüm butonları devre dışı bırak
   function makeDisabledRow(chosenAction) {

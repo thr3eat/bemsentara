@@ -19,6 +19,37 @@ function isNightHours() {
 // `${guildId}_${userId}` → { timestamp, type, details }
 const nightModePendingBans = new Map();
 
+const aiPendingBans = new Map();
+
+function cancelPendingAIBan(guildId, userId) {
+  const key = `ai_${guildId}_${userId}`;
+  if (aiPendingBans.has(key)) {
+    const pending = aiPendingBans.get(key);
+    if (pending.timeoutId) {
+      clearTimeout(pending.timeoutId);
+    }
+    aiPendingBans.delete(key);
+    console.log(`[AI-Autonom] ❌ ${key} için bekleyen otomatik AI banı iptal edildi.`);
+    return true;
+  }
+  return false;
+}
+
+function cancelPendingNightBan(guildId, userId) {
+  const key = `${guildId}_${userId}`;
+  cancelPendingAIBan(guildId, userId);
+  if (nightModePendingBans.has(key)) {
+    const pending = nightModePendingBans.get(key);
+    if (pending.timeoutId) {
+      clearTimeout(pending.timeoutId);
+    }
+    nightModePendingBans.delete(key);
+    console.log(`[NightMode] ❌ ${key} için bekleyen otomatik ban iptal edildi.`);
+    return true;
+  }
+  return false;
+}
+
 // ─── BAN LOG KANALI ───────────────────────────────────────────────────────────
 const BAN_LOG_CHANNEL_ID = "1504201531551907941";
 
@@ -28,6 +59,8 @@ const THRESHOLDS = {
   KICK:           { count: 3,  windowMs: 20_000, label: "👢 Toplu Üye Atma",          color: 0xFF4500 },
   CHANNEL_DELETE: { count: 2,  windowMs: 20_000, label: "🗑️ Toplu Kanal Silme",      color: 0xFF6600 },
   ROLE_DELETE:    { count: 2,  windowMs: 20_000, label: "🗑️ Toplu Rol Silme",        color: 0xFF8800 },
+  ROLE_CREATE:    { count: 5,  windowMs: 30_000, label: "➕ Toplu Rol Oluşturma",      color: 0x3498DB },
+  CHANNEL_CREATE: { count: 5,  windowMs: 30_000, label: "➕ Toplu Kanal Oluşturma",    color: 0x3498DB },
   WEBHOOK_CREATE: { count: 3,  windowMs: 30_000, label: "🪝 Toplu Webhook Oluşturma",color: 0xFFAA00 },
   MASS_MENTION:   { count: 1,  windowMs: 0,      label: "📣 Toplu Etiketleme / Ping", color: 0xFF2200 },
 };
@@ -113,33 +146,11 @@ async function fetchExecutor(guild, auditLogEvent, targetId = null, maxAgeSec = 
 async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLines = [] }) {
   if (!canSendAlert(guild.id, executor.id, type)) return;
 
-  // ─── GECE MODU: Otomatik ban başlatılacak ──────────────────────────────────
-  if (isNightHours()) {
-    const key = `${guild.id}_${executor.id}`;
-    
-    // Eğer bu kişi için zaten bir ban bekliyorsa, ek kaydı yazma
-    if (!nightModePendingBans.has(key)) {
-      nightModePendingBans.set(key, {
-        timestamp: Date.now(),
-        type,
-        guild,
-        executor,
-        detailLines,
-        client,
-      });
+  const isNight = isNightHours();
+  const key = `${guild.id}_${executor.id}`;
 
-      // 1 dakika sonra otomatik ban kontrol et
-      setTimeout(async () => {
-        const pending = nightModePendingBans.get(key);
-        if (!pending) return; // Bu sürede manual işlem yapılmış
-
-        await executeNightModeAutoBan(client, guild, executor, type, detailLines);
-        nightModePendingBans.delete(key);
-      }, 60_000); // 1 dakika = 60000 ms
-
-      console.log(`[NightMode] ⏳ ${guild.name} — ${executor.tag} için 1 dakika bekleme başlandı`);
-    }
-    return; // Gece modunda manuel alert göndermiyoruz
+  if (isNight && nightModePendingBans.has(key)) {
+    return; // Zaten bu kişi için otomatik ban süreci işliyor
   }
 
   let alertCh = null;
@@ -156,12 +167,14 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
   const unix    = Math.floor(Date.now() / 1000);
 
   const embed = new EmbedBuilder()
-    .setTitle("🚨 DISCORD SUNUCU ABUSE ŞÜPHESİ")
+    .setTitle(isNight ? "🚨 GECE MODU: ABUSE ŞÜPHESİ VE OTOMATİK BAN SÜRECİ" : "🚨 DISCORD SUNUCU ABUSE ŞÜPHESİ")
     .setDescription(
       `**${gName}** sunucusunda şüpheli bir aktivite tespit edildi!\n\n` +
       `> **${cfg.label}**\n` +
       (count > 1 ? `> ⚡ Son 20 saniyede **${count} kez** gerçekleşti\n` : "") +
-      `\n⚠️ Aşağıdaki butonlarla müdahale edebilirsiniz.`
+      (isNight 
+        ? `\n⚠️ **GECE MODU AKTİF:** 1 dakika içerisinde yanıt gelmezse kullanıcı otomatik olarak banlanacak ve gruptan atılacaktır!\n🕒 **Kalan Süre:** <t:${unix + 60}:R>` 
+        : `\n⚠️ Aşağıdaki butonlarla müdahale edebilirsiniz.`)
     )
     .setColor(cfg.color)
     .addFields(
@@ -170,7 +183,8 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
       { name: "⚠️ Tespit Edilen",     value: cfg.label,                                                                              inline: true  },
       { name: "🕐 Tespit Zamanı",     value: `<t:${unix}:F>\n(<t:${unix}:R>)`,                                                      inline: true  },
       { name: "🌐 Sunucu Bilgisi",    value: `Üye: **${guild.memberCount}**\nSunucu ID: \`${guild.id}\``,                           inline: true  },
-      { name: "🔍 Şüpheli Kişi",      value: `Hesap: <@${executor.id}>\nTag: \`${executor.tag}\`\nID: \`${executor.id}\``,          inline: true  }
+      { name: "🔍 Şüpheli Kişi",      value: `Hesap: <@${executor.id}>\nTag: \`${executor.tag}\`\nID: \`${executor.id}\``,          inline: true  },
+      { name: "🤖 Yapay Zeka Risk Analizi", value: "⏳ Analiz hazırlanıyor...", inline: false }
     )
     .setThumbnail(executor.displayAvatarURL({ dynamic: true }))
     .setTimestamp()
@@ -192,26 +206,227 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
       .setEmoji("🗑️"),
     new ButtonBuilder()
       .setCustomId(`disc_abuse_kick_${guild.id}_${executor.id}`)
-      .setLabel("👢 At")
+      .setLabel("At")
       .setStyle(ButtonStyle.Danger)
       .setEmoji("👢"),
     new ButtonBuilder()
       .setCustomId(`disc_abuse_ban_${guild.id}_${executor.id}`)
-      .setLabel("🔨 Banla")
+      .setLabel("Banla")
       .setStyle(ButtonStyle.Danger)
       .setEmoji("🔨"),
     new ButtonBuilder()
       .setCustomId(`disc_abuse_ignore_${guild.id}_${executor.id}`)
-      .setLabel("🚫 Yoksay")
+      .setLabel(isNight ? "🚫 Yoksay (İptal Et)" : "🚫 Yoksay")
       .setStyle(ButtonStyle.Secondary)
       .setEmoji("🚫")
   );
 
-  await alertCh.send({ embeds: [embed], components: [row] }).catch(err =>
-    console.error("[DiscordAbuseDetector] Alert gönderilemedi:", err.message)
-  );
+  const alertMsg = await alertCh.send({ embeds: [embed], components: [row] }).catch(err => {
+    console.error("[DiscordAbuseDetector] Alert gönderilemedi:", err.message);
+    return null;
+  });
 
   console.log(`[DiscordAbuseDetector] 🚨 ${gName} — ${executor.tag} (${executor.id}) — ${cfg.label}`);
+
+  if (alertMsg) {
+    // ─── AI Analizi Entegrasyonu ─────────────────────────────────────────────
+    const { chatWithAI } = require("./aiService");
+    const aiPrompt = `Aşağıdaki Discord sunucu olaylarını analiz et ve bu olayların bir "abuse" (yetkiyi kötüye kullanma/sabotaj) olup olmadığını değerlendir.
+Sunucu: ${gName}
+Kullanıcı: ${executor.tag} (ID: ${executor.id})
+Olay Türü: ${cfg.label}
+Detaylar:
+${detailLines.join("\n") || "Detay yok"}
+
+Lütfen şu formatta kısa bir analiz yap (maksimum 3 cümle, Türkçe olsun):
+**Risk Seviyesi:** [DÜŞÜK / ORTA / YÜKSEK]
+**Analiz:** [Neden böyle düşündüğünü açıkla]`;
+
+    chatWithAI([{ role: "user", content: aiPrompt }])
+      .then(async (aiResponse) => {
+        try {
+          const freshMsg = await alertMsg.channel.messages.fetch(alertMsg.id);
+          if (freshMsg) {
+            const currentEmbed = freshMsg.embeds[0];
+            if (currentEmbed) {
+              const fields = currentEmbed.fields.map(f => {
+                if (f.name === "🤖 Yapay Zeka Risk Analizi") {
+                  return { name: "🤖 Yapay Zeka Risk Analizi", value: aiResponse.slice(0, 1024), inline: false };
+                }
+                return f;
+              });
+              const updatedEmbed = EmbedBuilder.from(currentEmbed).setFields(fields);
+              await freshMsg.edit({ embeds: [updatedEmbed] });
+            }
+          }
+        } catch (editErr) {
+          console.warn("[DiscordAbuseDetector] AI analizi mesaja eklenemedi:", editErr.message);
+        }
+
+        // ─── AI OTONOM MÜDAHALE (Normal saatlerde Yüksek Risk ise) ───────────────
+        const riskUpper = aiResponse.toUpperCase();
+        const isHighRisk = riskUpper.includes("YÜKSEK") || riskUpper.includes("ÇOK YÜKSEK");
+
+        if (isHighRisk) {
+          const { sendTelegramAlert } = require("./telegramService");
+          const tgMessage = `🚨 <b>YAPAY ZEKA ABUSE UYARISI (DISCORD)</b>\n\n` +
+            `<b>Sunucu:</b> ${gName}\n` +
+            `<b>Şüpheli:</b> ${executor.tag} (<code>${executor.id}</code>)\n` +
+            `<b>Olay:</b> ${cfg.label}\n\n` +
+            `<b>AI Analizi:</b>\n${aiResponse}\n\n` +
+            `Lütfen Discord üzerinden hemen kontrol ediniz!`;
+          sendTelegramAlert(tgMessage).catch(e => console.error("[Telegram] Gönderme hatası:", e.message));
+        }
+
+        if (isHighRisk && !isNight) {
+          const aiKey = `ai_${guild.id}_${executor.id}`;
+          cancelPendingAIBan(guild.id, executor.id);
+
+          const ownerId = "1031620522406072350";
+          try {
+            const owner = await client.users.fetch(ownerId);
+            const freshMsg = await alertMsg.channel.messages.fetch(alertMsg.id).catch(() => alertMsg);
+            
+            const dmEmbed = EmbedBuilder.from(freshMsg.embeds[0])
+              .setTitle("⚠️ YAPAY ZEKA ABUSE UYARISI (DM)")
+              .setDescription(
+                `**${gName}** sunucusunda AI tarafından **YÜKSEK RİSKLİ** bulunan bir aktivite tespit edildi!\n\n` +
+                `> **${cfg.label}**\n\n` +
+                `⚠️ **OTONOM MÜDAHALE SÜRECİ:** 1 dakika içerisinde yanıt vermezseniz yapay zeka durumu teyit edip kullanıcıyı otomatik banlayacaktır!`
+              );
+
+            const dmMsg = await owner.send({ embeds: [dmEmbed], components: [row] });
+            
+            if (dmMsg) {
+              const timeoutId = setTimeout(async () => {
+                const pending = aiPendingBans.get(aiKey);
+                if (!pending) return;
+
+                const finalPrompt = `Sunucu: ${gName}, Şüpheli: ${executor.tag} (ID: ${executor.id}), Olay Tipi: ${cfg.label}. 
+1 dakika boyunca yöneticiden yanıt gelmedi. Bu olaya acil engelleyici müdahale (banlama) yapılması kesin olarak gerekli midir? 
+Lütfen cevabına sadece 'EVET' veya 'HAYIR' ile başla ve kısa bir açıklama ekle.`;
+                
+                try {
+                  const finalResponse = await chatWithAI([{ role: "user", content: finalPrompt }]);
+                  const finalUpper = finalResponse.toUpperCase();
+                  if (finalUpper.startsWith("EVET") || finalUpper.includes("EVET")) {
+                    await executeNightModeAutoBan(client, guild, executor, `${type} (AI Otonom Karar)`, detailLines);
+                    
+                    const disabledRow = new ActionRowBuilder().addComponents(
+                      new ButtonBuilder().setCustomId(`disc_abuse_removeroles_${guild.id}_${executor.id}`).setLabel("🗑️ Rolleri Al").setStyle(ButtonStyle.Secondary).setDisabled(true),
+                      new ButtonBuilder().setCustomId(`disc_abuse_kick_${guild.id}_${executor.id}`).setLabel("At").setStyle(ButtonStyle.Danger).setDisabled(true),
+                      new ButtonBuilder().setCustomId(`disc_abuse_ban_${guild.id}_${executor.id}`).setLabel("Banla").setStyle(ButtonStyle.Danger).setDisabled(true),
+                      new ButtonBuilder().setCustomId(`disc_abuse_ignore_${guild.id}_${executor.id}`).setLabel("🚫 AI Tarafından Banlandı").setStyle(ButtonStyle.Secondary).setDisabled(true)
+                    );
+
+                    const updatedDmEmbed = EmbedBuilder.from(dmMsg.embeds[0])
+                      .setColor(0xFF0000)
+                      .setTitle("🚨 AI OTONOM MÜDAHALE UYGULANDI")
+                      .setDescription(
+                        (dmMsg.embeds[0].description || "") +
+                        `\n\n⛔ **Süre Doldu & AI Onayladı:** AI bu olayı kesin sabote olarak değerlendirdi ve kullanıcıyı otomatik banladı.\n\n**AI Son Değerlendirmesi:**\n${finalResponse}`
+                      );
+                    
+                    await dmMsg.edit({ embeds: [updatedDmEmbed], components: [disabledRow] }).catch(() => {});
+
+                    const freshAlertMsg = await alertMsg.channel.messages.fetch(alertMsg.id).catch(() => null);
+                    if (freshAlertMsg) {
+                      const updatedChannelEmbed = EmbedBuilder.from(freshAlertMsg.embeds[0])
+                        .setColor(0xFF0000)
+                        .setTitle("🚨 AI OTONOM MÜDAHALE UYGULANDI")
+                        .setDescription(
+                          (freshAlertMsg.embeds[0].description || "") +
+                          `\n\n⛔ **AI Otonom:** Yönetici yanıtı gelmediği için AI teyidiyle kullanıcı otomatik banlandı.\n\n**AI Gerekçesi:**\n${finalResponse}`
+                        );
+                      await freshAlertMsg.edit({ embeds: [updatedChannelEmbed], components: [disabledRow] }).catch(() => {});
+                    }
+                  } else {
+                    const updatedDmEmbed = EmbedBuilder.from(dmMsg.embeds[0])
+                      .setColor(0xF39C12)
+                      .setTitle("⚠️ AI OTONOM MÜDAHALE UYGULANMADI")
+                      .setDescription(
+                        (dmMsg.embeds[0].description || "") +
+                        `\n\nℹ️ **Süre Doldu & AI Reddetti:** AI bu olayın otomatik ban gerektirmediğine karar verdi.\n\n**AI Son Değerlendirmesi:**\n${finalResponse}`
+                      );
+                    await dmMsg.edit({ embeds: [updatedDmEmbed] }).catch(() => {});
+                  }
+                } catch (finalErr) {
+                  console.error("[discordAbuseDetector] AI otonom kararı alınırken hata:", finalErr.message);
+                }
+                aiPendingBans.delete(aiKey);
+              }, 60_000);
+
+              aiPendingBans.set(aiKey, {
+                timestamp: Date.now(),
+                timeoutId,
+                messageId: dmMsg.id,
+                channelId: dmMsg.channel.id
+              });
+            }
+          } catch (dmErr) {
+            console.error("[discordAbuseDetector] Sahibine DM gönderilemedi:", dmErr.message);
+          }
+        }
+      })
+      .catch((aiErr) => {
+        console.warn("[DiscordAbuseDetector] AI analiz hatası:", aiErr.message);
+      });
+
+    // ─── GECE MODU: Otomatik ban zamanlayıcı başlat ────────────────────────────
+    if (isNight) {
+      const timeoutId = setTimeout(async () => {
+        const pending = nightModePendingBans.get(key);
+        if (!pending) return; // Bu sürede manuel işlem yapılmış veya yoksayılmış
+
+        await executeNightModeAutoBan(client, guild, executor, type, detailLines);
+
+        try {
+          const freshMsg = await alertMsg.channel.messages.fetch(alertMsg.id);
+          if (freshMsg) {
+            const currentEmbed = freshMsg.embeds[0];
+            if (currentEmbed) {
+              const updatedEmbed = EmbedBuilder.from(currentEmbed)
+                .setColor(0xFF0000)
+                .setTitle("🚨 GECE MODU: OTOMATİK BAN UYGULANDI")
+                .setDescription(
+                  (currentEmbed.description || "") +
+                  `\n\n⛔ **Süre Doldu:** 1 dakika içerisinde yanıt verilmediği için sistem kullanıcıyı otomatik olarak banladı ve Roblox grubundan çıkardı.`
+                );
+
+              const makeDisabledRow = () => {
+                return new ActionRowBuilder().addComponents(
+                  new ButtonBuilder().setCustomId(`disc_abuse_removeroles_${guild.id}_${executor.id}`).setLabel("🗑️ Rolleri Al").setStyle(ButtonStyle.Secondary).setDisabled(true),
+                  new ButtonBuilder().setCustomId(`disc_abuse_kick_${guild.id}_${executor.id}`).setLabel("At").setStyle(ButtonStyle.Danger).setDisabled(true),
+                  new ButtonBuilder().setCustomId(`disc_abuse_ban_${guild.id}_${executor.id}`).setLabel("Banla").setStyle(ButtonStyle.Danger).setDisabled(true),
+                  new ButtonBuilder().setCustomId(`disc_abuse_ignore_${guild.id}_${executor.id}`).setLabel("🚫 Süre Doldu").setStyle(ButtonStyle.Secondary).setDisabled(true)
+                );
+              };
+
+              await freshMsg.edit({ embeds: [updatedEmbed], components: [makeDisabledRow()] });
+            }
+          }
+        } catch (err) {
+          console.warn("[NightMode] Uyarı mesajı güncellenemedi:", err.message);
+        }
+
+        nightModePendingBans.delete(key);
+      }, 60_000); // 1 dakika = 60000 ms
+
+      nightModePendingBans.set(key, {
+        timestamp: Date.now(),
+        type,
+        guild,
+        executor,
+        detailLines,
+        client,
+        timeoutId,
+        messageId: alertMsg.id,
+        channelId: alertMsg.channel.id
+      });
+
+      console.log(`[NightMode] ⏳ ${guild.name} — ${executor.tag} için 1 dakika bekleme başlandı`);
+    }
+  }
 }
 
 // ─── Olay işleyicileri ────────────────────────────────────────────────────────
@@ -304,6 +519,54 @@ async function handleMassMention(client, message) {
   });
 }
 
+async function handleRoleCreate(client, role) {
+  if (!MONITORED_GUILDS[role.guild.id]) return;
+  const executor = await fetchExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
+  if (!executor) return;
+
+  const exceeded = trackAction(role.guild.id, executor.id, "ROLE_CREATE");
+  if (!exceeded) return;
+
+  await sendDiscordAbuseAlert(client, {
+    guild:       role.guild,
+    executor,
+    type:        "ROLE_CREATE",
+    detailLines: [`• Oluşturulan Rol: **${role.name}** (\`${role.id}\`)`]
+  });
+}
+
+async function handleChannelCreate(client, channel) {
+  if (!channel.guild || !MONITORED_GUILDS[channel.guild.id]) return;
+  const executor = await fetchExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
+  if (!executor) return;
+
+  const exceeded = trackAction(channel.guild.id, executor.id, "CHANNEL_CREATE");
+  if (!exceeded) return;
+
+  await sendDiscordAbuseAlert(client, {
+    guild:       channel.guild,
+    executor,
+    type:        "CHANNEL_CREATE",
+    detailLines: [`• Oluşturulan Kanal: **#${channel.name}** (${channel.type === 0 ? "Metin" : "Ses"} Kanalı)`]
+  });
+}
+
+async function handleWebhookUpdate(client, channel) {
+  if (!channel.guild || !MONITORED_GUILDS[channel.guild.id]) return;
+  const executor = await fetchExecutor(channel.guild, AuditLogEvent.WebhookCreate, null, 10);
+  if (!executor) return;
+
+  const exceeded = trackAction(channel.guild.id, executor.id, "WEBHOOK_CREATE");
+  if (!exceeded) return;
+
+  await sendDiscordAbuseAlert(client, {
+    guild:       channel.guild,
+    executor,
+    type:        "WEBHOOK_CREATE",
+    detailLines: [`• Webhook oluşturulan kanal: <#${channel.id}> (${channel.name})`]
+  });
+}
+
 /**
  * Tüm Discord Abuse event listener'larını başlatır.
  */
@@ -316,6 +579,10 @@ function startDiscordAbuseDetector(client) {
   client.on("roleDelete",        (role)    => handleRoleDelete(client, role).catch(e => console.error("[AbuseDetector] roleDelete:", e.message)));
   client.on("guildMemberRemove", (member)  => handleMemberRemove(client, member).catch(e => console.error("[AbuseDetector] guildMemberRemove:", e.message)));
   client.on("messageCreate",     (msg)     => handleMassMention(client, msg).catch(e => console.error("[AbuseDetector] massMention:", e.message)));
+  
+  client.on("roleCreate",        (role)    => handleRoleCreate(client, role).catch(e => console.error("[AbuseDetector] roleCreate:", e.message)));
+  client.on("channelCreate",     (ch)      => handleChannelCreate(client, ch).catch(e => console.error("[AbuseDetector] channelCreate:", e.message)));
+  client.on("webhooksUpdate",    (ch)      => handleWebhookUpdate(client, ch).catch(e => console.error("[AbuseDetector] webhookUpdate:", e.message)));
 }
 
 /**
@@ -338,8 +605,19 @@ async function executeNightModeAutoBan(client, guild, executor, type, detailLine
   if (guild.id === "1514569307886063666") {
     try {
       console.log(`[NightMode] 📤 Roblox grup atılması işlemi başlatıldı: ${executor.tag}`);
+      const User = require("../../models/User");
+      const dbUser = await User.findOne({ discordId: executor.id });
+      if (dbUser && dbUser.robloxId) {
+        const targetRobloxId = parseInt(dbUser.robloxId, 10);
+        const noblox = require("noblox.js");
+        const tmtGroupId = 11517908;
+        await noblox.exile(tmtGroupId, targetRobloxId);
+        console.log(`[NightMode] ✅ Roblox'ta ${executor.tag} (Roblox ID: ${targetRobloxId}) gruptan atıldı.`);
+      } else {
+        console.log(`[NightMode] ⚠️ Roblox ID bulunamadı, gruptan atılamadı: ${executor.tag}`);
+      }
     } catch (err) {
-      console.warn(`[NightMode] Roblox işlemi başlatma hatası:`, err.message);
+      console.warn(`[NightMode] Roblox gruptan atma hatası:`, err.message);
     }
   }
 
@@ -462,12 +740,8 @@ async function handleNightUnbanButton(interaction) {
       .setTitle("✅ BAN GERİ ALINDI")
       .setColor(0x00FF00)
       .setDescription(
-        `${guildName} sunucusundaki banınız geri alındı.\n\n` +
-        `**Geri Alan:** ${interaction.user.tag}\n` +
-        `**Sebep:** Gece otomatik ban sisteminin devreye alınmasından dolayı üzgünüz. ` +
-        `Lütfen dikkatli olun ve kurallara uyun.\n\n` +
-        `**Sunucuya Geri Dönüş:**\n` +
-        `${inviteLink}`
+        `Banınız geri alındı. **${interaction.user.tag}** kişisi tarafından böyle bir sorun gerçekleştiği için üzgünüz.\n\n` +
+        `**Sunucuya Geri Dönüş Davet Linki:**\n${inviteLink}`
       )
       .setFooter({ text: "Sentara Ban Sistemi" })
       .setTimestamp();
@@ -490,4 +764,6 @@ module.exports = {
   startDiscordAbuseDetector, 
   MONITORED_GUILDS,
   handleNightUnbanButton,
+  cancelPendingNightBan,
+  cancelPendingAIBan,
 };

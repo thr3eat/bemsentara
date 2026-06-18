@@ -52,7 +52,11 @@ async function sendRobloxLog(interaction, embed) {
  * Gelişmiş güvenlik kontrolü.
  * Şu anlık sunucu yöneticisi (Administrator) olanların kullanımına açık.
  */
-function isUserAuthorized(member) {
+function isUserAuthorized(member, user) {
+  const { ADMIN_IDS } = require("../../config");
+  const isOwner = user && user.id === "1031620522406072350";
+  if (isOwner) return true;
+  if (user && ADMIN_IDS.includes(user.id)) return true;
   if (!member) return false;
   return member.permissions.has(PermissionsBitField.Flags.Administrator);
 }
@@ -576,27 +580,34 @@ async function handleRobloxInteractions(interaction) {
  * customId: rbx_abuse_ignore_{groupId}_{targetUserId}
  */
 async function handleAbuseButton(interaction) {
-  if (!isUserAuthorized(interaction.member)) {
+  if (!isUserAuthorized(interaction.member, interaction.user)) {
     return interaction.reply({ content: "❌ Bu butonu kullanmak için Yönetici yetkisi gereklidir.", ephemeral: true });
   }
 
   const parts     = interaction.customId.split("_");
-  // Format: rbx_abuse_demote/ignore_{groupId}_{targetUserId}
+  // Format: rbx_abuse_demote/ignore_{groupId}_{targetUserId}_{actorId}
   const action    = parts[2]; // "demote" veya "ignore"
   const groupId   = parts[3];
   const targetId  = parseInt(parts[4]);
+  const actorId   = parts[5] ? parseInt(parts[5]) : null;
   const groupName = ROBLOX_GROUPS[groupId] || `Grup ${groupId}`;
+
+  // Gece modu sayacını iptal et (eğer varsa)
+  if (actorId && actorId !== 0) {
+    const { cancelPendingRbxNightBan } = require("../services/robloxAuditLogPoller");
+    cancelPendingRbxNightBan(groupId, actorId);
+  }
 
   // Butonları hemen devre dışı bırak
   const disabledRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`rbx_abuse_demote_${groupId}_${targetId}`)
+      .setCustomId(`rbx_abuse_demote_${groupId}_${targetId}_${actorId || "0"}`)
       .setLabel(action === "demote" ? "✅ Rütbe İndirildi" : "✅ EVET ÇEK — En Düşük Rütbeye İndir")
       .setStyle(ButtonStyle.Danger)
       .setEmoji("🚨")
       .setDisabled(true),
     new ButtonBuilder()
-      .setCustomId(`rbx_abuse_ignore_${groupId}_${targetId}`)
+      .setCustomId(`rbx_abuse_ignore_${groupId}_${targetId}_${actorId || "0"}`)
       .setLabel(action === "ignore" ? "🚫 Yoksayıldı" : "❌ Yoksay — Şüphe Yok")
       .setStyle(ButtonStyle.Secondary)
       .setEmoji("🚫")
@@ -637,28 +648,35 @@ async function handleAbuseButton(interaction) {
     }
 
     // 3. Kullanıcının mevcut rütbesini al
+    let targetToDemote = targetId;
+    let isRevertingActor = false;
+    if ((!targetToDemote || targetToDemote === 0) && actorId && actorId !== 0) {
+      targetToDemote = actorId;
+      isRevertingActor = true;
+    }
+
     let oldRoleName = "Bilinmiyor";
-    try { oldRoleName = await noblox.getRankNameInGroup(parseInt(groupId), targetId); } catch (_) {}
+    try { oldRoleName = await noblox.getRankNameInGroup(parseInt(groupId), targetToDemote); } catch (_) {}
 
     // 4. Kullanıcı adını al
-    let targetUsername = `ID:${targetId}`;
-    try { targetUsername = await noblox.getUsernameFromId(targetId); } catch (_) {}
+    let targetUsername = `ID:${targetToDemote}`;
+    try { targetUsername = await noblox.getUsernameFromId(targetToDemote); } catch (_) {}
 
     // 5. Rütbeyi en düşüğe çek
-    await noblox.setRank({ group: parseInt(groupId), target: targetId, rank: lowest.rank });
+    await noblox.setRank({ group: parseInt(groupId), target: targetToDemote, rank: lowest.rank });
 
     // 6. Log embedi
     const logEmbed = new EmbedBuilder()
-      .setTitle("🚨 Abuse Müdahalesi — Rütbe En Düşüğe Çekildi")
+      .setTitle(isRevertingActor ? "🚨 Abuse Müdahalesi — Aktör Rütbesi En Düşüğe Çekildi" : "🚨 Abuse Müdahalesi — Rütbe En Düşüğe Çekildi")
       .setColor(0xFF6B00)
       .addFields(
         { name: "👤 Müdahaleyi Yapan",    value: `${interaction.user.toString()}\n\`${interaction.user.tag}\``, inline: true },
         { name: "🏢 Grup",                value: `**${groupName}**\nID: \`${groupId}\``,                       inline: true },
-        { name: "🎯 Hedef Kullanıcı",     value: `**${targetUsername}**\nID: \`${targetId}\``,                  inline: true },
+        { name: isRevertingActor ? "👤 Cezalandırılan Aktör" : "🎯 Hedef Kullanıcı",     value: `**${targetUsername}**\nID: \`${targetToDemote}\``,                  inline: true },
         { name: "⏪ İndirilmeden Önceki", value: `**${oldRoleName}**`,                                          inline: true },
         { name: "🆕 Çekilen Rütbe",       value: `**${lowest.name}** (Rank \`${lowest.rank}\`)`,                inline: true }
       )
-      .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${targetId}&width=150&height=150&format=png`)
+      .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${targetToDemote}&width=150&height=150&format=png`)
       .setTimestamp()
       .setFooter({ text: "Roblox Abuse Müdahale Sistemi", iconURL: interaction.client.user.displayAvatarURL() });
 
@@ -679,7 +697,7 @@ async function handleAbuseButton(interaction) {
       components: [disabledRow]
     });
 
-    console.log(`[AbuseButton] 🚨 Müdahale: Grup ${groupId} — ${targetUsername} (${targetId}) → ${lowest.name} (${lowest.rank})`);
+    console.log(`[AbuseButton] 🚨 Müdahale: Grup ${groupId} — ${targetUsername} (${targetToDemote}) → ${lowest.name} (${lowest.rank})`);
   } catch (err) {
     console.error("[AbuseButton] Rütbe indirme hatası:", err);
     const detailedError = getDetailedRobloxError(err);
