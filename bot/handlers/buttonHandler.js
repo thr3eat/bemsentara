@@ -205,15 +205,23 @@ async function handleButtonInteraction(interaction) {
       return interaction.reply({ content: "❌ Ticket bulunamadı.", ephemeral: true });
     }
 
-    if (ticket.status === "closed") {
-      return interaction.reply({ content: "ℹ️ Bu ticket zaten kapatılmış.", ephemeral: true });
-    }
-
     if (
       ticket.userId !== interaction.user.id &&
       !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)
     ) {
       return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz.", ephemeral: true });
+    }
+
+    if (ticket.status === "closed") {
+      try {
+        if (interaction.channel) {
+          await interaction.channel.delete("Ticket zaten kapatılmış, kanal siliniyor.");
+        }
+      } catch (err) {
+        console.error("Already closed ticket channel deletion error:", err);
+        return interaction.reply({ content: "❌ Kanal silinirken bir hata oluştu.", ephemeral: true });
+      }
+      return;
     }
 
     // Kapatma sebebini soran modal'ı göster
