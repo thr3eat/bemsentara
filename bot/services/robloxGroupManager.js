@@ -215,7 +215,15 @@ async function ensureRobloxManagementMenu(client) {
           .addOptions(options)
       );
 
-      await channel.send({ embeds: [embed], components: [row] });
+      const rowBtn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("rbx_btn_tmt_yk_alimi")
+          .setLabel("YK Alımı (Tüm Gruplar)")
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji("👑")
+      );
+
+      await channel.send({ embeds: [embed], components: [row, rowBtn] });
       console.log("✅ [RobloxGroupManager] Roblox Grup Yönetim menüsü gönderildi.");
     }
   } catch (error) {

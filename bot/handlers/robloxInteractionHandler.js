@@ -364,6 +364,23 @@ async function handleRobloxInteractions(interaction) {
       return interaction.reply({ content: "❌ Yetkiniz yok.", ephemeral: true });
     }
 
+    if (interaction.customId === "rbx_btn_tmt_yk_alimi") {
+      const modal = new ModalBuilder()
+        .setCustomId("rbx_mod_tmt_yk_alimi")
+        .setTitle("YK Alımı (Tüm Gruplar)");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("roblox_username")
+            .setLabel("Roblox Kullanıcı Adı")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
+      );
+      return interaction.showModal(modal);
+    }
+
     const parts = interaction.customId.split("_");
     const action = parts[2]; // ranks, changerank, manual, acceptall, denyall
     const groupId = parts[3];
@@ -478,6 +495,78 @@ async function handleRobloxInteractions(interaction) {
   if (interaction.isModalSubmit() && interaction.customId.startsWith("rbx_mod_")) {
     if (!isUserAuthorized(interaction.member)) {
       return interaction.reply({ content: "❌ Yetkiniz yok.", ephemeral: true });
+    }
+
+    if (interaction.customId === "rbx_mod_tmt_yk_alimi") {
+      await interaction.deferReply({ ephemeral: true });
+      const username = interaction.fields.getTextInputValue("roblox_username").trim();
+      try {
+        const userId = await noblox.getIdFromUsername(username).catch(() => null);
+        if (!userId) {
+          return interaction.editReply({ content: `❌ **${username}** adında bir Roblox kullanıcısı bulunamadı.` });
+        }
+
+        const tmtGroups = {
+          "11517908": "TMT Turkish Armed Forces",
+          "35212138": "TMT Akademi",
+          "33709461": "TMT Askeri İnzibat",
+          "35430592": "TMT Birimler Bölükler",
+          "5415548": "TMT Deniz Kuvvetleri Komutanlığı",
+          "35212127": "TMT Genel Branş Komutanlığı",
+          "33709391": "TMT Hava Kuvvetleri",
+          "35432150": "TMT Hudut Müfettişleri",
+          "12008462": "TMT Jandarma Genel Komutanlığı",
+          "33714381": "TMT Kara Kuvvetleri Komutanlığı",
+          "35528574": "TMT Ministry of Foreign Affairs",
+          "33708598": "TMT Özel Kuvvetler Komutanlığı",
+          "35528598": "TMT RAIDERS",
+          "35528556": "TMT Sürücü Okulu"
+        };
+
+        const results = [];
+        for (const [groupId, groupName] of Object.entries(tmtGroups)) {
+          try {
+            const roles = await noblox.getRoles(parseInt(groupId));
+            let targetRoleName = groupId === "11517908" ? "yönetim kurulu" : "ordu yönetimi";
+            const targetRole = roles.find(r => r.name.toLowerCase().includes(targetRoleName));
+            
+            if (targetRole) {
+              await noblox.setRank({ group: parseInt(groupId), target: userId, rank: targetRole.rank });
+              results.push(`✅ **${groupName}**: ${targetRole.name} yapıldı`);
+            } else {
+              results.push(`⚠️ **${groupName}**: '${targetRoleName}' rütbesi bulunamadı`);
+            }
+          } catch (err) {
+             if (err.message.includes("is not in group") || err.message.includes("not in group")) {
+               results.push(`❌ **${groupName}**: Kullanıcı bu grupta değil`);
+             } else if (err.message.includes("permission") || err.message.includes("403")) {
+               results.push(`❌ **${groupName}**: Yetki yetersiz veya kullanıcının rütbesi eşit/yüksek`);
+             } else {
+               results.push(`❌ **${groupName}**: Hata oluştu`);
+             }
+          }
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle("👑 YK Alımı Tamamlandı")
+          .setDescription(`**${username}** (\`${userId}\`) kullanıcısının rütbe güncellemeleri:\n\n${results.join("\n")}`)
+          .setColor(0x2ECC71)
+          .setTimestamp();
+          
+        try {
+          const logEmbed = EmbedBuilder.from(embed)
+            .addFields(
+              { name: "👤 İşlemi Yapan", value: `${interaction.user.toString()}`, inline: true }
+            )
+            .setFooter({ text: "Roblox Grup Yönetim Sistemi", iconURL: interaction.client.user.displayAvatarURL() });
+          await sendRobloxLog(interaction, logEmbed);
+        } catch (_) {}
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error("[YK Alımı Error]", err);
+        return interaction.editReply({ content: `❌ İşlem sırasında bir hata oluştu: ${err.message}` });
+      }
     }
 
     const parts = interaction.customId.split("_");
