@@ -53,6 +53,33 @@ function getBotRobloxId() {
   return botRobloxId;
 }
 
+const friendCookie = process.env.TOKENFRIEND || process.env.tokenfriend || process.env.TMTCOOKIE;
+
+function getFriendCookie() {
+  return friendCookie;
+}
+
+function getFriendJar() {
+  return friendCookie ? { session: friendCookie } : null;
+}
+
+let friendBotRobloxId = null;
+
+async function getOrFetchFriendBotId() {
+  if (friendBotRobloxId) return friendBotRobloxId;
+  if (!friendCookie) return null;
+  try {
+    const user = await noblox.getAuthenticatedUser({ jar: { session: friendCookie } });
+    if (user) {
+      friendBotRobloxId = user.id || user.userId || user.UserID;
+      return friendBotRobloxId;
+    }
+  } catch (err) {
+    console.error("Failed to fetch friend bot Roblox ID:", err);
+  }
+  return null;
+}
+
 /**
  * Initializes Roblox connection using TMTCOOKIE
  */
@@ -319,6 +346,10 @@ module.exports = {
   ensureAlliedRobloxMenu,
   ensureBemRobloxMenu,
   ROBLOX_GROUPS,
-  getBotRobloxId
+  getBotRobloxId,
+  getFriendCookie,
+  getFriendJar,
+  getOrFetchFriendBotId
 };
+
 

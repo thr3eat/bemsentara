@@ -111,9 +111,12 @@ async function handleRobloxInteractions(interaction) {
       }
 
       // Arkadaşlık isteği gönder
+      const { getFriendJar, getOrFetchFriendBotId } = require("../services/robloxGroupManager");
+      const friendJar = getFriendJar();
+      
       let requestSent = false;
       try {
-        await noblox.sendFriendRequest(robloxId);
+        await noblox.sendFriendRequest({ userId: robloxId, jar: friendJar });
         requestSent = true;
       } catch (err) {
         const errMsg = err.message || "";
@@ -128,8 +131,7 @@ async function handleRobloxInteractions(interaction) {
       }
 
       // Bot Roblox ID'sini al
-      const { getBotRobloxId } = require("../services/robloxGroupManager");
-      const botRobloxId = getBotRobloxId();
+      const botRobloxId = await getOrFetchFriendBotId();
       const botProfileUrl = botRobloxId ? `https://www.roblox.com/users/${botRobloxId}/profile` : "https://www.roblox.com";
 
       const embed = new EmbedBuilder()
@@ -166,14 +168,15 @@ async function handleRobloxInteractions(interaction) {
     const username = parts.slice(6).join("_");
 
     try {
-      const { getBotRobloxId } = require("../services/robloxGroupManager");
-      const botRobloxId = getBotRobloxId();
-      if (!botRobloxId) {
+      const { getFriendJar, getOrFetchFriendBotId } = require("../services/robloxGroupManager");
+      const botRobloxId = await getOrFetchFriendBotId();
+      const friendJar = getFriendJar();
+      if (!botRobloxId || !friendJar) {
         return interaction.editReply({ content: "❌ Botun Roblox bağlantısı şu an aktif değil. Lütfen daha sonra tekrar deneyin." });
       }
 
       // Arkadaşlık listesini kontrol et
-      const friends = await noblox.getFriends(botRobloxId);
+      const friends = await noblox.getFriends({ userId: botRobloxId, jar: friendJar });
       const isFriend = friends && friends.data && friends.data.some(f => String(f.id) === String(robloxId));
 
       if (!isFriend) {
@@ -232,7 +235,7 @@ async function handleRobloxInteractions(interaction) {
       }
 
       // Arkadaşlıktan çıkar
-      await noblox.removeFriend(parseInt(robloxId, 10)).catch(err => {
+      await noblox.removeFriend({ userId: parseInt(robloxId, 10), jar: friendJar }).catch(err => {
         console.error(`[Verification] Unfriend failed for user ${username} (${robloxId}):`, err.message);
       });
 
