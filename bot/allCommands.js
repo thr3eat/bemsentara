@@ -237,6 +237,20 @@ const generalCommands = [
   new SlashCommandBuilder()
     .setName("challenge")
     .setDescription("🎯 Bu hafta challenge'ını göster!"),
+
+  new SlashCommandBuilder()
+    .setName("ekobang")
+    .setDescription("[Özel] Kullanıcının tüm sunuculardaki yetkili rollerini alır ve kaydeder")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Rolleri alınacak kullanıcı").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ekobangerial")
+    .setDescription("[Özel] Kullanıcının kaydedilen rollerini geri yükler")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Rolleri iade edilecek kullanıcı").setRequired(true)
+    ),
 ];
 
 const economyCommands = [

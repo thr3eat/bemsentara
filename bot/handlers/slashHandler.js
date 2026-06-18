@@ -424,6 +424,154 @@ async function handleSlashCommand(interaction) {
         return interaction.editReply({ content: `❌ Hata: ${error.message}` });
       }
     }
+
+    if (commandName === "ekobang") {
+      if (interaction.user.id !== "1031620522406072350") {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkiniz yok!" });
+      }
+
+      const targetUser = interaction.options.getUser("kullanici");
+      if (!targetUser) {
+        return interaction.editReply({ content: "❌ Lütfen geçerli bir kullanıcı belirtin." });
+      }
+
+      const dbUser = await User.findOne({ discordId: targetUser.id }) || new User({ discordId: targetUser.id, discordUsername: targetUser.username });
+      
+      const savedRoles = dbUser.bangRoles || {};
+      const guildsProcessed = [];
+      const botClient = interaction.client;
+
+      const getNormalMemberRole = (guild) => {
+        const { TMT_GUILD_ID, TMT_VERIFIED_ROLE_ID, TARGET_GUILD_ID, ALLIED_GUILD_ID } = require("../../config");
+        
+        if (guild.id === TMT_GUILD_ID) {
+          const role = guild.roles.cache.get(TMT_VERIFIED_ROLE_ID);
+          if (role) return role;
+        }
+        
+        if (guild.id === TARGET_GUILD_ID) {
+          const role = guild.roles.cache.find(r => r.name === "Teşkilat Personeli") || guild.roles.cache.get("1505511498095788063");
+          if (role) return role;
+        }
+        
+        if (guild.id === ALLIED_GUILD_ID) {
+          const role = guild.roles.cache.get("1483483253720616971");
+          if (role) return role;
+        }
+        
+        const namesToSearch = ["üye", "member", "personel", "onaylı", "onaylanmış hesap", "kullanıcı"];
+        for (const name of namesToSearch) {
+          const role = guild.roles.cache.find(r => r.name.toLowerCase() === name && !r.managed);
+          if (role) return role;
+        }
+        
+        const sortedRoles = Array.from(guild.roles.cache.values())
+          .filter(r => r.id !== guild.id && !r.managed)
+          .sort((a, b) => a.position - b.position);
+        return sortedRoles[0] || null;
+      };
+
+      for (const guild of botClient.guilds.cache.values()) {
+        try {
+          const member = await guild.members.fetch(targetUser.id).catch(() => null);
+          if (!member) continue;
+
+          const editableRoles = member.roles.cache.filter(role => 
+            role.id !== guild.id &&
+            !role.managed &&
+            role.editable
+          );
+
+          if (editableRoles.size > 0) {
+            savedRoles[guild.id] = Array.from(editableRoles.keys());
+            
+            await member.roles.remove(Array.from(editableRoles.keys()), "ekobang command execution").catch(err => {
+              console.error(`Failed to remove roles in guild ${guild.name}:`, err.message);
+            });
+          }
+
+          const basicRole = getNormalMemberRole(guild);
+          if (basicRole) {
+            await member.roles.add(basicRole, "ekobang basic role assignment").catch(err => {
+              console.error(`Failed to add basic role in guild ${guild.name}:`, err.message);
+            });
+          }
+
+          guildsProcessed.push(guild.name);
+        } catch (guildErr) {
+          console.error(`Error processing guild ${guild.name} in ekobang:`, guildErr.message);
+        }
+      }
+
+      dbUser.bangRoles = savedRoles;
+      await dbUser.save();
+
+      if (guildsProcessed.length === 0) {
+        return interaction.editReply({ content: `❌ ${targetUser.username} hiçbir ortak sunucuda bulunamadı.` });
+      }
+
+      return interaction.editReply({
+        content: `✅ **${targetUser.username}** kullanıcısının rolleri sıfırlandı ve en az yetkili normal üye rolü verildi.\n**İşlem yapılan sunucular:** ${guildsProcessed.join(", ")}`
+      });
+    }
+
+    if (commandName === "ekobangerial") {
+      if (interaction.user.id !== "1031620522406072350") {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkiniz yok!" });
+      }
+
+      const targetUser = interaction.options.getUser("kullanici");
+      if (!targetUser) {
+        return interaction.editReply({ content: "❌ Lütfen geçerli bir kullanıcı belirtin." });
+      }
+
+      const dbUser = await User.findOne({ discordId: targetUser.id });
+      if (!dbUser || !dbUser.bangRoles || Object.keys(dbUser.bangRoles).length === 0) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** için kayıtlı eski rol bilgisi bulunamadı.` });
+      }
+
+      const savedRoles = dbUser.bangRoles;
+      const guildsRestored = [];
+      const botClient = interaction.client;
+
+      for (const [guildId, roleIds] of Object.entries(savedRoles)) {
+        try {
+          const guild = await botClient.guilds.fetch(guildId).catch(() => null);
+          if (!guild) continue;
+
+          const member = await guild.members.fetch(targetUser.id).catch(() => null);
+          if (!member) continue;
+
+          const toAdd = [];
+          for (const roleId of roleIds) {
+            const role = guild.roles.cache.get(roleId);
+            if (role && role.editable) {
+              toAdd.push(roleId);
+            }
+          }
+
+          if (toAdd.length > 0) {
+            await member.roles.add(toAdd, "ekobangerial command execution").catch(err => {
+              console.error(`Failed to restore roles in guild ${guild.name}:`, err.message);
+            });
+            guildsRestored.push(guild.name);
+          }
+        } catch (guildErr) {
+          console.error(`Error restoring guild ${guildId} in ekobangerial:`, guildErr.message);
+        }
+      }
+
+      dbUser.bangRoles = {};
+      await dbUser.save();
+
+      if (guildsRestored.length === 0) {
+        return interaction.editReply({ content: `❌ Roller iade edilemedi (kullanıcı sunuculardan çıkmış olabilir veya roller yönetilemez durumda).` });
+      }
+
+      return interaction.editReply({
+        content: `✅ **${targetUser.username}** kullanıcısının eski rolleri başarıyla iade edildi.\n**Geri yüklenen sunucular:** ${guildsRestored.join(", ")}`
+      });
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });
