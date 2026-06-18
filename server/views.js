@@ -1833,7 +1833,7 @@ function renderDebugPage(user, stats = {}, logs = []) {
 // ─────────────────────────────────────────────
 // PROFILE PAGE  (guns.lol style)
 // ─────────────────────────────────────────────
-function renderProfilePage(user, profileUser, isOwn = false) {
+function renderProfilePage(user, profileUser, isOwn = false, robloxGroups = []) {
   // profileUser = profilini gösterdiğimiz kişi, user = oturum sahibi
   if (!profileUser) profileUser = user;
   const accent = _esc(profileUser.profileColor || '#7c6af7');
@@ -1842,34 +1842,50 @@ function renderProfilePage(user, profileUser, isOwn = false) {
     : `linear-gradient(135deg,${accent}cc 0%,#0d0d1a 100%)`;
   const avatarSrc = _esc(profileUser.discordAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png');
 
-  // Rütbe renk haritası
-  const ROLE_COLORS = {
-    wiki_editor:      { name:'📝 Wiki Editörü',        color:'#7c6af7', bg:'rgba(124,106,247,.15)', border:'rgba(124,106,247,.35)' },
-    moderator:        { name:'🛡️ Moderatör',            color:'#4ade80', bg:'rgba(74,222,128,.12)',  border:'rgba(74,222,128,.3)'  },
-    support_lead:     { name:'⭐ Destek Lideri',        color:'#fbbf24', bg:'rgba(251,191,36,.12)',  border:'rgba(251,191,36,.3)'  },
-    content_creator:  { name:'🎬 İçerik Yaratıcısı',   color:'#ff6bf7', bg:'rgba(255,107,247,.12)', border:'rgba(255,107,247,.3)' },
-    translator:       { name:'🌐 Çevirmen',             color:'#06b6d4', bg:'rgba(6,182,212,.12)',   border:'rgba(6,182,212,.3)'   },
-    event_manager:    { name:'🎉 Etkinlik Yöneticisi',  color:'#f97316', bg:'rgba(249,115,22,.12)',  border:'rgba(249,115,22,.3)'  },
-    community_helper: { name:'🤝 Topluluk Yardımcısı', color:'#a3e635', bg:'rgba(163,230,53,.12)',  border:'rgba(163,230,53,.3)'  },
-    media_team:       { name:'📸 Medya Ekibi',          color:'#e879f9', bg:'rgba(232,121,249,.12)', border:'rgba(232,121,249,.3)' },
-    developer:        { name:'💻 Geliştirici',          color:'#38bdf8', bg:'rgba(56,189,248,.12)',  border:'rgba(56,189,248,.3)'  },
-    vip:              { name:'👑 VIP',                  color:'#facc15', bg:'rgba(250,204,21,.12)',  border:'rgba(250,204,21,.3)'  },
+  // Roblox group styles and prefix configurations
+  const GROUP_STYLES = {
+    BEM: { color: '#4ade80', bg: 'rgba(74,222,128,.12)', border: 'rgba(74,222,128,.3)' },
+    TMT: { color: '#f87171', bg: 'rgba(248,113,113,.12)', border: 'rgba(248,113,113,.3)' },
+    TTC: { color: '#60a5fa', bg: 'rgba(96,165,250,.12)', border: 'rgba(96,165,250,.3)' },
+    EKO: { color: '#fbbf24', bg: 'rgba(251,191,36,.12)', border: 'rgba(251,191,36,.3)' },
+    CTE: { color: '#a78bfa', bg: 'rgba(167,139,250,.12)', border: 'rgba(167,139,250,.3)' },
+    TFD: { color: '#22d3ee', bg: 'rgba(34,211,238,.12)', border: 'rgba(34,211,238,.3)' },
+    TMA: { color: '#f472b6', bg: 'rgba(244,114,182,.12)', border: 'rgba(244,114,182,.3)' },
   };
 
-  // Site rütbeleri HTML
-  const siteRoles = (profileUser.roles || []);
-  const roleBadgesHtml = [
-    ...(profileUser.isAdmin ? [{ name:'👑 Admin', color:'var(--accent2)', bg:'rgba(255,107,247,.12)', border:'rgba(255,107,247,.35)' }] : []),
-    ...(profileUser.isStaff && !profileUser.isAdmin ? [{ name:'🛡 Staff', color:'var(--accent)', bg:'rgba(124,106,247,.12)', border:'rgba(124,106,247,.35)' }] : []),
-    ...siteRoles.map(r => ROLE_COLORS[r]).filter(Boolean),
-  ].map(r => `<span class="p-badge" style="background:${r.bg};color:${r.color};border-color:${r.border};">${r.name}</span>`).join('');
+  const GROUP_PREFIXES = {
+    "35898429": "TTC",
+    "35431216": "EKO",
+    "35757415": "CTE",
+    "17241052": "TFD",
+    "11517908": "TMT",
+    "33499704": "TMA",
+    "8505535": "BEM"
+  };
 
-  // Grup rolü (Roblox)
-  const groupRoleHtml = profileUser.groupRole
-    ? `<div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:20px;padding:.25rem .8rem;font-size:.8rem;font-weight:700;color:#4ade80;margin-top:.4rem;">
-        🎮 ${_esc(profileUser.groupRole)}
-       </div>`
-    : '';
+  const badgesList = [];
+
+  if (Array.isArray(robloxGroups)) {
+    for (const g of robloxGroups) {
+      const groupIdStr = String(g.group?.id || '');
+      const prefix = GROUP_PREFIXES[groupIdStr];
+      if (prefix && g.role?.rank > 0 && g.role?.name && g.role.name.toLowerCase() !== 'guest') {
+        const style = GROUP_STYLES[prefix] || { color: '#a78bfa', bg: 'rgba(167,139,250,.12)', border: 'rgba(167,139,250,.3)' };
+        badgesList.push({
+          name: `${prefix} - ${g.role.name}`,
+          color: style.color,
+          bg: style.bg,
+          border: style.border
+        });
+      }
+    }
+  }
+
+  const roleBadgesHtml = badgesList.map(r => 
+    `<span class="p-badge" style="background:${r.bg};color:${r.color};border-color:${r.border};">${_esc(r.name)}</span>`
+  ).join('');
+
+  const groupRoleHtml = '';
 
   const css = `<style>
     main{max-width:100%!important;padding:0!important}
@@ -2680,74 +2696,68 @@ function renderAdminPage(user) {
 
       // ── Ban işlemleri ─────────────────────────────────────────────────────
       async function banUser() {
-        co{ name: '⭐ Destek Lideri',        color: '#fbbf24' },
-        content_creator:  { name: '🎬 İçerik Yaratıcısı',   color: '#ff6bf7' },
-        translator:       { name: '🌐 Çevirmen',             color: '#06b6d4' },
-        event_manager:    { name: '🎉 Etkinlik Yöneticisi',  color: '#f97316' },
-        community_helper: { name: '🤝 Topluluk Yardımcısı', color: '#a3e635' },
-        media_team:       { name: '📸 Medya Ekibi',          color: '#e879f9' },
-        developer:        { name: '💻 Geliştirici',          color: '#38bdf8' },
-        vip:              { name: '👑 VIP',                  color: '#facc15' },
-      };
+        const idOrName = document.getElementById('ban-id').value.trim();
+        const reason   = document.getElementById('ban-reason').value.trim();
+        const discordBan = document.getElementById('ban-discord').checked;
+        const siteBan = document.getElementById('ban-site').checked;
 
-      async function roleSearchUsers() {
-        const q = (document.getElementById('role-search')?.value || '').trim();
-        const box = document.getElementById('role-results');
-        if (!box) return;
-        box.innerHTML = '<p style="color:var(--muted);">Aranıyor...</p>';
+        if (!idOrName) { showToast('Discord ID veya kullanıcı adı girin.', 'warning'); return; }
+
         try {
-          const res = await fetch('/api/admin/users?q=' + encodeURIComponent(q));
+          const sr = await fetch('/api/admin/users?q=' + encodeURIComponent(idOrName));
+          const sd = await sr.json().catch(() => ({}));
+          const found = (sd.users || []).find(u =>
+            u.discordId === idOrName ||
+            (u.discordUsername || '').toLowerCase() === idOrName.toLowerCase()
+          );
+
+          if (!found) {
+            showToast('Kullanıcı bulunamadı.', 'error');
+            return;
+          }
+
+          const res = await fetch('/api/admin/users/' + encodeURIComponent(found.discordId) + '/ban', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason, discordBan, siteBan })
+          });
           const d = await res.json().catch(() => ({}));
-          if (!res.ok) { box.innerHTML = '<p style="color:var(--danger);">' + adminEsc(d.error || 'Hata') + '</p>'; return; }
-          if (!d.users || !d.users.length) { box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>'; return; }
 
-          box.innerHTML = d.users.map(function(u) {
-            const userRoles = u.roles || [];
-            const checkboxes = Object.entries(ROLE_DEFS).map(([rid, rdef]) => {
-              const checked = userRoles.includes(rid) ? 'checked' : '';
-              return \`<label style="display:inline-flex;align-items:center;gap:.35rem;margin:.25rem .5rem .25rem 0;cursor:pointer;font-size:.85rem;padding:.3rem .6rem;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid var(--border);">
-                <input type="checkbox" class="role-cb" data-role="\${rid}" \${checked} style="width:auto;margin:0;">
-                <span style="color:\${rdef.color};">\${rdef.name}</span>
-              </label>\`;
-            }).join('');
-
-            const currentBadges = userRoles.length
-              ? userRoles.map(r => ROLE_DEFS[r] ? \`<span style="background:rgba(0,0,0,.3);color:\${ROLE_DEFS[r].color};padding:.2rem .6rem;border-radius:12px;font-size:.75rem;font-weight:700;">\${ROLE_DEFS[r].name}</span>\` : '').join(' ')
-              : '<span style="color:var(--muted);font-size:.8rem;">Rütbe yok</span>';
-
-            return \`<div class="role-user-row" data-discord-id="\${adminEsc(u.discordId)}" style="background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem;">
-              <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">
-                \${u.discordAvatar ? \`<img src="\${adminEsc(u.discordAvatar)}" style="width:36px;height:36px;border-radius:50%;">\` : ''}
-                <div>
-                  <div style="font-weight:800;">\${adminEsc(u.discordUsername)}</div>
-                  <div style="font-size:.78rem;color:var(--muted);">ID: \${adminEsc(u.discordId)}</div>
-                </div>
-                <div style="margin-left:auto;display:flex;gap:.35rem;flex-wrap:wrap;">\${currentBadges}</div>
-              </div>
-              <div style="margin-bottom:1rem;">\${checkboxes}</div>
-              <button class="btn btn-sm" onclick="roleSaveRoles(this)">💾 Rütbeleri Kaydet</button>
-            </div>\`;
-          }).join('');
+          if (res.ok) {
+            showToast(d.message || 'Kullanıcı yasaklandı.', 'success');
+            document.getElementById('ban-id').value = '';
+            document.getElementById('ban-reason').value = '';
+            loadBans();
+          } else {
+            showToast(d.error || 'Yasaklanamadı', 'error');
+          }
         } catch (err) {
-          box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
+          showToast('Bağlantı hatası.', 'error');
         }
       }
 
-      async function roleSaveRoles(btn) {
-        const row = btn.closest('.role-user-row');
-        const id = row.getAttribute('data-discord-id');
-        const roles = Array.from(row.querySelectorAll('.role-cb:checked')).map(cb => cb.getAttribute('data-role'));
-        btn.disabled = true;
-        btn.textContent = 'Kaydediliyor...';
-        const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/site-roles', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roles })
-        });
-        const d = await res.json().catch(() => ({}));
-        btn.disabled = false;
-        btn.textContent = '💾 Rütbeleri Kaydet';
-        if (res.ok) showToast(d.message || 'Rütbeler kaydedildi.', 'success');
-        else showToast(d.error || 'Kaydedilemedi', 'error');
+      async function loadBans() {
+        const box = document.getElementById('ban-list');
+        if (!box) return;
+        box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;">Yükleniyor...</div>';
+        try {
+          const res = await fetch('/api/admin/bans');
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { box.innerHTML = '<div style="color:var(--danger);padding:1rem;">Hata: ' + adminEsc(d.error || 'Bilinmeyen hata') + '</div>'; return; }
+          const bans = d.bans || [];
+          if (!bans.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;">Aktif yasaklama bulunmuyor.</div>'; return; }
+          box.innerHTML = bans.map(function(b) {
+            return '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:1rem;margin-bottom:0.75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">' +
+              '<div>' +
+              '<div style="font-weight:700;">' + adminEsc(b.discordUsername) + ' <small style="color:var(--muted);font-weight:normal;">(ID: ' + adminEsc(b.discordId) + ')</small></div>' +
+              '<div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">Sebep: ' + adminEsc(b.banReason || 'Belirtilmedi') + '</div>' +
+              '</div>' +
+              '<button class="btn btn-sm btn-success" onclick="quickUnban(\'' + adminEsc(b.discordId) + '\')">Banı Kaldır</button>' +
+              '</div>';
+          }).join('');
+        } catch (err) {
+          box.innerHTML = '<div style="color:var(--danger);padding:1rem;">Bağlantı hatası.</div>';
+        }
       }
 
       // ── Coin verme ────────────────────────────────────────────────────────

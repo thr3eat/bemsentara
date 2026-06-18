@@ -69,19 +69,37 @@ router.get("/debug", (req, res) => {
   res.send(renderDebugPage(req.user, stats, logger.getLogs()));
 });
 
-router.get("/profile", (req, res) => {
+router.get("/profile", async (req, res) => {
   if (!req.user) return res.redirect("/login");
-  res.send(renderProfilePage(req.user, req.user, true));
+  let robloxGroups = [];
+  if (req.user.robloxId) {
+    try {
+      const { fetchUserGroups } = require("../../bot/services/roleSyncService");
+      robloxGroups = await fetchUserGroups(req.user.robloxId);
+    } catch (err) {
+      console.warn("Own profile groups fetch warning:", err.message);
+    }
+  }
+  res.send(renderProfilePage(req.user, req.user, true, robloxGroups));
 });
 
 // Herkese açık profil sayfası
-router.get("/profile/:discordId", (req, res) => {
+router.get("/profile/:discordId", async (req, res) => {
   const targetUser = users.findOne({ discordId: String(req.params.discordId) });
   if (!targetUser) {
     return res.status(404).send(renderLegalPage('Profil Bulunamadı', '<p>Bu kullanıcı bulunamadı veya profilini gizledi.</p>'));
   }
   const isOwn = req.user && String(req.user.discordId) === String(targetUser.discordId);
-  res.send(renderProfilePage(req.user, targetUser, isOwn));
+  let robloxGroups = [];
+  if (targetUser.robloxId) {
+    try {
+      const { fetchUserGroups } = require("../../bot/services/roleSyncService");
+      robloxGroups = await fetchUserGroups(targetUser.robloxId);
+    } catch (err) {
+      console.warn("Public profile groups fetch warning:", err.message);
+    }
+  }
+  res.send(renderProfilePage(req.user, targetUser, isOwn, robloxGroups));
 });
 
 router.get("/settings", (req, res) => {
