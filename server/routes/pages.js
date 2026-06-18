@@ -107,10 +107,13 @@ router.get("/settings", (req, res) => {
   res.send(renderSettingsPage(req.user));
 });
 
-router.get("/notifications", (req, res) => {
+router.get("/notifications", async (req, res) => {
   if (!req.user) return res.redirect("/login");
-  // Bildirimler şimdilik boş — ileride notification store eklenebilir
-  res.send(renderNotificationsPage(req.user, []));
+  const User = require("../../models/User");
+  const freshUser = await User.findById(req.user._id);
+  const notifications = freshUser && freshUser.notifications ? freshUser.notifications : [];
+  const sorted = [...notifications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.send(renderNotificationsPage(req.user, sorted));
 });
 
 router.get("/legal/tos", (req, res) => {

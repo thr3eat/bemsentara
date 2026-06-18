@@ -314,6 +314,15 @@ router.post("/api/tickets/:ticketId/reopen", async (req, res) => {
     await ticket.save();
     saveStoreNow();
 
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(ticket.userId, {
+        title: "🔓 Ticket Yeniden Açıldı",
+        message: `\`${ticket.ticketId}\` numaralı ticket'ınız yeniden açıldı.`,
+        icon: "🔓"
+      });
+    } catch (_) {}
+
     res.json({
       success: true,
       message: channelRestored
@@ -358,6 +367,15 @@ router.post("/api/tickets/:ticketId/close", async (req, res) => {
     ticket.closeReason = reason;
     await ticket.save();
 
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(ticket.userId, {
+        title: "🔒 Ticket Kapatıldı",
+        message: `\`${ticket.ticketId}\` numaralı ticket'ınız kapatıldı. Sebep: ${reason || 'Belirtilmedi'}`,
+        icon: "🔒"
+      });
+    } catch (_) {}
+
     const { logTicketClosed } = require("../../bot/services/ticketLog");
     logTicketClosed(ticket, {
       closedBy: req.user.discordId,
@@ -397,6 +415,61 @@ router.post("/api/tickets/:ticketId/message", async (req, res) => {
       source: "Web Panel",
     });
 
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete("/api/tickets/:ticketId", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Yetkilendirme gerekli" });
+
+  try {
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+    if (!ticket) return res.status(404).json({ error: "Ticket bulunamadı" });
+
+    if (ticket.userId !== req.user.discordId && !req.user.isStaff && !isSiteAdmin(req.user)) {
+      return res.status(403).json({ error: "Yetkilendirme gerekli" });
+    }
+
+    if (ticket.channelId) {
+      const { getDiscordClient } = require("../../bot/discordClient");
+      const client = getDiscordClient();
+      if (client?.isReady()) {
+        try {
+          const { TARGET_GUILD_ID } = require("../../config");
+          const guildId = ticket.guildId || TARGET_GUILD_ID;
+          const guild = await client.guilds.fetch(guildId);
+          const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+          if (channel) {
+            await channel.delete("Ticket web panelden tamamen silindi.");
+          }
+        } catch (err) {
+          console.warn("Discord channel delete failed or channel did not exist:", err.message);
+        }
+      }
+    }
+
+    await Ticket.deleteOne({ ticketId: req.params.ticketId });
+    saveStoreNow();
+
+    res.json({ success: true, message: "Ticket başarıyla tamamen silindi." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/notifications/read-all", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const user = await User.findById(req.user._id);
+    if (user && user.notifications) {
+      user.notifications.forEach(n => {
+        n.read = true;
+      });
+      await user.save();
+      saveStoreNow();
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -945,6 +1018,15 @@ router.post("/api/admin/users/:discordId/give-coins", async (req, res) => {
     await eco.save();
     saveStoreNow();
 
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(targetId, {
+        title: "💰 Coin Eklendi",
+        message: `${coins.toLocaleString("tr-TR")} coin hesabınıza eklendi. Sebep: ${reason || 'Belirtilmedi'}`,
+        icon: "💰"
+      });
+    } catch (_) {}
+
     console.log(`[admin-coins] ${req.user.discordUsername} → ${user.discordUsername}: +${coins} coin (${reason || 'sebep yok'})`);
 
     res.json({
@@ -1135,6 +1217,15 @@ router.post("/api/shop/buy", async (req, res) => {
 
     await eco.save();
     saveStoreNow();
+
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(req.user.discordId, {
+        title: "🛍️ Satın Alım Başarılı",
+        message: `${item.icon} ${item.name} satın alındı! Envanterinize eklendi.`,
+        icon: "🛍️"
+      });
+    } catch (_) {}
 
     res.json({ success: true, message: `${item.icon} ${item.name} satın alındı!`, newBalance: eco.balance });
   } catch (err) {

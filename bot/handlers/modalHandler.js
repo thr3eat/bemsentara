@@ -300,6 +300,15 @@ async function handleCloseReasonModal(interaction) {
   ticket.closedByName = interaction.user.username;
   await ticket.save();
 
+  try {
+    const { addNotification } = require("../../utils/notification");
+    await addNotification(ticket.userId, {
+      title: "🔒 Ticket Kapatıldı",
+      message: `\`${ticket.ticketId}\` numaralı ticket'ınız kapatıldı. Sebep: ${reason || 'Belirtilmedi'}`,
+      icon: "🔒"
+    });
+  } catch (_) {}
+
   // AI durumunu temizle
   try {
     const { cleanupTicketAI } = require('../services/ticketAI');
@@ -449,6 +458,15 @@ async function handleRatingModal(interaction) {
       await eco.save();
       saveStoreNow();
       console.log(`[rating] ${staffId} → +${earned} coin (${score} yıldız)`);
+
+      try {
+        const { addNotification } = require("../../utils/notification");
+        await addNotification(staffId, {
+          title: "⭐ Yeni Puan ve Ödül",
+          message: `\`${ticket.ticketId}\` numaralı ticket için ${score} yıldız aldınız ve coin ödülünüz eklendi.`,
+          icon: "⭐"
+        });
+      } catch (_) {}
     } catch (ecoErr) {
       console.warn("[rating] Bakiye eklenemedi:", ecoErr.message);
     }

@@ -215,11 +215,20 @@ async function handleButtonInteraction(interaction) {
     if (ticket.status === "closed") {
       try {
         if (interaction.channel) {
-          await interaction.channel.delete("Ticket zaten kapatılmış, kanal siliniyor.");
+          await interaction.reply({ content: "⏳ Bu ticket zaten kapatılmış. Kanal siliniyor...", ephemeral: true });
+          setTimeout(async () => {
+            try {
+              await interaction.channel.delete("Ticket zaten kapatılmış, kanal siliniyor.");
+            } catch (err) {
+              console.error("Delayed channel deletion error:", err);
+            }
+          }, 1000);
         }
       } catch (err) {
         console.error("Already closed ticket channel deletion error:", err);
-        return interaction.reply({ content: "❌ Kanal silinirken bir hata oluştu.", ephemeral: true });
+        try {
+          return interaction.reply({ content: "❌ Kanal silinirken bir hata oluştu.", ephemeral: true });
+        } catch (_) {}
       }
       return;
     }

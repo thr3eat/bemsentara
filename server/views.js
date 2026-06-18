@@ -79,29 +79,37 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       background: rgba(6,6,14,0.45);
       backdrop-filter: blur(28px) saturate(1.2);
       -webkit-backdrop-filter: blur(28px) saturate(1.2);
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      padding: 0.85rem 2rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 50px;
+      padding: 0.6rem 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       position: sticky;
-      top: 0;
+      top: 1.5rem;
       z-index: 200;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.25), var(--glass-glow);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), var(--glass-glow);
+      max-width: 1200px;
+      margin: 1.5rem auto 0;
+      width: calc(100% - 3rem);
     }
     .logo {
-      font-size: 1.75rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
       text-decoration: none;
+      color: inherit;
       flex-shrink: 0;
+    }
+    .logo span {
+      font-weight: 800;
+      font-size: 1.4rem;
+      color: #ffffff;
+      letter-spacing: -0.5px;
     }
     .nav-links {
       display: flex;
-      gap: 1.2rem;
+      gap: 1rem;
       align-items: center;
       flex-wrap: wrap;
     }
@@ -111,27 +119,27 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       font-weight: 500;
       font-size: 0.9rem;
       transition: color 0.3s, background 0.3s;
-      padding: 0.35rem 0.7rem;
-      border-radius: 8px;
+      padding: 0.45rem 0.9rem;
+      border-radius: 30px;
       position: relative;
     }
     .nav-link::after {
       content:'';
       position: absolute;
-      bottom: 0; left: 50%;
+      bottom: 0.2rem; left: 50%;
       width: 0; height: 2px;
       background: var(--accent);
       transition: width 0.3s ease, left 0.3s ease;
       border-radius: 1px;
     }
     .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-    .nav-link:hover::after { width:60%; left:20%; }
+    .nav-link:hover::after { width:40%; left:30%; }
     .nav-link.staff-link { color: var(--accent); }
     .nav-link.debug-link  { color: var(--danger); }
     .nav-link.logout-link { color: var(--danger); }
     .nav-link.logout-link::after { background: var(--danger); }
     .nav-link.nav-active { color: var(--text); background: rgba(255,255,255,0.05); }
-    .nav-link.nav-active::after { width: 60%; left:20%; }
+    .nav-link.nav-active::after { width: 40%; left:30%; }
 
     /* ── Hamburger ── */
     .hamburger {
@@ -379,7 +387,10 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
 </head>
 <body>
   <header>
-    <a href="/dashboard" class="logo">sentara</a>
+    <a href="/dashboard" class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent2); filter: drop-shadow(0 0 8px var(--accent2));"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/></svg>
+      <span>sentara</span>
+    </a>
     <button class="hamburger" id="hamburger" aria-label="Menü" onclick="this.classList.toggle('open');document.getElementById('nav-links').classList.toggle('open')">
       <span></span><span></span><span></span>
     </button>
@@ -502,22 +513,37 @@ function renderMainPage() {
     }
 
     header {
-      padding: 1rem 4rem;
-      display:flex; justify-content:space-between; align-items:center;
-      background: rgba(6,6,14,0.4);
-      backdrop-filter:blur(28px) saturate(1.2);
-      -webkit-backdrop-filter:blur(28px) saturate(1.2);
-      border-bottom:1px solid rgba(255,255,255,0.05);
-      position:sticky; top:0; z-index:100;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 -1px 0 rgba(255,255,255,0.04);
+      background: rgba(6,6,14,0.45);
+      backdrop-filter: blur(28px) saturate(1.2);
+      -webkit-backdrop-filter: blur(28px) saturate(1.2);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 50px;
+      padding: 0.6rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 1.5rem;
+      z-index: 200;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+      max-width: 1200px;
+      margin: 1.5rem auto 0;
+      width: calc(100% - 3rem);
     }
     .logo {
-      font-size:1.8rem; font-weight:800; letter-spacing:-0.5px;
-      background:linear-gradient(135deg,var(--accent),var(--accent2));
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-      text-decoration:none;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      color: inherit;
     }
-    nav { display:flex; gap:2rem; align-items:center; }
+    .logo span {
+      font-weight: 800;
+      font-size: 1.4rem;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    nav { display:flex; gap:1.2rem; align-items:center; }
     nav a {
       color:var(--muted); text-decoration:none; font-weight:500;
       transition:color 0.3s; position:relative; font-size:0.95rem;
@@ -701,11 +727,14 @@ function renderMainPage() {
   <div class="glow glow-2"></div>
 
   <header>
-    <a href="/" class="logo">sentara</a>
+    <a href="/" class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent2); filter: drop-shadow(0 0 8px var(--accent2));"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/></svg>
+      <span>sentara</span>
+    </a>
     <nav>
       <a href="#features">Özellikler</a>
       <a href="/legal/tos">Koşullar</a>
-      <a href="/login" class="btn">Giriş Yap</a>
+      <a href="/login" class="btn" style="background: #2563eb; border-color: #3b82f6; border-radius: 9999px; color: #fff; padding: 0.5rem 1.2rem; display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg> Giriş Yap</a>
     </nav>
   </header>
 
@@ -1477,8 +1506,10 @@ function renderTicketsPage(user) {
 
           const actions = isOpen
             ? \`<button class="btn btn-sm btn-danger" onclick="openCloseModal('\${t.ticketId}')">🔒 Kapat</button>
-               \${hasChannel ? \`<a href="https://discord.com/channels/\${t.guildId || ''}/ \${t.channelId}" target="_blank" class="btn btn-sm btn-ghost">💬 Kanala Git</a>\` : ''}\`
-            : \`<button class="btn btn-sm btn-success" onclick="reopenTicket('\${t.ticketId}')">🔓 Tekrar Aç</button>\`;
+               \${hasChannel ? \`<a href="https://discord.com/channels/\${t.guildId || ''}/\${t.channelId}" target="_blank" class="btn btn-sm btn-ghost">💬 Kanala Git</a>\` : ''}
+               <button class="btn btn-sm btn-danger btn-ghost" onclick="deleteTicket('\${t.ticketId}')">🗑️ Sil</button>\`
+            : \`<button class="btn btn-sm btn-success" onclick="reopenTicket('\${t.ticketId}')">🔓 Tekrar Aç</button>
+               <button class="btn btn-sm btn-danger btn-ghost" onclick="deleteTicket('\${t.ticketId}')">🗑️ Sil</button>\`;
 
           return \`<div class="ticket-item" id="ticket-\${t.ticketId}">
             <div class="ticket-header">
@@ -1532,6 +1563,17 @@ function renderTicketsPage(user) {
           const res = await fetch('/api/tickets/' + ticketId + '/reopen', { method: 'POST' });
           const d = await res.json().catch(() => ({}));
           if (res.ok) { showToast(d.message || 'Ticket yeniden açıldı.', 'success'); await loadTickets(); }
+          else showToast(d.error || 'Hata', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+      }
+
+      // ── Sil ──
+      async function deleteTicket(ticketId) {
+        if (!confirm('Bu ticket\\'ı tamamen silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
+        try {
+          const res = await fetch('/api/tickets/' + ticketId, { method: 'DELETE' });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) { showToast(d.message || 'Ticket başarıyla tamamen silindi.', 'success'); await loadTickets(); }
           else showToast(d.error || 'Hata', 'error');
         } catch { showToast('Bağlantı hatası.', 'error'); }
       }
@@ -1647,6 +1689,7 @@ function renderStaffPanel(user) {
                   ? \`<button class="btn btn-sm btn-danger" onclick="closeTicket('\${t.ticketId}')">Kapat</button>\`
                   : \`<button class="btn btn-sm btn-success" onclick="reopenTicket('\${t.ticketId}')">Yeniden Aç</button>\`
                 }
+                <button class="btn btn-sm btn-danger btn-ghost" onclick="deleteTicket('\${t.ticketId}')">Sil</button>
               </td>
             </tr>\`;
           }).join('');
@@ -1674,6 +1717,16 @@ function renderStaffPanel(user) {
           const res = await fetch('/api/tickets/' + id + '/reopen', { method: 'POST' });
           if (res.ok) { showToast('Ticket yeniden açıldı.', 'success'); loadStaff(); }
           else showToast('İşlem başarısız.', 'error');
+        } catch { showToast('Bağlantı hatası.', 'error'); }
+      }
+
+      async function deleteTicket(id) {
+        if (!confirm('Bu ticket\\'ı tamamen silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve Discord kanalı da silinecektir.')) return;
+        try {
+          const res = await fetch('/api/tickets/' + id, { method: 'DELETE' });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) { showToast('Ticket tamamen silindi.', 'success'); loadStaff(); }
+          else showToast(d.error || 'İşlem başarısız.', 'error');
         } catch { showToast('Bağlantı hatası.', 'error'); }
       }
 
@@ -3066,7 +3119,7 @@ function renderCreateTicketPage(user, categories = []) {
 function renderNotificationsPage(user, notifications = []) {
   const notifHtml = notifications.map(n => {
     const icons = { ticket:'🎫', system:'⚙️', staff:'👨‍💼', mention:'💬', warning:'⚠️' };
-    const icon = icons[n.type] || '🔔';
+    const icon = n.icon || icons[n.type] || '🔔';
     const isRead = n.read;
     return `
       <div style="display:flex;gap:1rem;align-items:flex-start;padding:1.25rem;
