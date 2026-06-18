@@ -47,6 +47,12 @@ const EKOYILDIZ_MENU_CHANNEL_ID = "1514673268085227550";
 const ALLIED_MENU_CHANNEL_ID = "1514676815489138789";
 const BEM_MENU_CHANNEL_ID = "1514678279087587440";
 
+let botRobloxId = null;
+
+function getBotRobloxId() {
+  return botRobloxId;
+}
+
 /**
  * Initializes Roblox connection using TMTCOOKIE
  */
@@ -61,6 +67,7 @@ async function initializeRoblox() {
     const currentUser = await noblox.setCookie(cookie);
     const username = currentUser?.UserName || currentUser?.username || "Bilinmiyor";
     const userId = currentUser?.UserID || currentUser?.userId || currentUser?.id || "Bilinmiyor";
+    botRobloxId = userId;
     console.log(`✅ [RobloxGroupManager] Roblox'a başarıyla giriş yapıldı! Kullanıcı: ${username} (${userId})`);
     return true;
   } catch (err) {
@@ -68,6 +75,7 @@ async function initializeRoblox() {
     return false;
   }
 }
+
 
 /**
  * Posts or ensures the Roblox Group Management menu exists in the target channel
@@ -310,5 +318,7 @@ module.exports = {
   ensureEkoYildizRobloxMenu,
   ensureAlliedRobloxMenu,
   ensureBemRobloxMenu,
-  ROBLOX_GROUPS
+  ROBLOX_GROUPS,
+  getBotRobloxId
 };
+

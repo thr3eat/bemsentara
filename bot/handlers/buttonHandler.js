@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits, MessageFlags } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const Ticket = require("../../models/Ticket");
 const {
   getSupportMenuEmbed,
@@ -24,12 +24,28 @@ async function handleButtonInteraction(interaction) {
         .setDescription(
           user?.robloxId
             ? `✅ **Zaten Bağlı!**\n\nRoblox ID: \`${user.robloxId}\`\n\nRollerinizi güncellemek için aşağıdaki butona tıklayın.`
-            : `🔗 **Roblox hesabını bağlamak için:**\n\n[Buraya Tıklayarak Yetkilendir](${BASE_URL}/auth/roblox)\n\nSonra \`/verify\` komutunu çalıştırın!`
+            : `🔗 **Roblox Hesabını Bağlamak İçin Yöntem Seçin:**\n\n` +
+              `**1. Yöntem (Web):** [Buraya Tıklayarak Yetkilendir](${BASE_URL}/auth/roblox) ve ardından \`/verify\` komutunu çalıştırın.\n\n` +
+              `**2. Yöntem (Arkadaş İsteği):** Aşağıdaki **Arkadaş İsteği ile Doğrula** butonuna tıklayarak Roblox kullanıcı adınızı girin. Bot size arkadaşlık isteği göndererek hesabınızı doğrular.`
         )
         .setFooter({ text: "TMT Yetkilendirme Sistemi" })
         .setTimestamp();
       
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      if (user?.robloxId) {
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      } else {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("🌐 Web ile Yetkilendir")
+            .setStyle(ButtonStyle.Link)
+            .setURL(`${BASE_URL}/auth/roblox`),
+          new ButtonBuilder()
+            .setCustomId("rbx_btn_verify_friend_start")
+            .setLabel("🤖 Arkadaş İsteği ile Doğrula")
+            .setStyle(ButtonStyle.Primary)
+        );
+        return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      }
     } catch (error) {
       console.error("[authorize_button] Error:", error);
       return interaction.reply({ content: "❌ Bir hata oluştu.", ephemeral: true });

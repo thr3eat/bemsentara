@@ -83,6 +83,174 @@ function getDetailedRobloxError(err) {
 
 
 async function handleRobloxInteractions(interaction) {
+  // ─── 0. ARKADAŞ İSTEĞİ İLE HESAP DOĞRULAMA (2. YÖNTEM) ──────────────────────
+  if (interaction.customId === "rbx_btn_verify_friend_start") {
+    const modal = new ModalBuilder()
+      .setCustomId("rbx_mod_verify_friend_username")
+      .setTitle("Roblox Arkadaş Doğrulaması");
+
+    const usernameInput = new TextInputBuilder()
+      .setCustomId("rbx_username_input")
+      .setLabel("Roblox Kullanıcı Adınız")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("örn: RobloxUser")
+      .setRequired(true)
+      .setMaxLength(50);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(usernameInput));
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === "rbx_mod_verify_friend_username") {
+    await interaction.deferReply({ ephemeral: true });
+    const username = interaction.fields.getTextInputValue("rbx_username_input").trim();
+    try {
+      const robloxId = await noblox.getIdFromUsername(username);
+      if (!robloxId) {
+        return interaction.editReply({ content: "❌ Roblox kullanıcı adı bulunamadı. Lütfen doğru yazdığınızdan emin olun." });
+      }
+
+      // Arkadaşlık isteği gönder
+      let requestSent = false;
+      try {
+        await noblox.sendFriendRequest(robloxId);
+        requestSent = true;
+      } catch (err) {
+        const errMsg = err.message || "";
+        if (errMsg.includes("already friends") || errMsg.includes("Cannot send friend request to friends") || errMsg.includes("are already friends")) {
+          requestSent = true;
+        } else {
+          console.error("sendFriendRequest error:", err);
+          return interaction.editReply({ 
+            content: `❌ Arkadaşlık isteği gönderilemedi.\n**Neden:** Roblox profilinizin arkadaşlık isteklerine açık olduğundan veya botun arkadaşlık isteği limitlerinin dolmadığından emin olun.\n*Hata detayı:* \`${errMsg}\`` 
+          });
+        }
+      }
+
+      // Bot Roblox ID'sini al
+      const { getBotRobloxId } = require("../services/robloxGroupManager");
+      const botRobloxId = getBotRobloxId();
+      const botProfileUrl = botRobloxId ? `https://www.roblox.com/users/${botRobloxId}/profile` : "https://www.roblox.com";
+
+      const embed = new EmbedBuilder()
+        .setColor(0x3498DB)
+        .setTitle("🤖 Roblox Arkadaşlık Doğrulaması")
+        .setDescription(
+          `**${username}** (ID: \`${robloxId}\`) hesabına arkadaşlık isteği gönderildi.\n\n` +
+          `**Yapılması Gerekenler:**\n` +
+          `1. Roblox hesabınıza giriş yapın.\n` +
+          `2. **[Botun Roblox Profiline Gitmek İçin Tıklayın](${botProfileUrl})** ve gelen arkadaşlık isteğini kabul edin.\n` +
+          `3. İsteği kabul ettikten sonra aşağıdaki **Doğrulamayı Tamamla** butonuna tıklayın.\n\n` +
+          `*Not: Doğrulama tamamlandıktan sonra bot sizi otomatik olarak arkadaşlıktan çıkaracaktır.*`
+        )
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`rbx_btn_verify_friend_confirm_${robloxId}_${username}`)
+          .setLabel("✅ Doğrulamayı Tamamla")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      console.error("Verification start error:", err);
+      return interaction.editReply({ content: `❌ Bir hata oluştu: \`${err.message}\`` });
+    }
+  }
+
+  if (interaction.customId && interaction.customId.startsWith("rbx_btn_verify_friend_confirm_")) {
+    await interaction.deferReply({ ephemeral: true });
+    const parts = interaction.customId.split("_");
+    const robloxId = parts[5];
+    const username = parts.slice(6).join("_");
+
+    try {
+      const { getBotRobloxId } = require("../services/robloxGroupManager");
+      const botRobloxId = getBotRobloxId();
+      if (!botRobloxId) {
+        return interaction.editReply({ content: "❌ Botun Roblox bağlantısı şu an aktif değil. Lütfen daha sonra tekrar deneyin." });
+      }
+
+      // Arkadaşlık listesini kontrol et
+      const friends = await noblox.getFriends(botRobloxId);
+      const isFriend = friends && friends.data && friends.data.some(f => String(f.id) === String(robloxId));
+
+      if (!isFriend) {
+        return interaction.editReply({ 
+          content: "❌ **Arkadaşlık isteği kabul edilmemiş.** Lütfen botun gönderdiği arkadaşlık isteğini kabul ettiğinizden emin olun ve tekrar deneyin." 
+        });
+      }
+
+      // Veritabanına kaydet
+      const User = require("../../models/User");
+      const { saveStoreNow } = require("../../models/Store");
+      let dbUser = await User.findOne({ discordId: interaction.user.id });
+      if (!dbUser) {
+        const { ensureDiscordUser } = require("../../utils/userLink");
+        dbUser = await ensureDiscordUser(interaction.user);
+      }
+
+      dbUser.robloxId = String(robloxId);
+      dbUser.robloxUsername = username;
+      dbUser.isAuthorized = true;
+      await dbUser.save();
+      saveStoreNow();
+
+      // Sunucuya göre rolleri senkronize et
+      const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
+      const guild = interaction.guild;
+      let syncSuccess = false;
+
+      if (guild) {
+        const guildId = String(guild.id).trim();
+        const normalizedTMT = String(TMT_GUILD_ID).trim();
+        const normalizedBEM = String(TARGET_GUILD_ID).trim();
+        const normalizedEKO = String(GUILD2_ID).trim();
+        const normalizedAllied = String(ALLIED_GUILD_ID).trim();
+        const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+
+        if (member) {
+          if (guildId === normalizedAllied) {
+            const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+            const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(robloxId, 10), guild);
+            syncSuccess = result.success;
+          } else if (guildId === normalizedTMT) {
+            const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+            const result = await syncTMTRoles(interaction.client, interaction.user.id, parseInt(robloxId, 10), member);
+            syncSuccess = result?.success || false;
+          } else if (guildId === normalizedBEM) {
+            const { syncMemberRoles } = require("../services/roleSyncService");
+            const result = await syncMemberRoles(guild, member, parseInt(robloxId, 10), username);
+            syncSuccess = result?.success || false;
+          } else if (guildId === normalizedEKO) {
+            const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+            const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(robloxId, 10), guild);
+            syncSuccess = result?.success || false;
+          }
+        }
+      }
+
+      // Arkadaşlıktan çıkar
+      await noblox.removeFriend(parseInt(robloxId, 10)).catch(err => {
+        console.error(`[Verification] Unfriend failed for user ${username} (${robloxId}):`, err.message);
+      });
+
+      if (syncSuccess) {
+        return interaction.editReply({ 
+          content: `✅ **Doğrulama Başarılı!**\nRoblox hesabınız (**${username}**) başarıyla doğrulandı ve bağlandı. Rolleriniz senkronize edildi.` 
+        });
+      } else {
+        return interaction.editReply({ 
+          content: `✅ **Hesap Doğrulandı!**\nRoblox hesabınız (**${username}**) başarıyla bağlandı fakat rolleriniz senkronize edilirken bir sorun oluştu. Lütfen \`/verify\` komutunu kullanarak tekrar deneyin.` 
+        });
+      }
+    } catch (err) {
+      console.error("Verification confirm error:", err);
+      return interaction.editReply({ content: `❌ Bir hata oluştu: \`${err.message}\`` });
+    }
+  }
+
   // --- 1. SEÇİM MENÜLERİ (GRUP VE RÜTBE SEÇİMİ) ---
   if (interaction.isStringSelectMenu()) {
     if (!isUserAuthorized(interaction.member)) {

@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const Ticket = require("../../models/Ticket");
 const User = require("../../models/User");
 const { getSupportMenuEmbed, getSupportButton } = require("../embeds");
@@ -454,13 +454,30 @@ async function handleGeneralCommand(interaction) {
       const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
       const embed = new EmbedBuilder()
         .setTitle("🔐 Hesabınızı Yetkilendirin")
-        .setDescription(`[Tıklayın ve Roblox hesabınızla giriş yapın](${authUrl})`)
+        .setDescription(
+          `Roblox hesabınızı Discord hesabınıza bağlamak için iki yöntemden birini seçin:\n\n` +
+          `**1. Yöntem (Hızlı / Web):**\n` +
+          `[Web Sitesi ile Yetkilendir](${authUrl}) (Passport / OAuth)\n\n` +
+          `**2. Yöntem (Roblox Arkadaş İsteği):**\n` +
+          `Aşağıdaki butona tıklayarak Roblox kullanıcı adınızı girin. Bot size arkadaşlık isteği göndererek hesabınızı doğrular.`
+        )
         .setColor(0x7c6af7);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("🌐 Web ile Yetkilendir")
+          .setStyle(ButtonStyle.Link)
+          .setURL(authUrl),
+        new ButtonBuilder()
+          .setCustomId("rbx_btn_verify_friend_start")
+          .setLabel("🤖 Arkadaş İsteği ile Doğrula")
+          .setStyle(ButtonStyle.Primary)
+      );
 
       const { logAuthorize } = require("../services/commandLog");
       logAuthorize(interaction, { authUrl, dbUser: user });
 
-      return interaction.editReply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed], components: [row] });
     }
 
     if (commandName === "robloxgrup") {
