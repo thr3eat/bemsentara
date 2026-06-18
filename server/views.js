@@ -892,8 +892,11 @@ function renderDashboard(user) {
           </div>
         </div>
       </div>
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-        ${!isRobloxLinked ? `<a href="/auth/roblox" class="btn btn-sm">Roblox'u Bağla</a>` : `<button type="button" id="btn-sync-roles" class="btn btn-sm btn-success">🔄 Rolleri Güncelle</button>`}
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        ${!isRobloxLinked ? `
+          <a href="/auth/roblox" class="btn btn-sm">🌐 Web ile Bağla</a>
+          <button type="button" onclick="showFriendVerifyModal()" class="btn btn-sm btn-ghost" style="border-color:var(--border);">🤖 Arkadaş İsteği ile Doğrula</button>
+        ` : `<button type="button" id="btn-sync-roles" class="btn btn-sm btn-success">🔄 Rolleri Güncelle</button>`}
       </div>
     </div>
 
@@ -1090,6 +1093,112 @@ function renderDashboard(user) {
 
       loadDashboard();
       setInterval(loadDashboard, 15000);
+    </script>
+
+    <!-- Modal HTML -->
+    <div id="friend-verify-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:1000; align-items:center; justify-content:center; padding:1.5rem;">
+      <div class="card" style="width:100%; max-width:480px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+        <button onclick="closeFriendVerifyModal()" style="position:absolute; top:1.25rem; right:1.25rem; background:none; border:none; color:var(--muted); font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3 style="font-size:1.5rem; font-weight:800; margin-bottom:1rem; background:linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:flex; align-items:center; gap:0.5rem; text-align:left;">🤖 Arkadaş İsteği Doğrulaması</h3>
+        
+        <div id="fv-step-1">
+          <p style="color:var(--muted); font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem; text-align:left;">
+            Roblox kullanıcı adınızı girin. Botumuz size Roblox üzerinden bir arkadaşlık isteği gönderecektir.
+          </p>
+          <label for="fv-username" style="text-align:left;">Roblox Kullanıcı Adı</label>
+          <input type="text" id="fv-username" placeholder="örn: RobloxUser" style="margin-bottom:1.5rem;">
+          <button onclick="startFriendVerification()" id="fv-start-btn" class="btn w-full">Arkadaş İsteği Gönder</button>
+        </div>
+        
+        <div id="fv-step-2" style="display:none;">
+          <p style="color:var(--muted); font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem; text-align:left;">
+            Bot size arkadaşlık isteği gönderdi! Lütfen aşağıdaki profili ziyaret edip isteği kabul edin, ardından **Doğrulamayı Tamamla** butonuna tıklayın.
+          </p>
+          <div style="background:rgba(0,0,0,0.2); padding:1rem; border-radius:10px; border:1px solid var(--border); text-align:center; margin-bottom:1.5rem;">
+            <a id="fv-bot-profile" href="#" target="_blank" class="text-accent" style="font-weight:700; text-decoration:none; font-size:1.05rem;">🔗 Botun Roblox Profiline Git</a>
+          </div>
+          <button onclick="confirmFriendVerification()" id="fv-confirm-btn" class="btn w-full btn-success">✅ Doğrulamayı Tamamla</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function showFriendVerifyModal() {
+        document.getElementById('friend-verify-modal').style.display = 'flex';
+        document.getElementById('fv-step-1').style.display = 'block';
+        document.getElementById('fv-step-2').style.display = 'none';
+        document.getElementById('fv-username').value = '';
+      }
+      
+      function closeFriendVerifyModal() {
+        document.getElementById('friend-verify-modal').style.display = 'none';
+      }
+      
+      let pendingRobloxId = null;
+      let pendingUsername = null;
+      
+      async function startFriendVerification() {
+        const username = document.getElementById('fv-username').value.trim();
+        if (!username) {
+          showToast('Lütfen Roblox kullanıcı adınızı girin.', 'warning');
+          return;
+        }
+        const btn = document.getElementById('fv-start-btn');
+        btn.textContent = 'Gönderiliyor...';
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/auth/roblox/friend-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            pendingRobloxId = data.robloxId;
+            pendingUsername = username;
+            document.getElementById('fv-bot-profile').href = data.botProfileUrl;
+            document.getElementById('fv-step-1').style.display = 'none';
+            document.getElementById('fv-step-2').style.display = 'block';
+            showToast('Arkadaşlık isteği gönderildi!', 'success');
+          } else {
+            showToast(data.error || 'İstek gönderilirken bir hata oluştu.', 'error');
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası.', 'error');
+        } finally {
+          btn.textContent = 'Arkadaş İsteği Gönder';
+          btn.disabled = false;
+        }
+      }
+      
+      async function confirmFriendVerification() {
+        if (!pendingRobloxId || !pendingUsername) {
+          showToast('Geçersiz doğrulama isteği.', 'error');
+          return;
+        }
+        const btn = document.getElementById('fv-confirm-btn');
+        btn.textContent = 'Kontrol ediliyor...';
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/auth/roblox/friend-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ robloxId: pendingRobloxId, username: pendingUsername })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            showToast('Doğrulama başarılı! Sayfa yenileniyor...', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+          } else {
+            showToast(data.error || 'Arkadaşlık isteği henüz kabul edilmemiş.', 'error');
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası.', 'error');
+        } finally {
+          btn.textContent = '✅ Doğrulamayı Tamamla';
+          btn.disabled = false;
+        }
+      }
     </script>
   `;
   return _layout('Dashboard', user, content, '', '/dashboard');

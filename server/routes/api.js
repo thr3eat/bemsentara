@@ -1265,6 +1265,116 @@ router.post("/api/webhook/proxy", async (req, res) => {
   }
 });
 
+// ── Roblox Arkadaş İsteği Doğrulama API'leri ─────────────────────────────────
+router.post("/api/auth/roblox/friend-request", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: "Roblox kullanıcı adı gerekli." });
+
+  try {
+    const noblox = require("noblox.js");
+    const robloxId = await noblox.getIdFromUsername(username.trim());
+    if (!robloxId) {
+      return res.status(400).json({ error: "Roblox kullanıcı adı bulunamadı." });
+    }
+
+    // Arkadaşlık isteği gönder
+    try {
+      await noblox.sendFriendRequest(robloxId);
+    } catch (err) {
+      const errMsg = err.message || "";
+      if (!errMsg.includes("already friends") && !errMsg.includes("Cannot send friend request to friends") && !errMsg.includes("are already friends")) {
+        console.error("sendFriendRequest error:", err);
+        return res.status(400).json({
+          error: `Arkadaşlık isteği gönderilemedi. Hata: ${errMsg}`
+        });
+      }
+    }
+
+    const { getBotRobloxId } = require("../../bot/services/robloxGroupManager");
+    const botRobloxId = getBotRobloxId();
+    const botProfileUrl = botRobloxId ? `https://www.roblox.com/users/${botRobloxId}/profile` : "https://www.roblox.com";
+
+    res.json({
+      success: true,
+      robloxId,
+      botProfileUrl
+    });
+  } catch (err) {
+    console.error("API Friend Request error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/auth/roblox/friend-verify", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+
+  const { robloxId, username } = req.body;
+  if (!robloxId || !username) {
+    return res.status(400).json({ error: "Eksik parametre." });
+  }
+
+  try {
+    const { getBotRobloxId } = require("../../bot/services/robloxGroupManager");
+    const botRobloxId = getBotRobloxId();
+    if (!botRobloxId) {
+      return res.status(503).json({ error: "Botun Roblox bağlantısı aktif değil. Daha sonra tekrar deneyin." });
+    }
+
+    const noblox = require("noblox.js");
+    const friends = await noblox.getFriends(botRobloxId);
+    const isFriend = friends && friends.data && friends.data.some(f => String(f.id) === String(robloxId));
+
+    if (!isFriend) {
+      return res.status(400).json({ error: "Arkadaşlık isteği henüz kabul edilmemiş." });
+    }
+
+    // Veritabanına kaydet
+    const User = require("../../models/User");
+    const { saveStoreNow } = require("../../models/Store");
+    let dbUser = await User.findById(req.user._id);
+    if (!dbUser && req.user.discordId) {
+      dbUser = await User.findOne({ discordId: String(req.user.discordId) });
+    }
+    if (!dbUser) {
+      return res.status(404).json({ error: "Kullanıcı veritabanında bulunamadı." });
+    }
+
+    dbUser.robloxId = String(robloxId);
+    dbUser.robloxUsername = username;
+    dbUser.isAuthorized = true;
+    await dbUser.save();
+    saveStoreNow();
+
+    // Rolleri senkronize et
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const { syncMemberRoles } = require("../../bot/services/roleSyncService");
+    const { TARGET_GUILD_ID } = require("../../config");
+    
+    const client = getDiscordClient();
+    if (client && client.isReady()) {
+      try {
+        const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+        const member = await guild.members.fetch(dbUser.discordId);
+        await syncMemberRoles(guild, member, parseInt(robloxId, 10), username);
+      } catch (syncErr) {
+        console.warn("API Friend Verify role sync failed:", syncErr.message);
+      }
+    }
+
+    // Arkadaşlıktan çıkar
+    await noblox.removeFriend(parseInt(robloxId, 10)).catch(unfErr => {
+      console.error(`[API Friend Verify] Unfriend failed for ${username} (${robloxId}):`, unfErr.message);
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("API Friend Verify error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // OPTIONS preflight (CORS)
 router.options("/api/webhook/proxy", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
