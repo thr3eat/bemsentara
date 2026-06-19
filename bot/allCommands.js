@@ -253,6 +253,26 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("konus")
+    .setDescription("[Yönetici] Belirtilen kullanıcı ile AI destekli DM konuşması başlatır")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Konuşulacak kullanıcı").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("konu").setDescription("Konuşulacak konu / sebep").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("odulver")
+    .setDescription("[Yönetici] Belirtilen personele ödül verir ve onu terfi ettirir")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Ödül verilecek personel/moderatör").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("odul").setDescription("Verilecek ödülün adı / açıklaması").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
     .setName("izin_iste")
     .setDescription("Kişisel izin kotandan izin günü talep et")
     .addStringOption((o) =>

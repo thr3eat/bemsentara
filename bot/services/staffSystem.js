@@ -1886,6 +1886,7 @@ module.exports = {
   recordModerationAction,
   recordWeeklyReport,
   checkPromotion,
+  promote,
   startStaffScheduler,
   resignFromStaff,
   retireFromStaff,

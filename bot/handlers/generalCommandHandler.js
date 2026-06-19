@@ -36,11 +36,95 @@ const GENERAL_COMMANDS = new Set([
   "izin_ver",
   "izin_kullan",
   "izin_durum",
+  "konus",
+  "odulver",
 ]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // ── konus: AI destekli konuşma başlat ──────────────────────────────────────
+  if (commandName === "konus") {
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
+                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const { startKonusSession } = require('../services/aiTalkService');
+      return await startKonusSession(interaction);
+    } catch (err) {
+      console.error('[konus] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── odulver: Personele ödül ver ve terfi ettir ──────────────────────────────
+  if (commandName === "odulver") {
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
+                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const odul = interaction.options.getString('odul');
+      
+      const StaffProgress = require('../../models/StaffProgress');
+      const { promote, ROLE_NAMES } = require('../services/staffSystem');
+
+      const progress = await StaffProgress.findOne({ userId: targetUser.id });
+      if (!progress) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde bulunmuyor.` });
+      }
+
+      const oldLevel = progress.level || 1;
+      const newLevel = oldLevel + 1;
+
+      // Gamification ödülü (Puan & XP)
+      progress.gamification = progress.gamification || {};
+      progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + 500;
+      progress.gamification.currentXP = (progress.gamification.currentXP || 0) + 500;
+      await progress.save();
+
+      let promoted = false;
+      if (oldLevel < 4) {
+        await promote(progress, interaction.client);
+        promoted = true;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle('🏆 Üstün Başarı ve Ödül!')
+        .setThumbnail(targetUser.displayAvatarURL())
+        .setDescription(
+          `🌟 **${targetUser.username}** kullanıcısına **"${odul}"** ödülü layık görüldü!\n\n` +
+          `💰 **Kazanılan Ödüller:**\n` +
+          `• **+500 Puan** ve **+500 XP** gamification profiline eklendi!\n` +
+          (promoted 
+            ? `• 📈 Rütbesi **${ROLE_NAMES[oldLevel]}** seviyesinden **${ROLE_NAMES[newLevel]}** seviyesine yükseltildi! 🎉`
+            : `• *Kullanıcı zaten en üst seviye olan **Sekreter** rütbesinde olduğu için rütbe değişikliği yapılmadı.*`)
+        )
+        .setFooter({ text: 'Eko Yıldız • Yetkili Ödüllendirme' })
+        .setTimestamp();
+
+      return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed] });
+    } catch (err) {
+      console.error('[odulver] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
 
   // ── anketai: deferReply öncesi çalışmalı ──────────────────────────────────
   if (commandName === "anketai") {

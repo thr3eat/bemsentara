@@ -59,10 +59,18 @@ function initializeDiscordHandlers(client) {
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
   client.on("guildMemberAdd", async (member) => {
     try {
+      if (member.user.bot) return;
+
+      // AI konus rol iadesi
+      try {
+        const { restoreKonusRoles } = require('../services/aiTalkService');
+        await restoreKonusRoles(member, client);
+      } catch (err) {
+        console.error('[guildMemberAdd] restoreKonusRoles hatası:', err.message);
+      }
+
       const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID, TMT_GUILD_ID, TMT_UNVERIFIED_ROLE_ID } = require("../../config");
       const { PermissionFlagsBits } = require('discord.js');
-      
-      if (member.user.bot) return;
 
       let targetRoleId = null;
       if (member.guild.id === TARGET_GUILD_ID) {
@@ -431,6 +439,12 @@ function initializeDiscordHandlers(client) {
       try {
         const { handleCoachReply } = require('../services/staffCoach');
         const handled = await handleCoachReply(message, client);
+        if (handled) return;
+      } catch (_) {}
+      // AI konus sohbeti cevabı mı?
+      try {
+        const { handleKonusReply } = require('../services/aiTalkService');
+        const handled = await handleKonusReply(message, client);
         if (handled) return;
       } catch (_) {}
       // Normal DM ticket
