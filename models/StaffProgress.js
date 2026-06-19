@@ -53,6 +53,7 @@ const staffProgressSchema = new mongoose.Schema({
     level:             { type: Number, default: 1 },     // XP Seviyesi (1-50)
     currentXP:         { type: Number, default: 0 },     // Mevcut XP
     ecoCoins:          { type: Number, default: 0 },     // YENİ: EkoCoin bakiyesi
+    systemIntroduced:  { type: Boolean, default: false }, // YENİ: Yeni sistem tanıtımı yapıldı mı?
     badges: {          // Rozetler
       firstTicket:     { type: Boolean, default: false }, // İlk ticket çözümü
       weekWarrior:     { type: Boolean, default: false }, // 7 gün ardışık

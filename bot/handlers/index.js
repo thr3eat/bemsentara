@@ -57,6 +57,10 @@ function initializeDiscordHandlers(client) {
     const { startAIChatMonitor } = require('../services/aiChannelChat');
     startAIChatMonitor(client);
 
+    // İlk defaya mahsus personele yeni gamification sistemi tanıtım mesajı at
+    const { sendSystemUpdateNotification } = require('../services/staffSystem');
+    sendSystemUpdateNotification(client);
+
     // XP Çekiliş Scheduler
     setInterval(async () => {
       try {

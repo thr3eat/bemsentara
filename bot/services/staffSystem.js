@@ -1780,50 +1780,60 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
 // Başlangıçta çalışacak - tüm personele sistem yükseltmesi hakkında bildir
 async function sendSystemUpdateNotification(client) {
   try {
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    // Sadece systemIntroduced: false veya undefined olanları bul
+    const allProgress = await StaffProgress.find({ 
+      level: { $gte: 1, $lte: 5 }, 
+      status: 'active',
+      $or: [
+        { 'gamification.systemIntroduced': false },
+        { 'gamification.systemIntroduced': { $exists: false } }
+      ]
+    });
+
+    if (allProgress.length === 0) return;
 
     const embed = new EmbedBuilder()
-      .setColor(0x4ade80)
-      .setTitle('✨ Personel Sistemi 2.0 - BÜYÜK GÜNCELLEME!')
-      .setDescription('Personel sisteminde çok önemli iyileştirmeler yapıldı. Seni daha yumuşak davranacağız! 💚')
+      .setColor(0xff006e)
+      .setTitle('✨ Personel Sistemi 3.0 - DEV GÜNCELLEME!')
+      .setDescription('Personel sistemimize büyük ödüller ve oyunlaştırma (Gamification) eklendi! 🎉')
       .addFields(
         {
-          name: '🎁 Yeni Özellikler',
+          name: '🎁 EkoCoin Mağazası Geldi!',
           value: 
-            '✅ İzin sistemi (aylık + haftalık)\n' +
-            '✅ İzin kredileri (3+ ticket/gün)\n' +
-            '✅ Softer uyarı sistemi (5 → 7 gün)\n' +
-            '✅ Kişiselleştirilmiş AI koçu\n' +
-            '✅ Anlaşılı ve destekleyici mesajlar',
+            '• Bilet çözerek (5 E.C.), Moderasyon yaparak (10 E.C.) ve Seste kalarak (saatte 15 E.C.) coin kazanırsın.\n' +
+            '• Kazandığında gelen "🛒 MAĞAZAYI İNCELE" butonuyla Profil Renkleri veya İzin satın alabilirsin!',
           inline: false,
         },
         {
-          name: '💚 Nasıl Farklı Oldu?',
+          name: '🏆 Gizli Başarımlar ve XP Çekilişleri',
           value:
-            '• Hata yapsan bile anlıyoruz 👍\n' +
-            '• İzin talep edebilirsin ☕\n' +
-            '• Uyarı sistemi daha insancı ✨\n' +
-            '• Yöneticiler yardımcı olacak 🤝\n' +
-            '• Rol alındığında geri gelis kolay 🔄',
+            '• Hızlı ve çok çalışanlara efsanevi bonus rozetleri ve ekstra coinler gizli hediye olarak verilir.\n' +
+            '• Yöneticiler tarafından sık sık `/xpcekilis` düzenlenecek. Kaçırmamak için Mod kanalını takipte kal!',
           inline: false,
         },
         {
-          name: '📖 Rehber İçin',
-          value: 'DM\'de rehber dosyasını görmek için `/koc` komutu kullan!',
+          name: '📈 Yeni Rütbe Görevleri (Sekreter ve Yönetici)',
+          value: '• Sekreter ve Sekreterin Babası (Yönetici) rütbelerinin terfi şartları ve aylık kotaları da güncellendi. Artık ses aktifliği zorunlu görev!',
           inline: false,
         }
       )
-      .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Yeni Dönem = Daha İyi Sistem' })
+      .setFooter({ text: 'Eko Yıldız • Gamification Sistemi' })
       .setTimestamp();
 
     for (const p of allProgress) {
       try {
         const user = await client.users.fetch(p.userId);
-        if (user) await user.send({ embeds: [embed] }).catch(() => {});
+        if (user) {
+          await user.send({ embeds: [embed] }).catch(() => {});
+          
+          p.gamification = p.gamification || {};
+          p.gamification.systemIntroduced = true;
+          await p.save().catch(() => {});
+        }
       } catch (_) {}
     }
 
-    console.log(`[staffSystem] ${allProgress.length} personele sistem 2.0 bildirimi gönderildi`);
+    console.log(`[staffSystem] ${allProgress.length} personele Gamification 3.0 bildirimi gönderildi`);
   } catch (err) {
     console.error('[staffSystem] Sistem bildirimi hatası:', err.message);
   }
@@ -2118,7 +2128,6 @@ module.exports = {
   recordGreet,
   addVoiceMinutes,
   recordTicketSolved,
-  recordSurveyCompleted,
   recordModerationAction,
   recordChatMessage,
   recordWeeklyReport,
