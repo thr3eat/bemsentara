@@ -39,6 +39,7 @@ const GENERAL_COMMANDS = new Set([
   "konus",
   "odulver",
   "personel-dogrula",
+  "personelkov",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -99,6 +100,86 @@ async function handleGeneralCommand(interaction) {
     } catch (err) {
       console.error('[personel-dogrula] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── personelkov: Personeli kovar ve sistemden siler ──────────────────────
+  if (commandName === "personelkov") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+    
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
+    }
+
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const sebep = interaction.options.getString('sebep') || "Belirtilmedi";
+      
+      const StaffProgress = require("../../models/StaffProgress");
+      const User = require("../../models/User");
+      
+      const p = await StaffProgress.findOne({ userId: targetUser.id });
+      const u = await User.findOne({ discordId: targetUser.id });
+      
+      if (!p && !u) {
+        return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
+      }
+
+      // 1. StaffProgress'ten sil
+      if (p) {
+        await StaffProgress.deleteOne({ userId: targetUser.id });
+      }
+
+      // 2. Roblox Grubundan At (Exile)
+      let robloxIslem = "Roblox hesabı bağlı olmadığı için gruptan atılamadı.";
+      if (u && u.robloxId) {
+        try {
+          const { noblox, ROBLOX } = require("../../config");
+          // EkoYıldız Moderatör Ekibi grubundan at
+          await noblox.exile(ROBLOX.EKOYILDIZ_MOD, u.robloxId);
+          robloxIslem = `Roblox Moderatör Ekibi grubundan başarıyla atıldı (\`${u.robloxId}\`).`;
+        } catch (err) {
+          console.error(`[personelkov] Exile error:`, err.message);
+          robloxIslem = `Roblox grubundan atılırken hata oluştu (Yetki yetersiz veya zaten grupta değil).`;
+        }
+      }
+
+      // 3. Yönetim Sunucusundan At (Kick)
+      let discordIslem = "Kullanıcı yönetim sunucusunda bulunamadı.";
+      try {
+        const { ADMIN_GUILD_ID } = require("../services/staffAutomation");
+        const guild = await interaction.client.guilds.fetch(ADMIN_GUILD_ID).catch(() => null);
+        if (guild) {
+          const member = await guild.members.fetch(targetUser.id).catch(() => null);
+          if (member) {
+            await member.kick(`Personel sisteminden kovuldu. Sebep: ${sebep}`);
+            discordIslem = "Yönetim sunucusundan başarıyla atıldı.";
+          }
+        }
+      } catch (err) {
+        console.error(`[personelkov] Kick error:`, err.message);
+        discordIslem = "Yönetim sunucusundan atılırken hata oluştu.";
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle("🛑 Personel Kovuldu")
+        .setDescription(`${targetUser} adlı personel sistemden tamamen kaldırıldı.`)
+        .addFields(
+          { name: "Sebep", value: sebep },
+          { name: "Roblox İşlemi", value: robloxIslem },
+          { name: "Discord İşlemi", value: discordIslem }
+        )
+        .setColor(0xE74C3C)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+
+    } catch (err) {
+      console.error('[personelkov] hata:', err.message);
+      return interaction.editReply({ content: `❌ Beklenmedik bir hata oluştu: ${err.message}` });
     }
   }
 

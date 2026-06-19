@@ -188,6 +188,17 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("personelkov")
+    .setDescription("Bir personeli kovar ve sistemden siler")
+    .addUserOption(o => 
+      o.setName("kullanici").setDescription("Kovulacak personel").setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("sebep").setDescription("Kovulma sebebi").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  new SlashCommandBuilder()
     .setName("personeldurum")
     .setDescription("Personel ilerleme durumunu görüntüle")
     .addUserOption(o =>
