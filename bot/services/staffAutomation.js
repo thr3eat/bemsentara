@@ -149,20 +149,31 @@ async function ensureAdminGuildMembership(client, discordUserId) {
 }
 
 /**
- * Synchronizes the user's Discord roles in the Admin Guild based on their StaffProgress level.
+ * Synchronizes the user's Discord roles in the Admin Guild based on their Roblox Group Rank.
  * @param {import('discord.js').Client} client 
  * @param {string} discordUserId 
  */
 async function syncStaffDiscordRoles(client, discordUserId) {
   try {
-    const staff = await StaffProgress.findOne({ userId: discordUserId });
-    if (!staff) return false;
+    const User = require('../../models/User');
+    const user = await User.findOne({ discordId: discordUserId });
+    if (!user || !user.robloxId) return false;
 
     const guild = await client.guilds.fetch(ADMIN_GUILD_ID).catch(() => null);
     if (!guild) return false;
 
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (!member) return false;
+
+    // Fetch user groups
+    const axios = require('axios');
+    const response = await axios.get(`https://groups.roblox.com/v1/users/${user.robloxId}/groups/roles`, { timeout: 10000 }).catch(() => null);
+    if (!response || !response.data || !response.data.data) return false;
+
+    const modGroup = response.data.data.find(g => g.group.id === ROBLOX.EKOYILDIZ_MOD);
+    if (!modGroup || modGroup.role.rank === 0) return false; // Not in group
+
+    const rankName = modGroup.role.name.trim();
 
     const ROLES_TO_ADD = [
       '1517621814405107773', // .
@@ -179,24 +190,61 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       '1517619148383846592'  // Sentara
     ];
 
-    if (staff.level >= 4) {
-      ROLES_TO_ADD.push('1467079795711148062'); // Sekreter
-    } else if (staff.level === 3) {
-      ROLES_TO_ADD.push('1467082157800423515'); // Gelişmiş Personel
-      ROLES_TO_ADD.push('1480592150273200330'); // Ceza Yetkilisi
-    } else if (staff.level === 2) {
-      ROLES_TO_ADD.push('1467082211839836344'); // Personel
-      ROLES_TO_ADD.push('1479818628152168479'); // Abone Yetkilisi
-    } else if (staff.level === 1) {
-      ROLES_TO_ADD.push('1467082280035160269'); // Stajyer Personel
+    // Mappings for specific roles the user requested
+    const ROLE_MAPPINGS = {
+      "Stajyer Personel": ["1467082280035160269"],
+      "Personel": ["1467082211839836344", "1479818628152168479", "1466949577189101605"], // Personel + Abone + Mod(2)
+      "Gelişmiş Personel": ["1467082157800423515", "1480592150273200330", "1469671332303343642"], // Gelişmiş + Ceza + Mod(3)
+      "Sekreter": ["1467079795711148062", "1467076260441231401", "1466948827914436927"], // Sekreter + Yönetim Ekibi + Mod(4)
+      "Moderatör Müdür Yardımcısı": ["1467076700415328266"],
+      "Moderatör Müdürü": ["1467076595507527834"],
+      "Yönetim Ekibi": ["1467076260441231401"],
+      "Genel Sekreter": ["1467073280237371527"],
+      "Kaptan": ["1467077436532457545"],
+      "Overseer": ["1479839884075073567"],
+      "Supervisor": ["1479840791454154782"],
+      "Security": ["1466948998463225859"],
+      "Security Yetki《Bypass》": ["1467152505862357250"]
+    };
+
+    // If their rank has a specific ID mapping, add those IDs
+    if (ROLE_MAPPINGS[rankName]) {
+      ROLES_TO_ADD.push(...ROLE_MAPPINGS[rankName]);
     }
 
     // Sunucudaki rolleri önbelleğe al
     await guild.roles.fetch();
-    const validRoles = ROLES_TO_ADD.filter(id => guild.roles.cache.has(id));
+    
+    // Also find the role by exact name (just in case they are a rank not in mapping)
+    const exactRole = guild.roles.cache.find(r => r.name.toLowerCase() === rankName.toLowerCase());
+    if (exactRole) {
+      ROLES_TO_ADD.push(exactRole.id);
+    }
+
+    const validRoles = [...new Set(ROLES_TO_ADD)].filter(id => guild.roles.cache.has(id));
 
     if (validRoles.length > 0) {
+      // Find what roles they currently have that are in our managed list
+      // Wait, we don't need to remove roles. Just add them.
       await member.roles.add(validRoles).catch(err => console.error(`[StaffAutomation] Discord roller verilemedi: ${err.message}`));
+    }
+
+    // Try to sync StaffProgress if possible
+    let staff = await StaffProgress.findOne({ userId: discordUserId });
+    if (!staff) {
+      let level = 1;
+      if (rankName === "Personel") level = 2;
+      else if (rankName === "Gelişmiş Personel") level = 3;
+      else if (["Sekreter", "Genel Sekreter", "Yönetim Ekibi"].includes(rankName)) level = 4;
+      
+      staff = new StaffProgress({
+        userId: discordUserId,
+        level: level,
+        points: 0,
+        robloxVerified: true,
+        guildJoined: true
+      });
+      await staff.save();
     }
 
     return true;

@@ -104,6 +104,75 @@ async function handleAdminFormModals(interaction, client) {
       await interaction.editReply('✅ İşleminiz başarıyla raporlandı.');
     }
     
+    else if (customId === 'modal_ban_report_form') {
+      const isim = interaction.fields.getTextInputValue('ban_isim');
+      const kisi = interaction.fields.getTextInputValue('ban_kisi');
+      const kisiId = interaction.fields.getTextInputValue('ban_id');
+      const sebep = interaction.fields.getTextInputValue('ban_sebep');
+      const kanit = interaction.fields.getTextInputValue('ban_kanit');
+
+      const embed = new EmbedBuilder()
+        .setTitle('🔨 Yeni Ban Raporu')
+        .addFields(
+          { name: 'Raporlayan İsim', value: isim, inline: true },
+          { name: 'Raporlayan (Discord)', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Banlanacak Kişi', value: kisi, inline: true },
+          { name: 'Banlanacak Kişinin ID', value: kisiId, inline: true },
+          { name: 'Sebep', value: sebep },
+          { name: 'Kanıt', value: kanit }
+        )
+        .setColor(0xE74C3C)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946902154018967').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+      await interaction.editReply('✅ Ban raporunuz başarıyla gönderildi.');
+    }
+    
+    else if (customId === 'modal_mute_report_form') {
+      const isim = interaction.fields.getTextInputValue('mute_isim');
+      const rutbe = interaction.fields.getTextInputValue('mute_rutbe');
+      const kisi = interaction.fields.getTextInputValue('mute_kisi');
+      const ihlal = interaction.fields.getTextInputValue('mute_ihlal');
+
+      const embed = new EmbedBuilder()
+        .setTitle('🔇 Yeni Mute Raporu')
+        .addFields(
+          { name: 'Raporlayan İsim', value: isim, inline: true },
+          { name: 'Rütbe', value: rutbe, inline: true },
+          { name: 'Raporlayan (Discord)', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Mute Atılan Kişi', value: kisi, inline: true },
+          { name: 'Kaçıncı İhlali', value: ihlal, inline: true }
+        )
+        .setColor(0xF39C12)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946762190229589').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+      await interaction.editReply('✅ Mute raporunuz başarıyla gönderildi.');
+    }
+    
+    else if (customId === 'modal_mod_complain_form') {
+      const mod = interaction.fields.getTextInputValue('comp_mod');
+      const sebep = interaction.fields.getTextInputValue('comp_sebep');
+      const kanit = interaction.fields.getTextInputValue('comp_kanit');
+
+      const embed = new EmbedBuilder()
+        .setTitle('⚠️ Yeni Mod Şikayeti')
+        .addFields(
+          { name: 'Şikayet Eden (Discord)', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Şikayet Edilen Mod', value: mod, inline: true },
+          { name: 'Sebep', value: sebep },
+          { name: 'Kanıt', value: kanit }
+        )
+        .setColor(0x992D22)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946497206816973').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+      await interaction.editReply('✅ Şikayetiniz gizlilik içinde yönetime iletildi.');
+    }
+    
   } catch (err) {
     console.error('[AdminFormHandler] Error:', err);
     await interaction.editReply('❌ İşleminiz sırasında bir hata oluştu.');

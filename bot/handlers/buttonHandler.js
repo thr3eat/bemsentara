@@ -24,21 +24,26 @@ async function handleButtonInteraction(interaction) {
         const StaffProgress = require("../../models/StaffProgress");
         const p = await StaffProgress.findOne({ userId: interaction.user.id });
 
-        if (p) {
+        
+        // Doğrudan rolleri senkronize et (yeni sistem Roblox grubuna bakıyor)
+        const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
+        
+        if (roleSyncSuccess) {
+          // İsteği kabul edip rütbeleri verecek fonksiyonu çağırıyoruz
           await syncStaffRobloxRanks(interaction.client, interaction.user.id);
           const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
-          
-          let responseText = `✅ **Roblox Hesabınız Onaylandı!**\nRoblox ID: \`${user.robloxId}\`\n\nKatılma istekleriniz kabul edildi ve Roblox grubunda yetkileriniz ayarlandı!`;
-          if (!inGuild) {
-            responseText += `\n\n⚠️ Ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra butona tekrar tıklayabilirsiniz.`;
-          } else {
-            await syncStaffDiscordRoles(interaction.client, interaction.user.id);
-            responseText += `\n\n🎉 Yönetim sunucusu ve Roblox grupları doğrulamanız tamdır. Discord moderatör rolleriniz de verildi, görevinde başarılar dileriz!`;
-          }
-          return interaction.editReply({ content: responseText });
+
+          const successEmbed = new EmbedBuilder()
+            .setTitle("✅ Personel Doğrulaması Başarılı")
+            .setDescription(`Roblox ID: \`${user.robloxId}\`\nSunucudaki yetki rolleriniz Roblox grubundaki rütbenize göre **başarıyla** verildi. ${!inGuild ? "\n*(Ancak sunucuda bulunamadığınız için roller sadece katıldığınızda geçerli olacak)*" : ""}`)
+            .setColor(0x2ECC71);
+            
+          return interaction.editReply({ embeds: [successEmbed] });
         } else {
-          return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\nAncak aktif personel listesinde görünmüyorsunuz. Bir hata olduğunu düşünüyorsanız yöneticilere bildirin.` });
+          return interaction.editReply({ content: `❌ **Doğrulama Başarısız!**\nRoblox grubunda (**EkoYıldız Moderatör Ekibi**) onaylı bir rütbeniz bulunamadı veya roller verilirken bir hata oluştu.\nLütfen önce gruba katılıp rütbe aldığınızdan emin olun.` });
         }
+      } else {
+        return interaction.editReply({ content: "❌ Önce `/authorize` komutuyla Roblox hesabınızı bağlamanız gerekmektedir." });
       }
 
       const embed = new EmbedBuilder()
@@ -470,6 +475,42 @@ async function handleButtonInteraction(interaction) {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_user').setLabel('İşlem Yapılan Kullanıcı (ID/İsim)').setStyle(TextInputStyle.Short).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_action').setLabel('İşlem (Ban/Mute/Kick vb.)').setStyle(TextInputStyle.Short).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_reason').setLabel('Sebep ve Kanıt Linki').setStyle(TextInputStyle.Paragraph).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_ban_report_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_ban_report_form').setTitle('Ban Rapor Sistemi');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_isim').setLabel('İsim (Kendi İsminiz)').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_kisi').setLabel('Banlanacak kişi').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_id').setLabel('Banlanacak Kişinin ID si').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_sebep').setLabel('Sebep').setStyle(TextInputStyle.Paragraph).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_kanit').setLabel('Kanıt (Link)').setStyle(TextInputStyle.Short).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_mute_report_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_mute_report_form').setTitle('Mute Rapor Sistemi');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_isim').setLabel('İsim (Kendi İsminiz)').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_rutbe').setLabel('Rütbe (Kendi Rütbeniz)').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_kisi').setLabel('Mute atılan kişi').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_ihlal').setLabel('Kaçıncı ihlali?').setStyle(TextInputStyle.Short).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_mod_complain_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_mod_complain_form').setTitle('Mod Şikayet Sistemi');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_mod').setLabel('Şikayet Edilen Mod').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_sebep').setLabel('Sebep').setStyle(TextInputStyle.Paragraph).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_kanit').setLabel('Kanıt').setStyle(TextInputStyle.Paragraph).setRequired(true))
     );
     return interaction.showModal(modal);
   }

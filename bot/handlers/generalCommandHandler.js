@@ -58,26 +58,23 @@ async function handleGeneralCommand(interaction) {
       if (user?.robloxId) {
         // Zaten bağlı, grupları ve sunucuyu senkronize et
         const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
-        const StaffProgress = require("../../models/StaffProgress");
-        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
 
-        if (p) {
+        if (roleSyncSuccess) {
           // İsteği kabul edip rütbeleri verecek fonksiyonu çağırıyoruz
           await syncStaffRobloxRanks(interaction.client, interaction.user.id);
           // Sunucu üyeliğini kontrol ediyoruz
           const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
           
-          let responseText = `✅ **Roblox Hesabınız Onaylandı!**\nRoblox ID: \`${user.robloxId}\`\n\nKatılma istekleriniz kabul edildi ve Roblox grubunda yetkileriniz ayarlandı!`;
+          let responseText = `✅ **Personel Doğrulaması Başarılı!**\nRoblox ID: \`${user.robloxId}\``;
           if (!inGuild) {
-            responseText += `\n\n⚠️ Ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra komutu tekrar kullanabilirsiniz.`;
+            responseText += `\n\n⚠️ Sunucudaki yetki rolleriniz Roblox grubundaki rütbenize göre ayarlandı, ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra rolleriniz geçerli olacaktır.`;
           } else {
-            // Yönetim sunucusunda ise discord rollerini de veriyoruz
-            await syncStaffDiscordRoles(interaction.client, interaction.user.id);
-            responseText += `\n\n🎉 Yönetim sunucusu ve Roblox grupları doğrulamanız tamdır. Discord moderatör rolleriniz de verildi, görevinde başarılar dileriz!`;
+            responseText += `\n\n🎉 Yönetim sunucusu doğrulamanız tamdır. Discord moderatör rolleriniz Roblox grubunuzdaki (EkoYıldız Moderatör Ekibi) rütbenize göre başarıyla verildi!`;
           }
           return interaction.editReply({ content: responseText });
         } else {
-          return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\nAncak aktif personel listesinde görünmüyorsunuz. Bir hata olduğunu düşünüyorsanız yöneticilere bildirin.` });
+          return interaction.editReply({ content: `❌ **Doğrulama Başarısız!**\nRoblox grubunda (**EkoYıldız Moderatör Ekibi**) onaylı bir rütbeniz bulunamadı veya roller verilirken bir hata oluştu.\nLütfen önce gruba katılıp rütbe aldığınızdan emin olun.` });
         }
       }
 

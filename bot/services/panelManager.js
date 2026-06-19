@@ -6,7 +6,8 @@ async function refreshPanel(client, channelId, embed, components = []) {
   if (channel && channel.isTextBased()) {
     try {
       const messages = await channel.messages.fetch({ limit: 50 });
-      const botMessages = messages.filter(m => m.author.id === client.user.id);
+      // Sadece aynı başlığa sahip eski panel mesajını sil
+      const botMessages = messages.filter(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === embed.data.title);
       for (const [id, msg] of botMessages) {
         await msg.delete().catch(() => {});
       }
@@ -77,8 +78,37 @@ async function ensureAdminPanels(client) {
     const verifyRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('btn_personel_check').setLabel('Doğrula & Rollerimi Ver').setStyle(ButtonStyle.Success).setEmoji('✅')
     );
-    // User requested panel in 1466933699122565120
     await refreshPanel(client, '1466933699122565120', verifyEmbed, [verifyRow]);
+
+    // 7. Ban Rapor Sistemi
+    const banReportEmbed = new EmbedBuilder()
+      .setTitle("🔨 Ban Rapor Sistemi")
+      .setDescription("Banlanması gereken veya banladığınız kişileri bu panel üzerinden raporlayın. Lütfen tüm alanları eksiksiz doldurun.")
+      .setColor(0xE74C3C);
+    const banReportRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('btn_ban_report_form').setLabel('Ban Raporla').setStyle(ButtonStyle.Danger).setEmoji('🔨')
+    );
+    await refreshPanel(client, '1466946902154018967', banReportEmbed, [banReportRow]);
+
+    // 8. Mute Rapor Sistemi
+    const muteReportEmbed = new EmbedBuilder()
+      .setTitle("🔇 Mute Rapor Sistemi")
+      .setDescription("Mute (Susturma) uyguladığınız kişileri bu panel üzerinden detaylıca raporlayın.")
+      .setColor(0xF39C12);
+    const muteReportRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('btn_mute_report_form').setLabel('Mute Raporla').setStyle(ButtonStyle.Primary).setEmoji('🔇')
+    );
+    await refreshPanel(client, '1466946762190229589', muteReportEmbed, [muteReportRow]);
+
+    // 9. Mod Şikayet Sistemi
+    const modComplainEmbed = new EmbedBuilder()
+      .setTitle("⚠️ Mod Şikayet Sistemi")
+      .setDescription("Yetkisini kötüye kullanan veya kurallara uymayan moderatörleri bu panel üzerinden gizlilikle şikayet edebilirsiniz.")
+      .setColor(0x992D22);
+    const modComplainRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('btn_mod_complain_form').setLabel('Mod Şikayet Et').setStyle(ButtonStyle.Danger).setEmoji('⚠️')
+    );
+    await refreshPanel(client, '1466946497206816973', modComplainEmbed, [modComplainRow]);
 
   } catch (error) {
     console.error("[PanelManager] ensureAdminPanels Error:", error);
