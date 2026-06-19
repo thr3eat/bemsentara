@@ -172,10 +172,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     if (!user || !user.robloxId) return false;
 
     const guild = await client.guilds.fetch(ADMIN_GUILD_ID).catch(() => null);
-    if (!guild) return false;
-
-    const member = await guild.members.fetch(discordUserId).catch(() => null);
-    if (!member) return false;
+    const member = guild ? await guild.members.fetch(discordUserId).catch(() => null) : null;
 
     // Fetch user groups using noblox to bypass some cache
     let rankName = "";
@@ -218,63 +215,62 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       return false;
     }
 
-    const TARGET_ROLES = [
-      '1467082387933499524', // Eko & Yıldız | Moderatör Ekibi
-      '1480592150273200330', // Eko & Yıldız Ceza Yetkilisi
-      '1479818628152168479', // Eko & Yıldız Abone Yetkilisi
-      '1467082891556163727'  // -------------------------------
-    ];
+    // Sunucuda varsa rollerini ver/sil
+    if (guild && member) {
+      const TARGET_ROLES = [
+        '1467082387933499524', // Eko & Yıldız | Moderatör Ekibi
+        '1480592150273200330', // Eko & Yıldız Ceza Yetkilisi
+        '1479818628152168479', // Eko & Yıldız Abone Yetkilisi
+        '1467082891556163727'  // -------------------------------
+      ];
 
-    // Sunucudaki tüm rolleri önbelleğe al
-    await guild.roles.fetch();
-    
-    // Doğrudan isme göre rütbe rolünü bul ve TARGET_ROLES'a ekle
-    const exactRole = guild.roles.cache.find(r => r.name.toLowerCase() === rankName.toLowerCase());
-    if (exactRole) {
-      TARGET_ROLES.push(exactRole.id);
-    }
-
-    // Botun daha önceden vermiş olabileceği ama artık istenmeyen tüm rolleri temizlemek için "yönetilen" roller listesi:
-    const ALL_MANAGED_ROLES = [
-      '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
-      '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
-      '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
-      '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-      '1467152505862357250', // Security bypass
-      // Daha önce eklenen istenmeyen kozmetik roller:
-      '1517621814405107773', '1466949714053169327', '1469668957047885967', '1467074142426763347',
-      '1467078019633119366', '1467077931737284914', '1467077860240916534', '1467078315083829318',
-      '1467080003219886132', '1517619148383846592', '1466949577189101605', '1469671332303343642',
-      '1466948827914436927'
-    ];
-
-    const currentRoles = member.roles.cache.map(r => r.id);
-    const rolesToAdd = [];
-    const rolesToRemove = [];
-
-    // Verilmesi gerekenler: TARGET_ROLES içinde olup da user'da olmayanlar
-    for (const roleId of TARGET_ROLES) {
-      if (!currentRoles.includes(roleId) && guild.roles.cache.has(roleId)) {
-        rolesToAdd.push(roleId);
+      // Sunucudaki tüm rolleri önbelleğe al
+      await guild.roles.fetch();
+      
+      // Doğrudan isme göre rütbe rolünü bul ve TARGET_ROLES'a ekle
+      const exactRole = guild.roles.cache.find(r => r.name.toLowerCase() === rankName.toLowerCase());
+      if (exactRole) {
+        TARGET_ROLES.push(exactRole.id);
       }
-    }
 
-    // Alınması gerekenler: ALL_MANAGED_ROLES içinde olup da user'da olan, ama TARGET_ROLES içinde OLMAYANLAR
-    // Ayrıca rütbe değiştirme ihtimaline karşı: User'ın rollerini dönüp, "Yönetilen" listede olup Target'ta olmayanları siliyoruz.
-    for (const roleId of currentRoles) {
-      if (ALL_MANAGED_ROLES.includes(roleId) && !TARGET_ROLES.includes(roleId)) {
-        rolesToRemove.push(roleId);
+      // Botun daha önceden vermiş olabileceği ama artık istenmeyen tüm rolleri temizlemek için "yönetilen" roller listesi:
+      const ALL_MANAGED_ROLES = [
+        '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
+        '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
+        '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
+        '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
+        '1467152505862357250', // Security bypass
+        // Daha önce eklenen istenmeyen kozmetik roller:
+        '1517621814405107773', '1466949714053169327', '1469668957047885967', '1467074142426763347',
+        '1467078019633119366', '1467077931737284914', '1467077860240916534', '1467078315083829318',
+        '1467080003219886132', '1517619148383846592', '1466949577189101605', '1469671332303343642',
+        '1466948827914436927'
+      ];
+
+      const currentRoles = member.roles.cache.map(r => r.id);
+      const rolesToAdd = [];
+      const rolesToRemove = [];
+
+      // Verilmesi gerekenler: TARGET_ROLES içinde olup da user'da olmayanlar
+      for (const roleId of TARGET_ROLES) {
+        if (!currentRoles.includes(roleId) && guild.roles.cache.has(roleId)) {
+          rolesToAdd.push(roleId);
+        }
       }
-    }
 
-    // Bilinmeyen bir rütbeden düşme/terfi etme ihtimaline karşı: Rol ismi Roblox rütbe listesine giriyorsa ama hedef rol değilse sil
-    // Ancak bunun yerine "ALL_MANAGED_ROLES" listesinde eski rütbeler zaten var.
+      // Alınması gerekenler: ALL_MANAGED_ROLES içinde olup da user'da olan, ama TARGET_ROLES içinde OLMAYANLAR
+      for (const roleId of currentRoles) {
+        if (ALL_MANAGED_ROLES.includes(roleId) && !TARGET_ROLES.includes(roleId)) {
+          rolesToRemove.push(roleId);
+        }
+      }
 
-    if (rolesToRemove.length > 0) {
-      await member.roles.remove(rolesToRemove).catch(err => console.error(`[StaffAutomation] Roller silinemedi: ${err.message}`));
-    }
-    if (rolesToAdd.length > 0) {
-      await member.roles.add(rolesToAdd).catch(err => console.error(`[StaffAutomation] Roller verilemedi: ${err.message}`));
+      if (rolesToRemove.length > 0) {
+        await member.roles.remove(rolesToRemove).catch(err => console.error(`[StaffAutomation] Roller silinemedi: ${err.message}`));
+      }
+      if (rolesToAdd.length > 0) {
+        await member.roles.add(rolesToAdd).catch(err => console.error(`[StaffAutomation] Roller verilemedi: ${err.message}`));
+      }
     }
 
     // Rol işlemleri bitti, şimdi veritabanını (StaffProgress) güncelleyelim.
