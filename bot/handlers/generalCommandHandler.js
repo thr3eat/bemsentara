@@ -1457,8 +1457,6 @@ async function handleGeneralCommand(interaction) {
           .setCustomId('ekocoin_satin_al')
           .setPlaceholder('Almak istediğiniz eşyayı seçin...')
           .addOptions([
-            { label: '3 Günlük Haftalık İzin', description: '2500 E.C. - 3 gün boyunca görevden muaf olursunuz', value: 'item_leave_weekly', emoji: '🏝️' },
-            { label: 'Rütbe XP Takviyesi (+500)', description: '1000 E.C. - Terfinizi hızlandırmak için +500 Ticket puanı', value: 'item_xp_boost', emoji: '📈' },
             { label: '1 Günlük İzin', description: '800 E.C. - 1 gün görevden muaf olursunuz', value: 'item_leave_1day', emoji: '🌴' },
             { label: 'Yeşil Rol Rengi', description: '500 E.C. - Sunucuda isminizi yeşil yapar', value: 'color_green', emoji: '🟩' },
             { label: 'Kırmızı Rol Rengi', description: '500 E.C. - Sunucuda isminizi kırmızı yapar', value: 'color_red', emoji: '🟥' },
