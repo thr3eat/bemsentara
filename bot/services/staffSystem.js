@@ -2134,7 +2134,6 @@ module.exports = {
   checkPromotion,
   promote,
   demote,
-  processDailyTasks,
   startStaffScheduler,
   resignFromStaff,
   retireFromStaff,
