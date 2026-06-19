@@ -1515,7 +1515,59 @@ function startStaffScheduler(client) {
     await runDailyCheck(client);
   });
 
-  console.log('[staffSystem] Scheduler başlatıldı (09:00 / 13:00 / 19:00 / 23:30)');
+  // 17:00 — Doğrulama kontrolü
+  scheduleAt(17, 0, async () => {
+    console.log('[staffSystem] 17:00 doğrulama kontrolü...');
+    await checkStaffVerifications(client);
+  });
+
+  console.log('[staffSystem] Scheduler başlatıldı (09:00 / 13:00 / 17:00 / 19:00 / 23:30)');
+  
+  // Başlangıçta hemen doğrulama kontrolünü bir defa yap
+  setTimeout(() => checkStaffVerifications(client), 10000); // 10 saniye sonra
+}
+
+// ── PERSONEL DOĞRULAMA KONTROLÜ (ROBLOX & DISCORD) ─────────────────────────
+async function checkStaffVerifications(client) {
+  try {
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const User = require('../../models/User');
+    const { BASE_URL } = require('../../config');
+    let notifiedCount = 0;
+
+    for (const p of allProgress) {
+      const user = await User.findOne({ discordId: p.userId });
+      
+      const missingRoblox = !user || !user.robloxId;
+      const missingGuild = !p.guildJoined; // guildJoined is in StaffProgress
+
+      if (missingRoblox || missingGuild) {
+        const embed = new EmbedBuilder()
+          .setColor(0xE74C3C)
+          .setTitle('🚨 DİKKAT: Eksik Doğrulama İşlemi')
+          .setDescription(
+            `Merhaba <@${p.userId}>, EkoYıldız moderatör ekibinde bulunuyorsun ancak sistemlerimizde **doğrulamanın eksik olduğu tespit edildi.**\n\n` +
+            `Görevinize devam edebilmeniz ve yetkilerinizi alabilmeniz için aşağıdaki işlemleri **hemen yapmanız gerekmektedir:**\n\n` +
+            `${missingRoblox ? `❌ **Roblox Hesabı Bağlı Değil:** [Buraya Tıklayarak](${BASE_URL}/dashboard) hesabınızı hemen bağlayın.\n` : ''}` +
+            `${missingGuild ? `❌ **Yönetim Sunucusunda Değilsiniz:** \`/personel-dogrula\` komutunu kullanarak yetkilendirme linkini alın ve sunucuya katılın.\n` : ''}` +
+            `\nBu uyarıyı dikkate almazsanız yetkileriniz sistem tarafından otomatik olarak alınabilir.`
+          )
+          .setFooter({ text: 'EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi' })
+          .setTimestamp();
+
+        try {
+          const discordUser = await client.users.fetch(p.userId);
+          if (discordUser) {
+            await discordUser.send({ embeds: [embed] });
+            notifiedCount++;
+          }
+        } catch (_) { }
+      }
+    }
+    console.log(`[staffSystem] Personel doğrulamaları kontrol edildi. ${notifiedCount} kişiye uyarı gönderildi.`);
+  } catch (err) {
+    console.error('[staffSystem] checkStaffVerifications hatası:', err.message);
+  }
 }
 
 // ── SİSTEM GÜNCELLEME BİLDİRİMLERİ ─────────────────────────────────────────
