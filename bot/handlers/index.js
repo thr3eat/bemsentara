@@ -201,6 +201,33 @@ function initializeDiscordHandlers(client) {
       if (member.guild.id === TMT_GUILD_ID) {
         const { logTMTMemberLeave } = require("../services/tmtLogger");
         logTMTMemberLeave(member);
+
+        // ── GİZLİ BAŞARIM: Sadık Yıldız ──
+        // Kullanıcı TMT'den (rakip/honeypot) çıktıysa/atıldıysa ve EkoYıldız ana sunucusunda varsa ona başarım ver
+        try {
+          const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+          if (mainGuild) {
+            const memberToReward = await mainGuild.members.fetch(member.id).catch(() => null);
+            if (memberToReward) {
+              let loyalRole = mainGuild.roles.cache.find(r => r.name === '⭐ Sadık Yıldız');
+              if (!loyalRole) {
+                loyalRole = await mainGuild.roles.create({
+                  name: '⭐ Sadık Yıldız',
+                  color: '#f39c12', // Turuncu/Sarımtırak
+                  hoist: false,
+                  position: 1, // En altta olması için
+                  reason: 'Gizli Başarım Sistemi'
+                });
+              }
+              if (loyalRole && !memberToReward.roles.cache.has(loyalRole.id)) {
+                await memberToReward.roles.add(loyalRole.id).catch(() => {});
+                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sadık Yıldız!**\nRakip / Diğer sunucular yerine EkoYıldız sadakatinizi gösterdiğiniz için `⭐ Sadık Yıldız` rolünü kazandınız!').catch(() => {});
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[guildMemberRemove] Sadık Yıldız başarım hatası:', e.message);
+        }
       }
     } catch (err) {
       console.error("guildMemberRemove hatası:", err);
@@ -387,6 +414,8 @@ function initializeDiscordHandlers(client) {
   // ── Ses kanalı takibi (personel ses dakikası + kurbağa XP) ───────────────────
   // userId → { joinedAt: Date }
   const voiceSessions = new Map();
+  const socialButterflyTracker = new Map();
+  const ghostTracker = new Map();
 
   client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
@@ -420,7 +449,57 @@ function initializeDiscordHandlers(client) {
         }
         voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
         if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
-      } else if (oldState.channelId && !newState.channelId) {
+        
+        // ── Sabah Kuşu Başarımı (Ses) ──
+        if (guildId === '1367646464804655104') {
+          const h = new Date().getHours();
+          if (h >= 6 && h < 8) {
+            const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(userId).catch(() => null);
+              if (memberToReward) {
+                let earlyRole = mainGuild.roles.cache.find(r => r.name === '🌅 Sabah Kuşu');
+                if (!earlyRole) {
+                  earlyRole = await mainGuild.roles.create({ name: '🌅 Sabah Kuşu', color: '#f1c40f', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
+                }
+                if (earlyRole && !memberToReward.roles.cache.has(earlyRole.id)) {
+                  await memberToReward.roles.add(earlyRole.id).catch(() => {});
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Kanal değiştirme veya Sese Gidip Gelme (Sosyal Kelebek)
+      if (newState.channelId && oldState.channelId !== newState.channelId) {
+        if (guildId === '1367646464804655104') {
+          let joinedSet = socialButterflyTracker.get(userId) || new Set();
+          joinedSet.add(newState.channelId);
+          socialButterflyTracker.set(userId, joinedSet);
+          
+          if (joinedSet.size === 5) {
+            socialButterflyTracker.delete(userId); // Reset
+            const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(userId).catch(() => null);
+              if (memberToReward) {
+                let butterflyRole = mainGuild.roles.cache.find(r => r.name === '🎭 Sosyal Kelebek');
+                if (!butterflyRole) {
+                  butterflyRole = await mainGuild.roles.create({ name: '🎭 Sosyal Kelebek', color: '#e84393', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
+                }
+                if (butterflyRole && !memberToReward.roles.cache.has(butterflyRole.id)) {
+                  await memberToReward.roles.add(butterflyRole.id).catch(() => {});
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sosyal Kelebek!**\nKısa sürede birçok farklı kanala girdiğiniz için `🎭 Sosyal Kelebek` rolünü kazandınız!').catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (oldState.channelId && !newState.channelId) {
         // Sesten çıktı
         const { TMT_GUILD_ID } = require("../../config");
         if (guildId === TMT_GUILD_ID) {
@@ -455,6 +534,7 @@ function initializeDiscordHandlers(client) {
                       name: '🏆 Ses Kurdu',
                       color: '#95a5a6', // Gri
                       hoist: false,
+                      position: 1, // En altta olması için
                       reason: 'Gizli Başarım Sistemi'
                     });
                   }
@@ -478,12 +558,31 @@ function initializeDiscordHandlers(client) {
                       name: '🦉 Gece Baykuşu',
                       color: '#7f8c8d', // Koyu Gri
                       hoist: false,
+                      position: 1, // En altta olması için
                       reason: 'Gizli Başarım Sistemi'
                     });
                   }
                   if (owlRole && !memberToReward.roles.cache.has(owlRole.id)) {
                     await memberToReward.roles.add(owlRole.id).catch(() => {});
                     memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde 10 dakikadan fazla seste kaldığınız için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
+                  }
+                }
+
+                // 3. Hayalet Başarımı (Seste 1 saat boyunca Susturulmuş/Muted kalmak)
+                if (minutes >= 60 && (oldState.selfMute || oldState.serverMute)) {
+                  let ghostRole = mainGuild.roles.cache.find(r => r.name === '👻 Hayalet');
+                  if (!ghostRole) {
+                    ghostRole = await mainGuild.roles.create({
+                      name: '👻 Hayalet',
+                      color: '#ecf0f1', // Çok Açık Gri / Beyazımsı
+                      hoist: false,
+                      position: 1, // En altta olması için
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (ghostRole && !memberToReward.roles.cache.has(ghostRole.id)) {
+                    await memberToReward.roles.add(ghostRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayalet!**\nSeste en az 1 saat boyunca tamamen sessiz/susturulmuş kaldığınız için `👻 Hayalet` rolünü kazandınız!').catch(() => {});
                   }
                 }
               }
@@ -516,6 +615,7 @@ function initializeDiscordHandlers(client) {
   });
 
   const nightChatTracker = new Map();
+  const dailyChatTracker = new Map();
 
   client.on("messageCreate", async (message) => {
     // Partial mesajları fetch et (DM için zorunlu)
@@ -588,9 +688,23 @@ function initializeDiscordHandlers(client) {
     // ── Gece Baykuşu Başarımı (Sohbet) ────────────────────────────────────
     try {
       if (message.guild.id === '1367646464804655104') {
+        const uId = message.author.id;
         const hour = new Date().getHours();
+        
+        // Sabah Kuşu (Sohbet)
+        if (hour >= 6 && hour < 8) {
+          let earlyRole = message.guild.roles.cache.find(r => r.name === '🌅 Sabah Kuşu');
+          if (!earlyRole) {
+            earlyRole = await message.guild.roles.create({ name: '🌅 Sabah Kuşu', color: '#f1c40f', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
+          }
+          if (earlyRole && !message.member.roles.cache.has(earlyRole.id)) {
+            await message.member.roles.add(earlyRole.id).catch(() => {});
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => {});
+          }
+        }
+
+        // Gece Baykuşu (Sohbet)
         if (hour >= 0 && hour <= 6) {
-          const uId = message.author.id;
           let msgs = nightChatTracker.get(uId) || 0;
           msgs++;
           nightChatTracker.set(uId, msgs);
@@ -602,6 +716,7 @@ function initializeDiscordHandlers(client) {
                 name: '🦉 Gece Baykuşu',
                 color: '#7f8c8d',
                 hoist: false,
+                position: 1, // En altta olması için
                 reason: 'Gizli Başarım Sistemi'
               });
             }
@@ -609,6 +724,27 @@ function initializeDiscordHandlers(client) {
               await message.member.roles.add(owlRole.id).catch(() => {});
               message.author.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde sohbette aktif olduğunuz için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
             }
+          }
+        }
+
+        // Klavyeşör
+        let dailyMsgs = dailyChatTracker.get(uId) || 0;
+        dailyMsgs++;
+        dailyChatTracker.set(uId, dailyMsgs);
+        if (dailyMsgs === 100) {
+          let keyRole = message.guild.roles.cache.find(r => r.name === '⌨️ Klavyeşör');
+          if (!keyRole) {
+            keyRole = await message.guild.roles.create({
+              name: '⌨️ Klavyeşör',
+              color: '#34495e',
+              hoist: false,
+              position: 1,
+              reason: 'Gizli Başarım Sistemi'
+            });
+          }
+          if (keyRole && !message.member.roles.cache.has(keyRole.id)) {
+            await message.member.roles.add(keyRole.id).catch(() => {});
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Klavyeşör!**\nBugün 100\'den fazla mesaj göndererek aktifliğini kanıtladın ve `⌨️ Klavyeşör` rolünü kazandın!').catch(() => {});
           }
         }
       }
