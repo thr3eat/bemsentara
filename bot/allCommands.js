@@ -238,6 +238,31 @@ const generalCommands = [
     .setDMPermission(false),
 
   new SlashCommandBuilder()
+    .setName("ekocoin")
+    .setDescription("EkoCoin (E.C.) sistemini yönetin")
+    .addSubcommand(sub =>
+      sub.setName("bakiye").setDescription("Mevcut EkoCoin bakiyenizi görün")
+    )
+    .addSubcommand(sub =>
+      sub.setName("gonder")
+        .setDescription("Başka bir personele EkoCoin gönderin")
+        .addUserOption(o => o.setName("kullanici").setDescription("Gönderilecek kişi").setRequired(true))
+        .addIntegerOption(o => o.setName("miktar").setDescription("Gönderilecek E.C. miktarı").setRequired(true))
+    ),
+
+  new SlashCommandBuilder()
+    .setName("magaza")
+    .setDescription("EkoCoin Mağazasını açın ve eşya satın alın"),
+
+  new SlashCommandBuilder()
+    .setName("gunluk-odul")
+    .setDescription("Günlük EkoCoin ödülünüzü (maaşınızı) alın"),
+
+  new SlashCommandBuilder()
+    .setName("zenginler")
+    .setDescription("Sunucudaki en zengin EkoCoin sahiplerini görün"),
+
+  new SlashCommandBuilder()
     .setName("update")
     .setDescription("Ana BEM grubu ve branş gruplarına göre rollerinizi günceller")
     .setDMPermission(false),

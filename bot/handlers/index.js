@@ -921,14 +921,16 @@ function initializeDiscordHandlers(client) {
         let roleName = '';
         let successMessage = '';
         
-        if (item === 'renk_yesil') { price = 500; roleName = '- YEŞİL ROL RENGİ -'; successMessage = '🎨 Yeşil Rol Rengi satın alındı!'; }
-        else if (item === 'renk_kirmizi') { price = 500; roleName = '- KIRMIZI ROL RENGİ -'; successMessage = '🎨 Kırmızı Rol Rengi satın alındı!'; }
-        else if (item === 'renk_mavi') { price = 500; roleName = '- MAVİ ROL RENGİ -'; successMessage = '🎨 Mavi Rol Rengi satın alındı!'; }
-        else if (item === 'renk_sari') { price = 500; roleName = '- SARI ROL RENGİ -'; successMessage = '🎨 Sarı Rol Rengi satın alındı!'; }
-        else if (item === 'renk_mor') { price = 500; roleName = '- MOR ROL RENGİ -'; successMessage = '🎨 Mor Rol Rengi satın alındı!'; }
-        else if (item === 'renk_pembe') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
-        else if (item === 'renk_turuncu') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
-        else if (item === 'ekstra_izin') { price = 1000; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
+        if (item === 'color_green') { price = 500; roleName = '- YEŞİL ROL RENGİ -'; successMessage = '🎨 Yeşil Rol Rengi satın alındı!'; }
+        else if (item === 'color_red') { price = 500; roleName = '- KIRMIZI ROL RENGİ -'; successMessage = '🎨 Kırmızı Rol Rengi satın alındı!'; }
+        else if (item === 'color_blue') { price = 500; roleName = '- MAVİ ROL RENGİ -'; successMessage = '🎨 Mavi Rol Rengi satın alındı!'; }
+        else if (item === 'color_yellow') { price = 500; roleName = '- SARI ROL RENGİ -'; successMessage = '🎨 Sarı Rol Rengi satın alındı!'; }
+        else if (item === 'color_purple') { price = 500; roleName = '- MOR ROL RENGİ -'; successMessage = '🎨 Mor Rol Rengi satın alındı!'; }
+        else if (item === 'color_pink') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
+        else if (item === 'color_orange') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
+        else if (item === 'item_leave_1day' || item === 'ekstra_izin') { price = 800; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
+        else if (item === 'item_leave_weekly') { price = 2500; successMessage = '🏖️ +3 Günlük Haftalık İzin satın alındı!'; }
+        else if (item === 'item_xp_boost') { price = 1000; successMessage = '📈 +500 Rütbe XP\'si satın alındı!'; }
 
         if ((p.gamification?.ecoCoins || 0) < price) {
           return interaction.reply({ content: `❌ Yetersiz E.C.! (Gereken: ${price} E.C. - Sizin: ${p.gamification?.ecoCoins || 0} E.C.)`, ephemeral: true });
@@ -938,19 +940,19 @@ function initializeDiscordHandlers(client) {
         p.gamification.ecoCoins -= price;
         
         // Ödülü Ver
-        if (item.startsWith('renk_')) {
+        if (item.startsWith('color_')) {
           const guild = interaction.client.guilds.cache.get(require('../../config').GUILD_ID);
           if (guild) {
             let colorRole = guild.roles.cache.find(r => r.name === roleName);
             if (!colorRole) {
               let roleColor = '#000000';
-              if (item === 'renk_yesil') roleColor = '#2ecc71';
-              else if (item === 'renk_kirmizi') roleColor = '#e74c3c';
-              else if (item === 'renk_mavi') roleColor = '#3498db';
-              else if (item === 'renk_sari') roleColor = '#f1c40f';
-              else if (item === 'renk_mor') roleColor = '#9b59b6';
-              else if (item === 'renk_pembe') roleColor = '#ff9ff3';
-              else if (item === 'renk_turuncu') roleColor = '#e67e22';
+              if (item === 'color_green') roleColor = '#2ecc71';
+              else if (item === 'color_red') roleColor = '#e74c3c';
+              else if (item === 'color_blue') roleColor = '#3498db';
+              else if (item === 'color_yellow') roleColor = '#f1c40f';
+              else if (item === 'color_purple') roleColor = '#9b59b6';
+              else if (item === 'color_pink') roleColor = '#ff9ff3';
+              else if (item === 'color_orange') roleColor = '#e67e22';
 
               // Rolü En Üste (Ama yetkisiz olarak) eklemeye çalış (Botun yetkisi olduğu yere kadar)
               colorRole = await guild.roles.create({
@@ -961,7 +963,7 @@ function initializeDiscordHandlers(client) {
             }
             const member = await guild.members.fetch(interaction.user.id).catch(() => null);
             if (member && colorRole) {
-              // Varsa diğer renkleri al (Örnek)
+              // Varsa diğer renkleri al
               const existingColorRoles = member.roles.cache.filter(r => r.name.startsWith('- ') && r.name.endsWith(' RENGİ -'));
               for (const r of existingColorRoles.values()) {
                 await member.roles.remove(r.id).catch(() => {});
@@ -969,8 +971,13 @@ function initializeDiscordHandlers(client) {
               await member.roles.add(colorRole.id).catch(() => {});
             }
           }
-        } else if (item === 'ekstra_izin') {
+        } else if (item === 'item_leave_1day' || item === 'ekstra_izin') {
           p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+        } else if (item === 'item_leave_weekly') {
+          p.stats.breakCredits = (p.stats.breakCredits || 0) + 3;
+        } else if (item === 'item_xp_boost') {
+          p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 500; // XP'yi ticketsSolved olarak ekle veya totalPoints arttır. Rütbe sistemine ticket dahil olduğu için ticket puanı olarak +50 eklenebilir veya özel XP değişkeni artabilir. TotalPoints rütbe barına etki eder!
+          p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 500;
         }
 
         await p.save();

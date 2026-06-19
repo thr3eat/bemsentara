@@ -41,6 +41,15 @@ const GENERAL_COMMANDS = new Set([
   "personel-dogrula",
   "personelkov",
   "sayim",
+  "verify",
+  "update",
+  "debug-update",
+  "anketai",
+  "xpcekilis",
+  "ekocoin",
+  "magaza",
+  "gunluk-odul",
+  "zenginler"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -1377,6 +1386,138 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({
         content: `✅ **${targetUser.username}** kullanıcısının eski rolleri başarıyla iade edildi.\n**Geri yüklenen sunucular:** ${guildsRestored.join(", ")}`
       });
+    }
+    // ── EKONOMİ KOMUTLARI ────────────────────────────────────────────────────────
+    if (commandName === "ekocoin") {
+      const sub = interaction.options.getSubcommand();
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+
+      if (sub === "bakiye") {
+        if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
+        return interaction.editReply({
+          content: `💳 **Mevcut EkoCoin Bakiyeniz:** \`${p.gamification?.ecoCoins || 0} E.C.\``
+        });
+      }
+
+      if (sub === "gonder") {
+        if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
+        
+        const targetUser = interaction.options.getUser("kullanici");
+        const amount = interaction.options.getInteger("miktar");
+
+        if (targetUser.id === interaction.user.id) {
+          return interaction.editReply({ content: `Kendinize EkoCoin gönderemezsiniz!` });
+        }
+        if (amount <= 0) {
+          return interaction.editReply({ content: `Gönderilecek miktar 0'dan büyük olmalıdır.` });
+        }
+
+        const currentBalance = p.gamification?.ecoCoins || 0;
+        if (currentBalance < amount) {
+          return interaction.editReply({ content: `Yetersiz bakiye! Mevcut bakiyeniz: \`${currentBalance} E.C.\`` });
+        }
+
+        const targetProgress = await StaffProgress.findOne({ userId: targetUser.id });
+        if (!targetProgress) {
+          return interaction.editReply({ content: `Belirtilen kullanıcı personel sisteminde bulunamadı.` });
+        }
+
+        // Transfer
+        p.gamification.ecoCoins -= amount;
+        if (!targetProgress.gamification) targetProgress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
+        targetProgress.gamification.ecoCoins = (targetProgress.gamification.ecoCoins || 0) + amount;
+
+        await p.save();
+        await targetProgress.save();
+
+        return interaction.editReply({
+          content: `✅ Başarıyla **${targetUser.username}** kullanıcısına **${amount} E.C.** gönderdiniz!\nKalan bakiyeniz: \`${p.gamification.ecoCoins} E.C.\``
+        });
+      }
+    }
+
+    if (commandName === "magaza") {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
+
+      const embed = new EmbedBuilder()
+        .setColor(0x06ffa5)
+        .setTitle('🛒 EkoCoin Mağazası')
+        .setDescription(
+          `**Mevcut Bakiyeniz:** \`${p.gamification?.ecoCoins || 0} E.C.\`\n\n` +
+          `Aşağıdaki menüden EkoCoin'lerinizle harika ödüller alabilirsiniz!`
+        )
+        .setFooter({ text: 'Eko Yıldız • Ekonomi Sistemi' });
+
+      const { StringSelectMenuBuilder } = require('discord.js');
+      const storeMenu = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('ekocoin_satin_al')
+          .setPlaceholder('Almak istediğiniz eşyayı seçin...')
+          .addOptions([
+            { label: '3 Günlük Haftalık İzin', description: '2500 E.C. - 3 gün boyunca görevden muaf olursunuz', value: 'item_leave_weekly', emoji: '🏝️' },
+            { label: 'Rütbe XP Takviyesi (+500)', description: '1000 E.C. - Terfinizi hızlandırmak için +500 Ticket puanı', value: 'item_xp_boost', emoji: '📈' },
+            { label: '1 Günlük İzin', description: '800 E.C. - 1 gün görevden muaf olursunuz', value: 'item_leave_1day', emoji: '🌴' },
+            { label: 'Yeşil Rol Rengi', description: '500 E.C. - Sunucuda isminizi yeşil yapar', value: 'color_green', emoji: '🟩' },
+            { label: 'Kırmızı Rol Rengi', description: '500 E.C. - Sunucuda isminizi kırmızı yapar', value: 'color_red', emoji: '🟥' },
+            { label: 'Mavi Rol Rengi', description: '500 E.C. - Sunucuda isminizi mavi yapar', value: 'color_blue', emoji: '🟦' },
+            { label: 'Sarı Rol Rengi', description: '500 E.C. - Sunucuda isminizi sarı yapar', value: 'color_yellow', emoji: '🟨' },
+            { label: 'Mor Rol Rengi', description: '500 E.C. - Sunucuda isminizi mor yapar', value: 'color_purple', emoji: '🟪' },
+            { label: 'Pembe Rol Rengi', description: '500 E.C. - Sunucuda isminizi pembe yapar', value: 'color_pink', emoji: '🌸' },
+            { label: 'Turuncu Rol Rengi', description: '500 E.C. - Sunucuda isminizi turuncu yapar', value: 'color_orange', emoji: '🟧' },
+          ])
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [storeMenu] });
+    }
+
+    if (commandName === "gunluk-odul") {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
+
+      const todayStr = () => new Date().toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }).split('.').reverse().join('-');
+      const today = todayStr();
+
+      if (!p.gamification) p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
+      
+      // Daha önce alıp almadığını kontrol et
+      if (p.gamification.lastDailyClaim === today) {
+        return interaction.editReply({ content: `🎁 Günlük ödülünüzü bugün zaten aldınız! Yarın tekrar gelin.` });
+      }
+
+      const reward = Math.floor(Math.random() * (150 - 50 + 1)) + 50; // 50 ile 150 arası
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + reward;
+      p.gamification.lastDailyClaim = today;
+
+      await p.save();
+
+      return interaction.editReply({
+        content: `🎉 **Tebrikler!** Günlük girişinizden **${reward} E.C.** kazandınız!\nMevcut Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\``
+      });
+    }
+
+    if (commandName === "zenginler") {
+      const StaffProgress = require("../../models/StaffProgress");
+      const topStaff = await StaffProgress.find({ 'gamification.ecoCoins': { $gt: 0 }, status: 'active' })
+        .sort({ 'gamification.ecoCoins': -1 })
+        .limit(10);
+
+      if (topStaff.length === 0) {
+        return interaction.editReply({ content: `Şu anda EkoCoin'e sahip aktif personel bulunmuyor.` });
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle('🏆 EkoCoin Zenginleri Listesi (İlk 10)')
+        .setDescription(
+          topStaff.map((p, idx) => `**${idx + 1}.** <@${p.userId}> — \`${p.gamification?.ecoCoins || 0} E.C.\``).join('\n')
+        )
+        .setFooter({ text: 'Eko Yıldız • Ekonomi Sistemi' });
+
+      return interaction.editReply({ embeds: [embed] });
     }
 
     return null;
