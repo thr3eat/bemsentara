@@ -440,6 +440,59 @@ function initializeDiscordHandlers(client) {
           });
         }
 
+        // ── GİZLİ BAŞARIMLAR (Üye / Personel Fark Etmeksizin) ──
+        if (guildId === '1367646464804655104' && minutes > 0) {
+          try {
+            const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(userId).catch(() => null);
+              if (memberToReward) {
+                // 1. Ses Kurdu Başarımı (2+ Saat)
+                if (minutes >= 120) {
+                  let voiceRole = mainGuild.roles.cache.find(r => r.name === '🏆 Ses Kurdu');
+                  if (!voiceRole) {
+                    voiceRole = await mainGuild.roles.create({
+                      name: '🏆 Ses Kurdu',
+                      color: '#95a5a6', // Gri
+                      hoist: false,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (voiceRole && !memberToReward.roles.cache.has(voiceRole.id)) {
+                    await memberToReward.roles.add(voiceRole.id).catch(() => {});
+                    // Özel Ses Kanalı Yetkisi
+                    const specialVc = mainGuild.channels.cache.get('1467291940759277834');
+                    if (specialVc) {
+                      await specialVc.permissionOverwrites.create(memberToReward.id, { Connect: true, ViewChannel: true });
+                    }
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ses Kurdu!**\nSeste 2 saatten fazla kaldığınız için `🏆 Ses Kurdu` rolünü ve özel ses kanalına giriş yetkisini kazandınız!').catch(() => {});
+                  }
+                }
+
+                // 2. Gece Baykuşu Başarımı (Gece 00:00 - 06:00 arası 10 dk seste kalma)
+                const hour = new Date().getHours();
+                if (hour >= 0 && hour <= 6 && minutes >= 10) {
+                  let owlRole = mainGuild.roles.cache.find(r => r.name === '🦉 Gece Baykuşu');
+                  if (!owlRole) {
+                    owlRole = await mainGuild.roles.create({
+                      name: '🦉 Gece Baykuşu',
+                      color: '#7f8c8d', // Koyu Gri
+                      hoist: false,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (owlRole && !memberToReward.roles.cache.has(owlRole.id)) {
+                    await memberToReward.roles.add(owlRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde 10 dakikadan fazla seste kaldığınız için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[voiceStateUpdate] Başarım verme hatası:', e.message);
+          }
+        }
+
         // Kurbağa ses XP
         if (guildId === FROG_GUILD_ID) {
           const frogMins = onVoiceLeave(userId);
@@ -461,6 +514,8 @@ function initializeDiscordHandlers(client) {
       console.error('[voiceStateUpdate] Fatal error:', err.message);
     }
   });
+
+  const nightChatTracker = new Map();
 
   client.on("messageCreate", async (message) => {
     // Partial mesajları fetch et (DM için zorunlu)
@@ -527,6 +582,35 @@ function initializeDiscordHandlers(client) {
       const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");
       if (message.guild.id === FROG_GUILD_ID) {
         await addMessageXP(message.member, client).catch(() => {});
+      }
+    } catch (_) {}
+
+    // ── Gece Baykuşu Başarımı (Sohbet) ────────────────────────────────────
+    try {
+      if (message.guild.id === '1367646464804655104') {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour <= 6) {
+          const uId = message.author.id;
+          let msgs = nightChatTracker.get(uId) || 0;
+          msgs++;
+          nightChatTracker.set(uId, msgs);
+
+          if (msgs === 15) { // Ortalama 15 mesaj = 10 dakikalık sohbet aktivitesi
+            let owlRole = message.guild.roles.cache.find(r => r.name === '🦉 Gece Baykuşu');
+            if (!owlRole) {
+              owlRole = await message.guild.roles.create({
+                name: '🦉 Gece Baykuşu',
+                color: '#7f8c8d',
+                hoist: false,
+                reason: 'Gizli Başarım Sistemi'
+              });
+            }
+            if (owlRole && !message.member.roles.cache.has(owlRole.id)) {
+              await message.member.roles.add(owlRole.id).catch(() => {});
+              message.author.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde sohbette aktif olduğunuz için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
+            }
+          }
+        }
       }
     } catch (_) {}
 
