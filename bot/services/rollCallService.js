@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const RollCall = require("../models/RollCall");
-const StaffProgress = require("../models/StaffProgress");
+const RollCall = require("../../models/RollCall");
+const StaffProgress = require("../../models/StaffProgress");
 
 const ROLL_CALL_CHANNEL_ID = "1466940856102551704"; // Moderatör ekibi sayım kanalı
 
