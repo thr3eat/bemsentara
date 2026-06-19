@@ -183,8 +183,13 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     else if (staff.level === 2) ROLES_TO_ADD.push('1467082211839836344');
     else if (staff.level === 1) ROLES_TO_ADD.push('1467082280035160269');
 
+    // Sunucudaki rolleri önbelleğe al
+    await guild.roles.fetch();
     const validRoles = ROLES_TO_ADD.filter(id => guild.roles.cache.has(id));
-    await member.roles.add(validRoles).catch(err => console.error(`[StaffAutomation] Discord roller verilemedi: ${err.message}`));
+    
+    if (validRoles.length > 0) {
+      await member.roles.add(validRoles).catch(err => console.error(`[StaffAutomation] Discord roller verilemedi: ${err.message}`));
+    }
 
     return true;
   } catch (error) {
