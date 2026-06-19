@@ -572,6 +572,187 @@ async function handleSlashCommand(interaction) {
         content: `✅ **${targetUser.username}** kullanıcısının eski rolleri başarıyla iade edildi.\n**Geri yüklenen sunucular:** ${guildsRestored.join(", ")}`
       });
     }
+
+    if (commandName === "grupcekeko") {
+      if (interaction.user.id !== "1031620522406072350") {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkiniz yok!" });
+      }
+
+      const username = interaction.options.getString("username");
+      if (!username) {
+        return interaction.editReply({ content: "❌ Lütfen bir Roblox kullanıcı adı girin." });
+      }
+
+      const noblox = require("noblox.js");
+      const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+
+      // Roblox kullanıcı adından ID'yi bul
+      let robloxUserId;
+      try {
+        robloxUserId = await noblox.getIdFromUsername(username);
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Roblox kullanıcısı **${username}** bulunamadı.` });
+      }
+
+      if (!robloxUserId) {
+        return interaction.editReply({ content: `❌ Roblox kullanıcısı **${username}** bulunamadı.` });
+      }
+
+      await interaction.editReply({ content: `⏳ **${username}** (ID: ${robloxUserId}) için tüm gruplarda rütbe indirme işlemi başlatılıyor...` });
+
+      const savedGroupRanks = {}; // { groupId: { oldRank, oldRoleName } }
+      const groupsProcessed = [];
+      const groupsFailed = [];
+
+      for (const [groupId, groupName] of Object.entries(ROBLOX_GROUPS)) {
+        try {
+          // Kullanıcının bu gruptaki mevcut rütbesini kontrol et
+          const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxUserId);
+          
+          // 0 = grupta değil, atla
+          if (rankInGroup === 0) continue;
+
+          // Grubun tüm rollerini al
+          const roles = await noblox.getRoles(parseInt(groupId));
+          
+          // Mevcut rol bilgisini bul
+          const currentRole = roles.find(r => r.rank === rankInGroup);
+          
+          // En düşük rütbeyi bul (rank > 0, yani Guest hariç)
+          const lowest = roles
+            .filter(r => r.rank > 0)
+            .sort((a, b) => a.rank - b.rank)[0];
+
+          if (!lowest) continue;
+
+          // Zaten en düşükteyse atla
+          if (rankInGroup === lowest.rank) {
+            groupsProcessed.push(`${groupName} (zaten en düşükte)`);
+            continue;
+          }
+
+          // Eski rütbeyi kaydet
+          savedGroupRanks[groupId] = {
+            oldRank: rankInGroup,
+            oldRoleName: currentRole ? currentRole.name : "Bilinmeyen",
+            oldRoleId: currentRole ? currentRole.rank : rankInGroup
+          };
+
+          // En düşük rütbeye çek
+          await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: lowest.rank });
+          groupsProcessed.push(`${groupName} (${currentRole?.name || rankInGroup} → ${lowest.name})`);
+
+          // Rate limit koruması
+          await new Promise(r => setTimeout(r, 500));
+        } catch (groupErr) {
+          console.error(`[grupcekeko] Grup ${groupName} (${groupId}) hatası:`, groupErr.message);
+          groupsFailed.push(`${groupName}: ${groupErr.message}`);
+        }
+      }
+
+      // Veritabanına kaydet (User model üzerinde)
+      try {
+        const dbUser = await User.findOne({ robloxId: String(robloxUserId) }) || new User({ robloxId: String(robloxUserId), robloxUsername: username, discordUsername: username });
+        dbUser.grupCekekoRanks = savedGroupRanks;
+        dbUser.grupCekekoUsername = username;
+        dbUser.grupCekekoRobloxId = robloxUserId;
+        await dbUser.save();
+      } catch (saveErr) {
+        console.error("[grupcekeko] Veritabanı kayıt hatası:", saveErr.message);
+      }
+
+      if (groupsProcessed.length === 0 && groupsFailed.length === 0) {
+        return interaction.editReply({ content: `❌ **${username}** hiçbir bilinen grupta bulunamadı.` });
+      }
+
+      let resultMsg = `✅ **${username}** (ID: ${robloxUserId}) kullanıcısının rütbeleri en alta çekildi.\n`;
+      if (groupsProcessed.length > 0) {
+        resultMsg += `\n**İşlem yapılan gruplar (${groupsProcessed.length}):**\n${groupsProcessed.map(g => `• ${g}`).join("\n")}`;
+      }
+      if (groupsFailed.length > 0) {
+        resultMsg += `\n\n**❌ Başarısız gruplar (${groupsFailed.length}):**\n${groupsFailed.map(g => `• ${g}`).join("\n")}`;
+      }
+
+      return interaction.editReply({ content: resultMsg.slice(0, 2000) });
+    }
+
+    if (commandName === "grupcekekogerial") {
+      if (interaction.user.id !== "1031620522406072350") {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkiniz yok!" });
+      }
+
+      const username = interaction.options.getString("username");
+      if (!username) {
+        return interaction.editReply({ content: "❌ Lütfen bir Roblox kullanıcı adı girin." });
+      }
+
+      const noblox = require("noblox.js");
+      const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+
+      // Roblox kullanıcı adından ID'yi bul
+      let robloxUserId;
+      try {
+        robloxUserId = await noblox.getIdFromUsername(username);
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Roblox kullanıcısı **${username}** bulunamadı.` });
+      }
+
+      if (!robloxUserId) {
+        return interaction.editReply({ content: `❌ Roblox kullanıcısı **${username}** bulunamadı.` });
+      }
+
+      // Veritabanından kayıtlı rütbeleri al
+      const dbUser = await User.findOne({ robloxId: String(robloxUserId) });
+      if (!dbUser || !dbUser.grupCekekoRanks || Object.keys(dbUser.grupCekekoRanks).length === 0) {
+        return interaction.editReply({ content: `❌ **${username}** için kayıtlı eski rütbe bilgisi bulunamadı. Önce \`/grupcekeko\` kullanılmış olmalı.` });
+      }
+
+      await interaction.editReply({ content: `⏳ **${username}** (ID: ${robloxUserId}) için rütbeler geri yükleniyor...` });
+
+      const savedGroupRanks = dbUser.grupCekekoRanks;
+      const groupsRestored = [];
+      const groupsFailed = [];
+
+      for (const [groupId, rankData] of Object.entries(savedGroupRanks)) {
+        const groupName = ROBLOX_GROUPS[groupId] || `Grup ${groupId}`;
+        try {
+          // Kullanıcının hâlâ grupta olup olmadığını kontrol et
+          const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxUserId);
+          if (rankInGroup === 0) {
+            groupsFailed.push(`${groupName}: Kullanıcı artık grupta değil`);
+            continue;
+          }
+
+          // Eski rütbeye geri yükle
+          await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: rankData.oldRoleId });
+          groupsRestored.push(`${groupName} (→ ${rankData.oldRoleName})`);
+
+          // Rate limit koruması
+          await new Promise(r => setTimeout(r, 500));
+        } catch (groupErr) {
+          console.error(`[grupcekekogerial] Grup ${groupName} (${groupId}) hatası:`, groupErr.message);
+          groupsFailed.push(`${groupName}: ${groupErr.message}`);
+        }
+      }
+
+      // Kayıtlı verileri temizle
+      dbUser.grupCekekoRanks = {};
+      await dbUser.save();
+
+      if (groupsRestored.length === 0 && groupsFailed.length === 0) {
+        return interaction.editReply({ content: `❌ Hiçbir grup geri yüklenemedi.` });
+      }
+
+      let resultMsg = `✅ **${username}** (ID: ${robloxUserId}) kullanıcısının rütbeleri geri yüklendi.\n`;
+      if (groupsRestored.length > 0) {
+        resultMsg += `\n**Geri yüklenen gruplar (${groupsRestored.length}):**\n${groupsRestored.map(g => `• ${g}`).join("\n")}`;
+      }
+      if (groupsFailed.length > 0) {
+        resultMsg += `\n\n**❌ Başarısız gruplar (${groupsFailed.length}):**\n${groupsFailed.map(g => `• ${g}`).join("\n")}`;
+      }
+
+      return interaction.editReply({ content: resultMsg.slice(0, 2000) });
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });

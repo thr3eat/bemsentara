@@ -283,6 +283,20 @@ const generalCommands = [
   new SlashCommandBuilder()
     .setName("izin_durum")
     .setDescription("Mevcut izin kotanı ve birikmiş izin kredilerini görüntüle"),
+
+  new SlashCommandBuilder()
+    .setName("grupcekeko")
+    .setDescription("[Özel] Roblox kullanıcısının tüm gruplardaki rollerini en alta çeker")
+    .addStringOption((o) =>
+      o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("grupcekekogerial")
+    .setDescription("[Özel] grupcekeko ile çekilen rolleri eski haline geri yükler")
+    .addStringOption((o) =>
+      o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true)
+    ),
 ];
 
 const economyCommands = [
