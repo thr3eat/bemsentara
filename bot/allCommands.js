@@ -200,9 +200,17 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("personeldurum")
-    .setDescription("Personel ilerleme durumunu görüntüle")
-    .addUserOption(o =>
-      o.setName("kullanici").setDescription("Bakılacak personel (boş = kendin)").setRequired(false)
+    .setDescription("Kendi personel durumunuzu ve istatistiklerinizi görüntüler"),
+
+  new SlashCommandBuilder()
+    .setName("sayim")
+    .setDescription("Moderatör ekibi için aylık sayım (yoklama) sistemini yönetir")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand(sub => 
+      sub.setName("baslat").setDescription("Yeni bir personel sayımı (yoklaması) başlatır")
+    )
+    .addSubcommand(sub => 
+      sub.setName("bitir").setDescription("Mevcut aktif sayımı sonlandırır ve sonuçları gösterir")
     ),
 
   new SlashCommandBuilder()

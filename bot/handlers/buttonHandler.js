@@ -9,8 +9,13 @@ const {
 } = require("../embeds");
 const { BASE_URL } = require("../../config");
 const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+const { handleRollCallButton } = require("../services/rollCallService");
 
 async function handleButtonInteraction(interaction) {
+  if (interaction.customId === 'btn_rollcall_here') {
+    return handleRollCallButton(interaction);
+  }
+
   // ── Personel Doğrulama Paneli Butonu ─────────────────────────────────────
   if (interaction.customId === 'btn_personel_check') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

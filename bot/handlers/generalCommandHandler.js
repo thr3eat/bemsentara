@@ -40,6 +40,7 @@ const GENERAL_COMMANDS = new Set([
   "odulver",
   "personel-dogrula",
   "personelkov",
+  "sayim",
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -181,6 +182,28 @@ async function handleGeneralCommand(interaction) {
       console.error('[personelkov] hata:', err.message);
       return interaction.editReply({ content: `❌ Beklenmedik bir hata oluştu: ${err.message}` });
     }
+  }
+
+  // ── sayim: Aylık yoklama sistemi (Yöneticiler) ───────────────────────────
+  if (commandName === "sayim") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
+    }
+
+    const sub = interaction.options.getSubcommand();
+    const { startRollCall, endRollCall } = require('../services/rollCallService');
+
+    if (sub === 'baslat') {
+      await startRollCall(interaction.client, interaction);
+    } else if (sub === 'bitir') {
+      await endRollCall(interaction.client, interaction);
+    }
+    return;
   }
 
   // ── konus: AI destekli konuşma başlat ──────────────────────────────────────
