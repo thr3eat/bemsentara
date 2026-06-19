@@ -259,6 +259,8 @@ function initializeDiscordHandlers(client) {
     }
   });
 
+  const editorTracker = new Map();
+
   client.on("messageUpdate", async (oldMessage, newMessage) => {
     try {
       if (oldMessage.partial || newMessage.partial) return;
@@ -266,6 +268,39 @@ function initializeDiscordHandlers(client) {
       if (newMessage.guild && newMessage.guild.id === TMT_GUILD_ID && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
         const { logTMTMessageUpdate } = require("../services/tmtLogger");
         logTMTMessageUpdate(oldMessage, newMessage);
+      }
+
+      // ── Gizli Başarım: Kararsız (Mesaj Düzenleme) ──
+      if (newMessage.guild && newMessage.guild.id === '1367646464804655104' && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
+        const uId = newMessage.author.id;
+        let edits = editorTracker.get(uId) || 0;
+        edits++;
+        editorTracker.set(uId, edits);
+
+        if (edits === 15) {
+          try {
+            const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+              if (memberToReward) {
+                let editorRole = mainGuild.roles.cache.find(r => r.name === '💌 Kararsız');
+                if (!editorRole) {
+                  editorRole = await mainGuild.roles.create({
+                    name: '💌 Kararsız',
+                    color: '#e67e22', // Turuncu
+                    hoist: false,
+                    position: 1,
+                    reason: 'Gizli Başarım Sistemi'
+                  });
+                }
+                if (editorRole && !memberToReward.roles.cache.has(editorRole.id)) {
+                  await memberToReward.roles.add(editorRole.id).catch(() => {});
+                  newMessage.author.send('🎉 **Gizli Başarım Kazanıldı: Kararsız!**\nBugün 15 kez mesaj düzenleyerek ne kadar kararsız olduğunu kanıtladın ve `💌 Kararsız` rolünü kazandın!').catch(() => {});
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.error("messageUpdate hatası:", err);
@@ -621,6 +656,24 @@ function initializeDiscordHandlers(client) {
                     memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Yalnız Kurt!**\nSeste saatlerce tek başınıza kalarak `🐺 Yalnız Kurt` rolünü kazandınız!').catch(() => {});
                   }
                 }
+
+                // Uyurgezer Başarımı (Seste 4 saat Mute + Deafen AFK kalma)
+                if (minutes >= 240 && (oldState.selfMute || oldState.serverMute) && (oldState.selfDeaf || oldState.serverDeaf)) {
+                  let sleepRole = mainGuild.roles.cache.find(r => r.name === '😴 Uyurgezer');
+                  if (!sleepRole) {
+                    sleepRole = await mainGuild.roles.create({
+                      name: '😴 Uyurgezer',
+                      color: '#2c3e50', // Gece Mavisi
+                      hoist: false,
+                      position: 1,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (sleepRole && !memberToReward.roles.cache.has(sleepRole.id)) {
+                    await memberToReward.roles.add(sleepRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Uyurgezer!**\nSeste saatlerce hem sağırlaştırılmış hem de susturulmuş şekilde tam bir uyurgezer gibi bekledin ve `😴 Uyurgezer` rolünü kazandın!').catch(() => {});
+                  }
+                }
               }
             }
           } catch (e) {
@@ -652,6 +705,8 @@ function initializeDiscordHandlers(client) {
 
   const nightChatTracker = new Map();
   const dailyChatTracker = new Map();
+  const photoTracker = new Map();
+  const botFriendTracker = new Map();
 
   client.on("messageCreate", async (message) => {
     // Partial mesajları fetch et (DM için zorunlu)
@@ -799,6 +854,30 @@ function initializeDiscordHandlers(client) {
           if (oracleRole && !message.member.roles.cache.has(oracleRole.id)) {
             await message.member.roles.add(oracleRole.id).catch(() => {});
             message.author.send('🎉 **Gizli Başarım Kazanıldı: Kahin!**\nSohbete tam olarak gizli şifreyi yazmayı başardığın için `🔮 Kahin` rolünü kazandın! Gerçekten bir kahin olmalısın.').catch(() => {});
+          }
+        }
+
+        // Fotoğrafçı
+        if (message.attachments.size > 0) {
+          let photos = photoTracker.get(uId) || 0;
+          photos += message.attachments.size;
+          photoTracker.set(uId, photos);
+
+          if (photos >= 20) {
+            let photoRole = message.guild.roles.cache.find(r => r.name === '📸 Fotoğrafçı');
+            if (!photoRole) {
+              photoRole = await message.guild.roles.create({
+                name: '📸 Fotoğrafçı',
+                color: '#3498db', // Mavi
+                hoist: false,
+                position: 1,
+                reason: 'Gizli Başarım Sistemi'
+              });
+            }
+            if (photoRole && !message.member.roles.cache.has(photoRole.id)) {
+              await message.member.roles.add(photoRole.id).catch(() => {});
+              message.author.send('🎉 **Gizli Başarım Kazanıldı: Fotoğrafçı!**\nSohbete birbirinden güzel tam 20 görsel yüklediğin için `📸 Fotoğrafçı` rolünü kazandın!').catch(() => {});
+            }
           }
         }
       }
@@ -1300,6 +1379,39 @@ async function handleInteraction(interaction) {
     }
 
     if (interaction.isChatInputCommand()) {
+      // ── Gizli Başarım: Botun Kankası ──
+      if (interaction.guild && interaction.guild.id === '1367646464804655104') {
+        const uId = interaction.user.id;
+        let cmds = botFriendTracker.get(uId) || 0;
+        cmds++;
+        botFriendTracker.set(uId, cmds);
+
+        if (cmds === 100) {
+          try {
+            const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+              if (memberToReward) {
+                let botFriendRole = mainGuild.roles.cache.find(r => r.name === '🤖 Botun Kankası');
+                if (!botFriendRole) {
+                  botFriendRole = await mainGuild.roles.create({
+                    name: '🤖 Botun Kankası',
+                    color: '#1abc9c', // Turkuaz
+                    hoist: false,
+                    position: 1,
+                    reason: 'Gizli Başarım Sistemi'
+                  });
+                }
+                if (botFriendRole && !memberToReward.roles.cache.has(botFriendRole.id)) {
+                  await memberToReward.roles.add(botFriendRole.id).catch(() => {});
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Botun Kankası!**\nBotun komutlarını tam 100 kez kullanarak botla en çok ilgilenenlerden biri oldun ve `🤖 Botun Kankası` rolünü kazandın!').catch(() => {});
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
       let result = await handleGeneralCommand(interaction);
       if (result !== null) return result;
 

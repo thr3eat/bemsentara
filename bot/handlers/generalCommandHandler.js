@@ -7,6 +7,7 @@ const { findUserByDiscordId, hasRobloxLink } = require("../../utils/userLink");
 const { deferEphemeral } = require("../utils/interaction");
 
 const pingTracker = new Map();
+const philanthropyTracker = new Map();
 const GENERAL_COMMANDS = new Set([
   "support",
   "mytickets",
@@ -1468,8 +1469,43 @@ async function handleGeneralCommand(interaction) {
         await p.save();
         await targetProgress.save();
 
+        // ── Gizli Başarım: Hayırsever ──
+        let extraMsg = '';
+        if (interaction.guild && interaction.guild.id === '1367646464804655104') {
+          const uId = interaction.user.id;
+          let transfers = philanthropyTracker.get(uId) || 0;
+          transfers++;
+          philanthropyTracker.set(uId, transfers);
+
+          if (transfers === 5) {
+            try {
+              const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+              if (mainGuild) {
+                const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+                if (memberToReward) {
+                  let philRole = mainGuild.roles.cache.find(r => r.name === '💸 Hayırsever');
+                  if (!philRole) {
+                    philRole = await mainGuild.roles.create({
+                      name: '💸 Hayırsever',
+                      color: '#2ecc71', // Zümrüt Yeşili
+                      hoist: false,
+                      position: 1,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (philRole && !memberToReward.roles.cache.has(philRole.id)) {
+                    await memberToReward.roles.add(philRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayırsever!**\nDiğer üyelere defalarca EkoCoin göndererek ne kadar cömert olduğunu kanıtladın ve `💸 Hayırsever` rolünü kazandın!').catch(() => {});
+                    extraMsg = '\n\n💸 **Cömertliğin ödüllendirildi! Hayırsever gizli başarımını açtın, DM kutuna bak!**';
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        }
+
         return interaction.editReply({
-          content: `✅ Başarıyla **${targetUser.username}** kullanıcısına **${amount} E.C.** gönderdiniz!\nKalan bakiyeniz: \`${p.gamification.ecoCoins} E.C.\``
+          content: `✅ Başarıyla **${targetUser.username}** kullanıcısına **${amount} E.C.** gönderdiniz!\nKalan bakiyeniz: \`${p.gamification.ecoCoins} E.C.\`${extraMsg}`
         });
       }
     }
