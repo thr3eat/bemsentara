@@ -1169,9 +1169,37 @@ async function removeRole(progress, client) {
     if (!guild) return;
     const member = await guild.members.fetch(progress.userId).catch(() => null);
     if (!member) return;
-    const roleId = ROLES[progress.level];
-    if (roleId) await member.roles.remove(roleId, '3 gün görev yapmadı').catch(() => {});
+    // Alınması gereken tüm yetkili ve mod rolleri
+    const rolesToRemove = [
+      ...Object.values(ROLES),
+      '1517656567481372772', '1517651154220355836', // Level 5 rolleri
+      '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
+      '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
+      '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
+      '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
+      '1467152505862357250'  // Security bypass
+    ];
 
+    for (const rId of rolesToRemove) {
+      if (member.roles.cache.has(rId)) {
+        await member.roles.remove(rId, '3 gün üst üste görev yapmadı - Sistemden atıldı').catch(() => {});
+      }
+    }
+
+    // Ayrıca ana sunucudan da (1367646464804655104) Level 5 vb. kalıcı rolleri silelim
+    try {
+      const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+      if (mainGuild) {
+        const mainMember = await mainGuild.members.fetch(progress.userId).catch(() => null);
+        if (mainMember) {
+          for (const rId of rolesToRemove) {
+            if (mainMember.roles.cache.has(rId)) {
+              await mainMember.roles.remove(rId, 'Görev yapılmadığı için sistemden silindi').catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (e) {}
     const embed = new EmbedBuilder()
       .setColor(0xff9500)
       .setTitle('⏸️ Personel Rolü Duraklatıldı — Geri Dön!')
@@ -1289,13 +1317,35 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   await p.save();
 
   // Rolleri kaldır
+  const rolesToRemove = [
+    ...Object.values(ROLES),
+    '1517656567481372772', '1517651154220355836', // Level 5 rolleri
+    '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
+    '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
+    '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
+    '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
+    '1467152505862357250'  // Security bypass
+  ];
+
   try {
     const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
     const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
     if (member) {
-      for (const roleId of Object.values(ROLES)) {
+      for (const roleId of rolesToRemove) {
         if (roleId && member.roles.cache.has(roleId)) {
           await member.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => {});
+        }
+      }
+    }
+
+    const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+    if (mainGuild) {
+      const mainMember = await mainGuild.members.fetch(userId).catch(() => null);
+      if (mainMember) {
+        for (const roleId of rolesToRemove) {
+          if (roleId && mainMember.roles.cache.has(roleId)) {
+            await mainMember.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => {});
+          }
         }
       }
     }
@@ -1350,14 +1400,36 @@ async function resignFromStaff(userId, reason, client) {
   // Emeklilik hakkı var mı kontrol (90+ gün = emekli olabilir)
   const canRetire = totalDays >= 90;
 
+  const rolesToRemove = [
+    ...Object.values(ROLES),
+    '1517656567481372772', '1517651154220355836', // Level 5 rolleri
+    '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
+    '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
+    '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
+    '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
+    '1467152505862357250'  // Security bypass
+  ];
+
   // Rolleri kaldır
   try {
     const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
     const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
     if (member) {
-      for (const roleId of Object.values(ROLES)) {
+      for (const roleId of rolesToRemove) {
         if (roleId && member.roles.cache.has(roleId)) {
           await member.roles.remove(roleId, 'İstifa').catch(() => {});
+        }
+      }
+    }
+
+    const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+    if (mainGuild) {
+      const mainMember = await mainGuild.members.fetch(userId).catch(() => null);
+      if (mainMember) {
+        for (const roleId of rolesToRemove) {
+          if (roleId && mainMember.roles.cache.has(roleId)) {
+            await mainMember.roles.remove(roleId, 'İstifa').catch(() => {});
+          }
         }
       }
     }
@@ -1706,6 +1778,18 @@ async function checkStaffVerifications(client) {
           console.warn(`[checkStaffVerifications] Grup kontrolü yapılamadı (User: ${user.robloxId}):`, err.message);
         }
       }
+
+      // EĞER KULLANICI MODERATÖR SUNUCUSUNDAYSA UYARIYI ATMA
+      let inModeratorServer = false;
+      try {
+        const modGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+        if (modGuild) {
+          const modMember = await modGuild.members.fetch(p.userId).catch(() => null);
+          if (modMember) inModeratorServer = true;
+        }
+      } catch (e) {}
+
+      if (inModeratorServer) continue; // Kullanıcı sunucuda ise DM atma!
 
       if (missingRoblox || missingGuild || missingRobloxGroup) {
         let instructionText = "";
