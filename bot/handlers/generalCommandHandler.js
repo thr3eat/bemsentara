@@ -60,11 +60,14 @@ async function handleGeneralCommand(interaction) {
       if (user?.robloxId) {
         // Zaten bağlı, grupları ve sunucuyu senkronize et
         const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
+        
+        // İsteği kabul edip Roblox rütbelerini verecek fonksiyonu çağırıyoruz
+        await syncStaffRobloxRanks(interaction.client, interaction.user.id);
+        
+        // Sonra Roblox rütbesine bakarak Discord rollerini veriyoruz
         const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
 
         if (roleSyncSuccess) {
-          // İsteği kabul edip rütbeleri verecek fonksiyonu çağırıyoruz
-          await syncStaffRobloxRanks(interaction.client, interaction.user.id);
           // Sunucu üyeliğini kontrol ediyoruz
           const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
           

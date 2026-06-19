@@ -30,12 +30,13 @@ async function handleButtonInteraction(interaction) {
         const p = await StaffProgress.findOne({ userId: interaction.user.id });
 
         
-        // Doğrudan rolleri senkronize et (yeni sistem Roblox grubuna bakıyor)
+        // İsteği kabul edip Roblox rütbelerini verecek fonksiyonu çağırıyoruz
+        await syncStaffRobloxRanks(interaction.client, interaction.user.id);
+        
+        // Sonra Roblox rütbesine bakarak Discord rollerini veriyoruz
         const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
         
         if (roleSyncSuccess) {
-          // İsteği kabul edip rütbeleri verecek fonksiyonu çağırıyoruz
-          await syncStaffRobloxRanks(interaction.client, interaction.user.id);
           const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
 
           const successEmbed = new EmbedBuilder()

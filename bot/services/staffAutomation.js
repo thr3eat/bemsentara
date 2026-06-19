@@ -32,13 +32,25 @@ const ROBLOX = {
  */
 async function syncStaffRobloxRanks(client, discordUserId) {
   try {
-    const staff = await StaffProgress.findOne({ userId: discordUserId });
-    if (!staff) return false;
-
+    const User = require('../../models/User');
+    const StaffProgress = require('../../models/StaffProgress');
+    
     const user = await User.findOne({ discordId: discordUserId });
     if (!user || !user.robloxId) {
       console.log(`[StaffAutomation] User ${discordUserId} does not have a Roblox ID linked.`);
       return false; // Not verified
+    }
+
+    let staff = await StaffProgress.findOne({ userId: discordUserId });
+    if (!staff) {
+      staff = new StaffProgress({
+        userId: discordUserId,
+        level: 1, // Default to Stajyer
+        points: 0,
+        robloxVerified: true,
+        guildJoined: true
+      });
+      await staff.save();
     }
 
     const robloxId = parseInt(user.robloxId);
@@ -165,15 +177,46 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (!member) return false;
 
-    // Fetch user groups
-    const axios = require('axios');
-    const response = await axios.get(`https://groups.roblox.com/v1/users/${user.robloxId}/groups/roles`, { timeout: 10000 }).catch(() => null);
-    if (!response || !response.data || !response.data.data) return false;
+    // Fetch user groups using noblox to bypass some cache
+    let rankName = "";
+    try {
+      const { noblox, ROBLOX } = require('../../config');
+      const nobloxRankName = await noblox.getRankNameInGroup(ROBLOX.EKOYILDIZ_MOD, parseInt(user.robloxId));
+      if (nobloxRankName && nobloxRankName !== "Guest") {
+        rankName = nobloxRankName.trim();
+      }
+    } catch (e) {
+      console.warn("[StaffAutomation] noblox getRankNameInGroup error:", e.message);
+    }
+    
+    // Eğer noblox'tan gelmezse (veya hata verirse), normal API'dan deneyelim
+    if (!rankName) {
+      const axios = require('axios');
+      const response = await axios.get(`https://groups.roblox.com/v1/users/${user.robloxId}/groups/roles`, { timeout: 5000 }).catch(() => null);
+      if (response && response.data && response.data.data) {
+        const modGroup = response.data.data.find(g => g.group.id === ROBLOX.EKOYILDIZ_MOD);
+        if (modGroup && modGroup.role.rank > 0) {
+          rankName = modGroup.role.name.trim();
+        }
+      }
+    }
 
-    const modGroup = response.data.data.find(g => g.group.id === ROBLOX.EKOYILDIZ_MOD);
-    if (!modGroup || modGroup.role.rank === 0) return false; // Not in group
+    // Eğer API'dan gelmezse (örn. Roblox önbelleği gecikmesi), veritabanındaki StaffProgress seviyesini kullan
+    if (!rankName) {
+      const StaffProgress = require('../../models/StaffProgress');
+      const staff = await StaffProgress.findOne({ userId: discordUserId });
+      if (staff) {
+        if (staff.level === 1) rankName = "Stajyer Personel";
+        else if (staff.level === 2) rankName = "Personel";
+        else if (staff.level === 3) rankName = "Gelişmiş Personel";
+        else if (staff.level >= 4) rankName = "Sekreter";
+      }
+    }
 
-    const rankName = modGroup.role.name.trim();
+    if (!rankName) {
+      // Hem API'da yok, hem veritabanında yok
+      return false;
+    }
 
     const ROLES_TO_ADD = [
       '1517621814405107773', // .
