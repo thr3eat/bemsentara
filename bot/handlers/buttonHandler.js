@@ -16,6 +16,85 @@ async function handleButtonInteraction(interaction) {
     return handleRollCallButton(interaction);
   }
 
+  // ── XP Çekilişi Katılım ───────────────────────────────────────────────────
+  if (interaction.customId === 'xp_cekilis_katil') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const Giveaway = require('../../models/Giveaway');
+    const giveaway = await Giveaway.findOne({ messageId: interaction.message.id });
+    
+    if (!giveaway) {
+      return interaction.editReply('❌ Bu çekiliş artık aktif değil veya bulunamadı.');
+    }
+    if (!giveaway.isActive) {
+      return interaction.editReply('❌ Bu çekiliş sona ermiş.');
+    }
+    
+    if (giveaway.participants.includes(interaction.user.id)) {
+      return interaction.editReply('✅ Çekilişe zaten katılmışsınız! Bol şans!');
+    }
+    
+    giveaway.participants.push(interaction.user.id);
+    await giveaway.save();
+    return interaction.editReply('🎉 Çekilişe başarıyla katıldınız! Ertesi gün 12:00\'de sonuçlanacak.');
+  }
+
+  // ── EkoCoin Mağazası ──────────────────────────────────────────────────────
+  if (interaction.customId === 'ekocoin_magaza') {
+    const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return interaction.reply({ content: '❌ Sistemde kaydınız bulunamadı.', ephemeral: true });
+
+    const ecoCoins = p.gamification?.ecoCoins || 0;
+    
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🛒 EkoCoin Mağazası')
+      .setDescription(`Hoş geldin, **${interaction.user.username}**!\n\n💰 **Güncel Bakiyen:** ${ecoCoins} E.C.\n\nAşağıdaki menüden almak istediğin ürünü seçebilirsin.`)
+      .setFooter({ text: 'Eko Yıldız • Mağaza' });
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('ekocoin_satin_al')
+      .setPlaceholder('Almak istediğin ürünü seç...')
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Yeşil Rol Rengi')
+          .setDescription('İsminizin yeşil görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_yesil'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Kırmızı Rol Rengi')
+          .setDescription('İsminizin kırmızı görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_kirmizi'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Mavi Rol Rengi')
+          .setDescription('İsminizin mavi görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_mavi'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Sarı Rol Rengi')
+          .setDescription('İsminizin sarı görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_sari'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Mor Rol Rengi')
+          .setDescription('İsminizin mor görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_mor'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Pembe Rol Rengi')
+          .setDescription('İsminizin pembe görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_pembe'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🎨 Turuncu Rol Rengi')
+          .setDescription('İsminizin turuncu görünmesini sağlar. (500 E.C.)')
+          .setValue('renk_turuncu'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🏖️ +1 Gün İzin Hakkı')
+          .setDescription('Devamsızlık izni bakiyenize +1 gün ekler. (1000 E.C.)')
+          .setValue('ekstra_izin')
+      );
+
+    const row = new ActionRowBuilder().addComponents(select);
+    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  }
+
   // ── Personel Doğrulama Paneli Butonu ─────────────────────────────────────
   if (interaction.customId === 'btn_personel_check') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

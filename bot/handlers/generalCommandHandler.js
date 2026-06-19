@@ -355,6 +355,58 @@ async function handleGeneralCommand(interaction) {
     }
   }
 
+  // ── xpcekilis: XP Çekilişi Başlat ──────────────────────────────────────────
+  if (commandName === "xpcekilis") {
+    const xpAmount = interaction.options.getInteger('xp_miktari');
+    const kazananSayisi = interaction.options.getInteger('kazanan_sayisi') || 1;
+    const targetChannelId = '1460290526103474381';
+
+    try {
+      const channel = await interaction.client.channels.fetch(targetChannelId).catch(() => null);
+      if (!channel) {
+        return interaction.reply({ content: `❌ Çekiliş kanalı bulunamadı (${targetChannelId}).`, ephemeral: true });
+      }
+
+      // Yarın öğlen 12:00
+      const now = new Date();
+      const endsAt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 12, 0, 0);
+
+      const embed = new EmbedBuilder()
+        .setColor(0xff006e)
+        .setTitle('🎉 RÜTBE XP\'Sİ ÇEKİLİŞİ! XP SÜPRİZ')
+        .setDescription(`**${xpAmount} XP** ödüllü rütbe xp çekilişi başladı!\n\n` +
+                        `👥 **Kazanan Sayısı:** ${kazananSayisi}\n` +
+                        `⏳ **Bitiş:** <t:${Math.floor(endsAt.getTime()/1000)}:R>\n\n` +
+                        `KATILMAK İÇİN TIKLAYIN!`)
+        .setFooter({ text: 'Eko Yıldız • Çekiliş Sistemi' });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('xp_cekilis_katil')
+          .setLabel('🎉 KATIL')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      const msg = await channel.send({ embeds: [embed], components: [row] });
+
+      const Giveaway = require('../../models/Giveaway');
+      await Giveaway.create({
+        messageId: msg.id,
+        channelId: channel.id,
+        guildId: interaction.guildId,
+        xpAmount: xpAmount,
+        endsAt: endsAt,
+        participants: [],
+        isActive: true
+      });
+
+      return interaction.reply({ content: `✅ Çekiliş başarıyla <#${channel.id}> kanalında başlatıldı. Yarın öğlen 12:00'de sonuçlanacak.`, ephemeral: true });
+    } catch (err) {
+      console.error('[xpcekilis] hata:', err.message);
+      return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+    }
+  }
+
   // ── anketai: deferReply öncesi çalışmalı ──────────────────────────────────
   if (commandName === "anketai") {
     const { startSurvey } = require('../services/surveyAI');

@@ -19,6 +19,18 @@ const generalCommands = [
     .setDMPermission(true),
 
   new SlashCommandBuilder()
+    .setName("xpcekilis")
+    .setDescription("[Yönetici] Rütbe XP'si için çekiliş başlatır (Ertesi gün öğlen 12:00'de açıklanır)")
+    .addIntegerOption((o) =>
+      o.setName("xp_miktari").setDescription("Dağıtılacak XP miktarı").setRequired(true)
+    )
+    .addIntegerOption((o) =>
+      o.setName("kazanan_sayisi").setDescription("Kaç kişi kazanacak? (Varsayılan 1)").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
     .setName("profile")
     .setDescription("Profil bilgilerini göster")
     .setDMPermission(true),

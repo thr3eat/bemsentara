@@ -161,8 +161,26 @@ const PROMOTION_REQUIREMENTS = {
     description: '150 ticket + 750 mesaj + 1500 dk ses + 80 mod işlem + 15 rapor + 45 gün aktif',
     promotionBonus: { points: 1000, xp: 1500 },
   },
-  4: { promotionBonus: { points: 2000, xp: 3000 } },
-  5: { promotionBonus: { points: 4000, xp: 5000 } }, // Yeni Seviye 5
+  4: {
+    ticketsSolved:    350,
+    chatMessages:     1500,
+    totalVoiceMinutes: 2500,
+    activeDays:       60,
+    moderationActions: 150,
+    weeklyReports:    30,
+    description: '350 ticket + 1500 mesaj + 2500 dk ses + 150 mod işlem + 30 rapor + 60 gün aktif',
+    promotionBonus: { points: 2000, xp: 3000 }
+  },
+  5: {
+    ticketsSolved:    500,
+    chatMessages:     3000,
+    totalVoiceMinutes: 5000,
+    activeDays:       90,
+    moderationActions: 250,
+    weeklyReports:    45,
+    description: 'Maksimum Seviye Aylık Kotası: 500 ticket + 3000 mesaj + 5000 dk ses + 90 gün aktif (Aylık/Dönemlik)',
+    promotionBonus: { points: 4000, xp: 5000 }
+  }
 };
 
 function todayStr() {
@@ -253,6 +271,18 @@ async function addVoiceMinutes(userId, minutes, client) {
     resetDaily(p);
     p.daily.voiceMinutes += minutes;
     p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
+    
+    // YENİ: Ses aktifliği için E.C. kazanımı (Saatte 15 E.C. -> Dakikada 0.25 E.C.)
+    // Bunu sadece 60'ın katlarında veya saat başı hesaplayabiliriz ya da küsüratlı verip gösterebiliriz.
+    // Şimdilik 60 dakikada bir toplu ödül verelim:
+    const oldHours = Math.floor((p.stats.totalVoiceMinutes - minutes) / 60);
+    const newHours = Math.floor(p.stats.totalVoiceMinutes / 60);
+    if (newHours > oldHours) {
+      const hoursGained = newHours - oldHours;
+      const ecGained = hoursGained * 15;
+      await addEkoCoin(p, ecGained, client, 'Sesli Kanal Aktifliği');
+    }
+
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed in addVoiceMinutes:', err.message);
       return;
@@ -262,6 +292,33 @@ async function addVoiceMinutes(userId, minutes, client) {
     });
   } catch (err) {
     console.error('[staffSystem] addVoiceMinutes error:', err.message);
+  }
+}
+
+// ── EkoCoin Ekleme ve Bildirim ─────────────────────────────────────────────
+async function addEkoCoin(progress, amount, client, reason) {
+  progress.gamification = progress.gamification || {};
+  progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + amount;
+  
+  if (client) {
+    try {
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+      const user = await client.users.fetch(progress.userId);
+      const embed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('🪙 EkoCoin Kazandın!')
+        .setDescription(`**${reason}** görevini başarıyla yerine getirdiğin için **${amount} E.C.** kazandın!\n\n💰 Güncel Bakiye: **${progress.gamification.ecoCoins} E.C.**`)
+        .setFooter({ text: 'Eko Yıldız • Mağaza Sistemi' });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ekocoin_magaza')
+          .setLabel('🛒 MAĞAZAYI İNCELE')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+    } catch (_) {}
   }
 }
 
@@ -284,6 +341,10 @@ async function recordModerationAction(userId, client) {
     resetDaily(p);
     
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
+    
+    // YENİ: E.C. Kazandır
+    await addEkoCoin(p, 10, client, 'Moderasyon İşlemi');
+
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
@@ -470,6 +531,23 @@ async function recordTicketSolved(userId, client) {
       await checkAndUnlockBadges(p, client);
     }
     
+    // YENİ: Gizli Başarım (Günde 30 Ticket)
+    if (p.stats.dailyTicketsToday === 30) {
+      try {
+        const user = await client.users.fetch(userId);
+        const secretEmbed = new EmbedBuilder()
+          .setColor(0xffaa00)
+          .setTitle('🔥 GİZLİ BAŞARIM AÇILDI: Efsanevi Çalışan!')
+          .setDescription('Bugün tam 30 ticket çözdün! Bu muazzam bir başarı! Sana özel **+1000 E.C.** bonus hediye ediyoruz!')
+          .setFooter({ text: 'Eko Yıldız • Gizli Başarımlar' });
+        await user.send({ embeds: [secretEmbed] }).catch(() => {});
+        await addEkoCoin(p, 1000, client, 'GİZLİ BAŞARIM: Efsanevi Çalışan (30 Ticket)');
+      } catch (_) {}
+    }
+
+    // YENİ: E.C. Kazandır
+    await addEkoCoin(p, 5, client, 'Ticket Çözümü');
+    
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed in recordTicketSolved:', err.message);
       return;
@@ -557,7 +635,7 @@ async function promote(progress, client) {
     
     const oldLevel = progress.level || 1;
     const newLevel = oldLevel + 1;
-    if (newLevel > 4) return;
+    if (newLevel > 5) return;
 
     // 🎁 Terfi bonusu ekle
     const req = PROMOTION_REQUIREMENTS[oldLevel];
@@ -624,13 +702,13 @@ async function promote(progress, client) {
       });
     }
 
-    const isFinal = newLevel === 4;
+    const isFinal = newLevel === 5;
     const embed = new EmbedBuilder()
       .setColor(isFinal ? 0xffd700 : 0x4ade80)
-      .setTitle(isFinal ? '🏆 TEBRİKLER! Sekreter oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
+      .setTitle(isFinal ? '🏆 TEBRİKLER! Yönetici oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
       .setDescription(
         isFinal
-          ? `Eko Yıldız'ın en üst personel rolüne ulaştın! Sekreter görevlerin çok önemli. `
+          ? `Eko Yıldız'ın en üst personel rolüne ulaştın! Yönetici görevlerin çok önemli. `
           : `**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\n${getNextRequirementsText(newLevel)}`
       )
       .addFields(

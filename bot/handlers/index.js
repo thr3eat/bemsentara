@@ -56,6 +56,48 @@ function initializeDiscordHandlers(client) {
     // AI Kanal Sohbet İzleme
     const { startAIChatMonitor } = require('../services/aiChannelChat');
     startAIChatMonitor(client);
+
+    // XP Çekiliş Scheduler
+    setInterval(async () => {
+      try {
+        const Giveaway = require('../../models/Giveaway');
+        const StaffProgress = require('../../models/StaffProgress');
+        const activeGiveaways = await Giveaway.find({ isActive: true, endsAt: { $lte: new Date() } });
+        
+        for (const giveaway of activeGiveaways) {
+          giveaway.isActive = false;
+          
+          if (giveaway.participants.length > 0) {
+            // Rastgele kazanan seç
+            const winnerId = giveaway.participants[Math.floor(Math.random() * giveaway.participants.length)];
+            giveaway.winners.push(winnerId);
+            
+            // Ödülü ver
+            const p = await StaffProgress.findOne({ userId: winnerId });
+            if (p) {
+              p.gamification = p.gamification || {};
+              p.gamification.currentXP = (p.gamification.currentXP || 0) + giveaway.xpAmount;
+              p.gamification.totalPoints = (p.gamification.totalPoints || 0) + giveaway.xpAmount; // veya farklı bir oran
+              await p.save();
+            }
+
+            // Kanala mesaj gönder
+            const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+            if (channel) {
+              channel.send(`🎉 **TEBRİKLER <@${winnerId}>!** Rütbe XP'si çekilişini kazandın ve **${giveaway.xpAmount} XP** hesabına eklendi!`);
+            }
+          } else {
+            const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+            if (channel) {
+              channel.send(`😢 Maalesef **${giveaway.xpAmount} XP** ödüllü çekilişe kimse katılmadı.`);
+            }
+          }
+          await giveaway.save();
+        }
+      } catch (err) {
+        console.error('[GiveawayScheduler] Hata:', err.message);
+      }
+    }, 60 * 1000); // Dakikada bir kontrol et
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -861,6 +903,74 @@ function initializeDiscordHandlers(client) {
         const { handleModActionApproval } = require("../services/modActionService");
         await handleModActionApproval(interaction);
         return;
+      }
+      
+      // ── EkoCoin Mağazası Satın Alma (Select Menu) ───────────────────────────
+      if (interaction.isStringSelectMenu() && interaction.customId === 'ekocoin_satin_al') {
+        const StaffProgress = require("../../models/StaffProgress");
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) {
+          return interaction.reply({ content: '❌ Kayıt bulunamadı.', ephemeral: true });
+        }
+        const item = interaction.values[0];
+        let price = 0;
+        let roleName = '';
+        let successMessage = '';
+        
+        if (item === 'renk_yesil') { price = 500; roleName = '- YEŞİL ROL RENGİ -'; successMessage = '🎨 Yeşil Rol Rengi satın alındı!'; }
+        else if (item === 'renk_kirmizi') { price = 500; roleName = '- KIRMIZI ROL RENGİ -'; successMessage = '🎨 Kırmızı Rol Rengi satın alındı!'; }
+        else if (item === 'renk_mavi') { price = 500; roleName = '- MAVİ ROL RENGİ -'; successMessage = '🎨 Mavi Rol Rengi satın alındı!'; }
+        else if (item === 'renk_sari') { price = 500; roleName = '- SARI ROL RENGİ -'; successMessage = '🎨 Sarı Rol Rengi satın alındı!'; }
+        else if (item === 'renk_mor') { price = 500; roleName = '- MOR ROL RENGİ -'; successMessage = '🎨 Mor Rol Rengi satın alındı!'; }
+        else if (item === 'renk_pembe') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
+        else if (item === 'renk_turuncu') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
+        else if (item === 'ekstra_izin') { price = 1000; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
+
+        if ((p.gamification?.ecoCoins || 0) < price) {
+          return interaction.reply({ content: `❌ Yetersiz E.C.! (Gereken: ${price} E.C. - Sizin: ${p.gamification?.ecoCoins || 0} E.C.)`, ephemeral: true });
+        }
+
+        // Fiyatı Düş
+        p.gamification.ecoCoins -= price;
+        
+        // Ödülü Ver
+        if (item.startsWith('renk_')) {
+          const guild = interaction.client.guilds.cache.get(require('../../config').GUILD_ID);
+          if (guild) {
+            let colorRole = guild.roles.cache.find(r => r.name === roleName);
+            if (!colorRole) {
+              let roleColor = '#000000';
+              if (item === 'renk_yesil') roleColor = '#2ecc71';
+              else if (item === 'renk_kirmizi') roleColor = '#e74c3c';
+              else if (item === 'renk_mavi') roleColor = '#3498db';
+              else if (item === 'renk_sari') roleColor = '#f1c40f';
+              else if (item === 'renk_mor') roleColor = '#9b59b6';
+              else if (item === 'renk_pembe') roleColor = '#ff9ff3';
+              else if (item === 'renk_turuncu') roleColor = '#e67e22';
+
+              // Rolü En Üste (Ama yetkisiz olarak) eklemeye çalış (Botun yetkisi olduğu yere kadar)
+              colorRole = await guild.roles.create({
+                name: roleName,
+                color: roleColor,
+                reason: 'EkoCoin Mağazası - Renk Rolü Satın Alma'
+              });
+            }
+            const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+            if (member && colorRole) {
+              // Varsa diğer renkleri al (Örnek)
+              const existingColorRoles = member.roles.cache.filter(r => r.name.startsWith('- ') && r.name.endsWith(' RENGİ -'));
+              for (const r of existingColorRoles.values()) {
+                await member.roles.remove(r.id).catch(() => {});
+              }
+              await member.roles.add(colorRole.id).catch(() => {});
+            }
+          }
+        } else if (item === 'ekstra_izin') {
+          p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+        }
+
+        await p.save();
+        return interaction.reply({ content: `✅ ${successMessage}\n💰 Kalan Bakiye: ${p.gamification.ecoCoins} E.C.`, ephemeral: true });
       }
       // ── Roblox Etkileşimleri ──────────────────────────────────────────────
       if (
