@@ -1534,23 +1534,45 @@ async function checkStaffVerifications(client) {
     const User = require('../../models/User');
     const { BASE_URL } = require('../../config');
     let notifiedCount = 0;
+    const { fetchUserGroups } = require('./roleSyncService');
+    const { ROBLOX } = require('./staffAutomation');
 
     for (const p of allProgress) {
       const user = await User.findOne({ discordId: p.userId });
       
       const missingRoblox = !user || !user.robloxId;
       const missingGuild = !p.guildJoined; // guildJoined is in StaffProgress
+      let missingRobloxGroup = false;
 
-      if (missingRoblox || missingGuild) {
+      if (!missingRoblox) {
+        try {
+          const userGroups = await fetchUserGroups(user.robloxId);
+          if (!userGroups.some(g => g.group.id === ROBLOX.EKOYILDIZ_MOD)) {
+            missingRobloxGroup = true;
+          }
+        } catch (err) {
+          console.warn(`[checkStaffVerifications] Grup kontrolü yapılamadı (User: ${user.robloxId}):`, err.message);
+        }
+      }
+
+      if (missingRoblox || missingGuild || missingRobloxGroup) {
+        let instructionText = "";
+        if (missingRoblox) {
+          instructionText = `❌ **Aşama 1 - Roblox Hesabını Bağla:** [Buraya Tıklayarak](${BASE_URL}/dashboard) hesabınızı hemen bağlayın.\n\n*(Bu aşamayı tamamladıktan sonra sıradaki adım size iletilecektir)*`;
+        } else if (missingRobloxGroup) {
+          instructionText = `❌ **Aşama 2 - Roblox Moderatör Grubuna Katıl:** Hemen yetkili grubumuza katılın: https://www.roblox.com/communities/130659145/EkoY-ld-z-Moderat-r-Ekibi#!/about\n\n*(Gruba katıldıktan sonra sıradaki adım size iletilecektir)*`;
+        } else if (missingGuild) {
+          instructionText = `❌ **Aşama 3 - Yönetim Sunucusuna Katıl:** Hemen yönetim sunucumuza katılın: https://discord.gg/fjwjMgH54N\n\n*(Bu son adımdır, tamamladığınızda yetkileriniz aktif kalacaktır)*`;
+        }
+
         const embed = new EmbedBuilder()
           .setColor(0xE74C3C)
           .setTitle('🚨 DİKKAT: Eksik Doğrulama İşlemi')
           .setDescription(
             `Merhaba <@${p.userId}>, EkoYıldız moderatör ekibinde bulunuyorsun ancak sistemlerimizde **doğrulamanın eksik olduğu tespit edildi.**\n\n` +
-            `Görevinize devam edebilmeniz ve yetkilerinizi alabilmeniz için aşağıdaki işlemleri **hemen yapmanız gerekmektedir:**\n\n` +
-            `${missingRoblox ? `❌ **Roblox Hesabı Bağlı Değil:** [Buraya Tıklayarak](${BASE_URL}/dashboard) hesabınızı hemen bağlayın.\n` : ''}` +
-            `${missingGuild ? `❌ **Yönetim Sunucusunda Değilsiniz:** Hemen yönetim sunucumuza katılın: https://discord.gg/fjwjMgH54N\n` : ''}` +
-            `\nBu uyarıyı dikkate almazsanız yetkileriniz sistem tarafından otomatik olarak alınabilir.`
+            `Görevinize devam edebilmeniz ve yetkilerinizi alabilmeniz için işlemleri aşama aşama tamamlamanız gerekmektedir. Lütfen aşağıdaki adımı gerçekleştirin:\n\n` +
+            instructionText +
+            `\n\nBu uyarıyı dikkate almazsanız yetkileriniz sistem tarafından otomatik olarak alınabilir.`
           )
           .setFooter({ text: 'EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi' })
           .setTimestamp();

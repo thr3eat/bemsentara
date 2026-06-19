@@ -59,6 +59,7 @@ async function syncStaffRobloxRanks(client, discordUserId) {
     // Attempt to set ranks
     if (modRank > 0) {
       try {
+        await noblox.handleJoinRequest(ROBLOX.EKOYILDIZ_MOD, robloxId, true).catch(() => {});
         await noblox.setRank(ROBLOX.EKOYILDIZ_MOD, robloxId, modRank);
         console.log(`[StaffAutomation] Set rank ${modRank} in Mod Group for user ${discordUserId}`);
       } catch (err) {
@@ -68,6 +69,7 @@ async function syncStaffRobloxRanks(client, discordUserId) {
 
     if (mainRank > 0) {
       try {
+        await noblox.handleJoinRequest(ROBLOX.EKOYILDIZ, robloxId, true).catch(() => {});
         await noblox.setRank(ROBLOX.EKOYILDIZ, robloxId, mainRank);
         console.log(`[StaffAutomation] Set rank ${mainRank} in Main Group for user ${discordUserId}`);
       } catch (err) {
