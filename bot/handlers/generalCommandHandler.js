@@ -55,7 +55,7 @@ async function handleGeneralCommand(interaction) {
       const user = await User.findOne({ discordId: interaction.user.id });
       
       if (user?.robloxId) {
-        return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\n\nYönetim paneli rollerinizin senkronize olması gerekiyorsa yetkili yöneticilere bildiriniz.` });
+        return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\n\nYetkili sunucusuna katılmadıysan, hemen aşağıdan katılabilirsin:\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N` });
       }
 
       const { BASE_URL } = require("../../config");

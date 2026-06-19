@@ -1549,7 +1549,7 @@ async function checkStaffVerifications(client) {
             `Merhaba <@${p.userId}>, EkoYıldız moderatör ekibinde bulunuyorsun ancak sistemlerimizde **doğrulamanın eksik olduğu tespit edildi.**\n\n` +
             `Görevinize devam edebilmeniz ve yetkilerinizi alabilmeniz için aşağıdaki işlemleri **hemen yapmanız gerekmektedir:**\n\n` +
             `${missingRoblox ? `❌ **Roblox Hesabı Bağlı Değil:** [Buraya Tıklayarak](${BASE_URL}/dashboard) hesabınızı hemen bağlayın.\n` : ''}` +
-            `${missingGuild ? `❌ **Yönetim Sunucusunda Değilsiniz:** \`/personel-dogrula\` komutunu kullanarak yetkilendirme linkini alın ve sunucuya katılın.\n` : ''}` +
+            `${missingGuild ? `❌ **Yönetim Sunucusunda Değilsiniz:** Hemen yönetim sunucumuza katılın: https://discord.gg/fjwjMgH54N\n` : ''}` +
             `\nBu uyarıyı dikkate almazsanız yetkileriniz sistem tarafından otomatik olarak alınabilir.`
           )
           .setFooter({ text: 'EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi' })
