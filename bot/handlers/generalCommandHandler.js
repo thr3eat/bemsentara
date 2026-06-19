@@ -53,12 +53,34 @@ async function handleGeneralCommand(interaction) {
     try {
       const User = require("../../models/User");
       const user = await User.findOne({ discordId: interaction.user.id });
+      const { BASE_URL } = require("../../config");
       
       if (user?.robloxId) {
-        return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\n\nYetkili sunucusuna katılmadıysan, hemen aşağıdan katılabilirsin:\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N` });
+        // Zaten bağlı, grupları ve sunucuyu senkronize et
+        const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
+        const StaffProgress = require("../../models/StaffProgress");
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+
+        if (p) {
+          // İsteği kabul edip rütbeleri verecek fonksiyonu çağırıyoruz
+          await syncStaffRobloxRanks(interaction.client, interaction.user.id);
+          // Sunucu üyeliğini kontrol ediyoruz
+          const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
+          
+          let responseText = `✅ **Roblox Hesabınız Onaylandı!**\nRoblox ID: \`${user.robloxId}\`\n\nKatılma istekleriniz kabul edildi ve Roblox grubunda yetkileriniz ayarlandı!`;
+          if (!inGuild) {
+            responseText += `\n\n⚠️ Ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra komutu tekrar kullanabilirsiniz.`;
+          } else {
+            // Yönetim sunucusunda ise discord rollerini de veriyoruz
+            await syncStaffDiscordRoles(interaction.client, interaction.user.id);
+            responseText += `\n\n🎉 Yönetim sunucusu ve Roblox grupları doğrulamanız tamdır. Discord moderatör rolleriniz de verildi, görevinde başarılar dileriz!`;
+          }
+          return interaction.editReply({ content: responseText });
+        } else {
+          return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\nAncak aktif personel listesinde görünmüyorsunuz. Bir hata olduğunu düşünüyorsanız yöneticilere bildirin.` });
+        }
       }
 
-      const { BASE_URL } = require("../../config");
       const embed = new EmbedBuilder()
         .setColor(0x4169E1)
         .setTitle("🔐 Personel Roblox Doğrulaması")

@@ -69,6 +69,17 @@ async function ensureAdminPanels(client) {
     );
     await refreshPanel(client, '1466946794763321394', modActionEmbed, [modActionRow]);
 
+    // 6. EkoYıldız Moderatör Ekibi | Doğrulama Sistemi
+    const verifyEmbed = new EmbedBuilder()
+      .setTitle("🔐 EkoYıldız Moderatör Ekibi | Doğrulama Sistemi")
+      .setDescription("EkoYıldız yetkili ekibine hoş geldiniz! Lütfen aşağıdaki butona tıklayarak hesabınızı **doğrulayın** ve Discord sunucusundaki **tüm yetkili rollerinizi otomatik olarak alın.**")
+      .setColor(0x3498DB);
+    const verifyRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('btn_personel_check').setLabel('Doğrula & Rollerimi Ver').setStyle(ButtonStyle.Success).setEmoji('✅')
+    );
+    // User requested panel in 1466933699122565120
+    await refreshPanel(client, '1466933699122565120', verifyEmbed, [verifyRow]);
+
   } catch (error) {
     console.error("[PanelManager] ensureAdminPanels Error:", error);
   }

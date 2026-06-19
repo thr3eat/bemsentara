@@ -11,6 +11,60 @@ const { BASE_URL } = require("../../config");
 const { syncTMTRoles } = require("../services/tmtRoleSyncService");
 
 async function handleButtonInteraction(interaction) {
+  // ── Personel Doğrulama Paneli Butonu ─────────────────────────────────────
+  if (interaction.customId === 'btn_personel_check') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const User = require("../../models/User");
+      const user = await User.findOne({ discordId: interaction.user.id });
+      const { BASE_URL } = require("../../config");
+      
+      if (user?.robloxId) {
+        const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
+        const StaffProgress = require("../../models/StaffProgress");
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+
+        if (p) {
+          await syncStaffRobloxRanks(interaction.client, interaction.user.id);
+          const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
+          
+          let responseText = `✅ **Roblox Hesabınız Onaylandı!**\nRoblox ID: \`${user.robloxId}\`\n\nKatılma istekleriniz kabul edildi ve Roblox grubunda yetkileriniz ayarlandı!`;
+          if (!inGuild) {
+            responseText += `\n\n⚠️ Ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra butona tekrar tıklayabilirsiniz.`;
+          } else {
+            await syncStaffDiscordRoles(interaction.client, interaction.user.id);
+            responseText += `\n\n🎉 Yönetim sunucusu ve Roblox grupları doğrulamanız tamdır. Discord moderatör rolleriniz de verildi, görevinde başarılar dileriz!`;
+          }
+          return interaction.editReply({ content: responseText });
+        } else {
+          return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\nAncak aktif personel listesinde görünmüyorsunuz. Bir hata olduğunu düşünüyorsanız yöneticilere bildirin.` });
+        }
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x4169E1)
+        .setTitle("🔐 Personel Roblox Doğrulaması")
+        .setDescription(
+          `EkoYıldız yönetim ekibinde bulunduğunuz tespit edildi. Sistemleri tam olarak kullanabilmek ve görev yetkilerinizi alabilmek için **Roblox** hesabınızı doğrulamanız gerekmektedir.\n\n` +
+          `Lütfen aşağıdaki web paneli linkine tıklayarak hesabınızı eşleştirin.\n\n` +
+          `🔗 **Doğrulama Linki:** [EkoYıldız Dashboard](${BASE_URL}/dashboard)`
+        )
+        .setFooter({ text: "EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi" });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("🌐 Dashboard'a Git ve Doğrula")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`${BASE_URL}/dashboard`)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      console.error('[btn_personel_check] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── TMT Yetkilendirme Butonu ─────────────────────────────────────────────
   if (interaction.customId === "authorize_button") {
     const User = require("../../models/User");

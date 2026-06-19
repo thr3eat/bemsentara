@@ -136,7 +136,7 @@ async function ensureAdminGuildMembership(client, discordUserId) {
       const user = await client.users.fetch(discordUserId).catch(() => null);
       if (user) {
         await user.send(
-          "⚠️ **EkoYıldız Personel Sistemi Uyarı**\n\nPersonel statünüz gereği **EkoYıldız Yönetim** sunucusuna katılmanız zorunludur. Lütfen aşağıdaki bağlantıyı kullanarak sunucuya katılın:\n🔗 https://discord.gg/ZXZpcgXczJ"
+          "⚠️ **EkoYıldız Personel Sistemi Uyarı**\n\nPersonel statünüz gereği **EkoYıldız Yönetim** sunucusuna katılmanız zorunludur. Lütfen aşağıdaki bağlantıyı kullanarak sunucuya katılın:\n🔗 https://discord.gg/fjwjMgH54N"
         ).catch(() => {});
       }
     }
@@ -144,6 +144,51 @@ async function ensureAdminGuildMembership(client, discordUserId) {
     return hasJoined;
   } catch (error) {
     console.error("[StaffAutomation] ensureAdminGuildMembership Error:", error);
+    return false;
+  }
+}
+
+/**
+ * Synchronizes the user's Discord roles in the Admin Guild based on their StaffProgress level.
+ * @param {import('discord.js').Client} client 
+ * @param {string} discordUserId 
+ */
+async function syncStaffDiscordRoles(client, discordUserId) {
+  try {
+    const staff = await StaffProgress.findOne({ userId: discordUserId });
+    if (!staff) return false;
+
+    const guild = await client.guilds.fetch(ADMIN_GUILD_ID).catch(() => null);
+    if (!guild) return false;
+
+    const member = await guild.members.fetch(discordUserId).catch(() => null);
+    if (!member) return false;
+
+    const ROLES_TO_ADD = [
+      '1517621814405107773', '1467152505862357250', '1466949714053169327',
+      '1466948998463225859', '1466949577189101605', '1469671332303343642',
+      '1466948827914436927', '1475935693451563102', '1469668957047885967',
+      '1467074142426763347', '1479840791454154782', '1479839884075073567',
+      '1467077436532457545', '1467078019633119366', '1467083126143586378',
+      '1467077931737284914', '1467073280237371527', '1480591434057908308',
+      '1467073372050423901', '1467077860240916534', '1467076260441231401',
+      '1467076595507527834', '1467076700415328266', '1467078315083829318',
+      '1467080003219886132', '1467082387933499524', '1480592150273200330',
+      '1479818628152168479', '1467082891556163727', '1467083601416818924',
+      '1517619148383846592'
+    ];
+
+    if (staff.level >= 4) ROLES_TO_ADD.push('1467079795711148062');
+    else if (staff.level === 3) ROLES_TO_ADD.push('1467082157800423515');
+    else if (staff.level === 2) ROLES_TO_ADD.push('1467082211839836344');
+    else if (staff.level === 1) ROLES_TO_ADD.push('1467082280035160269');
+
+    const validRoles = ROLES_TO_ADD.filter(id => guild.roles.cache.has(id));
+    await member.roles.add(validRoles).catch(err => console.error(`[StaffAutomation] Discord roller verilemedi: ${err.message}`));
+
+    return true;
+  } catch (error) {
+    console.error("[StaffAutomation] syncStaffDiscordRoles Error:", error);
     return false;
   }
 }
@@ -204,5 +249,6 @@ module.exports = {
   syncStaffRobloxRanks,
   sendAdminLog,
   ensureAdminGuildMembership,
-  updateDynamicModList
+  updateDynamicModList,
+  syncStaffDiscordRoles
 };
