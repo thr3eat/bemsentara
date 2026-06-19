@@ -190,6 +190,32 @@ function initializeDiscordHandlers(client) {
           }
         }
       }
+
+      // ── Gizli Başarım: İsyankar (AutoMod'a Yakalananlar) ──
+      if (execution.guild.id === '1367646464804655104') {
+        try {
+          const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+          if (mainGuild) {
+            const memberToReward = await mainGuild.members.fetch(execution.userId).catch(() => null);
+            if (memberToReward && !memberToReward.user.bot) {
+              let rebelRole = mainGuild.roles.cache.find(r => r.name === '🤡 İsyankar');
+              if (!rebelRole) {
+                rebelRole = await mainGuild.roles.create({
+                  name: '🤡 İsyankar',
+                  color: '#e74c3c', // Kırmızı
+                  hoist: false,
+                  position: 1,
+                  reason: 'Gizli Başarım Sistemi'
+                });
+              }
+              if (rebelRole && !memberToReward.roles.cache.has(rebelRole.id)) {
+                await memberToReward.roles.add(rebelRole.id).catch(() => {});
+                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: İsyankar!**\nAutoMod\'un filtrelerine takılarak asi ruhunu gösterdin ve `🤡 İsyankar` rolünü kazandın!').catch(() => {});
+              }
+            }
+          }
+        } catch (_) {}
+      }
     } catch (err) {
       console.error("AutoMod execution hatası:", err);
     }
@@ -273,9 +299,8 @@ function initializeDiscordHandlers(client) {
       // ── Gizli Başarım: Kararsız (Mesaj Düzenleme) ──
       if (newMessage.guild && newMessage.guild.id === '1367646464804655104' && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
         const uId = newMessage.author.id;
-        let edits = editorTracker.get(uId) || 0;
-        edits++;
-        editorTracker.set(uId, edits);
+        const { incrementTracker } = require('../services/achievementManager');
+        let edits = await incrementTracker(uId, 'editorEdits');
 
         if (edits === 15) {
           try {
@@ -424,6 +449,38 @@ function initializeDiscordHandlers(client) {
       if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
         const { logTMTReactionAdd } = require("../services/tmtLogger");
         logTMTReactionAdd(reaction, user);
+      }
+
+      // ── Gizli Başarım: Tepki Kolik ──
+      if (reaction.message.guild && reaction.message.guild.id === '1367646464804655104' && !user.bot) {
+        const uId = user.id;
+        const { incrementTracker } = require('../services/achievementManager');
+        let reactions = await incrementTracker(uId, 'reactionCount');
+
+        if (reactions === 50) {
+          try {
+            const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+              if (memberToReward) {
+                let reactionRole = mainGuild.roles.cache.find(r => r.name === '👍 Tepki Kolik');
+                if (!reactionRole) {
+                  reactionRole = await mainGuild.roles.create({
+                    name: '👍 Tepki Kolik',
+                    color: '#f39c12', // Turuncu Sarısı
+                    hoist: false,
+                    position: 1,
+                    reason: 'Gizli Başarım Sistemi'
+                  });
+                }
+                if (reactionRole && !memberToReward.roles.cache.has(reactionRole.id)) {
+                  await memberToReward.roles.add(reactionRole.id).catch(() => {});
+                  user.send('🎉 **Gizli Başarım Kazanıldı: Tepki Kolik!**\nMesajlara tam 50 kez tepki ekleyerek sohbeti renklendirdiğin için `👍 Tepki Kolik` rolünü kazandın!').catch(() => {});
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.error("messageReactionAdd hatası:", err);
@@ -796,9 +853,8 @@ function initializeDiscordHandlers(client) {
 
         // Gece Baykuşu (Sohbet)
         if (hour >= 0 && hour <= 6) {
-          let msgs = nightChatTracker.get(uId) || 0;
-          msgs++;
-          nightChatTracker.set(uId, msgs);
+          const { incrementTracker } = require('../services/achievementManager');
+          let msgs = await incrementTracker(uId, 'nightChatMsgs');
 
           if (msgs === 15) { // Ortalama 15 mesaj = 10 dakikalık sohbet aktivitesi
             let owlRole = message.guild.roles.cache.find(r => r.name === '🦉 Gece Baykuşu');
@@ -819,9 +875,8 @@ function initializeDiscordHandlers(client) {
         }
 
         // Klavyeşör
-        let dailyMsgs = dailyChatTracker.get(uId) || 0;
-        dailyMsgs++;
-        dailyChatTracker.set(uId, dailyMsgs);
+        const { incrementTracker } = require('../services/achievementManager');
+        let dailyMsgs = await incrementTracker(uId, 'dailyChatMsgs');
         if (dailyMsgs === 100) {
           let keyRole = message.guild.roles.cache.find(r => r.name === '⌨️ Klavyeşör');
           if (!keyRole) {
@@ -859,9 +914,8 @@ function initializeDiscordHandlers(client) {
 
         // Fotoğrafçı
         if (message.attachments.size > 0) {
-          let photos = photoTracker.get(uId) || 0;
-          photos += message.attachments.size;
-          photoTracker.set(uId, photos);
+          const { incrementTracker } = require('../services/achievementManager');
+          let photos = await incrementTracker(uId, 'photoCount', message.attachments.size);
 
           if (photos >= 20) {
             let photoRole = message.guild.roles.cache.find(r => r.name === '📸 Fotoğrafçı');
@@ -878,6 +932,24 @@ function initializeDiscordHandlers(client) {
               await message.member.roles.add(photoRole.id).catch(() => {});
               message.author.send('🎉 **Gizli Başarım Kazanıldı: Fotoğrafçı!**\nSohbete birbirinden güzel tam 20 görsel yüklediğin için `📸 Fotoğrafçı` rolünü kazandın!').catch(() => {});
             }
+          }
+        }
+
+        // Roman Yazarı
+        if (message.content.length > 1000) {
+          let writerRole = message.guild.roles.cache.find(r => r.name === '📝 Roman Yazarı');
+          if (!writerRole) {
+            writerRole = await message.guild.roles.create({
+              name: '📝 Roman Yazarı',
+              color: '#95a5a6', // Gümüş
+              hoist: false,
+              position: 1,
+              reason: 'Gizli Başarım Sistemi'
+            });
+          }
+          if (writerRole && !message.member.roles.cache.has(writerRole.id)) {
+            await message.member.roles.add(writerRole.id).catch(() => {});
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Roman Yazarı!**\nSohbete tek seferde 1000 karakterden uzun harika bir destan yazdığın için `📝 Roman Yazarı` rolünü kazandın!').catch(() => {});
           }
         }
       }

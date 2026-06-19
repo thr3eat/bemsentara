@@ -1185,9 +1185,8 @@ async function handleGeneralCommand(interaction) {
       let extraMsg = '';
       if (interaction.guild && interaction.guild.id === '1367646464804655104') {
         const uId = interaction.user.id;
-        let pings = pingTracker.get(uId) || 0;
-        pings++;
-        pingTracker.set(uId, pings);
+        const { incrementTracker } = require('../services/achievementManager');
+        let pings = await incrementTracker(uId, 'pingCount');
 
         if (pings === 50) {
           try {
