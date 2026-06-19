@@ -262,14 +262,15 @@ async function handleAIChatMessage(message, client) {
     cancelChannelTimers(channelId, message.author.id);
     
     // Eğer mesaj yazan moderatörse, 10 dk timer başlat
+    // (İPTAL EDİLDİ: Kullanıcı isteği üzerine bu sistem kapatıldı)
     if (isStaff) {
-      startInactivityTimer(
-        message.author.id,
-        message.author.username,
-        channelId,
-        message.channel,
-        client
-      );
+      // startInactivityTimer(
+      //   message.author.id,
+      //   message.author.username,
+      //   channelId,
+      //   message.channel,
+      //   client
+      // );
     }
     
     return false; // Diğer handler'ların da çalışmasına izin ver

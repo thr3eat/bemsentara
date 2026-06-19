@@ -61,7 +61,8 @@ async function syncStaffRobloxRanks(client, discordUserId) {
     if (staff.level === 1) modRank = 2; // Stajyer
     else if (staff.level === 2) modRank = 3; // Personel
     else if (staff.level === 3) modRank = 4; // Gelişmiş Personel
-    else if (staff.level >= 4) modRank = 7; // Sekreter
+    else if (staff.level === 4) modRank = 7; // Sekreter
+    else if (staff.level >= 5) modRank = 8; // Yeni Rütbe (Level 5)
 
     // Rank logic for EkoYıldız Main (35431216)
     let mainRank = 0;
@@ -199,15 +200,14 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     }
 
     // Eğer API'dan gelmezse (örn. Roblox önbelleği gecikmesi), veritabanındaki StaffProgress seviyesini kullan
-    if (!rankName) {
-      const StaffProgress = require('../../models/StaffProgress');
-      const staff = await StaffProgress.findOne({ userId: discordUserId });
-      if (staff) {
-        if (staff.level === 1) rankName = "Stajyer Personel";
-        else if (staff.level === 2) rankName = "Personel";
-        else if (staff.level === 3) rankName = "Gelişmiş Personel";
-        else if (staff.level >= 4) rankName = "Sekreter";
-      }
+    let staff = await require('../../models/StaffProgress').findOne({ userId: discordUserId });
+    
+    if (!rankName && staff) {
+      if (staff.level === 1) rankName = "Stajyer Personel";
+      else if (staff.level === 2) rankName = "Personel";
+      else if (staff.level === 3) rankName = "Gelişmiş Personel";
+      else if (staff.level === 4) rankName = "Sekreter";
+      else if (staff.level >= 5) rankName = "Yönetici"; // Varsayılan isim (sadece eşleşme için)
     }
 
     if (!rankName) {
@@ -233,6 +233,24 @@ async function syncStaffDiscordRoles(client, discordUserId) {
         TARGET_ROLES.push(exactRole.id);
       }
 
+      // Eğer level 5 (veya üstü) ise, kullanıcının istediği özel rol ID'sini kesin olarak ekle
+      if (staff && staff.level >= 5) {
+        TARGET_ROLES.push('1517656567481372772'); // Moderatör sunucusu Level 5 rolü
+
+        // Ana sunucuya da (1367646464804655104) Level 5 rolünü (1517651154220355836) verelim
+        try {
+          const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+          if (mainGuild) {
+            const mainMember = await mainGuild.members.fetch(discordUserId).catch(() => null);
+            if (mainMember) {
+              await mainMember.roles.add('1517651154220355836').catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.error("[StaffAutomation] Ana sunucu rol verme hatası:", e.message);
+        }
+      }
+
       // Botun daha önceden vermiş olabileceği ama artık istenmeyen tüm rolleri temizlemek için "yönetilen" roller listesi:
       const ALL_MANAGED_ROLES = [
         '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
@@ -240,6 +258,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
         '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
         '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
         '1467152505862357250', // Security bypass
+        '1517656567481372772', // Yeni eklenen seviye 5 özel rolü (Moderatör sunucusu)
         // Daha önce eklenen istenmeyen kozmetik roller:
         '1517621814405107773', '1466949714053169327', '1469668957047885967', '1467074142426763347',
         '1467078019633119366', '1467077931737284914', '1467077860240916534', '1467078315083829318',
@@ -274,21 +293,22 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     }
 
     // Rol işlemleri bitti, şimdi veritabanını (StaffProgress) güncelleyelim.
-    let staff = await StaffProgress.findOne({ userId: discordUserId });
-    if (!staff) {
+    let staffUpdate = await require('../../models/StaffProgress').findOne({ userId: discordUserId });
+    if (!staffUpdate) {
       let level = 1;
       if (rankName === "Personel") level = 2;
       else if (rankName === "Gelişmiş Personel") level = 3;
       else if (["Sekreter", "Genel Sekreter", "Yönetim Ekibi"].includes(rankName)) level = 4;
+      else if (["Kıdemli Sekreter", "Yönetici"].includes(rankName)) level = 5;
       
-      staff = new StaffProgress({
+      staffUpdate = new StaffProgress({
         userId: discordUserId,
         level: level,
         points: 0,
         robloxVerified: true,
         guildJoined: true
       });
-      await staff.save();
+      await staffUpdate.save();
     }
 
     return true;
