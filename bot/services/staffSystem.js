@@ -58,7 +58,7 @@ const LEVEL_TASKS = {
       '✅ Sohbet kanalına 6x selam ver (zorunlu)',
       '🎤 Ses kanalında en az 30 dk kal (zorunlu)',
       '🎫 Günde 3+ ticket çözmeye çalış',
-      '📊 Anket yönet (haftada 2)',
+      '💬 Sohbette aktif ol (haftada en az 50 mesaj)',
       '🛡️ Moderasyon kararlarında diğerlerine örnek ol',
       '📝 Sunucu gelişim önerisi yap (haftada 2)',
       '👥 Stajyerlere rehberlik et — liderlik göster!',
@@ -132,33 +132,37 @@ async function checkLowActivityWarning(progress, client) {
 // ── Terfi gereksinimleri (ZOR) ─────────────────────────────────────────────
 const PROMOTION_REQUIREMENTS = {
   1: {
-    ticketsSolved:    8,
-    surveysCompleted: 0,
-    activeDays:       15,
-    moderationActions: 5,
+    ticketsSolved:    10,
+    chatMessages:     50,
+    totalVoiceMinutes: 120,
+    activeDays:       10,
+    moderationActions: 10,
     weeklyReports:    0,
-    description: '8 ticket + 5 mod işlem + 15 gün aktif',
+    description: '10 ticket + 50 mesaj + 120 dk ses + 10 mod işlem + 10 gün aktif',
     promotionBonus: { points: 250, xp: 350 },
   },
   2: {
-    ticketsSolved:    30,
-    surveysCompleted: 10,
-    activeDays:       50,
-    moderationActions: 20,
+    ticketsSolved:    50,
+    chatMessages:     200,
+    totalVoiceMinutes: 500,
+    activeDays:       25,
+    moderationActions: 30,
     weeklyReports:    5,
-    description: '30 ticket + 10 anket + 20 mod işlem + 5 rapor + 50 gün aktif',
+    description: '50 ticket + 200 mesaj + 500 dk ses + 30 mod işlem + 5 rapor + 25 gün aktif',
     promotionBonus: { points: 500, xp: 750 },
   },
   3: {
-    ticketsSolved:    100,
-    surveysCompleted: 25,
-    activeDays:       120,
-    moderationActions: 50,
+    ticketsSolved:    150,
+    chatMessages:     750,
+    totalVoiceMinutes: 1500,
+    activeDays:       45,
+    moderationActions: 80,
     weeklyReports:    15,
-    description: '100 ticket + 25 anket + 50 mod işlem + 15 rapor + 120 gün aktif',
+    description: '150 ticket + 750 mesaj + 1500 dk ses + 80 mod işlem + 15 rapor + 45 gün aktif',
     promotionBonus: { points: 1000, xp: 1500 },
   },
   4: { promotionBonus: { points: 2000, xp: 3000 } },
+  5: { promotionBonus: { points: 4000, xp: 5000 } }, // Yeni Seviye 5
 };
 
 function todayStr() {
@@ -248,6 +252,7 @@ async function addVoiceMinutes(userId, minutes, client) {
     
     resetDaily(p);
     p.daily.voiceMinutes += minutes;
+    p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed in addVoiceMinutes:', err.message);
       return;
@@ -317,6 +322,12 @@ async function recordWeeklyReport(userId, client) {
     });
   } catch (err) {
     console.error('[staffSystem] recordWeeklyReport error:', err.message);
+  }
+}
+
+function addChatMessage(p) {
+  if (p && p.stats) {
+    p.stats.chatMessages = (p.stats.chatMessages || 0) + 1;
   }
 }
 
@@ -475,10 +486,10 @@ async function recordTicketSolved(userId, client) {
   }
 }
 
-async function recordSurveyCompleted(userId, client) {
+async function recordChatMessage(userId, client) {
   try {
     if (!userId) {
-      console.warn('[staffSystem] recordSurveyCompleted: Invalid userId');
+      console.warn('[staffSystem] recordChatMessage: Invalid userId');
       return;
     }
     
@@ -492,7 +503,7 @@ async function recordSurveyCompleted(userId, client) {
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
     
-    p.stats.surveysCompleted = (p.stats.surveysCompleted || 0) + 1;
+    p.stats.chatMessages = (p.stats.chatMessages || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
@@ -500,7 +511,7 @@ async function recordSurveyCompleted(userId, client) {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
   } catch (err) {
-    console.error('[staffSystem] recordSurveyCompleted error:', err.message);
+    console.error('[staffSystem] recordChatMessage error:', err.message);
   }
 }
 
@@ -521,7 +532,8 @@ async function checkPromotion(progress, client) {
     const stats = progress.stats;
     const ok =
       (stats.ticketsSolved    || 0) >= req.ticketsSolved    &&
-      (stats.surveysCompleted || 0) >= req.surveysCompleted &&
+      (stats.chatMessages || 0) >= req.chatMessages &&
+      (stats.totalVoiceMinutes || 0) >= req.totalVoiceMinutes &&
       (stats.activeDays       || 0) >= req.activeDays       &&
       (stats.moderationActions|| 0) >= req.moderationActions &&
       (stats.weeklyReports    || 0) >= req.weeklyReports;
@@ -558,7 +570,8 @@ async function promote(progress, client) {
     progress.promotedAt = new Date();
     // İstatistik sıfırla
     progress.stats.ticketsSolved     = 0;
-    progress.stats.surveysCompleted  = 0;
+    progress.stats.chatMessages  = 0;
+    progress.stats.totalVoiceMinutes = 0;
     progress.stats.activeDays        = 0;
     progress.stats.moderationActions = 0;
     progress.stats.weeklyReports     = 0;
@@ -617,7 +630,7 @@ async function promote(progress, client) {
       .setTitle(isFinal ? '🏆 TEBRİKLER! Sekreter oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
       .setDescription(
         isFinal
-          ? `Eko Yıldız'ın en üst personel rolüne ulaştın! Sekreter görevlerin çok önemli. �`
+          ? `Eko Yıldız'ın en üst personel rolüne ulaştın! Sekreter görevlerin çok önemli. `
           : `**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\n${getNextRequirementsText(newLevel)}`
       )
       .addFields(
@@ -649,12 +662,72 @@ async function promote(progress, client) {
   }
 }
 
+async function demote(progress, client, reason = "Belirtilmedi") {
+  try {
+    const oldLevel = progress.level;
+    const newLevel = oldLevel - 1;
+    
+    if (newLevel < 1) {
+      console.warn(`[staffSystem] Personel ${progress.userId} zaten en düşük rütbede.`);
+      return false;
+    }
+
+    progress.level = newLevel;
+    progress.promotedAt = new Date();
+    await progress.save();
+
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    if (!guild) return false;
+
+    const member = await guild.members.fetch(progress.userId).catch(() => null);
+    if (!member) return false;
+
+    const oldRoleId = ROLES[oldLevel];
+    const newRoleId = ROLES[newLevel];
+
+    if (oldRoleId) {
+      await member.roles.remove(oldRoleId, `Tenzilat: ${reason}`).catch(() => {});
+    }
+    if (newRoleId) {
+      await member.roles.add(newRoleId, `Tenzilat: ${reason}`).catch(() => {});
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff3333)
+      .setTitle(`📉 TENZİLAT! ${ROLE_NAMES[newLevel]}`)
+      .setDescription(`**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\nMaalesef rütben düşürüldü.\n**Sebep:** ${reason}`)
+      .addFields(
+        { name: '📅 Tarih',  value: `<t:${Math.floor(Date.now()/1000)}:f>`, inline: true },
+        { name: '📊 Seviye', value: `${oldLevel} → ${newLevel}`,            inline: true },
+      )
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+      .setTimestamp();
+
+    try {
+      const user = await client.users.fetch(progress.userId);
+      await user.send({ embeds: [embed] });
+    } catch (dmErr) {}
+
+    const staffAutomation = require('./staffAutomation');
+    await staffAutomation.syncStaffRobloxRanks(client, progress.userId);
+    await staffAutomation.syncStaffDiscordRoles(client, progress.userId);
+    await staffAutomation.sendAdminLog(client, 'TERFI_LOG', embed);
+    await staffAutomation.updateDynamicModList(client);
+
+    return true;
+  } catch (err) {
+    console.error('[staffSystem] demote error:', err.message);
+    return false;
+  }
+}
+
 function getNextRequirementsText(level) {
   const req = PROMOTION_REQUIREMENTS[level];
   if (!req) return '🏆 En üst seviyeye ulaştın! Sunucu seni sayıyor! 💫';
   const lines = [
     req.ticketsSolved     > 0 && `• ${req.ticketsSolved} ticket çöz (Her biri insanı mutlu ediyor!)`,
-    req.surveysCompleted  > 0 && `• ${req.surveysCompleted} anket yürüt (Sunucunun sesi sen!)`,
+    req.chatMessages  > 0 && `• ${req.chatMessages} mesaj gönder (Sohbet kanalında aktif ol!)`,
+    req.totalVoiceMinutes > 0 && `• ${req.totalVoiceMinutes} dk sesli sohbette bulun (Oyuncularla iç içe!)`,
     req.moderationActions > 0 && `• ${req.moderationActions} moderasyon işlemi (Adil ve nazik ol!)`,
     req.weeklyReports     > 0 && `• ${req.weeklyReports} haftalık rapor (Yöneticilere görünürlük!)`,
     req.activeDays        > 0 && `• ${req.activeDays} gün aktif ol (Haftaları taksitle yapabilirsin!)`,
@@ -727,7 +800,8 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
   if (nextReq) {
     const s = progress.stats || {};
     const ticketsNeeded = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
-    const surveyNeeded = Math.max(0, nextReq.surveysCompleted - (s.surveysCompleted || 0));
+    const chatNeeded = Math.max(0, nextReq.chatMessages - (s.chatMessages || 0));
+    const voiceNeeded = Math.max(0, (nextReq.totalVoiceMinutes || 0) - (s.totalVoiceMinutes || 0));
     const daysNeeded = Math.max(0, nextReq.activeDays - (s.activeDays || 0));
     const modsNeeded = Math.max(0, (nextReq.moderationActions || 0) - (s.moderationActions || 0));
     const reportsNeeded = Math.max(0, (nextReq.weeklyReports || 0) - (s.weeklyReports || 0));
@@ -741,7 +815,7 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
       name: '🚀 Rütbe Atlaması',
       value: 
         `${progress.level < 4 ? `🎫 Ticket: ${s.ticketsSolved||0}/${nextReq.ticketsSolved} ${ticketsNeeded > 0 ? `(${ticketsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `${nextReq.surveysCompleted ? `📊 Anket: ${s.surveysCompleted||0}/${nextReq.surveysCompleted} ${surveyNeeded > 0 ? `(${surveyNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `${nextReq.chatMessages ? `💬 Mesaj: ${s.chatMessages||0}/${nextReq.chatMessages} ${chatNeeded > 0 ? `(${chatNeeded} kaldı!)` : '✅'}\n` : ''}` +
         `📅 Aktif: ${s.activeDays||0}/${nextReq.activeDays} gün ${daysNeeded > 0 ? `(${daysNeeded} gün kaldı!)` : '✅'}\n` +
         `${nextReq.moderationActions ? `🛡️ Moderasyon: ${s.moderationActions||0}/${nextReq.moderationActions} ${modsNeeded > 0 ? `(${modsNeeded} kaldı!)` : '✅'}\n` : ''}` +
         `${nextReq.weeklyReports ? `📋 Rapor: ${s.weeklyReports||0}/${nextReq.weeklyReports} ${reportsNeeded > 0 ? `(${reportsNeeded} kaldı!)` : '✅'}\n` : ''}` +
@@ -1336,7 +1410,7 @@ async function runDailyCheck(client) {
       // İstatistik alanlarını başlat
       p.stats.dailyTicketsToday = p.stats.dailyTicketsToday || 0;
       p.stats.ticketsSolved = p.stats.ticketsSolved || 0;
-      p.stats.surveysCompleted = p.stats.surveysCompleted || 0;
+      p.stats.chatMessages = p.stats.chatMessages || 0;
       p.stats.activeDays = p.stats.activeDays || 0;
       p.stats.consecutiveDays = p.stats.consecutiveDays || 0;
       p.stats.moderationActions = p.stats.moderationActions || 0;
@@ -1874,11 +1948,11 @@ const WEEKLY_CHALLENGES = [
     xpReward: 350,
   },
   {
-    id: 'surveyMaster',
-    name: '📊 Anket Ustası',
-    goal: 5,
-    description: 'Bu hafta 5 anket yürüt!',
-    reward: 500, // 300 → 500 (artırıldı)
+    id: 'chat_50',
+    name: '💬 Geveze Personel',
+    goal: 100,
+    description: 'Bu hafta sohbet kanalına 100 mesaj gönder!',
+    reward: 500,
     xpReward: 300,
   },
   {
@@ -1968,9 +2042,12 @@ module.exports = {
   recordTicketSolved,
   recordSurveyCompleted,
   recordModerationAction,
+  recordChatMessage,
   recordWeeklyReport,
   checkPromotion,
   promote,
+  demote,
+  processDailyTasks,
   startStaffScheduler,
   resignFromStaff,
   retireFromStaff,

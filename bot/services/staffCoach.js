@@ -29,9 +29,9 @@ Görüşülen personel hakkında bilgiler:
 - Arka arkaya aktif gün: ${stats.consecutiveDays || 0}
 - Uyarı sayısı: ${progress?.warnings?.count || 0}/5
 - Çözülen ticket: ${stats.ticketsSolved || 0}
-- Anket: ${stats.surveysCompleted || 0}
-- Moderasyon işlemi: ${stats.moderationActions || 0}
-${nextReq ? `- Terfi için gerekli: ${nextReq.ticketsSolved} ticket, ${nextReq.surveysCompleted} anket, ${nextReq.activeDays} aktif gün` : '- En üst seviyeye ulaşmış'}
+- Mesaj (Sohbet): ${stats.chatMessages || 0}
+- Mod İşlem: ${stats.moderationActions || 0}
+${nextReq ? `- Terfi için gerekli: ${nextReq.ticketsSolved} ticket, ${nextReq.chatMessages} mesaj, ${nextReq.activeDays} aktif gün` : '- En üst seviyeye ulaşmış'}
 
 Günlük görev gereksinimleri: ${req.greets}x selam + ${req.voiceMinutes} dk ses
 

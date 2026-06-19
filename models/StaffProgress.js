@@ -26,7 +26,8 @@ const staffProgressSchema = new mongoose.Schema({
   // İstatistikler (terfi için)
   stats: {
     ticketsSolved:    { type: Number, default: 0 },
-    surveysCompleted: { type: Number, default: 0 },
+    chatMessages:     { type: Number, default: 0 }, // YENİ: Sohbet mesaj sayısı
+    totalVoiceMinutes:{ type: Number, default: 0 }, // YENİ: Toplam sesli kanal süresi
     activeDays:       { type: Number, default: 0 },
     consecutiveDays:  { type: Number, default: 0 },
     moderationActions:{ type: Number, default: 0 }, // Mod işlemleri
@@ -59,7 +60,7 @@ const staffProgressSchema = new mongoose.Schema({
       supportStar:     { type: Boolean, default: false }, // 100 ticket
       legendaryHelper:  { type: Boolean, default: false }, // 250 ticket
       perfectWeek:     { type: Boolean, default: false }, // 7 gün 100% başarı
-      socialButterfly:  { type: Boolean, default: false }, // 10 anket
+      chatterbox:      { type: Boolean, default: false }, // 500 mesaj
       moderator:       { type: Boolean, default: false }, // 30 mod işlem
       speedRunner:     { type: Boolean, default: false }, // Aynı gün 5 ticket
       noMissWeek:      { type: Boolean, default: false }, // 7 gün uyarısız

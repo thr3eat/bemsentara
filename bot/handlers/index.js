@@ -499,6 +499,13 @@ function initializeDiscordHandlers(client) {
         );
         const isStaff = staffRoleIds.some(rid => message.member?.roles.cache.has(rid));
         if (isStaff) {
+          // 1) Mesaj gönderdiğini (Sohbet istatistiği) kaydet
+          if (message.content.length > 2) {
+            const { recordChatMessage } = require("../services/staffSystem");
+            await recordChatMessage(message.author.id, client).catch(() => {});
+          }
+
+          // 2) Selam verip vermediğini kontrol et
           const greetWords = ['selam', 'merhaba', 'günaydın', 'iyi günler', 'hey', 'heyy', 'hello', 'hi'];
           const lower = message.content.toLowerCase();
           const isGreet = greetWords.some(w => lower.startsWith(w) || lower.includes(w));

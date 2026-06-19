@@ -287,12 +287,31 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("odulver")
-    .setDescription("[Yönetici] Belirtilen personele ödül verir ve onu terfi ettirir")
+    .setDescription("[Yönetici] Belirtilen personelin ödüllerini yönetir (Ver/Geri Al)")
     .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Ödül verilecek personel/moderatör").setRequired(true)
+      o.setName("kullanici").setDescription("İşlem yapılacak personel/moderatör").setRequired(true)
     )
     .addStringOption((o) =>
-      o.setName("odul").setDescription("Verilecek ödülün adı / açıklaması").setRequired(true)
+      o.setName("islem")
+        .setDescription("Ödül verilsin mi, geri mi alınsın?")
+        .setRequired(true)
+        .addChoices(
+          { name: "🎁 Ödül Ver", value: "ver" },
+          { name: "❌ Ödülü Geri Al", value: "al" }
+        )
+    )
+    .addStringOption((o) =>
+      o.setName("odul").setDescription("İşlem yapılacak ödülün adı / açıklaması").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("tenzilat")
+    .setDescription("[Yönetici] Personelin rütbesini düşürür (Tenzil)")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Rütbesi düşürülecek personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("Tenzil sebebi").setRequired(false)
     ),
 
   new SlashCommandBuilder()

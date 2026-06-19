@@ -245,6 +245,7 @@ async function handleGeneralCommand(interaction) {
     try {
       const targetUser = interaction.options.getUser('kullanici');
       const odul = interaction.options.getString('odul');
+      const islem = interaction.options.getString('islem');
       
       const StaffProgress = require('../../models/StaffProgress');
       const { promote, ROLE_NAMES } = require('../services/staffSystem');
@@ -254,6 +255,29 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde bulunmuyor.` });
       }
 
+      if (islem === 'al') {
+        // Ödül Geri Alma
+        progress.gamification = progress.gamification || {};
+        progress.gamification.totalPoints = Math.max(0, (progress.gamification.totalPoints || 0) - 500);
+        progress.gamification.currentXP = Math.max(0, (progress.gamification.currentXP || 0) - 500);
+        await progress.save();
+
+        const embed = new EmbedBuilder()
+          .setColor(0xff3333)
+          .setTitle('📉 Ödül Geri Alındı!')
+          .setThumbnail(targetUser.displayAvatarURL())
+          .setDescription(
+            `❌ **${targetUser.username}** kullanıcısının **"${odul}"** ödülü geri alındı.\n\n` +
+            `🔻 **Kaybedilenler:**\n` +
+            `• **-500 Puan** ve **-500 XP** gamification profilinden düşüldü.`
+          )
+          .setFooter({ text: 'Eko Yıldız • Yetkili Ödüllendirme' })
+          .setTimestamp();
+
+        return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed] });
+      }
+
+      // Ödül Verme (Varsayılan veya 'ver' işlemi)
       const oldLevel = progress.level || 1;
       const newLevel = oldLevel + 1;
 
@@ -287,6 +311,46 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed] });
     } catch (err) {
       console.error('[odulver] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── tenzilat: Personelin rütbesini düşür (demote) ─────────────────────
+  if (commandName === "tenzilat") {
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
+                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    }
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const sebep = interaction.options.getString('sebep') || "Belirtilmedi";
+      
+      const StaffProgress = require('../../models/StaffProgress');
+      const { demote } = require('../services/staffSystem');
+
+      const progress = await StaffProgress.findOne({ userId: targetUser.id });
+      if (!progress) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde bulunmuyor.` });
+      }
+
+      if (progress.level <= 1) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** zaten en düşük rütbede (Stajyer Personel) olduğu için rütbesi daha fazla düşürülemez. Eğer görevden almak istiyorsanız \`/personelkov\` kullanın.` });
+      }
+
+      const success = await demote(progress, interaction.client, sebep);
+      if (success) {
+        return interaction.editReply({ content: `✅ **${targetUser.username}** adlı personelin rütbesi başarıyla düşürüldü.\n**Sebep:** ${sebep}` });
+      } else {
+        return interaction.editReply({ content: `❌ İşlem sırasında bir hata oluştu veya yetkili bulunamadı.` });
+      }
+    } catch (err) {
+      console.error('[tenzilat] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
@@ -573,7 +637,7 @@ async function handleGeneralCommand(interaction) {
             name: '📈 Terfi İlerlemesi',
             value: nextReq
               ? `Ticketlar: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
-                `Anketler: ${p.stats?.surveysCompleted || 0}/${nextReq.surveysCompleted}\n` +
+                `Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
                 `Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
               : '🏆 En üst seviyeye ulaştın!',
             inline: false,
