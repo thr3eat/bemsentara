@@ -50,6 +50,10 @@ function initializeDiscordHandlers(client) {
     startCleanupScheduler();
     startStaffScheduler(client);
     startAtaturkHistoryScheduler(client);
+
+    // AI Kanal Sohbet İzleme
+    const { startAIChatMonitor } = require('../services/aiChannelChat');
+    startAIChatMonitor(client);
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -462,6 +466,12 @@ function initializeDiscordHandlers(client) {
       if (message.guild.id === FROG_GUILD_ID) {
         await addMessageXP(message.member, client).catch(() => {});
       }
+    } catch (_) {}
+
+    // ── AI Kanal Sohbet İzleme (moderatör etkileşimi) ─────────────────────
+    try {
+      const { handleAIChatMessage } = require('../services/aiChannelChat');
+      await handleAIChatMessage(message, client);
     } catch (_) {}
 
     // ── Personel selam takibi ──────────────────────────────────────────────

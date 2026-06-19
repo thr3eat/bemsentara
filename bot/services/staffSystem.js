@@ -26,50 +26,51 @@ const LEVEL_TASKS = {
   1: {
     name: 'Stajyer',
     dailyTasks: [
-      '✅ Sohbet kanalına selam ver (zorunlu)',
-      '🎤 Ses kanalında en az 5 dk kal (zorunlu)',
+      '✅ Sohbet kanalına 2x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 10 dk kal (zorunlu)',
       '📚 Sunucu kurallarını oku ve hatırla',
       '👀 Diğer personelin nasıl çalıştığını izle',
       '💬 Sorularında yardım iste — öğrenmek normaldir!',
+      '🎫 Ticket çözmeye başla (terfi için gerekli!)',
     ],
     rewards: '✨ Her tamamlanan gün terfi sayacına eklenir. Başarılı başlangıç yap!',
-    penalties: '⏰ 7 gün görev yapmazsan rol alınır (çok zaman var, endişelenme)',
-    tips: 'Stajyer olarak öğrenme dönemindeysin. Hata yapmak normal! Yöneticilerimiz çok anlayışlı.',
+    penalties: '⏰ 3 gün görev yapmazsan rol alınır — disiplini koru!',
+    tips: 'Stajyer olarak öğrenme dönemindeysin ama görevlerini aksatma!',
   },
   2: {
     name: 'Personel',
     dailyTasks: [
-      '✅ Sohbet kanalına 2x selam ver (zorunlu)',
-      '🎤 Ses kanalında en az 10 dk kal (zorunlu)',
-      '🎫 En az 1 ticket çözmeye çalış',
+      '✅ Sohbet kanalına 4x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 20 dk kal (zorunlu)',
+      '🎫 En az 2 ticket çözmeye çalış',
       '🚨 Kural ihlallerini raporla',
+      '🛡️ En az 1 moderasyon işlemi yap',
       '💬 Yeni üyelere yardımcı ol',
-      '🌟 Birini tanıyorsun mu? Onu destekle!',
     ],
-    rewards: '✨ Her ticket çözümü terfi sayacına eklenir. Hızlı ilerleme mümkün!',
-    penalties: '⏰ 7 gün görev yapmazsan Stajyer\'e düşersin (sonra tekrar terfiye edilebilirsin)',
-    tips: 'Personel olarak aktif olman bekleniyor. Ama hata yapsan da mesele değil — hep yanında birisi var!',
+    rewards: '✨ Her ticket çözümü terfi sayacına eklenir.',
+    penalties: '⏰ 3 gün görev yapmazsan Stajyer\'e düşersin',
+    tips: 'Personel olarak aktif olman ve moderasyon yapman bekleniyor. Sorumluluk artıyor!',
   },
   3: {
     name: 'Gelişmiş Personel',
     dailyTasks: [
-      '✅ Sohbet kanalına 4x selam ver (zorunlu)',
-      '🎤 Ses kanalında en az 20 dk kal (zorunlu)',
-      '🎫 Günde 2+ ticket çözmeye çalış',
-      '📊 Anket yönet (haftada 1)',
+      '✅ Sohbet kanalına 6x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 30 dk kal (zorunlu)',
+      '🎫 Günde 3+ ticket çözmeye çalış',
+      '📊 Anket yönet (haftada 2)',
       '🛡️ Moderasyon kararlarında diğerlerine örnek ol',
-      '📝 Sunucu gelişim önerisi yap (haftada 1)',
+      '📝 Sunucu gelişim önerisi yap (haftada 2)',
       '👥 Stajyerlere rehberlik et — liderlik göster!',
     ],
     rewards: '✨ Sekreterlik yolunda ilerliyor. En prestijli roldür!',
-    penalties: '⏰ 7 gün görev yapmazsan Personele gerileme olabilir',
-    tips: 'Bu seviyede liderlik becerilerin önemli. Ekibi motive et, hatalarını bağışla!',
+    penalties: '⏰ 3 gün görev yapmazsan Personele gerileme olur',
+    tips: 'Bu seviyede liderlik becerilerin kritik. Ekibi yönet ve örnek ol!',
   },
   4: {
     name: 'Sekreter',
     dailyTasks: [
-      '✅ Sohbet kanalına 8x selam ver (zorunlu)',
-      '🎤 Ses kanalında en az 40 dk kal (zorunlu)',
+      '✅ Sohbet kanalına 10x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 60 dk kal (zorunlu)',
       '🎫 Ticket kalitesini denetle ve yönet',
       '👥 Stajyerleri eğit ve motive et',
       '📋 Haftalık personel raporu hazırla',
@@ -78,8 +79,8 @@ const LEVEL_TASKS = {
       '🤝 Ekibin moral duvarı ol — destek ver!',
     ],
     rewards: '👑 En üst roldeyiz. Saygınlık ve sorumluluk sende.',
-    penalties: '⏰ Sekreter görevleri ihmal edilirse gözden geçirilir (ama dinlemeye hazır yöneticiler var)',
-    tips: 'Sen en üst personelsin. Sunucunun yüzüsün. Ama hatalardan da korkmayın — birlikte çözeriz!',
+    penalties: '⏰ 3 gün görev yapmazsan Sekreterlik gözden geçirilir',
+    tips: 'Sen en üst personelsin. Sunucunun yüzüsün. Disiplin ve liderlik göster!',
   },
 };
 
@@ -87,10 +88,10 @@ const LEVEL_TASKS = {
 function getDailyRequirements(level, consecutiveDays = 0) {
   const multiplier = Math.pow(2, Math.floor(consecutiveDays / 30));
   const base = {
-    1: { greets: 1, voiceMinutes: 5  },
-    2: { greets: 2, voiceMinutes: 10 },
-    3: { greets: 4, voiceMinutes: 20 },
-    4: { greets: 8, voiceMinutes: 40 },
+    1: { greets: 2, voiceMinutes: 10 },
+    2: { greets: 4, voiceMinutes: 20 },
+    3: { greets: 6, voiceMinutes: 30 },
+    4: { greets: 10, voiceMinutes: 60 },
   };
   const b = base[level] || base[1];
   return {
@@ -130,30 +131,30 @@ async function checkLowActivityWarning(progress, client) {
 // ── Terfi gereksinimleri (ZOR) ─────────────────────────────────────────────
 const PROMOTION_REQUIREMENTS = {
   1: {
-    ticketsSolved:    3,
+    ticketsSolved:    8,
     surveysCompleted: 0,
-    activeDays:       10,
-    moderationActions: 0,
+    activeDays:       15,
+    moderationActions: 5,
     weeklyReports:    0,
-    description: '3 ticket + 10 gün aktif',
+    description: '8 ticket + 5 mod işlem + 15 gün aktif',
     promotionBonus: { points: 250, xp: 350 },
   },
   2: {
-    ticketsSolved:    15,
-    surveysCompleted: 5,
-    activeDays:       30,
-    moderationActions: 10,
-    weeklyReports:    2,
-    description: '15 ticket + 5 anket + 10 mod işlem + 2 rapor + 30 gün aktif',
+    ticketsSolved:    30,
+    surveysCompleted: 10,
+    activeDays:       50,
+    moderationActions: 20,
+    weeklyReports:    5,
+    description: '30 ticket + 10 anket + 20 mod işlem + 5 rapor + 50 gün aktif',
     promotionBonus: { points: 500, xp: 750 },
   },
   3: {
-    ticketsSolved:    50,
-    surveysCompleted: 15,
-    activeDays:       90,
-    moderationActions: 30,
-    weeklyReports:    8,
-    description: '50 ticket + 15 anket + 30 mod işlem + 8 rapor + 90 gün aktif',
+    ticketsSolved:    100,
+    surveysCompleted: 25,
+    activeDays:       120,
+    moderationActions: 50,
+    weeklyReports:    15,
+    description: '100 ticket + 25 anket + 50 mod işlem + 15 rapor + 120 gün aktif',
     promotionBonus: { points: 1000, xp: 1500 },
   },
   4: { promotionBonus: { points: 2000, xp: 3000 } },
@@ -659,7 +660,7 @@ async function sendMorningBriefing(progress, client) {
   const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
   const req       = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const nextReq   = PROMOTION_REQUIREMENTS[progress.level];
-  const MAX_WARNINGS = 5; // 7 → 5 gün
+  const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
   const daysLeft  = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
 
   // AI'dan kişiselleştirilmiş briefing al
@@ -754,7 +755,7 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
 async function sendWarningDM(progress, client) {
   const req      = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const MAX_WARNINGS = 5; // 7 → 5 gün
+  const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
   const warnLeft = MAX_WARNINGS - (progress.warnings?.count || 0);
 
   // AI'dan uyarı mesajı
@@ -908,7 +909,7 @@ async function requestLeave(userId, leaveDate, reason) {
       return { success: false, message: 'Aktif personel değilsin.' };
     }
 
-    const monthlyLimit = 3; // Ayda maksimum 3 gün izin
+    const monthlyLimit = 2; // Ayda maksimum 2 gün izin (sıkılaştırıldı)
     const weeklyLimit = 1;  // Haftada maksimum 1 gün izin
 
     if ((p.leaves.monthlyLeaveUsed || 0) >= monthlyLimit) {
@@ -951,7 +952,7 @@ async function getLeaveStatus(userId) {
   try {
     const p = await getOrCreate(userId, GUILD_ID);
     
-    const monthlyLimit = 3;
+    const monthlyLimit = 2; // Sıkılaştırıldı
     const weeklyLimit = 1;
 
     return {
@@ -1007,13 +1008,13 @@ async function removeRole(progress, client) {
     const member = await guild.members.fetch(progress.userId).catch(() => null);
     if (!member) return;
     const roleId = ROLES[progress.level];
-    if (roleId) await member.roles.remove(roleId, '5 gün görev yapmadı').catch(() => {});
+    if (roleId) await member.roles.remove(roleId, '3 gün görev yapmadı').catch(() => {});
 
     const embed = new EmbedBuilder()
       .setColor(0xff9500)
       .setTitle('⏸️ Personel Rolü Duraklatıldı — Geri Dön!')
       .setDescription(
-        `Yazık ki **5 gün üst üste görev yapamadığın** için **${ROLE_NAMES[progress.level]}** rolün geçici olarak alındı. 😟\n\n` +
+        `**3 gün üst üste görev yapamadığın** için **${ROLE_NAMES[progress.level]}** rolün alındı. ⚠️\n\n` +
         `💡 **Ama endişelenme! Geri gelmek ÇOOOOK basit:**\n` +
         `🤝 Yöneticilere yazabilirsin\n` +
         `💬 Neden yapamadığını anlatabilirsin\n` +
@@ -1366,8 +1367,8 @@ async function runDailyCheck(client) {
         p.warnings.count = (p.warnings.count || 0) + 1;
         p.warnings.lowActivityNotified = false; // Aktif gün < 2 kontrolü için sıfırla
 
-        // 5 gün uyarısı sonrası rol al (7 → 5)
-        if (p.warnings.count >= 5) {
+        // 3 gün uyarısı sonrası rol al (5 → 3 sıkılaştırıldı)
+        if (p.warnings.count >= 3) {
           await removeRole(p, client);
         } else {
           await sendWarningDM(p, client);
