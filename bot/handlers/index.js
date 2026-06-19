@@ -585,6 +585,42 @@ function initializeDiscordHandlers(client) {
                     memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayalet!**\nSeste en az 1 saat boyunca tamamen sessiz/susturulmuş kaldığınız için `👻 Hayalet` rolünü kazandınız!').catch(() => {});
                   }
                 }
+
+                // 4. Vampir Başarımı (Seste 10 Saat = 600 Dk)
+                if (minutes >= 600) {
+                  let vampireRole = mainGuild.roles.cache.find(r => r.name === '🦇 Vampir');
+                  if (!vampireRole) {
+                    vampireRole = await mainGuild.roles.create({
+                      name: '🦇 Vampir',
+                      color: '#8e44ad', // Koyu Mor
+                      hoist: false,
+                      position: 1,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (vampireRole && !memberToReward.roles.cache.has(vampireRole.id)) {
+                    await memberToReward.roles.add(vampireRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Vampir!**\nİnanılmaz! Seste tam 10 saat boyunca kesintisiz durarak `🦇 Vampir` rolünü kazandınız!').catch(() => {});
+                  }
+                }
+
+                // 5. Yalnız Kurt Başarımı (Seste 3 saat boyunca tek başına/kimsesiz kalma - çıkarken tek kişi olma kontrolü)
+                if (minutes >= 180 && oldState.channel && oldState.channel.members.size <= 1) {
+                  let wolfRole = mainGuild.roles.cache.find(r => r.name === '🐺 Yalnız Kurt');
+                  if (!wolfRole) {
+                    wolfRole = await mainGuild.roles.create({
+                      name: '🐺 Yalnız Kurt',
+                      color: '#34495e', // Koyu Gri/Mavi
+                      hoist: false,
+                      position: 1,
+                      reason: 'Gizli Başarım Sistemi'
+                    });
+                  }
+                  if (wolfRole && !memberToReward.roles.cache.has(wolfRole.id)) {
+                    await memberToReward.roles.add(wolfRole.id).catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Yalnız Kurt!**\nSeste saatlerce tek başınıza kalarak `🐺 Yalnız Kurt` rolünü kazandınız!').catch(() => {});
+                  }
+                }
               }
             }
           } catch (e) {
@@ -745,6 +781,24 @@ function initializeDiscordHandlers(client) {
           if (keyRole && !message.member.roles.cache.has(keyRole.id)) {
             await message.member.roles.add(keyRole.id).catch(() => {});
             message.author.send('🎉 **Gizli Başarım Kazanıldı: Klavyeşör!**\nBugün 100\'den fazla mesaj göndererek aktifliğini kanıtladın ve `⌨️ Klavyeşör` rolünü kazandın!').catch(() => {});
+          }
+        }
+
+        // Kahin (Gizli Şifre)
+        if (message.content.toLowerCase().includes("eko yıldız kalbimde")) {
+          let oracleRole = message.guild.roles.cache.find(r => r.name === '🔮 Kahin');
+          if (!oracleRole) {
+            oracleRole = await message.guild.roles.create({
+              name: '🔮 Kahin',
+              color: '#9b59b6', // Mor
+              hoist: false,
+              position: 1,
+              reason: 'Gizli Başarım Sistemi'
+            });
+          }
+          if (oracleRole && !message.member.roles.cache.has(oracleRole.id)) {
+            await message.member.roles.add(oracleRole.id).catch(() => {});
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Kahin!**\nSohbete tam olarak gizli şifreyi yazmayı başardığın için `🔮 Kahin` rolünü kazandın! Gerçekten bir kahin olmalısın.').catch(() => {});
           }
         }
       }

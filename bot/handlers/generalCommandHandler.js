@@ -6,6 +6,7 @@ const { SUPPORT_CATEGORIES, BASE_URL } = require("../../config");
 const { findUserByDiscordId, hasRobloxLink } = require("../../utils/userLink");
 const { deferEphemeral } = require("../utils/interaction");
 
+const pingTracker = new Map();
 const GENERAL_COMMANDS = new Set([
   "support",
   "mytickets",
@@ -1178,7 +1179,43 @@ async function handleGeneralCommand(interaction) {
           { name: "Websocket", value: `${interaction.client.ws.ping}ms`, inline: true }
         )
         .setTimestamp();
-      return interaction.editReply({ embeds: [pingEmbed] });
+        
+      // Ping Bağımlısı Başarımı
+      let extraMsg = '';
+      if (interaction.guild && interaction.guild.id === '1367646464804655104') {
+        const uId = interaction.user.id;
+        let pings = pingTracker.get(uId) || 0;
+        pings++;
+        pingTracker.set(uId, pings);
+
+        if (pings === 50) {
+          try {
+            const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+              if (memberToReward) {
+                let pingRole = mainGuild.roles.cache.find(r => r.name === '🏓 Ping Bağımlısı');
+                if (!pingRole) {
+                  pingRole = await mainGuild.roles.create({
+                    name: '🏓 Ping Bağımlısı',
+                    color: '#e74c3c', // Kırmızı
+                    hoist: false,
+                    position: 1,
+                    reason: 'Gizli Başarım Sistemi'
+                  });
+                }
+                if (pingRole && !memberToReward.roles.cache.has(pingRole.id)) {
+                  await memberToReward.roles.add(pingRole.id).catch(() => {});
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ping Bağımlısı!**\nBotu arka arkaya tam 50 kere pingleyerek sınırları zorladın ve `🏓 Ping Bağımlısı` rolünü kazandın!').catch(() => {});
+                  extraMsg = '\n\n🏓 **Ping Bağımlısı gizli başarımını açtın! Botu çok yordun... DM kutuna bak!**';
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      return interaction.editReply({ content: extraMsg ? extraMsg : null, embeds: [pingEmbed] });
     }
 
     if (commandName === "seviye") {
@@ -1492,8 +1529,37 @@ async function handleGeneralCommand(interaction) {
 
       await p.save();
 
+      // Şanslı 7 Gizli Başarımı
+      let extraMsg = '';
+      if (reward === 77 && interaction.guild && interaction.guild.id === '1367646464804655104') {
+        const uId = interaction.user.id;
+        try {
+          const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+          if (mainGuild) {
+            const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+            if (memberToReward) {
+              let luckyRole = mainGuild.roles.cache.find(r => r.name === '🎰 Şanslı 7');
+              if (!luckyRole) {
+                luckyRole = await mainGuild.roles.create({
+                  name: '🎰 Şanslı 7',
+                  color: '#f1c40f', // Altın Sarısı
+                  hoist: false,
+                  position: 1,
+                  reason: 'Gizli Başarım Sistemi'
+                });
+              }
+              if (luckyRole && !memberToReward.roles.cache.has(luckyRole.id)) {
+                await memberToReward.roles.add(luckyRole.id).catch(() => {});
+                memberToReward.send('🎉 **İnanılmaz! Gizli Başarım Kazanıldı: Şanslı 7!**\nGünlük ödülden tam olarak 77 E.C. kazanarak mucizevi bir şans yakaladın ve `🎰 Şanslı 7` rolünü kazandın!').catch(() => {});
+                extraMsg = '\n\n🎰 **İnanılmaz bir şans! Tam 77 E.C. kazanarak Şanslı 7 gizli başarımını açtın! DM kutunu kontrol et.**';
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       return interaction.editReply({
-        content: `🎉 **Tebrikler!** Günlük girişinizden **${reward} E.C.** kazandınız!\nMevcut Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\``
+        content: `🎉 **Tebrikler!** Günlük girişinizden **${reward} E.C.** kazandınız!\nMevcut Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\`${extraMsg}`
       });
     }
 
