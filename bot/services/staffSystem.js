@@ -3,6 +3,7 @@
 const { EmbedBuilder } = require('discord.js');
 const StaffProgress    = require('../../models/StaffProgress');
 const { chatWithAI }   = require('./aiService');
+const staffAutomation  = require('./staffAutomation');
 
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
@@ -632,6 +633,15 @@ async function promote(progress, client) {
     } catch (dmErr) {
       console.warn(`[staffSystem] Cannot send promotion DM to ${progress.userId}:`, dmErr.code);
     }
+    
+    // YENİ: Roblox Rütbelerini Senkronize Et
+    await staffAutomation.syncStaffRobloxRanks(client, progress.userId);
+    
+    // YENİ: Yönetim Discorduna Log Gönder
+    await staffAutomation.sendAdminLog(client, 'TERFI_LOG', embed);
+    
+    // YENİ: Yönetim Listesini Güncelle
+    await staffAutomation.updateDynamicModList(client);
     
     console.log(`[staffSystem] ${progress.userId} promoted to level ${newLevel}`);
   } catch (err) {

@@ -379,6 +379,47 @@ async function handleButtonInteraction(interaction) {
     }
   }
 
+  // ── Admin Form Modals ──────────────────────────────────────────────────
+  if (interaction.customId === 'btn_leave_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_leave_form').setTitle('İzin Formu');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('leave_reason').setLabel('İzin Sebebi').setStyle(TextInputStyle.Paragraph).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('leave_duration').setLabel('Kaç Gün').setStyle(TextInputStyle.Short).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_suggestion_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_suggestion_form').setTitle('Tavsiye & Öneri Formu');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('suggestion_text').setLabel('Öneriniz').setStyle(TextInputStyle.Paragraph).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_resign_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_resign_form').setTitle('İstifa Formu');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('resign_reason').setLabel('İstifa Sebebiniz').setStyle(TextInputStyle.Paragraph).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('resign_confirm').setLabel('Onaylıyorum (Evet yazın)').setStyle(TextInputStyle.Short).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
+  if (interaction.customId === 'btn_modaction_form') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_modaction_form').setTitle('Moderatör İşlem Formu');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_user').setLabel('İşlem Yapılan Kullanıcı (ID/İsim)').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_action').setLabel('İşlem (Ban/Mute/Kick vb.)').setStyle(TextInputStyle.Short).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_reason').setLabel('Sebep ve Kanıt Linki').setStyle(TextInputStyle.Paragraph).setRequired(true))
+    );
+    return interaction.showModal(modal);
+  }
+
   return null;
 }
 

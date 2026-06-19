@@ -28,12 +28,14 @@ function initializeDiscordHandlers(client) {
     const { startAuditLogPoller } = require("../services/robloxAuditLogPoller");
     const { initTMTInvites, ensureTMTLogEmbed } = require("../services/tmtLogger");
     const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
+    const { ensureAdminPanels } = require("../services/panelManager");
 
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
     await ensureTMTSupportMessage(client);
     await ensureTMTRules(client);
+    await ensureAdminPanels(client);
     await initializeRoblox();
     await ensureRobloxManagementMenu(client);
     await ensureEkoYildizRobloxMenu(client);

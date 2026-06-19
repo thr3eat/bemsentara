@@ -263,6 +263,10 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("personel-dogrula")
+    .setDescription("Yetkili (Staff) Roblox hesabı doğrulama linki gönderir"),
+
+  new SlashCommandBuilder()
     .setName("odulver")
     .setDescription("[Yönetici] Belirtilen personele ödül verir ve onu terfi ettirir")
     .addUserOption((o) =>

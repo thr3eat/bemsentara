@@ -44,6 +44,23 @@ async function handleModalSubmit(interaction) {
         }
       } catch (_) {}
     }
+    return null;
+  }
+
+  // ── Admin Panel Form Modals ─────────────────────────────────────────────
+  if (['modal_leave_form', 'modal_suggestion_form', 'modal_resign_form', 'modal_modaction_form'].includes(interaction.customId)) {
+    try {
+      const { handleAdminFormModals } = require('../services/adminFormHandler');
+      await handleAdminFormModals(interaction, interaction.client);
+    } catch (err) {
+      console.error('[AdminForm] Modal hata:', err.message);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   return null;

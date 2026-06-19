@@ -9,6 +9,10 @@ const staffProgressSchema = new mongoose.Schema({
   userId:    { type: String, required: true, unique: true, index: true },
   guildId:   { type: String, required: true },
 
+  // Yönetim ve Roblox entegrasyonu (YENİ!)
+  robloxVerified: { type: Boolean, default: false },
+  guildJoined:    { type: Boolean, default: false },
+
   // Mevcut rol seviyesi (1=Stajyer, 2=Personel, 3=Gelişmiş, 4=Sekreter)
   level:     { type: Number, default: 1 },
 

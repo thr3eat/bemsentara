@@ -38,11 +38,50 @@ const GENERAL_COMMANDS = new Set([
   "izin_durum",
   "konus",
   "odulver",
+  "personel-dogrula",
 ]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // ── personel-dogrula: Personel yetkilendirme linki ──────────────────────
+  if (commandName === "personel-dogrula") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+    try {
+      const User = require("../../models/User");
+      const user = await User.findOne({ discordId: interaction.user.id });
+      
+      if (user?.robloxId) {
+        return interaction.editReply({ content: `✅ **Hesabınız Zaten Doğrulanmış!**\nRoblox ID: \`${user.robloxId}\`\n\nYönetim paneli rollerinizin senkronize olması gerekiyorsa yetkili yöneticilere bildiriniz.` });
+      }
+
+      const { BASE_URL } = require("../../config");
+      const embed = new EmbedBuilder()
+        .setColor(0x4169E1)
+        .setTitle("🔐 Personel Roblox Doğrulaması")
+        .setDescription(
+          `EkoYıldız yönetim ekibinde bulunduğunuz tespit edildi. Sistemleri tam olarak kullanabilmek ve görev yetkilerinizi alabilmek için **Roblox** hesabınızı doğrulamanız gerekmektedir.\n\n` +
+          `Lütfen aşağıdaki web paneli linkine tıklayarak hesabınızı eşleştirin.\n\n` +
+          `🔗 **Doğrulama Linki:** [EkoYıldız Dashboard](${BASE_URL}/dashboard)`
+        )
+        .setFooter({ text: "EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi" });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("🌐 Dashboard'a Git ve Doğrula")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`${BASE_URL}/dashboard`)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      console.error('[personel-dogrula] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
 
   // ── konus: AI destekli konuşma başlat ──────────────────────────────────────
   if (commandName === "konus") {
