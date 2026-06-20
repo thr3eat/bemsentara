@@ -2070,7 +2070,7 @@ async function handleGeneralCommand(interaction) {
     if (commandName === "birimalimi") {
       const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!isYonetici) {
-        return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+        return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
       }
       const birimKey = interaction.options.getString('birim');
       const { startBirimAlimi } = require("../services/unitService");
@@ -2090,7 +2090,7 @@ async function handleGeneralCommand(interaction) {
     if (commandName === "birimtanitim") {
       const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!isYonetici) {
-        return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+        return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
       }
       if (!interaction.deferred && !interaction.replied) {
         await interaction.deferReply({ ephemeral: true }).catch(() => {});
