@@ -1468,6 +1468,12 @@ async function handleGeneralCommand(interaction) {
         await p.save();
         await targetProgress.save();
 
+        // Eko Milyoneri Başarımı Kontrolü (Alıcı için)
+        try {
+          const { checkEcoMillionaire } = require('../services/achievementManager');
+          await checkEcoMillionaire(targetUser.id, targetProgress.gamification.ecoCoins, interaction.client).catch(() => {});
+        } catch (_) {}
+
         // ── Gizli Başarım: Hayırsever ──
         let extraMsg = '';
         if (interaction.guild && interaction.guild.id === '1367646464804655104') {
@@ -1563,6 +1569,12 @@ async function handleGeneralCommand(interaction) {
       p.gamification.lastDailyClaim = today;
 
       await p.save();
+
+      // Eko Milyoneri Başarımı Kontrolü
+      try {
+        const { checkEcoMillionaire } = require('../services/achievementManager');
+        await checkEcoMillionaire(interaction.user.id, p.gamification.ecoCoins, interaction.client).catch(() => {});
+      } catch (_) {}
 
       // Şanslı 7 Gizli Başarımı
       let extraMsg = '';

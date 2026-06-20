@@ -238,10 +238,46 @@ async function recordGreet(userId, client) {
     resetDaily(p);
     if (!p.daily.greeted) {
       p.daily.greeted = true;
+      
+      // EkoCoin İyileştirmesi: Selamlaşma için +15 EkoCoin verelim
+      if (!p.gamification) {
+        p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
+      }
+      const greetCoins = 15;
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + greetCoins;
+      
       await p.save().catch(err => {
         console.error('[staffSystem] Save failed in recordGreet:', err.message);
         return;
       });
+
+      // DM Bildirimi gönder
+      try {
+        const discordUser = await client.users.fetch(userId).catch(() => null);
+        if (discordUser) {
+          const embed = new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle('🌅 Günlük Selamlaşma Başarılı!')
+            .setDescription(
+              `Merhaba <@${userId}>,\n\n` +
+              `Moderatör ekibi kanalına bugünün ilk selamını gönderdin ve günlük selamlaşma görevin kaydedildi!\n\n` +
+              `💰 **+${greetCoins} EkoCoin (E.C.)** cüzdanına eklendi!\n` +
+              `💳 Güncel Bakiyen: \`${p.gamification.ecoCoins} E.C.\``
+            )
+            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+            .setTimestamp();
+          await discordUser.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (dmErr) {
+        console.warn(`[staffSystem] Greet DM error:`, dmErr.message);
+      }
+
+      // Eko Milyoneri Başarımı Kontrolü
+      try {
+        const { checkEcoMillionaire } = require('./achievementManager');
+        await checkEcoMillionaire(userId, p.gamification.ecoCoins, client).catch(() => {});
+      } catch (_) {}
+
       await checkDailyCompletion(p, client).catch(err => {
         console.error('[staffSystem] checkDailyCompletion failed:', err.message);
       });
@@ -415,12 +451,42 @@ async function checkDailyCompletion(progress, client) {
     
     // 🎮 Gamification: Günlük görev tamamlama ödülü
     if (!progress.gamification) {
-      progress.gamification = { totalPoints: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0 } };
+      progress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
     }
     const levelMultiplier = 1 + (progress.level * 0.25); // Seviye arttıkça daha fazla ödül
     progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + Math.floor(25 * levelMultiplier); // Günlük 25+ puan
     progress.gamification.currentXP = (progress.gamification.currentXP || 0) + Math.floor(100 * levelMultiplier); // Günlük 100+ XP
     
+    // EkoCoin İyileştirmesi: Tüm görevlerin tamamlanması halinde EkoCoin ödülü
+    const coinReward = Math.floor(40 * levelMultiplier);
+    progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + coinReward;
+    
+    // Görev tamamlama mesajı gönder
+    if (client) {
+      const taskEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('🎉 GÜNLÜK GÖREVLER TAMAMLANDI!')
+        .setDescription(
+          `Tebrikler <@${progress.userId}>, bugünün tüm günlük görevlerini (Selamlaşma + Ses Aktifliği) başarıyla tamamladın!\n\n` +
+          `✨ **+${Math.floor(100 * levelMultiplier)} XP** kazanıldı!\n` +
+          `💰 **+${coinReward} EkoCoin (E.C.)** kazanıldı!\n` +
+          `💳 Güncel Bakiyen: \`${progress.gamification.ecoCoins} E.C.\``
+        )
+        .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+        .setTimestamp();
+      
+      try {
+        const user = await client.users.fetch(progress.userId);
+        await user.send({ embeds: [taskEmbed] }).catch(() => {});
+      } catch (_) {}
+    }
+
+    // Eko Milyoneri Başarımı Kontrolü
+    try {
+      const { checkEcoMillionaire } = require('./achievementManager');
+      await checkEcoMillionaire(progress.userId, progress.gamification.ecoCoins, client).catch(() => {});
+    } catch (_) {}
+
     // Level up kontrol et
     const nextLevelXp = getXpForLevel((progress.gamification.level || 1) + 1);
     if (progress.gamification.currentXP >= nextLevelXp) {
@@ -585,6 +651,7 @@ async function recordChatMessage(userId, client) {
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
+    await checkAndUnlockBadges(p, client).catch(() => {});
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -1959,6 +2026,7 @@ const BADGES = {
   moderator: { name: '🛡️ Moderatör', desc: '30 moderasyon işlemi!', xp: 350 },
   speedRunner: { name: '⚡ Hız Ustası', desc: 'Aynı gün 5 ticket!', xp: 250 },
   noMissWeek: { name: '🎯 Hedefçi', desc: '7 gün uyarısız!', xp: 300 },
+  chatterbox: { name: '💬 Muhabbetçi', desc: 'Sohbette 500 mesaj gönderdin!', xp: 300 },
 };
 
 /**
@@ -2035,6 +2103,11 @@ async function checkAndUnlockBadges(progress, client) {
   if ((stats.dailyTicketsToday || 0) >= 5 && !badges.speedRunner) {
     badges.speedRunner = true;
     newBadges.push('speedRunner');
+  }
+
+  if ((stats.chatMessages || 0) >= 500 && !badges.chatterbox) {
+    badges.chatterbox = true;
+    newBadges.push('chatterbox');
   }
 
   // Yeni rozetler için gönder

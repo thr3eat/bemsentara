@@ -1401,7 +1401,37 @@ function initializeDiscordHandlers(client) {
         }
 
         await p.save();
-        return interaction.reply({ content: `✅ ${successMessage}\n💰 Kalan Bakiye: ${p.gamification.ecoCoins} E.C.`, ephemeral: true });
+
+        // ── GİZLİ BAŞARIM: Mağaza Müdavimi ──
+        let extraMsg = '';
+        if (interaction.guild && interaction.guild.id === '1367646464804655104') {
+          const uId = interaction.user.id;
+          try {
+            const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+            if (mainGuild) {
+              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+              if (memberToReward) {
+                let shopRole = mainGuild.roles.cache.find(r => r.name === '🛒 Mağaza Müdavimi');
+                if (!shopRole) {
+                  shopRole = await mainGuild.roles.create({
+                    name: '🛒 Mağaza Müdavimi',
+                    color: '#1abc9c', // Turkuaz
+                    hoist: false,
+                    position: 1,
+                    reason: 'Gizli Başarım Sistemi'
+                  });
+                }
+                if (shopRole && !memberToReward.roles.cache.has(shopRole.id)) {
+                  await memberToReward.roles.add(shopRole.id).catch(() => {});
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Mağaza Müdavimi!**\nEkoCoin mağazasından ilk alışverişinizi başarıyla yaptınız ve `🛒 Mağaza Müdavimi` rolünü kazandınız!').catch(() => {});
+                  extraMsg = '\n\n🛒 **Alışverişin ödüllendirildi! Mağaza Müdavimi gizli başarımını açtın, DM kutuna bak!**';
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        return interaction.reply({ content: `✅ ${successMessage}${extraMsg}\n💰 Kalan Bakiye: ${p.gamification.ecoCoins} E.C.`, ephemeral: true });
       }
       // ── Roblox Etkileşimleri ──────────────────────────────────────────────
       if (
