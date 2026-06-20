@@ -8,6 +8,13 @@ const staffAutomation  = require('./staffAutomation');
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
 
+const CHOSEN_TASKS = {
+  'task_chat': '💬 Aktif Sohbetçi: Sohbette en az 15 mesaj gönder.',
+  'task_voice': '🎤 Ses Meraklısı: Ses kanallarında fazladan 15 dakika geçir.',
+  'task_ticket': '🎫 Destekçi: Bugün en az 1 ticket çöz.',
+  'task_mod': '🛡️ Koruyucu: Bugün en az 1 moderasyon işlemi gerçekleştir.'
+};
+
 const ROLES = {
   1: process.env.ROLE_STAJYER  || '1475082184896548864', // Stajyer Personel
   2: process.env.ROLE_PERSONEL || '1417530761774366821', // Personel
@@ -244,19 +251,33 @@ function resetDaily(progress) {
   
   // 🔧 Güvenlik: daily objesi tanımlı değilse oluştur
   if (!progress.daily) {
+    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     progress.daily = {
       date: today,
       greeted: false,
       voiceMinutes: 0,
+      chosenTask: randomTask,
+      chosenTaskCompleted: false,
+      chatMessagesToday: 0,
+      ticketsSolvedToday: 0,
+      moderationActionsToday: 0
     };
     return;
   }
   
   // Tarih değişmişse sıfırla
   if (progress.daily.date !== today) {
+    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     progress.daily.date = today;
     progress.daily.greeted = false;
     progress.daily.voiceMinutes = 0;
+    progress.daily.chosenTask = randomTask;
+    progress.daily.chosenTaskCompleted = false;
+    progress.daily.chatMessagesToday = 0;
+    progress.daily.ticketsSolvedToday = 0;
+    progress.daily.moderationActionsToday = 0;
   }
 }
 
@@ -403,6 +424,7 @@ async function addVoiceMinutes(userId, minutes, client) {
       console.error('[staffSystem] Save failed in addVoiceMinutes:', err.message);
       return;
     });
+    await checkChosenTaskCompletion(p, client).catch(() => {});
     await checkDailyCompletion(p, client).catch(err => {
       console.error('[staffSystem] checkDailyCompletion failed:', err.message);
     });
@@ -453,6 +475,7 @@ async function recordModerationAction(userId, client) {
     resetDaily(p);
     
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
+    p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
     
     // YENİ: E.C. Kazandır
     await addEkoCoin(p, 10, client, 'Moderasyon İşlemi');
@@ -460,6 +483,7 @@ async function recordModerationAction(userId, client) {
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
+    await checkChosenTaskCompletion(p, client).catch(() => {});
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -602,6 +626,84 @@ async function checkDailyCompletion(progress, client) {
   }
 }
 
+async function checkChosenTaskCompletion(progress, client) {
+  try {
+    if (!progress.daily || !progress.daily.chosenTask || progress.daily.chosenTaskCompleted) return;
+
+    let completed = false;
+    const task = progress.daily.chosenTask;
+
+    if (task === 'task_chat') {
+      if ((progress.daily.chatMessagesToday || 0) >= 15) {
+        completed = true;
+      }
+    } else if (task === 'task_voice') {
+      const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
+      if ((progress.daily.voiceMinutes || 0) >= req.voiceMinutes + 15) {
+        completed = true;
+      }
+    } else if (task === 'task_ticket') {
+      if ((progress.daily.ticketsSolvedToday || 0) >= 1) {
+        completed = true;
+      }
+    } else if (task === 'task_mod') {
+      if ((progress.daily.moderationActionsToday || 0) >= 1) {
+        completed = true;
+      }
+    }
+
+    if (completed) {
+      progress.daily.chosenTaskCompleted = true;
+      
+      // %25 terfi katkısı ekle
+      const nextReq = PROMOTION_REQUIREMENTS[progress.level];
+      if (nextReq) {
+        const ticketsBonus = Math.ceil((nextReq.ticketsSolved || 0) * 0.25);
+        const chatBonus = Math.ceil((nextReq.chatMessages || 0) * 0.25);
+        const voiceBonus = Math.ceil((nextReq.totalVoiceMinutes || 0) * 0.25);
+        const activeDaysBonus = Math.ceil((nextReq.activeDays || 0) * 0.25);
+        const modsBonus = Math.ceil((nextReq.moderationActions || 0) * 0.25);
+        const reportsBonus = Math.ceil((nextReq.weeklyReports || 0) * 0.25);
+
+        progress.stats.ticketsSolved = (progress.stats.ticketsSolved || 0) + ticketsBonus;
+        progress.stats.chatMessages = (progress.stats.chatMessages || 0) + chatBonus;
+        progress.stats.totalVoiceMinutes = (progress.stats.totalVoiceMinutes || 0) + voiceBonus;
+        progress.stats.activeDays = (progress.stats.activeDays || 0) + activeDaysBonus;
+        progress.stats.moderationActions = (progress.stats.moderationActions || 0) + modsBonus;
+        progress.stats.weeklyReports = (progress.stats.weeklyReports || 0) + reportsBonus;
+      }
+
+      await progress.save().catch(err => {
+        console.error('[staffSystem] Save failed in checkChosenTaskCompletion:', err.message);
+      });
+
+      // DM tebrik mesajı gönder
+      if (client) {
+        const discordUser = await client.users.fetch(progress.userId).catch(() => null);
+        if (discordUser) {
+          const taskLabel = CHOSEN_TASKS[task] || task;
+          const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle('🎯 Seçmeli Görev Başarıyla Tamamlandı!')
+            .setDescription(
+              `Tebrikler <@${progress.userId}>, bugünün seçimli görevi olan **"${taskLabel}"** başarıyla tamamlandı! 🎉\n\n` +
+              `🚀 **Ödülünüz:** Bir sonraki rütbeye terfi etmeniz için gereken hedeflerinize **%25 doğrudan ilerleme katkısı** sağlandı! Tebrikler! 💪`
+            )
+            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+            .setTimestamp();
+          
+          await discordUser.send({ embeds: [embed] }).catch(() => {});
+        }
+      }
+
+      // Terfi durumunu kontrol et
+      await checkPromotion(progress, client).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[staffSystem] checkChosenTaskCompletion error:', err.message);
+  }
+}
+
 async function recordTicketSolved(userId, client) {
   try {
     if (!userId) {
@@ -616,6 +718,7 @@ async function recordTicketSolved(userId, client) {
     resetDaily(p);
     
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
+    p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
     
     // 🎮 Gamification: XP ve Puan ekle
     if (!p.gamification) {
@@ -698,6 +801,7 @@ async function recordTicketSolved(userId, client) {
     
     // Rozetleri kontrol et
     await checkAndUnlockBadges(p, client).catch(() => {});
+    await checkChosenTaskCompletion(p, client).catch(() => {});
     
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
@@ -721,10 +825,12 @@ async function recordChatMessage(userId, client) {
     resetDaily(p);
     
     p.stats.chatMessages = (p.stats.chatMessages || 0) + 1;
+    p.daily.chatMessagesToday = (p.daily.chatMessagesToday || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
     await checkAndUnlockBadges(p, client).catch(() => {});
+    await checkChosenTaskCompletion(p, client).catch(() => {});
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -1009,6 +1115,15 @@ function getNextRequirementsText(level) {
 
 // ── AI Sabah Brifing DM'i ─────────────────────────────────────────────────
 async function sendMorningBriefing(progress, client) {
+  resetDaily(progress);
+  if (!progress.daily.chosenTask) {
+    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
+    progress.daily.chosenTask = randomTask;
+    progress.daily.chosenTaskCompleted = false;
+    await progress.save().catch(() => {});
+  }
+
   const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
   const req       = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const nextReq   = PROMOTION_REQUIREMENTS[progress.level];
@@ -1041,12 +1156,17 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     )
     .addFields(
       {
-        name: '⚡ Yapman Gerekenler',
+        name: '⚡ Yapman Gerekenler (Zorunlu)',
         value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n💪 Kolay! Senin için cinayeti işlemesi!`,
         inline: false,
       },
       {
-        name: '🎯 Ekstra Görevler (Seçimli)',
+        name: '🎯 Bugünün Seçimli Görevi',
+        value: `${CHOSEN_TASKS[progress.daily.chosenTask] || 'Rastgele Atanacak'}\nDurum: ${progress.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam Ediyor...*'}\n*(Aşağıdaki menüden değiştirebilirsiniz. Yapılması terfi hedeflerine %25 katkı sunar!)*`,
+        inline: false
+      },
+      {
+        name: '🎯 Ekstra Görevler (Öneri)',
         value: levelInfo.dailyTasks.slice(2).join('\n') || '—',
         inline: false,
       },
@@ -1078,7 +1198,6 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     // Terfi yüzdesi hesapla
     const maxTickets = nextReq.ticketsSolved || 1;
     const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
-    const progressBar = '█'.repeat(Math.floor(ticketProgress / 10)) + '░'.repeat(10 - Math.floor(ticketProgress / 10));
     
     embed.addFields({
       name: '🚀 Rütbe Atlaması',
@@ -1100,14 +1219,41 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
   try {
     const user = await client.users.fetch(progress.userId);
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-    const row = new ActionRowBuilder().addComponents(
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+    const rowButtons = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('talk_to_coach')
         .setLabel('💬 Koçla Konuş')
         .setStyle(ButtonStyle.Primary)
     );
-    await user.send({ embeds: [embed], components: [row] });
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('select_daily_task')
+      .setPlaceholder('🎯 Seçimli Görevi Değiştir')
+      .addOptions([
+        {
+          label: '💬 Aktif Sohbetçi',
+          description: 'Sohbette en az 15 mesaj gönder',
+          value: 'task_chat'
+        },
+        {
+          label: '🎤 Ses Meraklısı',
+          description: 'Ses kanallarında fazladan 15 dakika geçir',
+          value: 'task_voice'
+        },
+        {
+          label: '🎫 Destekçi',
+          description: 'Bugün en az 1 ticket çöz',
+          value: 'task_ticket'
+        },
+        {
+          label: '🛡️ Koruyucu',
+          description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
+          value: 'task_mod'
+        }
+      ]);
+    const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+
+    await user.send({ embeds: [embed], components: [rowButtons, rowSelect] });
     console.log(`[staffSystem] Sabah brifing gönderildi: ${progress.userId}`);
   } catch (_) {}
 }
@@ -2491,4 +2637,6 @@ module.exports = {
   getDailyRequirements,
   getNextRequirementsText,
   GUILD_ID,
+  CHOSEN_TASKS,
+  checkChosenTaskCompletion,
 };

@@ -5,7 +5,35 @@ const {
   TextInputStyle,
 } = require("discord.js");
 
-function handleSelectInteraction(interaction) {
+async function handleSelectInteraction(interaction) {
+  if (interaction.customId === "select_daily_task") {
+    const selectedTask = interaction.values[0];
+    const StaffProgress = require("../../models/StaffProgress");
+    const { CHOSEN_TASKS, checkChosenTaskCompletion } = require("../services/staffSystem");
+
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p || p.status !== 'active') {
+      return interaction.reply({ content: '❌ Aktif personel kaydınız bulunamadı.', ephemeral: true });
+    }
+
+    if (p.daily.chosenTaskCompleted) {
+      return interaction.reply({ content: '❌ Bugünün seçimli görevini zaten tamamladınız! Yeni görev seçemezsiniz.', ephemeral: true });
+    }
+
+    p.daily.chosenTask = selectedTask;
+    await p.save();
+
+    const taskText = CHOSEN_TASKS[selectedTask] || selectedTask;
+    await interaction.reply({
+      content: `🎯 Bugünün seçimli görevi başarıyla **"${taskText}"** olarak güncellendi!`,
+      ephemeral: true
+    });
+
+    const client = interaction.client;
+    await checkChosenTaskCompletion(p, client).catch(() => {});
+    return;
+  }
+
   if (interaction.customId !== "support_category" && interaction.customId !== "tmt_support_category") return null;
 
   const category = interaction.values[0];

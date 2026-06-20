@@ -18,9 +18,14 @@ const staffProgressSchema = new mongoose.Schema({
 
   // Günlük görev takibi
   daily: {
-    date:          { type: String, default: '' },   // YYYY-MM-DD
-    greeted:       { type: Boolean, default: false },
-    voiceMinutes:  { type: Number, default: 0 },
+    date:                  { type: String, default: '' },   // YYYY-MM-DD
+    greeted:               { type: Boolean, default: false },
+    voiceMinutes:          { type: Number, default: 0 },
+    chosenTask:            { type: String, default: '' },   // Seçilen görevin ID'si
+    chosenTaskCompleted:   { type: Boolean, default: false }, // Görev tamamlandı mı?
+    chatMessagesToday:     { type: Number, default: 0 },    // Bugün atılan mesajlar
+    ticketsSolvedToday:    { type: Number, default: 0 },   // Bugün çözülen ticketlar
+    moderationActionsToday:{ type: Number, default: 0 },   // Bugün yapılan mod işlemleri
   },
 
   // İstatistikler (terfi için)
