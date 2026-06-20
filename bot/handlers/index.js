@@ -19,6 +19,7 @@ const { handleAbuseButton, handleRobloxInteractions } = require("./robloxInterac
 const { handleAppealButton, handleAppealDecisionButton, handleAppealModalSubmit } = require('../services/banAppeal');
 const { handleModActionApproval } = require("../services/modActionService");
 const { handleStartTrigger, handleAnswerInteraction } = require('../services/aiExamService');
+const { handleVoiceButton, handleVoiceSelect, handleVoiceModal } = require("./voiceButtonHandler");
 const StaffProgress = require("../../models/StaffProgress");
 
 const nightChatTracker = new Map();
