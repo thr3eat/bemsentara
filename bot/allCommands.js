@@ -191,18 +191,18 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("koc")
-    .setDescription("AI koçunla DM üzerinden konuş")
+    .setDescription("AI koçunla DM üzerinden konuş.")
     .addStringOption(o =>
       o.setName("islem")
-       .setDescription("sıfırla = oturumu yenile")
-       .addChoices({ name: 'sıfırla', value: 'sıfırla' })
-       .setRequired(false)
+        .setDescription("sıfırla = oturumu yenile")
+        .addChoices({ name: 'sıfırla', value: 'sıfırla' })
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName("personelkov")
     .setDescription("Bir personeli kovar ve sistemden siler")
-    .addUserOption(o => 
+    .addUserOption(o =>
       o.setName("kullanici").setDescription("Kovulacak personel").setRequired(true)
     )
     .addStringOption(o =>
@@ -218,10 +218,10 @@ const generalCommands = [
     .setName("sayim")
     .setDescription("Moderatör ekibi için aylık sayım (yoklama) sistemini yönetir")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand(sub => 
+    .addSubcommand(sub =>
       sub.setName("baslat").setDescription("Yeni bir personel sayımı (yoklaması) başlatır")
     )
-    .addSubcommand(sub => 
+    .addSubcommand(sub =>
       sub.setName("bitir").setDescription("Mevcut aktif sayımı sonlandırır ve sonuçları gösterir")
     ),
 
@@ -264,7 +264,7 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("update")
-    .setDescription("Ana BEM grubu ve branş gruplarına göre rollerinizi günceller")
+    .setDescription("Ana gruba (EkoYıldız'a bağlı) ve branş gruplarına göre rollerinizi günceller")
     .setDMPermission(false),
 
   new SlashCommandBuilder()
