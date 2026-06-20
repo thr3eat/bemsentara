@@ -1229,9 +1229,10 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ **${target.username}** henüz hiç XP kazanmamış. Sunucuda mesaj yazmaya veya seste kalmaya başlasın!` });
       }
 
+      const isSeason2 = profile.level >= 12;
       const embed = new EmbedBuilder()
-        .setColor(0x4ade80)
-        .setTitle(`🐸 ${target.username} — Kurbağa Seviyesi`)
+        .setColor(isSeason2 ? 0xe67e22 : 0x4ade80)
+        .setTitle(isSeason2 ? `🦖 ${target.username} — Dinazor Sezonu (2. Sezon)` : `🐸 ${target.username} — Kurbağa Seviyesi`)
         .setThumbnail(target.displayAvatarURL())
         .setDescription(
           `**${profile.currentRole?.name || 'Yavru Kurbağa'}**\n\n` +
@@ -1239,13 +1240,13 @@ async function handleGeneralCommand(interaction) {
           `\`${profile.bar}\` ${profile.neededXP > 0 ? Math.floor((profile.currentXP / profile.neededXP) * 100) : 100}%`
         )
         .addFields(
-          { name: '📊 Seviye',          value: `${profile.level}/${FROG_ROLES.length - 1}`, inline: true },
+          { name: '📊 Seviye',          value: isSeason2 ? `${profile.level - 11}/5 (Toplam: ${profile.level}/16)` : `${profile.level}/11 (Toplam: ${profile.level}/16)`, inline: true },
           { name: '✨ Toplam XP',       value: profile.xp.toLocaleString(), inline: true },
           { name: '📝 Mesaj',           value: (profile.totalMessages || 0).toLocaleString(), inline: true },
           { name: '🎤 Ses (dk)',        value: (profile.totalVoiceMinutes || 0).toLocaleString(), inline: true },
           { name: '⬆️ Sonraki rol',    value: profile.nextRole?.name || '🏆 MAX SEVİYE', inline: true },
         )
-        .setFooter({ text: 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+        .setFooter({ text: isSeason2 ? 'Eko Yıldız • Dinazor Sezonu 🦖' : 'Eko Yıldız • Kurbağa Sistemi 🐸' })
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });

@@ -20,6 +20,11 @@ const FROG_ROLES = [
   { level: 9,  name: '👑 Alpha Kurbağa',     id: '1460348318872764612' },
   { level: 10, name: '⭐ İyi Kurbağa',       id: '1462847100734931098' },
   { level: 11, name: '🦋 Garip Kurbağa',     id: '1481276717372014788' },
+  { level: 12, name: '🦖 Oyuncu Dinazor',     id: '1517698454036418590' },
+  { level: 13, name: '🦖 Havalı Dinazor',     id: '1517698456804790273' },
+  { level: 14, name: '🦖 Hiper Dinazor',      id: '1517698459681951906' },
+  { level: 15, name: '🦖 Volkanik Dinazor',   id: '1517698448390881391' },
+  { level: 16, name: '🦖 Kral Dinazor',       id: '1517698451276828824' },
 ];
 
 // ── Her seviye için gereken XP (giderek zorlaşıyor: üstel artış) ─────────────
@@ -65,6 +70,8 @@ async function syncLevelFromRoles(member) {
   return highestLevel; // -1 = kurbağa rolü yok
 }
 
+const chatHistory = new Map(); // userId -> Array of timestamps
+
 // ── Mesaj XP ekle ─────────────────────────────────────────────────────────
 async function addMessageXP(member, client) {
   if (!member || !member.guild || !member.user) {
@@ -75,14 +82,51 @@ async function addMessageXP(member, client) {
   if (member.guild.id !== FROG_GUILD_ID) return;
   if (member.user.bot) return;
 
+  // Track chat activity for x2 XP boost (Hızlı Yazıcı Bonusu)
+  const now = Date.now();
+  let history = chatHistory.get(member.id) || [];
+  history.push(now);
+  // Keep only timestamps from the last 15 minutes (900000 ms)
+  history = history.filter(ts => (now - ts) < 15 * 60 * 1000);
+  chatHistory.set(member.id, history);
+
   const p = await getOrCreate(member.id).catch(err => {
     console.error('[frogLevel] getOrCreate error in addMessageXP:', err.message);
     return null;
   });
   if (!p) return;
 
-  // Cooldown kontrolü
-  const now = Date.now();
+  // Check if they qualify for the x2 XP boost:
+  // - at least 30 messages in the last 15 minutes
+  // - the duration of activity (difference between first and last message in history) is at least 10 minutes
+  const oldest = history[0];
+  if (history.length >= 30 && oldest && (now - oldest) >= 10 * 60 * 1000) {
+    const boostUntil = new Date(now + 15 * 60 * 1000);
+    // Only set/update if not already active or if new boost extends it
+    if (!p.doubleXpUntil || new Date(p.doubleXpUntil).getTime() < boostUntil.getTime()) {
+      p.doubleXpUntil = boostUntil;
+      await p.save();
+
+      // Send DM notification
+      try {
+        const boostEmbed = new EmbedBuilder()
+          .setColor(0xf1c40f)
+          .setTitle('⚡ HIZLI YAZICI BOOSTU AKTİF! (x2 XP)')
+          .setDescription(
+            `Harika! Sohbet kanallarında oldukça hızlı ve aktif yazıyorsun! 🚀\n\n` +
+            `Önümüzdeki **15 dakika boyunca** kazanacağın tüm Kurbağa/Dinazor XP'leri **2 katına** çıkarıldı! 🔥\n\n` +
+            `Bitiş Zamanı: <t:${Math.floor(boostUntil.getTime() / 1000)}:T>`
+          )
+          .setFooter({ text: 'Eko Yıldız • Hızlı Yazıcı Bonusu' })
+          .setTimestamp();
+        await member.user.send({ embeds: [boostEmbed] }).catch(() => {});
+      } catch (dmErr) {
+        console.warn(`[frogLevel] Failed to send boost DM to ${member.id}:`, dmErr.message);
+      }
+    }
+  }
+
+  // Cooldown kontrolü (XP kazanımı için)
   if (p.lastMessageAt && (now - new Date(p.lastMessageAt).getTime()) < MSG_COOLDOWN_MS) return;
 
   // Eğer hiç seviye yoksa Discord rollerinden senkronize et
@@ -94,7 +138,13 @@ async function addMessageXP(member, client) {
     }
   }
 
-  p.xp            += XP_PER_MESSAGE;
+  // Double XP check
+  let xpGain = XP_PER_MESSAGE;
+  if (p.doubleXpUntil && new Date(p.doubleXpUntil) > new Date()) {
+    xpGain *= 2;
+  }
+
+  p.xp            += xpGain;
   p.totalMessages  = (p.totalMessages || 0) + 1;
   p.lastMessageAt   = new Date();
   await p.save();
@@ -116,7 +166,13 @@ async function addVoiceXP(userId, minutes, client) {
     });
     if (!p) return;
     
-    p.xp                += minutes * XP_PER_VOICE_MIN;
+    // Double XP check
+    let xpGain = minutes * XP_PER_VOICE_MIN;
+    if (p.doubleXpUntil && new Date(p.doubleXpUntil) > new Date()) {
+      xpGain *= 2;
+    }
+
+    p.xp                += xpGain;
     p.totalVoiceMinutes  = (p.totalVoiceMinutes || 0) + minutes;
     await p.save().catch(err => {
       console.error('[frogLevel] Save failed during addVoiceXP:', err.message);
@@ -175,19 +231,19 @@ async function levelUp(p, member, client) {
     const oldRole = FROG_ROLES[oldLevel];
     const newRole = FROG_ROLES[newLevel];
 
-    if (oldRole) await member.roles.remove(oldRole.id, 'Kurbağa seviye atladı').catch(() => {});
-    if (newRole) await member.roles.add(newRole.id,    'Kurbağa seviye atladı').catch(() => {});
+    if (oldRole) await member.roles.remove(oldRole.id, 'Seviye atladı').catch(() => {});
+    if (newRole) await member.roles.add(newRole.id,    'Seviye atladı').catch(() => {});
   } catch (err) {
     console.warn('[frogLevel] Rol hatası:', err.message);
   }
 
   const isFinal = newLevel === maxLevel;
   const newRoleInfo = FROG_ROLES[newLevel];
+  const isSeason2 = newLevel >= 12;
 
   // Seviye atlama mesajı — sunucuda bir kanala gönder
   try {
     const guild = member.guild;
-    // Genel/sohbet kanalı bul
     const channel = guild.channels.cache.find(c =>
       c.isTextBased?.() &&
       (c.name.includes('genel') || c.name.includes('sohbet') || c.name.includes('general'))
@@ -195,20 +251,22 @@ async function levelUp(p, member, client) {
 
     if (channel) {
       const embed = new EmbedBuilder()
-        .setColor(isFinal ? 0xffd700 : 0x4ade80)
-        .setTitle(isFinal ? '🏆 MAKSIMUM SEVİYE!' : `🎉 SEVİYE ATLADI!`)
+        .setColor(isFinal ? 0xffd700 : (isSeason2 ? 0xe67e22 : 0x4ade80))
+        .setTitle(isFinal ? '🏆 MAKSIMUM SEVİYE!' : (isSeason2 ? '🦖 2. SEZON: SEVİYE ATLADI!' : '🎉 SEVİYE ATLADI!'))
         .setDescription(
           isFinal
-            ? `**${member.displayName}** tüm kurbağa macerasını tamamladı! 🐸👑\nEko Yıldız'ın en güçlü kurbağası oldu!`
-            : `**${member.displayName}** yeni bir seviyeye ulaştı!\n**${FROG_ROLES[oldLevel]?.name}** → **${newRoleInfo.name}**`
+            ? `**${member.displayName}** tüm Dinazor macerasını tamamlayarak en üst seviyeye ulaştı! 🦖👑`
+            : (newLevel === 12
+                ? `**${member.displayName}** tüm kurbağa macerasını tamamladı ve **2. Sezon Dinazor Sezonu**'na geçiş yaptı! 🦖🔥`
+                : `**${member.displayName}** yeni bir seviyeye ulaştı!\n**${FROG_ROLES[oldLevel]?.name}** → **${newRoleInfo.name}**`)
         )
         .addFields(
-          { name: '📊 Yeni Seviye', value: `${newLevel}/${maxLevel}`, inline: true },
+          { name: '📊 Seviye', value: isSeason2 ? `${newLevel - 11}/5 (Toplam: ${newLevel}/16)` : `${newLevel}/11 (Toplam: ${newLevel}/16)`, inline: true },
           { name: '✨ Toplam XP',   value: `${p.xp.toLocaleString()}`, inline: true },
           { name: '⬆️ Sonraki seviye için', value: newLevel < maxLevel ? `${xpToNextLevel(newLevel).toLocaleString()} XP` : 'MAX SEVİYE', inline: true },
         )
         .setThumbnail(member.displayAvatarURL())
-        .setFooter({ text: 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+        .setFooter({ text: isSeason2 ? 'Eko Yıldız • Dinazor Sezonu 🦖' : 'Eko Yıldız • Kurbağa Sistemi 🐸' })
         .setTimestamp();
 
       await channel.send({ content: `<@${member.id}>`, embeds: [embed] });
@@ -219,41 +277,58 @@ async function levelUp(p, member, client) {
 
   // ── DM'ye seviye atlama bildirimi gönder ──────────────────────────────────
   try {
-    const dmEmbed = new EmbedBuilder()
-      .setColor(isFinal ? 0xffd700 : 0x4ade80)
-      .setTitle(isFinal ? '🏆 TEBRIKLER! MAKSIMUM SEVİYE! 🏆' : `🎉 SEVİYE ATLAMA BAŞARILI! 🎉`)
-      .setThumbnail(member.displayAvatarURL());
-
-    if (isFinal) {
-      dmEmbed.setDescription(
-        `**Tebrikler, ${member.displayName}!**\n\n` +
-        `Eko Yıldız kurbağa sisteminde en üst seviyeye ulaştın! 👑\n\n` +
-        `🐸 **${newRoleInfo.name}** olarak tüm rotaları tamamladın!\n` +
-        `Bundan sonra sırada ne var öğrenmek için sekreterle konuş.`
-      );
+    if (newLevel === 12) {
+      // Dinazor Sezonu Geçiş DM'i
+      const s2Embed = new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setTitle('🦖 2. SEZONA GEÇİŞ YAPTIN! 🦖')
+        .setDescription(
+          `**2. SEZONA DİNAZOR SEZONUNA GEÇİŞ YAPTIN! TEBRİKLERRR** 🦖🎉🎉\n\n` +
+          `Kurbağa hiyerarşisini tamamen bitirdin ve tarih öncesinin en güçlü varlıkları arasına katıldın!\n\n` +
+          `Rütben: **${newRoleInfo.name}**\n\n` +
+          `Sohbette yazmaya devam ederek kral dinazorluğa yüksel! 💪`
+        )
+        .setThumbnail(member.displayAvatarURL())
+        .setFooter({ text: 'Eko Yıldız • Dinazor Sezonu 🦖' })
+        .setTimestamp();
+      await member.user.send({ embeds: [s2Embed] }).catch(() => {});
     } else {
-      const nextXp = xpToNextLevel(newLevel);
-      dmEmbed.setDescription(
-        `**Tebrikler!** Yeni seviyeye ulaştın! 🐸\n\n` +
-        `**Eski Seviye:** ${FROG_ROLES[oldLevel]?.name}\n` +
-        `**Yeni Seviye:** ${newRoleInfo.name}\n\n` +
-        `📊 **Toplam XP:** ${p.xp.toLocaleString()}`
-      ).addFields(
-        {
-          name: '⬆️ Sonraki Seviye İçin Gerekli XP',
-          value: `**${nextXp.toLocaleString()} XP** yapman gerekli\n\n` +
-                 `💬 Mesaj yazarak: Her mesaj = 5 XP\n` +
-                 `🎤 Ses kanalında: Her dakika = 3 XP\n\n` +
-                 `Seviye atlamak çok zorlaşıyor, devam et! 💪`,
-          inline: false,
-        }
-      );
+      const dmEmbed = new EmbedBuilder()
+        .setColor(isFinal ? 0xffd700 : (isSeason2 ? 0xe67e22 : 0x4ade80))
+        .setTitle(isFinal ? '🏆 TEBRİKLER! MAKSIMUM SEVİYE! 🏆' : `🎉 SEVİYE ATLAMA BAŞARILI! 🎉`)
+        .setThumbnail(member.displayAvatarURL());
+
+      if (isFinal) {
+        dmEmbed.setDescription(
+          `**Tebrikler, ${member.displayName}!**\n\n` +
+          `Eko Yıldız Dinazor Sezonu 2'yi tamamen bitirdin ve en üst seviyeye ulaştın! 👑\n\n` +
+          `🦖 **${newRoleInfo.name}** olarak tüm rotaları tamamladın!\n` +
+          `Sunucunun en saygın ve kadim üyesisin artık. Helal olsun! 💪`
+        );
+      } else {
+        const nextXp = xpToNextLevel(newLevel);
+        dmEmbed.setDescription(
+          `**Tebrikler!** Yeni seviyeye ulaştın! ${isSeason2 ? '🦖' : '🐸'}\n\n` +
+          `**Eski Seviye:** ${FROG_ROLES[oldLevel]?.name}\n` +
+          `**Yeni Seviye:** ${newRoleInfo.name}\n\n` +
+          `📊 **Toplam XP:** ${p.xp.toLocaleString()}`
+        ).addFields(
+          {
+            name: '⬆️ Sonraki Seviye İçin Gerekli XP',
+            value: `**${nextXp.toLocaleString()} XP** yapman gerekli\n\n` +
+                   `💬 Mesaj yazarak: Her mesaj = 5 XP\n` +
+                   `🎤 Ses kanalında: Her dakika = 3 XP\n\n` +
+                   `Seviye atlamak çok zorlaşıyor, devam et! 💪`,
+            inline: false,
+          }
+        );
+      }
+
+      dmEmbed.setFooter({ text: isSeason2 ? 'Eko Yıldız • Dinazor Sezonu 🦖' : 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+             .setTimestamp();
+
+      await member.user.send({ embeds: [dmEmbed] }).catch(() => {});
     }
-
-    dmEmbed.setFooter({ text: 'Eko Yıldız • Kurbağa Sistemi 🐸' })
-           .setTimestamp();
-
-    await member.user.send({ embeds: [dmEmbed] }).catch(() => {});
   } catch (err) {
     console.warn('[frogLevel] DM gönderme hatası:', err.message);
   }

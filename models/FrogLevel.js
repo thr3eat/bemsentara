@@ -16,6 +16,9 @@ const frogLevelSchema = new mongoose.Schema({
   // Spam koruması: son mesaj zamanı
   lastMessageAt: { type: Date, default: null },
 
+  // XP Boost
+  doubleXpUntil: { type: Date, default: null },
+
   // İstatistikler
   totalMessages:    { type: Number, default: 0 },
   totalVoiceMinutes:{ type: Number, default: 0 },
