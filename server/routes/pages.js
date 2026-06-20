@@ -26,9 +26,20 @@ router.get("/", (req, res) => {
   res.send(renderMainPage());
 });
 
-router.get("/dashboard", (req, res) => {
+router.get("/dashboard", async (req, res) => {
   if (!req.user) return res.redirect("/login");
-  res.send(renderDashboard(req.user));
+  
+  let staffProgress = null;
+  if (req.user.isStaff || isSiteAdmin(req.user)) {
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      staffProgress = await StaffProgress.findOne({ userId: req.user.discordId });
+    } catch (err) {
+      console.error("Dashboard router staff progress load error:", err.message);
+    }
+  }
+  
+  res.send(renderDashboard(req.user, staffProgress));
 });
 
 router.get("/tickets", (req, res) => {

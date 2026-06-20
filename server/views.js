@@ -1021,15 +1021,54 @@ function renderAuthorizePage(scopes = []) {
 // ─────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────
-function renderDashboard(user) {
+function renderDashboard(user, staffProgress) {
   // Use isAuthorized flag instead of checking username, since username might be a fallback value
   const isRobloxLinked = user.isAuthorized && user.robloxId;
+  const { SUPPORT_CATEGORIES } = require("../config");
+
+  // Determine if staff promotion warning should be displayed
+  const isStaff = user.isStaff || isSiteAdmin(user);
+  let showPromotionWarning = false;
+  if (isStaff) {
+    if (!staffProgress || !staffProgress.promotedAt) {
+      showPromotionWarning = true;
+    } else {
+      const daysSincePromotion = (Date.now() - new Date(staffProgress.promotedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSincePromotion >= 3) {
+        showPromotionWarning = true;
+      }
+    }
+  }
+
+  // Create category grid cards
+  const categoryCards = Object.entries(SUPPORT_CATEGORIES).map(([key, cat]) => {
+    let desc = "";
+    switch(key) {
+      case "ban": desc = "Yasaklama ve sunucudaki cezalarınız hakkında itirazda bulunmak için talep oluşturun."; break;
+      case "reklam": desc = "Reklam sponsorlukları ve iş ortaklıkları hakkında bilgi almak için başvurun."; break;
+      case "report": desc = "Kuralları ihlal eden kullanıcıları moderatör ekibimize bildirin."; break;
+      case "billing": desc = "EkoCoin ve diğer ödeme işlemleriyle ilgili karşılaştığınız sorunları iletin."; break;
+      case "technical": desc = "Sistemlerimiz ve Discord botu ile ilgili teknik sorunları çözün."; break;
+      case "account": desc = "Roblox hesabı eşleme veya yetki sorunlarınızı ekibimize iletin."; break;
+      case "genel": desc = "Genel soru, öneri ve diğer konularda yardım almak için talep oluşturun."; break;
+      default: desc = "Diğer kategorilere uymayan destek talepleriniz için başvurun."; break;
+    }
+
+    return `
+      <div class="category-card" onclick="window.location.href='/tickets/new?category=${key}'">
+        <div class="category-icon">${cat.name.split(" ")[0]}</div>
+        <h3 class="category-title">${cat.name.split(" ").slice(1).join(" ")}</h3>
+        <p class="category-desc">${desc}</p>
+        <div class="category-btn">Talep Aç ➔</div>
+      </div>
+    `;
+  }).join("");
 
   const content = `
     <!-- Welcome -->
     <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:2.5rem; animation:fadeUp 0.5s ease;">
       <div>
-        <div style="color:var(--muted);font-size:0.9rem;margin-bottom:0.3rem;">Hoş Geldin 👋</div>
+        <div style="color:var(--muted);font-size:0.9rem;margin-bottom:0.3rem;">Naber? 👋</div>
         <h1 style="font-size:2.4rem;font-weight:800;">${_esc(user.discordUsername)}</h1>
         <p class="text-muted mt-1">İşte destek sistemindeki güncel durumun.</p>
       </div>
@@ -1047,86 +1086,191 @@ function renderDashboard(user) {
       </div>
     </div>
 
-    <!-- Roblox Banner -->
-    <div style="background:${isRobloxLinked ? 'rgba(74,222,128,0.07)' : 'rgba(251,191,36,0.07)'};
-                border:1px solid ${isRobloxLinked ? 'rgba(74,222,128,0.25)' : 'rgba(251,191,36,0.25)'};
+    <!-- Roblox Linked Status or Warning Alert -->
+    ${isRobloxLinked ? `
+    <div style="background:rgba(74,222,128,0.07);
+                border:1px solid rgba(74,222,128,0.25);
                 border-radius:16px;padding:1.25rem 1.5rem;
                 display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
-                margin-bottom:2rem;">
+                margin-bottom:2rem;animation:fadeUp 0.5s ease;">
       <div style="display:flex;align-items:center;gap:0.75rem;">
-        <span style="font-size:1.5rem;">${isRobloxLinked ? '✅' : '⚠️'}</span>
+        <span style="font-size:1.5rem;">✅</span>
         <div>
-          <div style="font-weight:700;color:${isRobloxLinked ? 'var(--success)' : 'var(--warning)'};">
-            ${isRobloxLinked ? 'Roblox Bağlandı' : 'Roblox Hesabı Bağlı Değil'}
+          <div style="font-weight:700;color:var(--success);">
+            Roblox Bağlandı
           </div>
           <div style="font-size:0.85rem;color:var(--muted);">
-            ${isRobloxLinked ? _esc(user.robloxUsername) : 'Ticket açmak için Roblox bağlantısı gerekebilir.'}
+            Roblox Kullanıcı Adı: ${_esc(user.robloxUsername)}
+          </div>
+        </div>
+      </div>
+      <div>
+        <button type="button" id="btn-sync-roles" class="btn btn-sm btn-success">🔄 Rolleri Güncelle</button>
+      </div>
+    </div>
+    ` : `
+    <div style="background:rgba(251,191,36,0.07);
+                border:1px solid rgba(251,191,36,0.25);
+                border-radius:16px;padding:1.25rem 1.5rem;
+                display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+                margin-bottom:2rem;box-shadow:0 0 15px rgba(251,191,36,0.05);animation:fadeUp 0.5s ease;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">⚠️</span>
+        <div>
+          <div style="font-weight:800;color:var(--warning);letter-spacing:0.5px;">
+            ROBLOX HESABINI DOĞRULADIN MI? HEMEN DOĞRULA!!
+          </div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">
+            Ticket açabilmek ve yetkili/üye rollerini eşitlemek için Roblox hesabını bağlaman gerekmektedir.
           </div>
         </div>
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        ${!isRobloxLinked ? `
-          <a href="/auth/roblox" class="btn btn-sm">🌐 Web ile Bağla</a>
-          <button type="button" onclick="showFriendVerifyModal()" class="btn btn-sm btn-ghost" style="border-color:var(--border);">🤖 Arkadaş İsteği ile Doğrula</button>
-        ` : `<button type="button" id="btn-sync-roles" class="btn btn-sm btn-success">🔄 Rolleri Güncelle</button>`}
+        <a href="/auth/roblox" class="btn btn-sm">🌐 Web ile Bağla</a>
+        <button type="button" onclick="showFriendVerifyModal()" class="btn btn-sm btn-ghost" style="border-color:var(--border);">🤖 Arkadaş İsteği ile Doğrula</button>
       </div>
     </div>
+    `}
 
     <div id="role-sync-result" style="display:none;margin-bottom:2rem;"></div>
 
-    <!-- Stats Grid -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem;margin-bottom:2.5rem;">
-      <div class="card" style="border-left:4px solid var(--success);text-align:center;padding:1.5rem;">
-        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">🟢 Açık</div>
-        <div id="cnt-open"  style="font-size:3rem;font-weight:800;">—</div>
-      </div>
-      <div class="card" style="border-left:4px solid var(--danger);text-align:center;padding:1.5rem;">
-        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">🔴 Kapalı</div>
-        <div id="cnt-closed" style="font-size:3rem;font-weight:800;">—</div>
-      </div>
-      <div class="card" style="border-left:4px solid var(--accent);text-align:center;padding:1.5rem;">
-        <div style="color:var(--muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">📊 Toplam</div>
-        <div id="cnt-total" style="font-size:3rem;font-weight:800;">—</div>
-      </div>
-    </div>
-
-    <!-- Ticket List -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
-        <h2 style="font-size:1.5rem;font-weight:800;">🎫 Ticket Geçmişin</h2>
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-          <a href="/tickets/new" class="btn btn-sm">➕ Yeni Ticket</a>
-          <a href="/tickets" class="btn btn-ghost btn-sm">Tümünü Gör</a>
+    <!-- Promotion Warning Banner -->
+    ${showPromotionWarning ? `
+    <div style="background:rgba(251,113,133,0.07);
+                border:1px solid rgba(251,113,133,0.25);
+                border-radius:16px;padding:1.25rem 1.5rem;
+                display:flex;align-items:center;gap:1rem;
+                margin-bottom:2rem;animation:pulseBorder 2s infinite alternate;">
+      <span style="font-size:1.5rem;">📈</span>
+      <div>
+        <div style="font-weight:700;color:var(--danger);">
+          Son birkaç gündür terfi almıyorsun veya rütben değişmiyor..
         </div>
-      </div>
-      <div id="ticket-list">
-        <div style="color:var(--muted);text-align:center;padding:2rem;">
-          <div style="font-size:2rem;margin-bottom:0.5rem;">⏳</div>
-          Yükleniyor...
+        <div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">
+          Aktifliğini artırarak ve daha fazla ticket çözerek rütbeni yükseltebilirsin!
         </div>
       </div>
     </div>
+    ` : ''}
 
-    <!-- Activity Chart -->
-    <div class="card" style="margin-top:2rem;">
-      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;">📈 Son 7 Günlük Aktivite</h2>
-      <div id="activity-chart" style="display:flex;align-items:flex-end;gap:0.5rem;height:80px;padding:0 0.25rem;">
-        <div style="color:var(--muted);font-size:0.85rem;align-self:center;">Yükleniyor...</div>
+    <!-- Terms Warning Banner -->
+    <div style="background:rgba(129,140,248,0.07);
+                border:1px solid rgba(129,140,248,0.25);
+                border-radius:16px;padding:1.25rem 1.5rem;
+                display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+                margin-bottom:2rem;animation:fadeUp 0.5s ease;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">⚖️</span>
+        <div>
+          <div style="font-weight:700;color:var(--accent2);">
+            Şartlarımızı kabul ettin mi?
+          </div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">
+            Kullanım koşullarımızı ve gizlilik politikamızı okuyup onayladığınızdan emin olun.
+          </div>
+        </div>
       </div>
-      <div id="activity-labels" style="display:flex;gap:0.5rem;margin-top:0.5rem;padding:0 0.25rem;"></div>
+      <div>
+        <a href="/legal/tos" class="btn btn-sm btn-ghost" style="border-color:rgba(129,140,248,0.3);color:var(--accent2);font-weight:700;">kabul et!</a>
+      </div>
+    </div>
+
+    <!-- Ticket Categories Title -->
+    <div style="margin-bottom: 1.5rem; animation:fadeUp 0.6s ease; margin-top:2rem;">
+      <h2 style="font-size:1.8rem;font-weight:800;background:linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:inline-block;">🎫 Destek Kategorileri</h2>
+      <p class="text-muted" style="margin-top:0.3rem;">Yaşadığınız soruna en uygun kategoriyi seçerek yeni bir destek talebi (ticket) başlatın.</p>
+    </div>
+
+    <!-- Categories Grid -->
+    <div class="category-grid" style="animation:fadeUp 0.7s ease; margin-bottom:2.5rem;">
+      ${categoryCards}
     </div>
 
     <style>
-      .ticket-row {
-        background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06);
-        border-radius:14px; padding:1.25rem 1.5rem;
-        display:flex; justify-content:space-between; align-items:center;
-        transition:border-color 0.3s, transform 0.3s, background 0.3s;
-        margin-bottom:0.75rem;
-        backdrop-filter:blur(8px);
+      .category-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
       }
-      .ticket-row:hover { border-color:rgba(167,139,250,0.2); transform:translateX(4px); background:rgba(255,255,255,0.04); }
-      .ticket-row:last-child { margin-bottom:0; }
+      .category-card {
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 18px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(8px);
+      }
+      .category-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(167, 139, 250, 0.05), rgba(129, 140, 248, 0.02));
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .category-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(167, 139, 250, 0.3);
+        box-shadow: 0 12px 30px rgba(167, 139, 250, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .category-card:hover::before {
+        opacity: 1;
+      }
+      .category-icon {
+        font-size: 2.2rem;
+        margin-bottom: 1rem;
+        filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.2));
+        transition: transform 0.3s ease;
+      }
+      .category-card:hover .category-icon {
+        transform: scale(1.1) rotate(5deg);
+      }
+      .category-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        position: relative;
+        z-index: 1;
+      }
+      .category-desc {
+        font-size: 0.85rem;
+        color: var(--muted);
+        line-height: 1.5;
+        margin-bottom: 1.25rem;
+        flex-grow: 1;
+        position: relative;
+        z-index: 1;
+      }
+      .category-btn {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        transition: transform 0.2s ease;
+        position: relative;
+        z-index: 1;
+      }
+      .category-card:hover .category-btn {
+        transform: translateX(4px);
+        color: #fff;
+      }
+      
+      @keyframes pulseBorder {
+        0% { border-color: rgba(251, 113, 133, 0.25); box-shadow: 0 0 10px rgba(251, 113, 133, 0.05); }
+        100% { border-color: rgba(251, 113, 133, 0.5); box-shadow: 0 0 20px rgba(251, 113, 133, 0.15); }
+      }
+      
       @keyframes fadeUp {
         from { opacity:0; transform:translateY(20px); }
         to   { opacity:1; transform:translateY(0); }
@@ -1134,104 +1278,6 @@ function renderDashboard(user) {
     </style>
 
     <script>
-      function animateNum(id, end) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        let start = 0, duration = 600;
-        const step = (ts) => {
-          if (!step.t) step.t = ts;
-          const p = Math.min((ts - step.t) / duration, 1);
-          el.textContent = Math.floor(p * end);
-          if (p < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      }
-
-      async function loadDashboard() {
-        try {
-          const res  = await fetch('/api/tickets');
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error || 'API hatası');
-
-          const tickets = data.tickets || [];
-          const open   = tickets.filter(t => t.status === 'open').length;
-          const closed = tickets.filter(t => t.status !== 'open').length;
-
-          animateNum('cnt-open',   open);
-          animateNum('cnt-closed', closed);
-          animateNum('cnt-total',  tickets.length);
-
-          const list = document.getElementById('ticket-list');
-          if (!tickets.length) {
-            list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz hiç destek talebi oluşturmamışsın.</div>';
-            return;
-          }
-
-          list.innerHTML = tickets.slice(0, 10).map(t => {
-            const isOpen = t.status === 'open';
-            const ago = t.createdAt ? timeAgo(t.createdAt) : '';
-            return \`<div class="ticket-row">
-              <div>
-                <div style="font-weight:700;margin-bottom:0.3rem;">\${t.ticketId}</div>
-                <div style="color:var(--muted);font-size:0.9rem;">\${t.subject || ''} · \${t.category || ''}</div>
-                \${ago ? \`<div style="color:var(--muted);font-size:0.78rem;margin-top:0.2rem;">🕐 \${ago}</div>\` : ''}
-              </div>
-              <span class="badge badge-\${isOpen ? 'open' : 'closed'}">\${isOpen ? 'AÇIK' : 'KAPALI'}</span>
-            </div>\`;
-          }).join('');
-
-          // Build activity chart from ticket dates
-          renderActivityChart(tickets);
-        } catch (err) {
-          document.getElementById('ticket-list').innerHTML =
-            \`<div style="color:var(--danger);padding:1rem;">❌ \${err.message}</div>\`;
-        }
-      }
-
-      function timeAgo(dateStr) {
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const m = Math.floor(diff / 60000);
-        if (m < 1)  return 'az önce';
-        if (m < 60) return m + ' dakika önce';
-        const h = Math.floor(m / 60);
-        if (h < 24) return h + ' saat önce';
-        return Math.floor(h / 24) + ' gün önce';
-      }
-
-      function renderActivityChart(tickets) {
-        const days = 7;
-        const counts = Array(days).fill(0);
-        const labels = [];
-        const now = new Date();
-        for (let i = days - 1; i >= 0; i--) {
-          const d = new Date(now);
-          d.setDate(d.getDate() - i);
-          labels.push(d.toLocaleDateString('tr-TR', { weekday: 'short' }));
-          tickets.forEach(t => {
-            if (!t.createdAt) return;
-            const td = new Date(t.createdAt);
-            if (td.toDateString() === d.toDateString()) counts[days - 1 - i]++;
-          });
-        }
-        const max = Math.max(...counts, 1);
-        const chart = document.getElementById('activity-chart');
-        const labelsEl = document.getElementById('activity-labels');
-        if (!chart) return;
-        chart.innerHTML = counts.map((c, i) => {
-          const h = Math.max(8, Math.round((c / max) * 80));
-          const isToday = i === days - 1;
-          return \`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <div style="font-size:0.7rem;color:var(--muted);">\${c || ''}</div>
-            <div style="width:100%;height:\${h}px;background:\${isToday ? 'linear-gradient(to top,var(--accent),var(--accent2))' : 'rgba(124,106,247,0.3)'};
-                        border-radius:6px 6px 0 0;transition:height 0.6s ease;cursor:default;"
-                 title="\${labels[i]}: \${c} ticket"></div>
-          </div>\`;
-        }).join('');
-        if (labelsEl) labelsEl.innerHTML = labels.map(l =>
-          \`<div style="flex:1;text-align:center;font-size:0.72rem;color:var(--muted);">\${l}</div>\`
-        ).join('');
-      }
-
       async function syncRolesFromWeb() {
         const btn = document.getElementById('btn-sync-roles');
         const box = document.getElementById('role-sync-result');
@@ -1263,11 +1309,8 @@ function renderDashboard(user) {
 
       const syncBtn = document.getElementById('btn-sync-roles');
       if (syncBtn) syncBtn.addEventListener('click', syncRolesFromWeb);
-
-      loadDashboard();
-      setInterval(loadDashboard, 15000);
     </script>
-
+    
     <!-- Modal HTML -->
     <div id="friend-verify-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:1000; align-items:center; justify-content:center; padding:1.5rem;">
       <div class="card" style="width:100%; max-width:480px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
@@ -3061,6 +3104,16 @@ function renderCreateTicketPage(user, categories = []) {
       const descEl  = document.getElementById('tc-desc');
       const cntEl   = document.getElementById('tc-count');
       descEl.addEventListener('input', () => { cntEl.textContent = descEl.value.length; });
+
+      // Auto-select category from URL query parameters if present
+      const urlParams = new URLSearchParams(window.location.search);
+      const catParam = urlParams.get('category');
+      if (catParam) {
+        const selectEl = document.getElementById('tc-category');
+        if (selectEl) {
+          selectEl.value = catParam;
+        }
+      }
 
       async function submitTicket() {
         const cat      = document.getElementById('tc-category').value;
