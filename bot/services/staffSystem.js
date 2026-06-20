@@ -428,6 +428,10 @@ async function addVoiceMinutes(userId, minutes, client) {
     await checkDailyCompletion(p, client).catch(err => {
       console.error('[staffSystem] checkDailyCompletion failed:', err.message);
     });
+    try {
+      const { checkAutoPromotion } = require('./unitService');
+      await checkAutoPromotion(userId, client, 'voice').catch(() => {});
+    } catch (_) {}
   } catch (err) {
     console.error('[staffSystem] addVoiceMinutes error:', err.message);
   }
@@ -802,6 +806,10 @@ async function recordTicketSolved(userId, client) {
     // Rozetleri kontrol et
     await checkAndUnlockBadges(p, client).catch(() => {});
     await checkChosenTaskCompletion(p, client).catch(() => {});
+    try {
+      const { checkAutoPromotion } = require('./unitService');
+      await checkAutoPromotion(userId, client, 'ticket').catch(() => {});
+    } catch (_) {}
     
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
@@ -831,6 +839,10 @@ async function recordChatMessage(userId, client) {
     });
     await checkAndUnlockBadges(p, client).catch(() => {});
     await checkChosenTaskCompletion(p, client).catch(() => {});
+    try {
+      const { checkAutoPromotion } = require('./unitService');
+      await checkAutoPromotion(userId, client, 'chat').catch(() => {});
+    } catch (_) {}
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -1153,29 +1165,53 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
       (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
       `Bugün yapacakların açık. Başlayabilirsin! 💪\n\n` +
       `---\n**📋 Bugünün Zorunlu Görevleri:**`
-    )
-    .addFields(
-      {
-        name: '⚡ Yapman Gerekenler (Zorunlu)',
-        value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n💪 Kolay! Senin için cinayeti işlemesi!`,
-        inline: false,
-      },
-      {
-        name: '🎯 Bugünün Seçimli Görevi',
-        value: `${CHOSEN_TASKS[progress.daily.chosenTask] || 'Rastgele Atanacak'}\nDurum: ${progress.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam Ediyor...*'}\n*(Aşağıdaki menüden değiştirebilirsiniz. Yapılması terfi hedeflerine %25 katkı sunar!)*`,
-        inline: false
-      },
-      {
-        name: '🎯 Ekstra Görevler (Öneri)',
-        value: levelInfo.dailyTasks.slice(2).join('\n') || '—',
-        inline: false,
-      },
-      {
-        name: '🏆 Ödülü',
-        value: levelInfo.rewards,
-        inline: false,
-      },
     );
+
+  const fields = [
+    {
+      name: '⚡ Yapman Gerekenler (Zorunlu)',
+      value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n💪 Kolay! Senin için cinayeti işlemesi!`,
+      inline: false,
+    }
+  ];
+
+  try {
+    const StaffUnit = require('../../models/StaffUnit');
+    const userUnit = await StaffUnit.findOne({ userId: progress.userId });
+    if (userUnit && userUnit.unitName) {
+      const { UNIT_CONFIG } = require('./unitService');
+      const unitConf = UNIT_CONFIG[userUnit.unitName];
+      if (unitConf) {
+        fields.push({
+          name: `🛡️ ${unitConf.label} Günlük Görevi (Zorunlu)`,
+          value: `⚠️ **Görevin:** ${unitConf.tasks}\n*Birimdeki Rütben: Rütbe ${userUnit.rank || 1}*`,
+          inline: false
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[staffSystem] sendMorningBriefing unit fetch error:', err.message);
+  }
+
+  fields.push(
+    {
+      name: '🎯 Bugünün Seçimli Görevi',
+      value: `${CHOSEN_TASKS[progress.daily.chosenTask] || 'Rastgele Atanacak'}\nDurum: ${progress.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam Ediyor...*'}\n*(Aşağıdaki menüden değiştirebilirsiniz. Yapılması terfi hedeflerine %25 katkı sunar!)*`,
+      inline: false
+    },
+    {
+      name: '🎯 Ekstra Görevler (Öneri)',
+      value: levelInfo.dailyTasks.slice(2).join('\n') || '—',
+      inline: false,
+    },
+    {
+      name: '🏆 Ödülü',
+      value: levelInfo.rewards,
+      inline: false,
+    }
+  );
+
+  embed.addFields(fields);
 
   if (daysLeft !== null && daysLeft > 0) {
     embed.addFields({

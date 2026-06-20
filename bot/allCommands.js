@@ -458,6 +458,37 @@ const generalCommands = [
     .addStringOption((o) =>
       o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("birimalimi")
+    .setDescription("Yönetici ve birim alımı duyurusu gönderir (Admin)")
+    .addStringOption((o) =>
+      o.setName("birim")
+        .setDescription("Alım yapılacak birim")
+        .setRequired(true)
+        .addChoices(
+          { name: "BAN BİRİMİ", value: "BAN_BIRIMI" },
+          { name: "SES BİRİMİ", value: "SES_BIRIMI" },
+          { name: "SOHBET BİRİMİ", value: "SOHBET_BIRIMI" }
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("birimterfi")
+    .setDescription("Biriminizdeki bir personeli terfi ettirir (Rütbe 13-15)")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Terfi ettirilecek personel").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("birimistifa")
+    .setDescription("Bulunduğunuz birimden istifa edersiniz"),
+
+  new SlashCommandBuilder()
+    .setName("birimtanitim")
+    .setDescription("Birim yetki ve tanıtım mesajlarını gönderir (Admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ];
 
 const economyCommands = [

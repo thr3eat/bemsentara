@@ -604,6 +604,21 @@ async function handleButtonInteraction(interaction) {
     );
     return interaction.showModal(modal);
   }
+  
+  // ── Birim Alımı / Sınav Butonları ──────────────────────────────────────────
+  if (interaction.customId.startsWith('apply_unit_')) {
+    const recruitmentId = interaction.customId.replace('apply_unit_', '');
+    const { handleApplyClick } = require('../services/unitService');
+    return handleApplyClick(interaction, recruitmentId);
+  }
+
+  if (interaction.customId.startsWith('unit_exam_ans_')) {
+    const parts = interaction.customId.split('_');
+    const qIndex = parseInt(parts[3]);
+    const optIndex = parseInt(parts[4]);
+    const { handleAnswerClick } = require('../services/unitService');
+    return handleAnswerClick(interaction, qIndex, optIndex);
+  }
 
   return null;
 }

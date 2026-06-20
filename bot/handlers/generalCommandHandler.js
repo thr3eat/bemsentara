@@ -55,7 +55,11 @@ const GENERAL_COMMANDS = new Set([
   "ekocoin",
   "magaza",
   "gunluk-odul",
-  "zenginler"
+  "zenginler",
+  "birimalimi",
+  "birimterfi",
+  "birimistifa",
+  "birimtanitim"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -2061,6 +2065,39 @@ async function handleGeneralCommand(interaction) {
         .setFooter({ text: 'Eko Yıldız • Ekonomi Sistemi' });
 
       return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "birimalimi") {
+      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      if (!isYonetici) {
+        return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+      }
+      const birimKey = interaction.options.getString('birim');
+      const { startBirimAlimi } = require("../services/unitService");
+      return startBirimAlimi(interaction, interaction.client, birimKey);
+    }
+
+    if (commandName === "birimterfi") {
+      const { handleBirimTerfi } = require("../services/unitService");
+      return handleBirimTerfi(interaction);
+    }
+
+    if (commandName === "birimistifa") {
+      const { handleBirimIstifa } = require("../services/unitService");
+      return handleBirimIstifa(interaction);
+    }
+
+    if (commandName === "birimtanitim") {
+      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      if (!isYonetici) {
+        return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+      }
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      }
+      const { postUnitIntroductions } = require("../services/unitService");
+      await postUnitIntroductions(interaction.client);
+      return interaction.editReply({ content: '✅ Birim tanıtım mesajları başarıyla gönderildi.' });
     }
 
     return null;
