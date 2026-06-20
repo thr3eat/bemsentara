@@ -43,6 +43,8 @@ const GENERAL_COMMANDS = new Set([
   "odulver",
   "personel-dogrula",
   "personelkov",
+  "personelayarla",
+  "personelrapor",
   "sayim",
   "verify",
   "update",
@@ -115,6 +117,248 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ embeds: [embed], components: [row] });
     } catch (err) {
       console.error('[personel-dogrula] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── personelayarla: Yetkili bilgilerini günceller (Yöneticiler) ──────────────────
+  if (commandName === "personelayarla") {
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const parametre = interaction.options.getString('parametre');
+      const deger = interaction.options.getInteger('deger');
+
+      const StaffProgress = require("../../models/StaffProgress");
+      const staffAutomation = require("../services/staffAutomation");
+      const { ROLE_NAMES, GUILD_ID, ROLES } = require("../services/staffSystem");
+
+      let progress = await StaffProgress.findOne({ userId: targetUser.id });
+      if (!progress) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde kayıtlı değil.` });
+      }
+
+      // Initialize safety subdocuments
+      if (!progress.stats) progress.stats = {};
+      if (!progress.warnings) progress.warnings = { count: 0 };
+      if (!progress.daily) progress.daily = { date: '', greeted: false, voiceMinutes: 0 };
+      if (!progress.exam) progress.exam = { status: 'none', attempts: 0, answers: [] };
+
+      let oldValue = '';
+      let newValue = '';
+      const oldLevel = progress.level || 1;
+
+      switch (parametre) {
+        case 'tickets': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          oldValue = `${progress.stats.ticketsSolved || 0} bilet`;
+          progress.stats.ticketsSolved = deger;
+          newValue = `${deger} bilet`;
+          break;
+        }
+        case 'messages': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          oldValue = `${progress.stats.chatMessages || 0} mesaj`;
+          progress.stats.chatMessages = deger;
+          newValue = `${deger} mesaj`;
+          break;
+        }
+        case 'voice': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          oldValue = `${progress.stats.totalVoiceMinutes || 0} dk`;
+          progress.stats.totalVoiceMinutes = deger;
+          newValue = `${deger} dk`;
+          break;
+        }
+        case 'active_days': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          oldValue = `${progress.stats.activeDays || 0} gün`;
+          progress.stats.activeDays = deger;
+          newValue = `${deger} gün`;
+          break;
+        }
+        case 'level': {
+          if (deger === null || deger < 1 || deger > 6) {
+            return interaction.editReply({ content: '❌ Yetkili seviyesi 1 ile 6 arasında bir sayı olmalıdır.' });
+          }
+          oldValue = `Seviye ${oldLevel} (${ROLE_NAMES[oldLevel] || 'Bilinmiyor'})`;
+          progress.level = deger;
+          newValue = `Seviye ${deger} (${ROLE_NAMES[deger] || 'Bilinmiyor'})`;
+          break;
+        }
+        case 'warnings': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          oldValue = `${progress.warnings.count || 0} uyarı`;
+          progress.warnings.count = deger;
+          newValue = `${deger} uyarı`;
+          break;
+        }
+        case 'reset_exam': {
+          oldValue = `Sınav Durumu: ${progress.exam.status || 'none'}, Hak: ${progress.exam.attempts || 0}`;
+          progress.exam.status = 'none';
+          progress.exam.attempts = 0;
+          progress.exam.answers = [];
+          newValue = `Sınav Durumu: none, Hak: 0 (Sıfırlandı)`;
+          break;
+        }
+        default: {
+          return interaction.editReply({ content: '❌ Geçersiz parametre seçildi.' });
+        }
+      }
+
+      await progress.save();
+
+      let syncMessage = '';
+      if (parametre === 'level') {
+        try {
+          const syncRanksSuccess = await staffAutomation.syncStaffRobloxRanks(interaction.client, targetUser.id);
+          const syncRolesSuccess = await staffAutomation.syncStaffDiscordRoles(interaction.client, targetUser.id);
+          
+          if (syncRolesSuccess) {
+            syncMessage = `\n\n🔄 **Rol ve Grup Senkronizasyonu:** Rütbe rolleri Roblox ve Discord üzerinde başarıyla senkronize edildi.`;
+          } else {
+            // Manual fallback if Roblox link is missing
+            const guild = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
+            const member = guild ? await guild.members.fetch(targetUser.id).catch(() => null) : null;
+            if (member) {
+              const oldRoleId = ROLES[oldLevel];
+              const newRoleId = ROLES[deger];
+              if (oldRoleId) await member.roles.remove(oldRoleId).catch(() => {});
+              if (newRoleId) await member.roles.add(newRoleId).catch(() => {});
+              syncMessage = `\n\n🔄 **Manuel Rol Senkronizasyonu:** Roblox hesabı bulunamadığı veya grupta olmadığı için sadece Discord rütbe rolü güncellendi.`;
+            } else {
+              syncMessage = `\n\n⚠️ **Rol Senkronizasyonu:** Discord sunucusunda üye bulunamadı veya roller güncellenemedi.`;
+            }
+          }
+          await staffAutomation.updateDynamicModList(interaction.client).catch(() => {});
+        } catch (syncErr) {
+          console.error('[personelayarla] sync error:', syncErr.message);
+          syncMessage = `\n\n⚠️ **Senkronizasyon Hatası:** ${syncErr.message}`;
+        }
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle('⚙️ Personel Verisi Güncellendi')
+        .setDescription(`${targetUser} adlı yetkilinin veritabanı kaydı başarıyla değiştirildi.`)
+        .addFields(
+          { name: 'Değiştirilen Parametre', value: `\`${parametre}\``, inline: true },
+          { name: 'Eski Değer', value: `\`${oldValue}\``, inline: true },
+          { name: 'Yeni Değer', value: `\`${newValue}\``, inline: true }
+        )
+        .setFooter({ text: `İşlemi Yapan: ${interaction.user.username} • Eko Yıldız` })
+        .setTimestamp();
+
+      if (syncMessage) {
+        embed.setDescription(embed.data.description + syncMessage);
+      }
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[personelayarla] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── personelrapor: Yetkili durum raporu (Yöneticiler) ──────────────────
+  if (commandName === "personelrapor") {
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const { ROLE_NAMES, GUILD_ID } = require("../services/staffSystem");
+
+      const allActive = await StaffProgress.find({ status: 'active' }).sort({ level: -1 });
+      if (allActive.length === 0) {
+        return interaction.editReply({ content: 'ℹ️ Sistemde kayıtlı aktif personel bulunamadı.' });
+      }
+
+      const guild = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
+      const rows = [];
+
+      for (const p of allActive) {
+        let username = 'Bilinmeyen';
+        if (guild) {
+          const member = await guild.members.fetch(p.userId).catch(() => null);
+          if (member) {
+            username = member.user.username;
+          }
+        }
+        if (username === 'Bilinmeyen') {
+          const user = await interaction.client.users.fetch(p.userId).catch(() => null);
+          if (user) {
+            username = user.username;
+          }
+        }
+
+        // Limit username to 15 chars for alignment
+        if (username.length > 15) {
+          username = username.slice(0, 12) + '...';
+        }
+
+        const rankName = ROLE_NAMES[p.level] || 'Stajyer';
+        const tickets = (p.stats?.ticketsSolved || 0).toString();
+        const messages = (p.stats?.chatMessages || 0).toString();
+        const voice = (p.stats?.totalVoiceMinutes || 0).toString();
+        const streak = (p.stats?.consecutiveDays || 0).toString();
+        const warnings = `${p.warnings?.count || 0}/5`;
+
+        rows.push(
+          `${username.padEnd(16)} | ` +
+          `${rankName.padEnd(20)} | ` +
+          `${tickets.padStart(5)} | ` +
+          `${messages.padStart(6)} | ` +
+          `${voice.padStart(7)} | ` +
+          `${streak.padStart(5)} | ` +
+          `${warnings.padStart(5)}`
+        );
+      }
+
+      // Build code block table
+      const header = `${"Kullanıcı".padEnd(16)} | ${"Rütbe".padEnd(20)} | ${"Bilet".padStart(5)} | ${"Mesaj".padStart(6)} | ${"Ses(dk)".padStart(7)} | ${"Seri".padStart(5)} | ${"Uyarı".padStart(5)}\n` + "-".repeat(80);
+
+      const embeds = [];
+      const chunkSize = 15;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        const tableText = `\`\`\`\n${header}\n${chunk.join('\n')}\n\`\`\``;
+        
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle(`📊 Aktif Yetkili İlerleme Raporu (Bölüm ${Math.floor(i / chunkSize) + 1})`)
+          .setDescription(tableText)
+          .setFooter({ text: `Toplam Yetkili Sayısı: ${allActive.length} • Eko Yıldız` })
+          .setTimestamp();
+        
+        embeds.push(embed);
+      }
+
+      return interaction.editReply({ embeds: embeds });
+    } catch (err) {
+      console.error('[personelrapor] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

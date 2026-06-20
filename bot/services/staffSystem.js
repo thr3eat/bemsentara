@@ -281,11 +281,14 @@ async function recordGreet(userId, client) {
     if (!p.daily.greeted) {
       p.daily.greeted = true;
       
-      // EkoCoin İyileştirmesi: Selamlaşma için +15 EkoCoin verelim
+      // EkoCoin İyileştirmesi: Selamlaşma için +15 EkoCoin verelim (Seri çarpanı ile!)
       if (!p.gamification) {
         p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
       }
-      const greetCoins = 15;
+      const consecutiveDays = p.stats?.consecutiveDays || 0;
+      const streakMultiplier = consecutiveDays >= 30 ? 2.0 : (consecutiveDays >= 15 ? 1.5 : (consecutiveDays >= 5 ? 1.2 : 1.0));
+      const baseGreetCoins = 15;
+      const greetCoins = Math.floor(baseGreetCoins * streakMultiplier);
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + greetCoins;
       
       await p.save().catch(err => {
@@ -303,6 +306,7 @@ async function recordGreet(userId, client) {
             .setDescription(
               `Merhaba <@${userId}>,\n\n` +
               `Moderatör ekibi kanalına bugünün ilk selamını gönderdin ve günlük selamlaşma görevin kaydedildi!\n\n` +
+              (streakMultiplier > 1.0 ? `🔥 **Seri Çarpanı Aktif:** \`${consecutiveDays} Gün\` ardışık aktifliğin sayesinde **x${streakMultiplier}** ödül kazandın!\n\n` : "") +
               `💰 **+${greetCoins} EkoCoin (E.C.)** cüzdanına eklendi!\n` +
               `💳 Güncel Bakiyen: \`${p.gamification.ecoCoins} E.C.\``
             )
@@ -499,8 +503,11 @@ async function checkDailyCompletion(progress, client) {
     progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + Math.floor(25 * levelMultiplier); // Günlük 25+ puan
     progress.gamification.currentXP = (progress.gamification.currentXP || 0) + Math.floor(100 * levelMultiplier); // Günlük 100+ XP
     
-    // EkoCoin İyileştirmesi: Tüm görevlerin tamamlanması halinde EkoCoin ödülü
-    const coinReward = Math.floor(40 * levelMultiplier);
+    // EkoCoin İyileştirmesi: Tüm görevlerin tamamlanması halinde EkoCoin ödülü (Seri çarpanı ile!)
+    const consecutiveDays = progress.stats?.consecutiveDays || 0;
+    const streakMultiplier = consecutiveDays >= 30 ? 2.0 : (consecutiveDays >= 15 ? 1.5 : (consecutiveDays >= 5 ? 1.2 : 1.0));
+    const baseCoinReward = Math.floor(40 * levelMultiplier);
+    const coinReward = Math.floor(baseCoinReward * streakMultiplier);
     progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + coinReward;
     
     // Görev tamamlama mesajı gönder
@@ -511,6 +518,7 @@ async function checkDailyCompletion(progress, client) {
         .setDescription(
           `Tebrikler <@${progress.userId}>, bugünün tüm günlük görevlerini (Selamlaşma + Ses Aktifliği) başarıyla tamamladın!\n\n` +
           `✨ **+${Math.floor(100 * levelMultiplier)} XP** kazanıldı!\n` +
+          (streakMultiplier > 1.0 ? `🔥 **Seri Çarpanı Aktif:** \`${consecutiveDays} Gün\` ardışık aktifliğin sayesinde **x${streakMultiplier}** ödül kazandın!\n\n` : "") +
           `💰 **+${coinReward} EkoCoin (E.C.)** kazanıldı!\n` +
           `💳 Güncel Bakiyen: \`${progress.gamification.ecoCoins} E.C.\``
         )

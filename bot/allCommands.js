@@ -215,6 +215,39 @@ const generalCommands = [
     .setDescription("Kendi personel durumunuzu ve istatistiklerinizi görüntüler"),
 
   new SlashCommandBuilder()
+    .setName("personelayarla")
+    .setDescription("[Yönetici] Bir personelin istatistik veya seviye bilgilerini günceller")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("İşlem yapılacak personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o
+        .setName("parametre")
+        .setDescription("Güncellenecek parametre")
+        .setRequired(true)
+        .addChoices(
+          { name: "Bilet (Tickets Solved)", value: "tickets" },
+          { name: "Mesaj (Chat Messages)", value: "messages" },
+          { name: "Ses (Voice Minutes)", value: "voice" },
+          { name: "Aktif Gün (Active Days)", value: "active_days" },
+          { name: "Seviye (Staff Level)", value: "level" },
+          { name: "Uyarı (Warnings Count)", value: "warnings" },
+          { name: "Sınav Durumu Sıfırla (Reset Exam)", value: "reset_exam" }
+        )
+    )
+    .addIntegerOption((o) =>
+      o.setName("deger").setDescription("Yeni değer (Sınav sıfırlama için boş bırakın)").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("personelrapor")
+    .setDescription("[Yönetici] Aktif tüm personellerin genel ilerleme raporunu listeler")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
     .setName("sayim")
     .setDescription("Moderatör ekibi için aylık sayım (yoklama) sistemini yönetir")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
