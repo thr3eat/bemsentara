@@ -102,8 +102,9 @@ async function addMessageXP(member, client) {
   const oldest = history[0];
   if (history.length >= 30 && oldest && (now - oldest) >= 10 * 60 * 1000) {
     const boostUntil = new Date(now + 15 * 60 * 1000);
-    // Only set/update if not already active or if new boost extends it
-    if (!p.doubleXpUntil || new Date(p.doubleXpUntil).getTime() < boostUntil.getTime()) {
+    // Only set/update if not already active
+    const isBoostActive = p.doubleXpUntil && new Date(p.doubleXpUntil).getTime() > now;
+    if (!isBoostActive) {
       p.doubleXpUntil = boostUntil;
       await p.save();
 
