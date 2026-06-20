@@ -269,7 +269,7 @@ const generalCommands = [
 
   new SlashCommandBuilder()
     .setName("debug-update")
-    .setDescription("[Yönetici] Rol senkron debug — önizleme veya uygulama")
+    .setDescription("[Yönetici] Rol senkron,h debug — önizleme veya uygulama")
     .addUserOption((o) =>
       o.setName("kullanici").setDescription("Test edilecek kullanıcı (boş = kendin)").setRequired(false)
     )
