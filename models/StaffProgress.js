@@ -74,6 +74,7 @@ const staffProgressSchema = new mongoose.Schema({
     },
     challengesCompleted: { type: Number, default: 0 },   // Tamamlanan haftalk zorluklar
     lastChallengeWeek:   { type: Number, default: 0 },   // Son challenge haftası
+    lastDailyClaim:      { type: String, default: '' },   // Son günlük ödül alma tarihi YYYY-MM-DD
   },
 
   // Moderasyon Rapor Takip Sistemi

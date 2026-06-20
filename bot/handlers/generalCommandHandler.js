@@ -1551,7 +1551,7 @@ async function handleGeneralCommand(interaction) {
       const todayStr = () => new Date().toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }).split('.').reverse().join('-');
       const today = todayStr();
 
-      if (!p.gamification) p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
+      if (!p.gamification) p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
       
       // Daha önce alıp almadığını kontrol et
       if (p.gamification.lastDailyClaim === today) {
