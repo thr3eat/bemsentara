@@ -193,7 +193,7 @@ Format: {"tips": "ipuçları...", "questions": [{"question": "...", "options": [
 
     // Veritabanına kaydet
     const recruitment = new UnitRecruitment({
-      guildId: interaction.guildId,
+      guildId: '1466927911364726845',
       channelId: '1466939999571279994',
       birim: birimKey,
       announcementDate,
