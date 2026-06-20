@@ -233,6 +233,10 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("seviyetop")
+    .setDescription("Kurbağa ve Dinazor seviye sisteminde en yüksek sıralamaya sahip ilk 10 üyeyi gösterir"),
+
+  new SlashCommandBuilder()
     .setName("verify")
     .setDescription("Roblox hesabınıza göre Discord rollerinizi senkronize eder")
     .setDMPermission(false),

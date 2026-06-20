@@ -404,6 +404,25 @@ function onVoiceLeave(userId) {
   return Math.floor((Date.now() - joined) / 60000); // dakika
 }
 
+async function getFrogLeaderboard() {
+  return await FrogLevel.find({ xp: { $gt: 0 } })
+    .sort({ xp: -1 })
+    .limit(10);
+}
+
+// Clean up chatHistory map every 15 minutes to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, history] of chatHistory.entries()) {
+    const active = history.filter(ts => (now - ts) < 15 * 60 * 1000);
+    if (active.length === 0) {
+      chatHistory.delete(userId);
+    } else {
+      chatHistory.set(userId, active);
+    }
+  }
+}, 15 * 60 * 1000).unref();
+
 module.exports = {
   addMessageXP,
   addVoiceXP,
@@ -414,4 +433,6 @@ module.exports = {
   FROG_GUILD_ID,
   xpToNextLevel,
   totalXpForLevel,
+  getFrogLeaderboard,
 };
+

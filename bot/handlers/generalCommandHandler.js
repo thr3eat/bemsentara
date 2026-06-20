@@ -25,6 +25,7 @@ const GENERAL_COMMANDS = new Set([
   "stats",
   "personeldurum",
   "seviye",
+  "seviyetop",
   "modbasvuru",
   "istifa",
   "emeklilik",
@@ -1247,6 +1248,52 @@ async function handleGeneralCommand(interaction) {
           { name: '⬆️ Sonraki rol',    value: profile.nextRole?.name || '🏆 MAX SEVİYE', inline: true },
         )
         .setFooter({ text: isSeason2 ? 'Eko Yıldız • Dinazor Sezonu 🦖' : 'Eko Yıldız • Kurbağa Sistemi 🐸' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "seviyetop") {
+      const { getFrogLeaderboard, FROG_ROLES } = require('../services/frogLevel');
+      const lb = await getFrogLeaderboard();
+
+      if (!lb || lb.length === 0) {
+        return interaction.editReply({ content: '❌ Henüz seviye/XP kazanmış üye bulunmuyor.' });
+      }
+
+      let description = '';
+      for (let i = 0; i < lb.length; i++) {
+        const entry = lb[i];
+        const rank = i + 1;
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**#${rank}**`;
+        
+        let memberName = `<@${entry.userId}>`;
+        if (interaction.guild) {
+          try {
+            const member = await interaction.guild.members.fetch(entry.userId).catch(() => null);
+            if (member) {
+              memberName = `**${member.displayName}**`;
+            }
+          } catch (_) {}
+        }
+
+        const isSeason2 = entry.level >= 12;
+        const roleName = FROG_ROLES[entry.level]?.name || 'Yavru Kurbağa';
+        const levelDisplay = isSeason2 ? `${entry.level - 11}/5 (Dinazor)` : `${entry.level}/11 (Kurbağa)`;
+        
+        const doubleXpActive = entry.doubleXpUntil && new Date(entry.doubleXpUntil) > new Date();
+        const boostIndicator = doubleXpActive ? ' ⚡' : '';
+
+        description += `${medal} ${memberName}${boostIndicator}\n` +
+                       `┗ Seviye: \`${levelDisplay}\` • **${roleName}**\n` +
+                       `┗ XP: \`${entry.xp.toLocaleString()}\` • Mesaj: \`${(entry.totalMessages || 0).toLocaleString()}\` • Ses: \`${(entry.totalVoiceMinutes || 0).toLocaleString()} dk\`\n\n`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('🏆 Eko Yıldız Seviye Liderlik Tablosu')
+        .setDescription(description)
+        .setFooter({ text: 'Eko Yıldız • Seviye & Aktivite Sistemi 🐸🦖' })
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });
