@@ -1335,7 +1335,18 @@ function initializeDiscordHandlers(client) {
         await handleModActionApproval(interaction);
         return;
       }
-      
+      // ── Yetkililik Sınavı Butonları ─────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId === 'exam_start_trigger') {
+        const { handleStartTrigger } = require('../services/aiExamService');
+        await handleStartTrigger(interaction);
+        return;
+      }
+      if (interaction.isButton() && interaction.customId?.startsWith('exam_ans_')) {
+        const { handleAnswerInteraction } = require('../services/aiExamService');
+        await handleAnswerInteraction(interaction, client);
+        return;
+      }
+
       // ── EkoCoin Mağazası Satın Alma (Select Menu) ───────────────────────────
       if (interaction.isStringSelectMenu() && interaction.customId === 'ekocoin_satin_al') {
         const StaffProgress = require("../../models/StaffProgress");

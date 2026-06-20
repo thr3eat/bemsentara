@@ -13,6 +13,8 @@ const ROLES = {
   2: process.env.ROLE_PERSONEL || '1417530761774366821', // Personel
   3: process.env.ROLE_GELISMIS || '1417533740892291214', // Gelişmiş Personel
   4: process.env.ROLE_SEKRETER || '1419688146689593415', // Sekreter
+  5: '1517656567481372772',                             // Sekreter'in Babası
+  6: '1517695716594683904',                             // Personel Sekreteri
 };
 
 const ROLE_NAMES = {
@@ -20,6 +22,8 @@ const ROLE_NAMES = {
   2: '👔 Personel',
   3: '⭐ Gelişmiş Personel',
   4: '👑 Sekreter',
+  5: '👨‍✈️ Sekreter\'in Babası',
+  6: '💼 Personel Sekreteri',
 };
 
 // ── Seviyeye özgü günlük görevler ─────────────────────────────────────────
@@ -79,10 +83,36 @@ const LEVEL_TASKS = {
       '💡 Yöneticilere sunucu gelişim önerisi sun',
       '🤝 Ekibin moral duvarı ol — destek ver!',
     ],
-    rewards: '👑 En üst roldeyiz. Saygınlık ve sorumluluk sende.',
+    rewards: '👑 Sekreter rütbesinin getirdiği saygınlık ve sorumluluk sende.',
     penalties: '⏰ 3 gün görev yapmazsan Sekreterlik gözden geçirilir',
-    tips: 'Sen en üst personelsin. Sunucunun yüzüsün. Disiplin ve liderlik göster!',
+    tips: 'Sunucunun yüzüsün. Disiplin ve liderlik göster!',
   },
+  5: {
+    name: "Sekreter'in Babası",
+    dailyTasks: [
+      '✅ Sohbet kanalına 12x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 90 dk kal (zorunlu)',
+      '🛡️ Tüm moderatör ekibini denetle ve yönet',
+      '📈 Sunucu istatistiklerini raporla',
+      '🤝 Yöneticilerle koordineli çalış'
+    ],
+    rewards: '👨‍✈️ Yüksek kademe yönetim rolü.',
+    penalties: '⏰ 3 gün görev yapmazsan Sekreterliğe gerileme olur',
+    tips: 'Liderliği elden bırakma ve ekibi koordine et!'
+  },
+  6: {
+    name: 'Personel Sekreteri',
+    dailyTasks: [
+      '✅ Sohbet kanalına 15x selam ver (zorunlu)',
+      '🎤 Ses kanalında en az 120 dk kal (zorunlu)',
+      '👑 Tüm personel ve moderasyon operasyonlarını koordine et',
+      '🎓 Yeni personellerin sınav süreçlerini tasarla',
+      '📊 Haftalık/Aylık genel sunucu denetimini gerçekleştir'
+    ],
+    rewards: '💼 En üst ve en zorlu yetkili rütbesi.',
+    penalties: '⏰ 3 gün görev yapmazsan Sekreter\'in Babası rütbesine gerilersin',
+    tips: 'En üst rütbedesin, ekibin tüm sorumluluğu senin omuzlarında!'
+  }
 };
 
 // ── Günlük gereksinimler (gün geçtikçe katlanır) ──────────────────────────
@@ -93,11 +123,13 @@ function getDailyRequirements(level, consecutiveDays = 0) {
     2: { greets: 4, voiceMinutes: 20 },
     3: { greets: 6, voiceMinutes: 30 },
     4: { greets: 10, voiceMinutes: 60 },
+    5: { greets: 12, voiceMinutes: 90 },
+    6: { greets: 15, voiceMinutes: 120 },
   };
   const b = base[level] || base[1];
   return {
     greets:       Math.min(b.greets * multiplier, 20),
-    voiceMinutes: Math.min(b.voiceMinutes * multiplier, 120),
+    voiceMinutes: Math.min(b.voiceMinutes * multiplier, 180),
   };
 }
 
@@ -178,8 +210,18 @@ const PROMOTION_REQUIREMENTS = {
     activeDays:       90,
     moderationActions: 250,
     weeklyReports:    45,
-    description: 'Maksimum Seviye Aylık Kotası: 500 ticket + 3000 mesaj + 5000 dk ses + 90 gün aktif (Aylık/Dönemlik)',
+    description: '500 ticket + 3000 mesaj + 5000 dk ses + 250 mod işlem + 45 rapor + 90 gün aktif',
     promotionBonus: { points: 4000, xp: 5000 }
+  },
+  6: {
+    ticketsSolved:    750,
+    chatMessages:     5000,
+    totalVoiceMinutes: 7500,
+    activeDays:       120,
+    moderationActions: 350,
+    weeklyReports:    60,
+    description: 'Maksimum Seviye Aylık Kotası: 750 ticket + 5000 mesaj + 7500 dk ses + 120 gün aktif (Aylık/Dönemlik)',
+    promotionBonus: { points: 6000, xp: 7500 }
   }
 };
 
@@ -684,9 +726,58 @@ async function checkPromotion(progress, client) {
       (stats.weeklyReports    || 0) >= req.weeklyReports;
 
     if (ok) {
-      await promote(progress, client).catch(err => {
-        console.error('[staffSystem] promote failed:', err.message);
-      });
+      if (currentLevel >= 6) {
+        return;
+      }
+
+      // Her rütbe geçişinde terfi yerine sınav sürecini başlat
+      if (!progress.exam || progress.exam.status === 'none') {
+        try {
+          const targetLevel = currentLevel + 1;
+          const targetRoleName = ROLE_NAMES[targetLevel] || `Seviye ${targetLevel}`;
+
+          const { generateExamQuestions } = require('./aiExamService');
+          const questions = await generateExamQuestions(targetLevel);
+
+          const scheduled = new Date();
+          scheduled.setDate(scheduled.getDate() + 2); // 2 gün sonra
+          scheduled.setHours(12, 0, 0, 0); // Öğlen 12:00
+
+          progress.exam = {
+            status: 'scheduled',
+            scheduledAt: scheduled,
+            questions: questions,
+            currentQuestionIndex: 0,
+            answers: [],
+            lastExamAttempt: null
+          };
+          await progress.save();
+
+          // DM Gönder
+          const user = await client.users.fetch(progress.userId).catch(() => null);
+          if (user) {
+            const infoEmbed = new EmbedBuilder()
+              .setColor(0xf39c12)
+              .setTitle(`🎓 TEBRİKLER! ${targetRoleName} Terfi Sınavına Hak Kazandın!`)
+              .setDescription(
+                `Merhaba <@${progress.userId}>, **${targetRoleName}** rütbesine terfi etmek için gerekli tüm koşulları başarıyla tamamladın!\n\n` +
+                `Bu yeni rütbeye ulaşabilmen için **10 soruluk çoktan seçmeli bir Yapay Zeka Sınavı**'nı başarıyla geçmen gerekiyor.\n\n` +
+                `📅 **Sınav Tarihi:** ${scheduled.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })} (Öğlen 12:00)\n\n` +
+                `📋 **Sınav İpuçları & Bilgileri:**\n` +
+                `• Sınavda en az **8 doğru** yapman gerekmektedir.\n` +
+                `• Konular: Yetki düzeyinize uygun moderasyon standartları, sunucu kuralları ve yönetim rehberi.\n` +
+                `• Sınav saati geldiğinde bot sana otomatik olarak bir DM gönderecektir.\n\n` +
+                `Hazırlanmak için 2 günün var, bol şans! 💪`
+              )
+              .setFooter({ text: 'Eko Yıldız • Sınav ve Eğitim Sistemi' })
+              .setTimestamp();
+            await user.send({ embeds: [infoEmbed] }).catch(() => {});
+          }
+          console.log(`[staffSystem] ${progress.userId} has qualified for Level ${targetLevel} exam. Scheduled at: ${scheduled}`);
+        } catch (e) {
+          console.error('[staffSystem] Sınav planlanırken hata:', e.message);
+        }
+      }
     }
   } catch (err) {
     console.error('[staffSystem] checkPromotion error:', err.message);
@@ -702,7 +793,7 @@ async function promote(progress, client) {
     
     const oldLevel = progress.level || 1;
     const newLevel = oldLevel + 1;
-    if (newLevel > 5) return;
+    if (newLevel > 6) return;
 
     // 🎁 Terfi bonusu ekle
     const req = PROMOTION_REQUIREMENTS[oldLevel];
@@ -769,13 +860,13 @@ async function promote(progress, client) {
       });
     }
 
-    const isFinal = newLevel === 5;
+    const isFinal = newLevel === 6;
     const embed = new EmbedBuilder()
       .setColor(isFinal ? 0xffd700 : 0x4ade80)
-      .setTitle(isFinal ? '🏆 TEBRİKLER! Yönetici oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
+      .setTitle(isFinal ? '🏆 TEBRİKLER! Personel Sekreteri oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
       .setDescription(
         isFinal
-          ? `Eko Yıldız'ın en üst personel rolüne ulaştın! Yönetici görevlerin çok önemli. `
+          ? `Eko Yıldız'ın en üst yetkili rütbesi olan **Personel Sekreteri** rütbesine ulaştın! Bu sınavı geçerek yetkinliğini kanıtladın. Başarılar dileriz! 💼`
           : `**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\n${getNextRequirementsText(newLevel)}`
       )
       .addFields(
@@ -1812,10 +1903,27 @@ function startStaffScheduler(client) {
     await checkStaffVerifications(client);
   });
 
-  console.log('[staffSystem] Scheduler başlatıldı (09:00 / 13:00 / 17:00 / 19:00 / 23:30)');
+  // 12:00 — Günlük sınav kontrolü
+  scheduleAt(12, 0, async () => {
+    console.log('[staffSystem] 12:00 sınav kontrolü...');
+    try {
+      const { checkActiveExams } = require('./aiExamService');
+      await checkActiveExams(client);
+    } catch (err) {
+      console.error('[staffSystem] Sınav kontrolü hatası:', err.message);
+    }
+  });
+
+  console.log('[staffSystem] Scheduler başlatıldı (09:00 / 12:00 / 13:00 / 17:00 / 19:00 / 23:30)');
   
   // Başlangıçta hemen doğrulama kontrolünü bir defa yap
   setTimeout(() => checkStaffVerifications(client), 10000); // 10 saniye sonra
+  setTimeout(() => {
+    try {
+      const { checkActiveExams } = require('./aiExamService');
+      checkActiveExams(client);
+    } catch (_) {}
+  }, 15000); // 15 saniye sonra
 }
 
 // ── PERSONEL DOĞRULAMA KONTROLÜ (ROBLOX & DISCORD) ─────────────────────────

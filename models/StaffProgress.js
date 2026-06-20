@@ -85,6 +85,16 @@ const staffProgressSchema = new mongoose.Schema({
     lastPenaltyDate: { type: String, default: null },   // Son ceza tarihi
   },
 
+  // Sınav Sistemi (Personel Sekreteri için)
+  exam: {
+    status:               { type: String, default: 'none', enum: ['none', 'scheduled', 'ongoing', 'passed', 'failed'] },
+    scheduledAt:          { type: Date, default: null },
+    questions:            { type: [Object], default: [] },
+    currentQuestionIndex: { type: Number, default: 0 },
+    answers:              { type: [Number], default: [] },
+    lastExamAttempt:      { type: Date, default: null }
+  },
+
   // Uyarı sistemi
   warnings: {
     count:        { type: Number, default: 0 },    // Kaç gün üst üste görev yapılmadı

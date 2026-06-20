@@ -299,7 +299,7 @@ async function handleGeneralCommand(interaction) {
       await progress.save();
 
       let promoted = false;
-      if (oldLevel < 4) {
+      if (oldLevel < 5) {
         await promote(progress, interaction.client);
         promoted = true;
       }
@@ -314,7 +314,7 @@ async function handleGeneralCommand(interaction) {
           `• **+500 Puan** ve **+500 XP** gamification profiline eklendi!\n` +
           (promoted 
             ? `• 📈 Rütbesi **${ROLE_NAMES[oldLevel]}** seviyesinden **${ROLE_NAMES[newLevel]}** seviyesine yükseltildi! 🎉`
-            : `• *Kullanıcı zaten en üst seviye olan **Sekreter** rütbesinde olduğu için rütbe değişikliği yapılmadı.*`)
+            : `• *Kullanıcı zaten en üst düzey **Sekreter'in Babası** rütbesinde (veya üstünde) olduğu için rütbe değişikliği yapılmadı. (Personel Sekreteri rütbesi için sınavı geçmesi gerekmektedir)*`)
         )
         .setFooter({ text: 'Eko Yıldız • Yetkili Ödüllendirme' })
         .setTimestamp();
@@ -653,7 +653,7 @@ async function handleGeneralCommand(interaction) {
           const member = guild ? await guild.members.fetch(target.id).catch(() => null) : null;
           if (member) {
             let level = 0;
-            for (let lvl = 4; lvl >= 1; lvl--) {
+            for (let lvl = 6; lvl >= 1; lvl--) {
               const roleId = ROLES[lvl];
               if (roleId && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(roleId) && member.roles.cache.has(roleId)) {
                 level = lvl; break;
