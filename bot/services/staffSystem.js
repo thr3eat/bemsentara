@@ -1127,10 +1127,29 @@ function getNextRequirementsText(level) {
 
 // ── AI Sabah Brifing DM'i ─────────────────────────────────────────────────
 async function sendMorningBriefing(progress, client) {
+  const StaffUnit = require('../../models/StaffUnit');
+  let userUnit = null;
+  try {
+    userUnit = await StaffUnit.findOne({ userId: progress.userId });
+  } catch (err) {
+    console.error('[staffSystem] sendMorningBriefing unit fetch error:', err.message);
+  }
+
   resetDaily(progress);
-  if (!progress.daily.chosenTask) {
-    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
-    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
+
+  let allowedTasks = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+  if (userUnit && userUnit.unitName) {
+    if (userUnit.unitName === 'BAN_BIRIMI') {
+      allowedTasks = ['task_ticket', 'task_mod'];
+    } else if (userUnit.unitName === 'SES_BIRIMI') {
+      allowedTasks = ['task_voice'];
+    } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
+      allowedTasks = ['task_chat'];
+    }
+  }
+
+  if (!progress.daily.chosenTask || !allowedTasks.includes(progress.daily.chosenTask)) {
+    const randomTask = allowedTasks[Math.floor(Math.random() * allowedTasks.length)];
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
     await progress.save().catch(() => {});
@@ -1262,31 +1281,44 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
         .setLabel('💬 Koçla Konuş')
         .setStyle(ButtonStyle.Primary)
     );
+    const allOptions = [
+      {
+        label: '💬 Aktif Sohbetçi',
+        description: 'Sohbette en az 15 mesaj gönder',
+        value: 'task_chat'
+      },
+      {
+        label: '🎤 Ses Meraklısı',
+        description: 'Ses kanallarında fazladan 15 dakika geçir',
+        value: 'task_voice'
+      },
+      {
+        label: '🎫 Destekçi',
+        description: 'Bugün en az 1 ticket çöz',
+        value: 'task_ticket'
+      },
+      {
+        label: '🛡️ Koruyucu',
+        description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
+        value: 'task_mod'
+      }
+    ];
+
+    let options = allOptions;
+    if (userUnit && userUnit.unitName) {
+      if (userUnit.unitName === 'BAN_BIRIMI') {
+        options = allOptions.filter(o => o.value === 'task_ticket' || o.value === 'task_mod');
+      } else if (userUnit.unitName === 'SES_BIRIMI') {
+        options = allOptions.filter(o => o.value === 'task_voice');
+      } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
+        options = allOptions.filter(o => o.value === 'task_chat');
+      }
+    }
+
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('select_daily_task')
       .setPlaceholder('🎯 Seçimli Görevi Değiştir')
-      .addOptions([
-        {
-          label: '💬 Aktif Sohbetçi',
-          description: 'Sohbette en az 15 mesaj gönder',
-          value: 'task_chat'
-        },
-        {
-          label: '🎤 Ses Meraklısı',
-          description: 'Ses kanallarında fazladan 15 dakika geçir',
-          value: 'task_voice'
-        },
-        {
-          label: '🎫 Destekçi',
-          description: 'Bugün en az 1 ticket çöz',
-          value: 'task_ticket'
-        },
-        {
-          label: '🛡️ Koruyucu',
-          description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
-          value: 'task_mod'
-        }
-      ]);
+      .addOptions(options);
     const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
     await user.send({ embeds: [embed], components: [rowButtons, rowSelect] });

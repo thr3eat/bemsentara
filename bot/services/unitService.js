@@ -147,10 +147,8 @@ async function startBirimAlimi(interaction, client, birimKey) {
   try {
     const config = UNIT_CONFIG[birimKey];
     if (!config) {
-      return interaction.reply({ content: '❌ Geçersiz birim seçimi yapıldı.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Geçersiz birim seçimi yapıldı.' });
     }
-
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
 
     // AI ile sınav soruları ve ipuçları üret
     const systemPrompt = "Sen bir JSON üretecisin. Sadece geçerli JSON döndür, açıklama veya ek yazı yazma.";
@@ -450,7 +448,7 @@ async function handleBirimIstifa(interaction) {
     const userUnit = await StaffUnit.findOne({ userId });
 
     if (!userUnit || !userUnit.unitName) {
-      return interaction.reply({ content: '❌ Zaten herhangi bir birimde kayıtlı değilsiniz.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Zaten herhangi bir birimde kayıtlı değilsiniz.' });
     }
 
     const oldBirim = userUnit.unitName;
@@ -488,13 +486,12 @@ async function handleBirimIstifa(interaction) {
 
     await userUnit.save();
 
-    await interaction.reply({
-      content: `🚪 **${UNIT_CONFIG[oldBirim]?.label}** birimindeki (Rütbe ${oldRank}) görevinizden başarıyla **istifa ettiniz**. Rolleriniz temizlendi.`,
-      ephemeral: true
+    await interaction.editReply({
+      content: `🚪 **${UNIT_CONFIG[oldBirim]?.label}** birimindeki (Rütbe ${oldRank}) görevinizden başarıyla **istifa ettiniz**. Rolleriniz temizlendi.`
     });
   } catch (err) {
     console.error('[unitService] handleBirimIstifa hatası:', err.message);
-    await interaction.reply({ content: `❌ İstifa işlemi sırasında hata oluştu: ${err.message}`, ephemeral: true });
+    await interaction.editReply({ content: `❌ İstifa işlemi sırasında hata oluştu: ${err.message}` });
   }
 }
 
@@ -508,23 +505,23 @@ async function handleBirimTerfi(interaction) {
 
     const execUnit = await StaffUnit.findOne({ userId: executorId });
     if (!execUnit || !execUnit.unitName || execUnit.rank < 13) {
-      return interaction.reply({ content: '❌ Bu komutu kullanabilmek için kendi biriminizde en az **Rütbe 13** üst yetkili olmalısınız!', ephemeral: true });
+      return interaction.editReply({ content: '❌ Bu komutu kullanabilmek için kendi biriminizde en az **Rütbe 13** üst yetkili olmalısınız!' });
     }
 
     const targetUnit = await StaffUnit.findOne({ userId: targetUser.id });
     if (!targetUnit || targetUnit.unitName !== execUnit.unitName) {
-      return interaction.reply({ content: '❌ Terfi ettirmek istediğiniz kullanıcı sizinle aynı birimde bulunmuyor.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Terfi ettirmek istediğiniz kullanıcı sizinle aynı birimde bulunmuyor.' });
     }
 
     if (targetUnit.rank >= execUnit.rank) {
-      return interaction.reply({ content: '❌ Sizden yüksek veya sizinle eşit rütbedeki bir yetkiliyi terfi ettiremezsiniz.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Sizden yüksek veya sizinle eşit rütbedeki bir yetkiliyi terfi ettiremezsiniz.' });
     }
 
     const oldRank = targetUnit.rank;
     const newRank = oldRank + 1;
 
     if (newRank > 15) {
-      return interaction.reply({ content: '❌ Bu personel zaten en yüksek rütbede (Rütbe 15) bulunuyor.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Bu personel zaten en yüksek rütbede (Rütbe 15) bulunuyor.' });
     }
 
     targetUnit.rank = newRank;
@@ -554,7 +551,7 @@ async function handleBirimTerfi(interaction) {
       }
     }
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `🎉 **Terfi Başarılı!** <@${targetUser.id}> personeli **${UNIT_CONFIG[execUnit.unitName]?.label}** biriminde **Rütbe ${oldRank}** → **Rütbe ${newRank}** seviyesine yükseltildi!`
     });
 
@@ -573,7 +570,7 @@ async function handleBirimTerfi(interaction) {
     } catch (_) {}
   } catch (err) {
     console.error('[unitService] handleBirimTerfi hatası:', err.message);
-    await interaction.reply({ content: `❌ Terfi işlemi sırasında bir hata oluştu: ${err.message}`, ephemeral: true });
+    await interaction.editReply({ content: `❌ Terfi işlemi sırasında bir hata oluştu: ${err.message}` });
   }
 }
 
@@ -594,13 +591,13 @@ async function checkAutoPromotion(userId, client, activityType) {
     const today = new Date().toISOString().split('T')[0];
     if (progress.daily.date !== today) return; // Sadece bugünün verileriyle çalışır
 
-    if (activityType === 'ticket' && (progress.daily.ticketsSolvedToday || 0) >= 5) {
+    if (activityType === 'ticket' && userUnit.unitName === 'BAN_BIRIMI' && (progress.daily.ticketsSolvedToday || 0) >= 5) {
       qualifies = true;
       taskName = "Günde 5+ Ticket Çözmek";
-    } else if (activityType === 'chat' && (progress.daily.chatMessagesToday || 0) >= 100) {
+    } else if (activityType === 'chat' && userUnit.unitName === 'SOHBET_BIRIMI' && (progress.daily.chatMessagesToday || 0) >= 100) {
       qualifies = true;
       taskName = "Günde 100+ Sohbet Mesajı Göndermek";
-    } else if (activityType === 'voice' && (progress.daily.voiceMinutes || 0) >= 120) {
+    } else if (activityType === 'voice' && userUnit.unitName === 'SES_BIRIMI' && (progress.daily.voiceMinutes || 0) >= 120) {
       qualifies = true;
       taskName = "Günde 120+ Dakika Sesli Kanalda Kalmak";
     }

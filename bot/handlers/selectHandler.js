@@ -16,6 +16,18 @@ async function handleSelectInteraction(interaction) {
       return interaction.reply({ content: '❌ Aktif personel kaydınız bulunamadı.', ephemeral: true });
     }
 
+    const StaffUnit = require("../../models/StaffUnit");
+    const userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
+    if (userUnit && userUnit.unitName) {
+      let allowed = false;
+      if (userUnit.unitName === 'BAN_BIRIMI' && (selectedTask === 'task_ticket' || selectedTask === 'task_mod')) allowed = true;
+      if (userUnit.unitName === 'SES_BIRIMI' && selectedTask === 'task_voice') allowed = true;
+      if (userUnit.unitName === 'SOHBET_BIRIMI' && selectedTask === 'task_chat') allowed = true;
+      if (!allowed) {
+        return interaction.reply({ content: '❌ Bulunduğunuz birim dışındaki bir görevi seçemezsiniz!', ephemeral: true });
+      }
+    }
+
     if (p.daily.chosenTaskCompleted) {
       return interaction.reply({ content: '❌ Bugünün seçimli görevini zaten tamamladınız! Yeni görev seçemezsiniz.', ephemeral: true });
     }
