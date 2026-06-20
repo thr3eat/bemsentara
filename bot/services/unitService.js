@@ -163,9 +163,18 @@ Format: {"tips": "ipuçları...", "questions": [{"question": "...", "options": [
 
     try {
       aiContent = await chatWithAI([{ role: 'user', content: userPrompt }], systemPrompt);
-      const match = aiContent.match(/```json\s*([\s\S]*?)\s*```/) || aiContent.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonStr = match ? match[1] : aiContent;
-      parsedData = JSON.parse(jsonStr.trim());
+      
+      // Clean up think tags if present
+      aiContent = aiContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+      const startIdx = aiContent.indexOf('{');
+      const endIdx = aiContent.lastIndexOf('}');
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = aiContent.slice(startIdx, endIdx + 1);
+        parsedData = JSON.parse(jsonStr.trim());
+      } else {
+        throw new Error('Could not find JSON object bounds in AI response');
+      }
     } catch (aiErr) {
       console.error('❌ AI Sınav Sorusu oluşturma hatası:', aiErr.message);
       // Fallback soruları
