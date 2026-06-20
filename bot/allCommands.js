@@ -232,6 +232,7 @@ const generalCommands = [
           { name: "Aktif Gün (Active Days)", value: "active_days" },
           { name: "Seviye (Staff Level)", value: "level" },
           { name: "Uyarı (Warnings Count)", value: "warnings" },
+          { name: "EkoCoin (E.C. Bakiyesi)", value: "ekocoin" },
           { name: "Sınav Durumu Sıfırla (Reset Exam)", value: "reset_exam" }
         )
     )
@@ -268,6 +269,30 @@ const generalCommands = [
   new SlashCommandBuilder()
     .setName("seviyetop")
     .setDescription("Kurbağa ve Dinazor seviye sisteminde en yüksek sıralamaya sahip ilk 10 üyeyi gösterir"),
+
+  new SlashCommandBuilder()
+    .setName("seviyeayarla")
+    .setDescription("[Yönetici] Bir kullanıcının Kurbağa/Dinazor seviye veya XP bilgilerini günceller")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("İşlem yapılacak üye").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o
+        .setName("parametre")
+        .setDescription("Güncellenecek parametre")
+        .setRequired(true)
+        .addChoices(
+          { name: "Seviye (Level)", value: "level" },
+          { name: "XP", value: "xp" },
+          { name: "Double XP Süresi (Saat)", value: "double_xp_hours" },
+          { name: "Sıfırla (Reset)", value: "reset" }
+        )
+    )
+    .addIntegerOption((o) =>
+      o.setName("deger").setDescription("Yeni değer (Sıfırlama için boş bırakın)").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDMPermission(false),
 
   new SlashCommandBuilder()
     .setName("verify")

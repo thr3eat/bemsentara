@@ -213,6 +213,55 @@ async function checkLevelUp(p, member, client) {
   }
 }
 
+// ── Seviye Rol ve Roblox Senkronizasyonu ──────────────────────────────────
+async function syncRolesFromLevel(member, level, client) {
+  try {
+    const currentRoles = member.roles.cache.map(r => r.id);
+    const targetRole = FROG_ROLES[level];
+    
+    // Temizlenecek diğer tüm seviye rollerini bul
+    const rolesToRemove = [];
+    for (const fr of FROG_ROLES) {
+      if (fr.level !== level && currentRoles.includes(fr.id)) {
+        rolesToRemove.push(fr.id);
+      }
+    }
+
+    if (rolesToRemove.length > 0) {
+      await member.roles.remove(rolesToRemove, 'Seviye Rol Senkronizasyonu').catch(() => {});
+    }
+
+    if (targetRole && !currentRoles.includes(targetRole.id)) {
+      await member.roles.add(targetRole.id, 'Seviye Rol Senkronizasyonu').catch(() => {});
+    }
+
+    // 2. Sezon (Dinazor) geçişinde/seviyelerinde Roblox grubunda rank 5 ver
+    if (level >= 12 && member.guild.id === FROG_GUILD_ID) {
+      try {
+        const User = require('../../models/User');
+        const dbUser = await User.findOne({ discordId: member.id });
+        if (dbUser && dbUser.robloxId) {
+          const robloxId = parseInt(dbUser.robloxId);
+          if (!isNaN(robloxId)) {
+            const noblox = require('noblox.js');
+            const { ROBLOX } = require('./staffAutomation');
+
+            await noblox.handleJoinRequest(ROBLOX.EKOYILDIZ, robloxId, true).catch(() => {});
+            await noblox.setRank(ROBLOX.EKOYILDIZ, robloxId, 5).catch(err => {
+              console.error(`[frogLevel] Failed to set rank 5 in EkoYildiz group for ${member.id}:`, err.message);
+            });
+            console.log(`[frogLevel] Successfully set rank 5 in EkoYildiz group for user ${member.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[frogLevel] Roblox rank sync error during Dinosaur transition:', err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[frogLevel] syncRolesFromLevel error:', err.message);
+  }
+}
+
 // ── Seviye atla ──────────────────────────────────────────────────────────
 async function levelUp(p, member, client) {
   const oldLevel = p.level;
@@ -226,39 +275,8 @@ async function levelUp(p, member, client) {
   p.promotions.push({ level: newLevel, date: new Date() });
   await p.save();
 
-  // Eski rolü kaldır, yeni rol ver
-  try {
-    const oldRole = FROG_ROLES[oldLevel];
-    const newRole = FROG_ROLES[newLevel];
-
-    if (oldRole) await member.roles.remove(oldRole.id, 'Seviye atladı').catch(() => {});
-    if (newRole) await member.roles.add(newRole.id,    'Seviye atladı').catch(() => {});
-  } catch (err) {
-    console.warn('[frogLevel] Rol hatası:', err.message);
-  }
-
-  // 2. Sezona (Dinazor) geçişte EkoYıldız sunucusundaysa Roblox grubunda 5 rankını ver
-  if (newLevel === 12 && member.guild.id === FROG_GUILD_ID) {
-    try {
-      const User = require('../../models/User');
-      const dbUser = await User.findOne({ discordId: member.id });
-      if (dbUser && dbUser.robloxId) {
-        const robloxId = parseInt(dbUser.robloxId);
-        if (!isNaN(robloxId)) {
-          const noblox = require('noblox.js');
-          const { ROBLOX } = require('./staffAutomation');
-
-          await noblox.handleJoinRequest(ROBLOX.EKOYILDIZ, robloxId, true).catch(() => {});
-          await noblox.setRank(ROBLOX.EKOYILDIZ, robloxId, 5).catch(err => {
-            console.error(`[frogLevel] Failed to set rank 5 in EkoYildiz group for ${member.id}:`, err.message);
-          });
-          console.log(`[frogLevel] Successfully set rank 5 in EkoYildiz group for user ${member.id}`);
-        }
-      }
-    } catch (err) {
-      console.error('[frogLevel] Roblox rank sync error during Dinosaur transition:', err.message);
-    }
-  }
+  // Eski rolleri temizle, yeniyi ver ve Roblox rütbesini eşle
+  await syncRolesFromLevel(member, newLevel, client);
 
   const isFinal = newLevel === maxLevel;
   const newRoleInfo = FROG_ROLES[newLevel];
@@ -434,5 +452,6 @@ module.exports = {
   xpToNextLevel,
   totalXpForLevel,
   getFrogLeaderboard,
+  syncRolesFromLevel,
 };
 

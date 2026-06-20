@@ -26,6 +26,7 @@ const GENERAL_COMMANDS = new Set([
   "personeldurum",
   "seviye",
   "seviyetop",
+  "seviyeayarla",
   "modbasvuru",
   "istifa",
   "emeklilik",
@@ -210,6 +211,18 @@ async function handleGeneralCommand(interaction) {
           newValue = `${deger} uyarı`;
           break;
         }
+        case 'ekocoin': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Bu parametre için geçerli (0 veya daha büyük) bir sayı değeri belirtmelisiniz.' });
+          }
+          if (!progress.gamification) {
+            progress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
+          }
+          oldValue = `${progress.gamification.ecoCoins || 0} E.C.`;
+          progress.gamification.ecoCoins = deger;
+          newValue = `${deger} E.C.`;
+          break;
+        }
         case 'reset_exam': {
           oldValue = `Sınav Durumu: ${progress.exam.status || 'none'}, Hak: ${progress.exam.attempts || 0}`;
           progress.exam.status = 'none';
@@ -359,6 +372,133 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ embeds: embeds });
     } catch (err) {
       console.error('[personelrapor] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── seviyeayarla: Seviye ve XP bilgilerini günceller (Yöneticiler) ──────────────────
+  if (commandName === "seviyeayarla") {
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const parametre = interaction.options.getString('parametre');
+      const deger = interaction.options.getInteger('deger');
+
+      const FrogLevel = require("../../models/FrogLevel");
+      const { FROG_ROLES, FROG_GUILD_ID, xpToNextLevel, totalXpForLevel, syncRolesFromLevel } = require("../services/frogLevel");
+
+      let p = await FrogLevel.findOne({ userId: targetUser.id });
+      if (!p) {
+        p = new FrogLevel({ userId: targetUser.id, guildId: FROG_GUILD_ID });
+      }
+
+      let oldValue = '';
+      let newValue = '';
+      const oldLevel = p.level || 0;
+
+      switch (parametre) {
+        case 'level': {
+          if (deger === null || deger < 0 || deger >= FROG_ROLES.length) {
+            return interaction.editReply({ content: `❌ Geçerli bir seviye belirtmelisiniz (0 - ${FROG_ROLES.length - 1} arası).` });
+          }
+          oldValue = `Seviye ${oldLevel} (${FROG_ROLES[oldLevel]?.name || 'Yavru Kurbağa'})`;
+          p.level = deger;
+          p.xp = totalXpForLevel(deger);
+          newValue = `Seviye ${deger} (${FROG_ROLES[deger]?.name || 'Yavru Kurbağa'})`;
+          break;
+        }
+        case 'xp': {
+          if (deger === null || deger < 0) {
+            return interaction.editReply({ content: '❌ Geçerli bir XP miktarı belirtmelisiniz.' });
+          }
+          oldValue = `${p.xp || 0} XP`;
+          p.xp = deger;
+          newValue = `${deger} XP`;
+          
+          // Seviye kontrolü tetikle
+          try {
+            const guild = await interaction.client.guilds.fetch(FROG_GUILD_ID).catch(() => null);
+            const member = guild ? await guild.members.fetch(targetUser.id).catch(() => null) : null;
+            if (member) {
+              const { checkLevelUp } = require("../services/frogLevel");
+              await checkLevelUp(p, member, interaction.client);
+            }
+          } catch (e) {
+            console.error('[seviyeayarla] checkLevelUp error:', e.message);
+          }
+          break;
+        }
+        case 'double_xp_hours': {
+          if (deger === null || deger <= 0) {
+            return interaction.editReply({ content: '❌ Geçerli bir saat süresi belirtmelisiniz.' });
+          }
+          const now = Date.now();
+          const boostUntil = new Date(now + deger * 60 * 60 * 1000);
+          oldValue = p.doubleXpUntil && new Date(p.doubleXpUntil) > new Date() ? `Aktif (<t:${Math.floor(new Date(p.doubleXpUntil).getTime() / 1000)}:R>)` : 'Pasif';
+          p.doubleXpUntil = boostUntil;
+          newValue = `Aktif (<t:${Math.floor(boostUntil.getTime() / 1000)}:R>)`;
+          break;
+        }
+        case 'reset': {
+          oldValue = `Seviye ${oldLevel}, ${p.xp || 0} XP`;
+          p.level = 0;
+          p.xp = 0;
+          p.doubleXpUntil = null;
+          p.totalMessages = 0;
+          p.totalVoiceMinutes = 0;
+          p.promotions = [];
+          newValue = 'Sıfırlandı (Seviye 0, 0 XP)';
+          break;
+        }
+        default: {
+          return interaction.editReply({ content: '❌ Geçersiz parametre seçildi.' });
+        }
+      }
+
+      await p.save();
+
+      // Rol ve Roblox senkronizasyonu
+      let syncMessage = '';
+      try {
+        const guild = await interaction.client.guilds.fetch(FROG_GUILD_ID).catch(() => null);
+        const member = guild ? await guild.members.fetch(targetUser.id).catch(() => null) : null;
+        if (member) {
+          await syncRolesFromLevel(member, p.level, interaction.client);
+          syncMessage = `\n\n🔄 **Rol ve Grup Senkronizasyonu:** Kullanıcının seviye rolleri Discord ve Roblox üzerinde başarıyla güncellendi.`;
+        } else {
+          syncMessage = `\n\n⚠️ **Rol Senkronizasyonu:** Kullanıcı hedef sunucuda bulunamadığı için Discord rolleri güncellenemedi.`;
+        }
+      } catch (syncErr) {
+        console.error('[seviyeayarla] sync error:', syncErr.message);
+        syncMessage = `\n\n⚠️ **Senkronizasyon Hatası:** ${syncErr.message}`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('⚙️ Seviye Verisi Güncellendi')
+        .setDescription(`${targetUser} adlı üyenin Kurbağa/Dinazor seviye veritabanı kaydı başarıyla değiştirildi.`)
+        .addFields(
+          { name: 'Değiştirilen Parametre', value: `\`${parametre}\``, inline: true },
+          { name: 'Eski Değer', value: `\`${oldValue}\``, inline: true },
+          { name: 'Yeni Değer', value: `\`${newValue}\``, inline: true }
+        )
+        .setFooter({ text: `İşlemi Yapan: ${interaction.user.username} • Eko Yıldız` })
+        .setTimestamp();
+
+      if (syncMessage) {
+        embed.setDescription(embed.data.description + syncMessage);
+      }
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[seviyeayarla] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
