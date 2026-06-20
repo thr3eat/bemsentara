@@ -7,6 +7,11 @@ const { handleFunCommand } = require("./funCommandHandler");
 const { handleModerationCommand } = require("./moderationCommandHandler");
 const { setupCentralAuditHandler } = require("./centralAuditHandler");
 
+const nightChatTracker = new Map();
+const dailyChatTracker = new Map();
+const photoTracker = new Map();
+const botFriendTracker = new Map();
+
 function initializeDiscordHandlers(client) {
   const { initializeVoiceAndBanHandlers } = require("./voiceHandler");
   initializeVoiceAndBanHandlers(client);
@@ -760,10 +765,7 @@ function initializeDiscordHandlers(client) {
     }
   });
 
-  const nightChatTracker = new Map();
-  const dailyChatTracker = new Map();
-  const photoTracker = new Map();
-  const botFriendTracker = new Map();
+
 
   client.on("messageCreate", async (message) => {
     // Partial mesajları fetch et (DM için zorunlu)
