@@ -1782,7 +1782,7 @@ async function checkStaffVerifications(client) {
       // EĞER KULLANICI MODERATÖR SUNUCUSUNDAYSA UYARIYI ATMA
       let inModeratorServer = false;
       try {
-        const modGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+        const modGuild = await client.guilds.fetch(staffAutomation.ADMIN_GUILD_ID).catch(() => null);
         if (modGuild) {
           const modMember = await modGuild.members.fetch(p.userId).catch(() => null);
           if (modMember) inModeratorServer = true;
