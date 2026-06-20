@@ -48,7 +48,7 @@ async function handleModalSubmit(interaction) {
   }
 
   // ── Admin Panel Form Modals ─────────────────────────────────────────────
-  if (['modal_leave_form', 'modal_suggestion_form', 'modal_resign_form', 'modal_modaction_form'].includes(interaction.customId)) {
+  if (['modal_leave_form', 'modal_suggestion_form', 'modal_resign_form', 'modal_modaction_form', 'modal_ban_report_form', 'modal_mute_report_form', 'modal_mod_complain_form'].includes(interaction.customId)) {
     try {
       const { handleAdminFormModals } = require('../services/adminFormHandler');
       await handleAdminFormModals(interaction, interaction.client);

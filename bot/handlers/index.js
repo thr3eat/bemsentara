@@ -7,6 +7,20 @@ const { handleFunCommand } = require("./funCommandHandler");
 const { handleModerationCommand } = require("./moderationCommandHandler");
 const { setupCentralAuditHandler } = require("./centralAuditHandler");
 
+// Preload services/handlers to speed up interaction responses and prevent timeouts
+const { handleSurveyButton } = require('../services/surveyAI');
+const { handleInterviewButton } = require('../services/modInterview');
+const { handleCoachButton } = require('../services/staffCoach');
+const { handleDMCloseButton, handleDMConfirmButton } = require('../services/dmTicket');
+const { handleBanButton, handleWarnButton, handleAdLinkButton, handleAdLinkModal } = require('../services/ticketAI');
+const { handleDiscordAbuseButton } = require("./discordAbuseButtonHandler");
+const { handleNightUnbanButton } = require("../services/discordAbuseDetector");
+const { handleAbuseButton, handleRobloxInteractions } = require("./robloxInteractionHandler");
+const { handleAppealButton, handleAppealDecisionButton, handleAppealModalSubmit } = require('../services/banAppeal');
+const { handleModActionApproval } = require("../services/modActionService");
+const { handleStartTrigger, handleAnswerInteraction } = require('../services/aiExamService');
+const StaffProgress = require("../../models/StaffProgress");
+
 const nightChatTracker = new Map();
 const dailyChatTracker = new Map();
 const photoTracker = new Map();
@@ -1235,121 +1249,96 @@ function initializeDiscordHandlers(client) {
     try {
       // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
-        const { handleSurveyButton } = require('../services/surveyAI');
         await handleSurveyButton(interaction, client);
         return;
       }
       // ── Moderatör mülakat Evet/Hayır butonu ───────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('mod_interview_yes_') || interaction.customId?.startsWith('mod_interview_no_'))) {
-        const { handleInterviewButton } = require('../services/modInterview');
         await handleInterviewButton(interaction, client);
         return;
       }
       // ── Koç butonları ────────────────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('coach_')) {
-        const { handleCoachButton } = require('../services/staffCoach');
         await handleCoachButton(interaction, client);
         return;
       }
       // ── DM Ticket kapat butonu ─────────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('dm_close_')) {
-        const { handleDMCloseButton } = require('../services/dmTicket');
         await handleDMCloseButton(interaction, client);
         return;
       }
       // ── DM Ticket Evet/Hayır butonu ────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('dm_confirm_')) {
-        const { handleDMConfirmButton } = require('../services/dmTicket');
         await handleDMConfirmButton(interaction, client);
-        return;
-      }
-      // ── Anket Evet/Hayır butonu ────────────────────────────────────────────
-      if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
-        const { handleSurveyButton } = require('../services/surveyAI');
-        await handleSurveyButton(interaction, client);
         return;
       }
       // ── Ban onayla/reddet butonu ───────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('ban_approve_') || interaction.customId?.startsWith('ban_reject_'))) {
-        const { handleBanButton } = require('../services/ticketAI');
         await handleBanButton(interaction, client);
         return;
       }
       // ── Warn/Mute butonu ──────────────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('warn_approve_') || interaction.customId?.startsWith('warn_ban_') || interaction.customId?.startsWith('warn_reject_'))) {
-        const { handleWarnButton } = require('../services/ticketAI');
         await handleWarnButton(interaction, client);
         return;
       }
       // ── Reklam link butonu ────────────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('ad_link_')) {
-        const { handleAdLinkButton } = require('../services/ticketAI');
         await handleAdLinkButton(interaction, client);
         return;
       }
       // ── Reklam link modal submit ──────────────────────────────────────────
       if (interaction.isModalSubmit() && interaction.customId?.startsWith('ad_link_modal_')) {
-        const { handleAdLinkModal } = require('../services/ticketAI');
         await handleAdLinkModal(interaction, client);
         return;
       }
       // ── Discord Sunucu Abuse Butonları ──────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith("disc_abuse_")) {
-        const { handleDiscordAbuseButton } = require("./discordAbuseButtonHandler");
         await handleDiscordAbuseButton(interaction);
         return;
       }
       // ── Gece Otomatik Ban Geri Al Butonu ────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith("night_unban_")) {
-        const { handleNightUnbanButton } = require("../services/discordAbuseDetector");
         await handleNightUnbanButton(interaction);
         return;
       }
       // ── Roblox Abuse Butonları ────────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith("rbx_abuse_demote_") || interaction.customId?.startsWith("rbx_abuse_ignore_"))) {
-        const { handleAbuseButton } = require("./robloxInteractionHandler");
         await handleAbuseButton(interaction);
         return;
       }
       // ── Ban İtiraz Butonu (DM'den tıklanan) ────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('ban_appeal_')) {
-        const { handleAppealButton } = require('../services/banAppeal');
         await handleAppealButton(interaction);
         return;
       }
       // ── Ban İtiraz Karar Butonları (Onayla/Reddet) ─────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('appeal_accept_') || interaction.customId?.startsWith('appeal_reject_'))) {
-        const { handleAppealDecisionButton } = require('../services/banAppeal');
         await handleAppealDecisionButton(interaction, client);
         return;
       }
       // ── Ban İtiraz Modal Submit ─────────────────────────────────────────────
       if (interaction.isModalSubmit() && interaction.customId?.startsWith('ban_appeal_modal_')) {
-        const { handleAppealModalSubmit } = require('../services/banAppeal');
         await handleAppealModalSubmit(interaction, client);
         return;
       }
       // ── Mod İşlem Onay/Red Butonları ────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith("modact_approve_") || interaction.customId?.startsWith("modact_reject_"))) {
-        const { handleModActionApproval } = require("../services/modActionService");
         await handleModActionApproval(interaction);
         return;
       }
       // ── Yetkililik Sınavı Butonları ─────────────────────────────────────────
       if (interaction.isButton() && interaction.customId === 'exam_start_trigger') {
-        const { handleStartTrigger } = require('../services/aiExamService');
         await handleStartTrigger(interaction);
         return;
       }
       if (interaction.isButton() && interaction.customId?.startsWith('exam_ans_')) {
-        const { handleAnswerInteraction } = require('../services/aiExamService');
         await handleAnswerInteraction(interaction, client);
         return;
       }
 
       // ── EkoCoin Mağazası Satın Alma (Select Menu) ───────────────────────────
       if (interaction.isStringSelectMenu() && interaction.customId === 'ekocoin_satin_al') {
-        const StaffProgress = require("../../models/StaffProgress");
         const p = await StaffProgress.findOne({ userId: interaction.user.id });
         if (!p) {
           return interaction.reply({ content: '❌ Kayıt bulunamadı.', ephemeral: true });
@@ -1390,7 +1379,6 @@ function initializeDiscordHandlers(client) {
               else if (item === 'color_pink') roleColor = '#ff9ff3';
               else if (item === 'color_orange') roleColor = '#e67e22';
 
-              // Rolü En Üste (Ama yetkisiz olarak) eklemeye çalış (Botun yetkisi olduğu yere kadar)
               colorRole = await guild.roles.create({
                 name: roleName,
                 color: roleColor,
@@ -1399,7 +1387,6 @@ function initializeDiscordHandlers(client) {
             }
             const member = await guild.members.fetch(interaction.user.id).catch(() => null);
             if (member && colorRole) {
-              // Varsa diğer renkleri al
               const existingColorRoles = member.roles.cache.filter(r => r.name.startsWith('- ') && r.name.endsWith(' RENGİ -'));
               for (const r of existingColorRoles.values()) {
                 await member.roles.remove(r.id).catch(() => {});
@@ -1413,7 +1400,6 @@ function initializeDiscordHandlers(client) {
 
         await p.save();
 
-        // ── GİZLİ BAŞARIM: Mağaza Müdavimi ──
         let extraMsg = '';
         if (interaction.guild && interaction.guild.id === '1367646464804655104') {
           const uId = interaction.user.id;
@@ -1426,7 +1412,7 @@ function initializeDiscordHandlers(client) {
                 if (!shopRole) {
                   shopRole = await mainGuild.roles.create({
                     name: '🛒 Mağaza Müdavimi',
-                    color: '#1abc9c', // Turkuaz
+                    color: '#1abc9c',
                     hoist: false,
                     position: 1,
                     reason: 'Gizli Başarım Sistemi'
@@ -1450,7 +1436,6 @@ function initializeDiscordHandlers(client) {
         (interaction.isButton() && interaction.customId?.startsWith("rbx_btn_")) ||
         (interaction.isModalSubmit() && interaction.customId?.startsWith("rbx_mod_"))
       ) {
-        const { handleRobloxInteractions } = require("./robloxInteractionHandler");
         await handleRobloxInteractions(interaction);
         return;
       }
@@ -1473,21 +1458,18 @@ function initializeDiscordHandlers(client) {
 
 async function handleInteraction(interaction) {
     if (interaction.isButton()) {
-      const { handleVoiceButton } = require("./voiceButtonHandler");
       const voiceResult = await handleVoiceButton(interaction);
       if (voiceResult !== null) return voiceResult;
       return handleButtonInteraction(interaction);
     }
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) {
-      const { handleVoiceSelect } = require("./voiceButtonHandler");
       const voiceSel = await handleVoiceSelect(interaction);
       if (voiceSel !== null) return voiceSel;
       return handleSelectInteraction(interaction);
     }
 
     if (interaction.isModalSubmit()) {
-      const { handleVoiceModal } = require("./voiceButtonHandler");
       const voiceModal = await handleVoiceModal(interaction);
       if (voiceModal !== null) return voiceModal;
       return handleModalSubmit(interaction);
