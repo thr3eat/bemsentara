@@ -333,10 +333,83 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       await staffUpdate.save();
     }
 
+    await syncMainGuildRoles(client, discordUserId).catch(() => {});
     return true;
   } catch (error) {
     console.error("[StaffAutomation] syncStaffDiscordRoles Error:", error);
     return false;
+  }
+}
+
+/**
+ * Synchronizes the staff level roles in the main guild (1367646464804655104) based on their current roles.
+ * @param {import('discord.js').Client} client
+ * @param {string} discordUserId
+ */
+async function syncMainGuildRoles(client, discordUserId) {
+  try {
+    const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
+    if (!mainGuild) {
+      console.log("[StaffAutomation] Main guild 1367646464804655104 not found.");
+      return;
+    }
+
+    const member = await mainGuild.members.fetch(discordUserId).catch(() => null);
+    if (!member) {
+      console.log(`[StaffAutomation] Member ${discordUserId} not found in main guild.`);
+      return;
+    }
+
+    const currentRoles = member.roles.cache.map(r => r.id);
+
+    // Mappings:
+    // 1. If has '1417534492251394149' or '1417530761774366821' -> give '1417533740892291214'
+    // 2. If has '1417533740892291214' or '1419688146689593415' -> give '1517919240861257758'
+    // 3. If has '1517651154220355836' or '1517695304147796058' -> give '1517919442279858307'
+
+    const targetRoles = [];
+    const rolesToRemove = [];
+
+    // Condition 1
+    if (currentRoles.includes('1417534492251394149') || currentRoles.includes('1417530761774366821')) {
+      targetRoles.push('1417533740892291214');
+    } else {
+      rolesToRemove.push('1417533740892291214');
+    }
+
+    // Condition 2
+    if (currentRoles.includes('1417533740892291214') || currentRoles.includes('1419688146689593415')) {
+      targetRoles.push('1517919240861257758');
+    } else {
+      rolesToRemove.push('1517919240861257758');
+    }
+
+    // Condition 3
+    if (currentRoles.includes('1517651154220355836') || currentRoles.includes('1517695304147796058')) {
+      targetRoles.push('1517919442279858307');
+    } else {
+      rolesToRemove.push('1517919442279858307');
+    }
+
+    // Apply removals
+    const toRemove = rolesToRemove.filter(rId => currentRoles.includes(rId));
+    if (toRemove.length > 0) {
+      await member.roles.remove(toRemove, 'Personel Sistemi Seviye Rol Eşleme (Kaldırma)').catch(err => {
+        console.error(`[StaffAutomation] Failed to remove main guild level roles: ${err.message}`);
+      });
+    }
+
+    // Apply additions
+    const toAdd = targetRoles.filter(rId => !currentRoles.includes(rId));
+    if (toAdd.length > 0) {
+      await member.roles.add(toAdd, 'Personel Sistemi Seviye Rol Eşleme (Ekleme)').catch(err => {
+        console.error(`[StaffAutomation] Failed to add main guild level roles: ${err.message}`);
+      });
+    }
+
+    console.log(`[StaffAutomation] Synchronized main guild level roles for ${discordUserId}. Added: ${toAdd.join(', ')}, Removed: ${toRemove.join(', ')}`);
+  } catch (err) {
+    console.error('[StaffAutomation] syncMainGuildRoles error:', err.message);
   }
 }
 
@@ -399,5 +472,6 @@ module.exports = {
   sendAdminLog,
   ensureAdminGuildMembership,
   updateDynamicModList,
-  syncStaffDiscordRoles
+  syncStaffDiscordRoles,
+  syncMainGuildRoles
 };

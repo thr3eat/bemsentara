@@ -23,30 +23,122 @@ function buildCoachSystem(progress) {
   const req        = getDailyRequirements(progress?.level || 1, progress?.stats?.consecutiveDays || 0);
   const stats      = progress?.stats || {};
 
-  return `Sen Eko Yıldız Discord sunucusunun personel AI koçusun. Adın "Koç".
-Görüşülen personel hakkında bilgiler:
-- Seviye: ${ROLE_NAMES[progress?.level || 1]}
-- Arka arkaya aktif gün: ${stats.consecutiveDays || 0}
-- Uyarı sayısı: ${progress?.warnings?.count || 0}/5
-- Çözülen ticket: ${stats.ticketsSolved || 0}
-- Mesaj (Sohbet): ${stats.chatMessages || 0}
-- Mod İşlem: ${stats.moderationActions || 0}
-${nextReq ? `- Terfi için gerekli: ${nextReq.ticketsSolved} ticket, ${nextReq.chatMessages} mesaj, ${nextReq.activeDays} aktif gün` : '- En üst seviyeye ulaşmış'}
+  // Detaylı personel verilerini JSON olarak çıkarıyoruz ki Koç tüm datayı bilsin
+  const userProgressData = progress ? {
+    userId: progress.userId,
+    level: progress.level,
+    status: progress.status,
+    joinedAt: progress.joinedAt,
+    promotedAt: progress.promotedAt,
+    daily: progress.daily ? {
+      date: progress.daily.date,
+      greeted: progress.daily.greeted,
+      voiceMinutes: progress.daily.voiceMinutes
+    } : null,
+    stats: progress.stats ? {
+      ticketsSolved: progress.stats.ticketsSolved,
+      chatMessages: progress.stats.chatMessages,
+      totalVoiceMinutes: progress.stats.totalVoiceMinutes,
+      activeDays: progress.stats.activeDays,
+      consecutiveDays: progress.stats.consecutiveDays,
+      moderationActions: progress.stats.moderationActions,
+      weeklyReports: progress.stats.weeklyReports,
+      lastCompleteDay: progress.stats.lastCompleteDay,
+      dailyTicketsToday: progress.stats.dailyTicketsToday,
+      breakCredits: progress.stats.breakCredits
+    } : null,
+    leaves: progress.leaves ? {
+      totalCredits: progress.leaves.totalCredits,
+      usedDays: progress.leaves.usedDays,
+      monthlyLeaveUsed: progress.leaves.monthlyLeaveUsed,
+      weeklyLeaveUsed: progress.leaves.weeklyLeaveUsed,
+      lastLeaveDate: progress.leaves.lastLeaveDate
+    } : null,
+    gamification: progress.gamification ? {
+      totalPoints: progress.gamification.totalPoints,
+      level: progress.gamification.level,
+      currentXP: progress.gamification.currentXP,
+      ecoCoins: progress.gamification.ecoCoins,
+      badges: progress.gamification.badges
+    } : null,
+    warnings: progress.warnings ? {
+      count: progress.warnings.count,
+      lastWarned: progress.warnings.lastWarned,
+      warnedDays: progress.warnings.warnedDays
+    } : null,
+    exam: progress.exam ? {
+      status: progress.exam.status,
+      scheduledAt: progress.exam.scheduledAt
+    } : null
+  } : {};
 
-Günlük görev gereksinimleri: ${req.greets}x selam + ${req.voiceMinutes} dk ses
+  const userProgressJson = JSON.stringify(userProgressData, null, 2);
+
+  const commandListText = `
+Kullanıcı Komutları (Slash Commands):
+- /support : Destek menüsünü açar.
+- /mytickets : Açık biletlerini (destek taleplerini) gösterir.
+- /closeticket [reason] : Biletini kapatır.
+- /profile : Profil ve yetkili bilgilerini gösterir.
+- /authorize : Roblox hesabını yetkilendirir.
+- /verify : Roblox grubundaki rütbesine göre Discord rollerini senkronize eder.
+- /update : Rollerimi güncelle (Sadece yetkililer).
+- /istifa [sebep] : Personel görevinden istifa eder.
+- /emeklilik : 90+ aktif gün sonrasında emekli olur.
+- /koc [islem: sıfırla] : AI koç sohbetini başlatır veya sıfırlar.
+- /personeldurum : Kendi personel durumunu ve bugünkü günlük görevlerinin (Selam + Ses) ilerlemesini görüntüler.
+- /seviye : Seviye ve XP durumunu gösterir.
+- /ekocoin bakiye : Mevcut EkoCoin bakiyesini gösterir.
+- /ekocoin gonder [kullanici] [miktar] : Başka bir personele EkoCoin gönderir.
+- /magaza : EkoCoin Mağazasını açar ve satın alma menüsü gösterir.
+- /gunluk-odul : Günlük EkoCoin maaşını alır.
+- /zenginler : En çok EkoCoin'e sahip ilk 10 kişiyi listeler.
+- /leaderboard : Puan/XP bazında ilk 10 personeli listeler.
+- /profil : Gamification (XP, XP Seviyesi, rozetler, streak) profilini gösterir.
+- /challenge : Bu haftanın haftalık görevini gösterir.
+- /izin_iste [tarih] [sebep] : İzin talep eder. Tarih YYYY-MM-DD formatında olmalıdır.
+- /izin_kullan : Birikmiş izin kredisini kullanarak bugünkü günlük görevlerini pas geçer (skip eder).
+- /izin_durum : Kalan izin kotasını ve birikmiş izin kredilerini görüntüler.
+
+Yönetici Komutları (Sadece Admin):
+- /xpcekilis [xp_miktari] [kazanan_sayisi] : Personel için XP çekilişi başlatır.
+- /personelkov [kullanici] [sebep] : Personeli gruptan atar, sunucudan kickler ve sistemden siler.
+- /personelayarla [kullanici] [parametre] [deger] : Personelin ticket, mesaj, ses, seviye, uyarı, EkoCoin verisini değiştirir veya sınavını sıfırlar.
+- /personelrapor : Aktif tüm personellerin ilerleme raporunu tablo olarak gösterir.
+- /sayim [baslat/bitir] : Aylık yoklama sistemini yönetir.
+- /seviyeayarla [kullanici] [parametre] [deger] : Kullanıcının seviye, XP veya çift XP süresini günceller.
+- /konus [kullanici] [konu] : Kullanıcı ile AI destekli DM sohbeti başlatır.
+- /personel-dogrula : Personel Roblox doğrulama paneli linkini gönderir.
+- /odulver [kullanici] [islem] [odul] : Personele ödül verir (+500 Puan/XP + terfi) veya geri alır.
+- /tenzilat [kullanici] [sebep] : Personelin rütbesini 1 seviye düşürür.
+- /izin_ver [kullanici] [tarih] [sebep] : Bir personele izin günü tanımlar.
+`;
+
+  return `Sen Eko Yıldız Discord sunucusunun personel AI koçusun. Adın "Koç".
+Görüşülen personel hakkında sistemdeki TÜM güncel veriler (JSON):
+${userProgressJson}
+
+Sunucudaki kullanılabilir komut listesi ve detayları:
+${commandListText}
+
+Genel bilgiler:
+- Personel Seviyesi: ${ROLE_NAMES[progress?.level || 1]}
+- Bugünkü Zorunlu Görevler: ${req.greets}x selam + ${req.voiceMinutes} dk ses aktifliği.
+- Terfi Hedefi: ${nextReq ? `${nextReq.ticketsSolved} ticket, ${nextReq.chatMessages} mesaj, ${nextReq.activeDays} aktif gün` : 'En üst seviyeye ulaştı.'}
 
 Görevin:
 - Personeli güçlendir, motive et
-- Sorularını cevapla (moderatörlük, kurallar, terfi stratejisi)
+- Sorularını cevapla. Sana sordukları her şeyi (örneğin güncel bakiyelerini, kalan terfi limitlerini, izin durumlarını, bot komutlarını ve kuralları) sistem verilerini kullanarak doğru şekilde cevapla.
 - Kişisel gelişim önerileri ver
 - Zorluklarla başa çıkma yöntemleri göster
-- Samimi, teşvik edici ve pratik ol
+- Samimi, teşvik edici, pratik ve çözüm odaklı ol
 
 Kurallar:
 - Türkçe konuş
-- Kısa ama değerli cevaplar (max 300 karakter)
+- Kısa ama son derece değerli, net cevaplar ver (max 450 karakter)
 - İsim olarak "Koç" kullan
 - Gerekirse soru sor, tek cevap verme`;
+}
 }
 
 // ── /koc komutu çalıştığında ───────────────────────────────────────────────

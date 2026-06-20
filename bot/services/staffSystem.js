@@ -295,19 +295,28 @@ async function recordGreet(userId, client) {
       try {
         const discordUser = await client.users.fetch(userId).catch(() => null);
         if (discordUser) {
+          const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
           const embed = new EmbedBuilder()
             .setColor(0x3498db)
-            .setTitle('🌅 Günlük Selamlaşma Başarılı!')
+            .setTitle('🌅 1. Görev (Selamlaşma) Başarıyla Tamamlandı!')
             .setDescription(
               `Merhaba <@${userId}>,\n\n` +
-              `Moderatör ekibi kanalına bugünün ilk selamını gönderdin ve günlük selamlaşma görevin kaydedildi!\n\n` +
+              `Moderatör ekibi kanalına bugünün ilk selamını gönderdin ve günlük selamlaşma görevin (1. Görev) başarıyla tamamlandı!\n\n` +
               (streakMultiplier > 1.0 ? `🔥 **Seri Çarpanı Aktif:** \`${consecutiveDays} Gün\` ardışık aktifliğin sayesinde **x${streakMultiplier}** ödül kazandın!\n\n` : "") +
               `💰 **+${greetCoins} EkoCoin (E.C.)** cüzdanına eklendi!\n` +
               `💳 Güncel Bakiyen: \`${p.gamification.ecoCoins} E.C.\``
             )
             .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
             .setTimestamp();
-          await discordUser.send({ embeds: [embed] }).catch(() => {});
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('talk_to_coach')
+              .setLabel('💬 Koçla Konuş')
+              .setStyle(ButtonStyle.Primary)
+          );
+
+          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => {});
         }
       } catch (dmErr) {
         console.warn(`[staffSystem] Greet DM error:`, dmErr.message);
@@ -341,8 +350,43 @@ async function addVoiceMinutes(userId, minutes, client) {
     }
     
     resetDaily(p);
+    const req = getDailyRequirements(p.level, p.stats.consecutiveDays || 0);
+    const wasVoiceDoneBefore = (p.daily.voiceMinutes || 0) >= req.voiceMinutes;
+
     p.daily.voiceMinutes += minutes;
     p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
+
+    const isVoiceDoneNow = (p.daily.voiceMinutes || 0) >= req.voiceMinutes;
+
+    if (!wasVoiceDoneBefore && isVoiceDoneNow) {
+      try {
+        const discordUser = await client.users.fetch(userId).catch(() => null);
+        if (discordUser) {
+          const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle('🎙️ 2. Görev (Ses Aktifliği) Başarıyla Tamamlandı!')
+            .setDescription(
+              `Merhaba <@${userId}>,\n\n` +
+              `Bugünkü ses aktifliği göreviniz (**${req.voiceMinutes} dakika**) başarıyla tamamlandı! 🎉\n\n` +
+              `Ses kanallarında aktif kalarak görevinizi yerine getirdiniz. Tebrikler! 🎤`
+            )
+            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+            .setTimestamp();
+            
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('talk_to_coach')
+              .setLabel('💬 Koçla Konuş')
+              .setStyle(ButtonStyle.Primary)
+          );
+          
+          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => {});
+        }
+      } catch (dmErr) {
+        console.warn(`[staffSystem] Voice task completion DM error:`, dmErr.message);
+      }
+    }
     
     // YENİ: Ses aktifliği için E.C. kazanımı (Saatte 15 E.C. -> Dakikada 0.25 E.C.)
     // Bunu sadece 60'ın katlarında veya saat başı hesaplayabiliriz ya da küsüratlı verip gösterebiliriz.
@@ -494,6 +538,7 @@ async function checkDailyCompletion(progress, client) {
     
     // Görev tamamlama mesajı gönder
     if (client) {
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
       const taskEmbed = new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('🎉 GÜNLÜK GÖREVLER TAMAMLANDI!')
@@ -507,9 +552,16 @@ async function checkDailyCompletion(progress, client) {
         .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
         .setTimestamp();
       
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('talk_to_coach')
+          .setLabel('💬 Koçla Konuş')
+          .setStyle(ButtonStyle.Primary)
+      );
+
       try {
         const user = await client.users.fetch(progress.userId);
-        await user.send({ embeds: [taskEmbed] }).catch(() => {});
+        await user.send({ embeds: [taskEmbed], components: [row] }).catch(() => {});
       } catch (_) {}
     }
 
@@ -839,6 +891,8 @@ async function promote(progress, client) {
       });
     }
 
+    await staffAutomation.syncMainGuildRoles(client, progress.userId).catch(() => {});
+
     const isFinal = newLevel === 6;
     const embed = new EmbedBuilder()
       .setColor(isFinal ? 0xffd700 : 0x4ade80)
@@ -1046,7 +1100,14 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
   try {
     const user = await client.users.fetch(progress.userId);
-    await user.send({ embeds: [embed] });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('talk_to_coach')
+        .setLabel('💬 Koçla Konuş')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
     console.log(`[staffSystem] Sabah brifing gönderildi: ${progress.userId}`);
   } catch (_) {}
 }
@@ -1090,7 +1151,14 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
 
   try {
     const user = await client.users.fetch(progress.userId);
-    await user.send({ embeds: [embed] });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('talk_to_coach')
+        .setLabel('💬 Koçla Konuş')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
   } catch (_) {}
 }
 
@@ -1314,7 +1382,8 @@ async function removeRole(progress, client) {
       '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
       '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
       '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-      '1467152505862357250'  // Security bypass
+      '1467152505862357250', // Security bypass
+      '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
     ];
 
     for (const rId of rolesToRemove) {
@@ -1394,7 +1463,14 @@ async function sendMidDayReminder(progress, client) {
 
   try {
     const user = await client.users.fetch(progress.userId);
-    await user.send({ embeds: [embed] });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('talk_to_coach')
+        .setLabel('💬 Koçla Konuş')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
   } catch (_) {}
 }
 
@@ -1435,7 +1511,14 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
 
   try {
     const user = await client.users.fetch(progress.userId);
-    await user.send({ embeds: [embed] });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('talk_to_coach')
+        .setLabel('💬 Koçla Konuş')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
   } catch (_) {}
 }
 
@@ -1461,7 +1544,8 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
     '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
     '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
     '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-    '1467152505862357250'  // Security bypass
+    '1467152505862357250', // Security bypass
+    '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
   ];
 
   try {
@@ -1544,7 +1628,8 @@ async function resignFromStaff(userId, reason, client) {
     '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
     '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
     '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-    '1467152505862357250'  // Security bypass
+    '1467152505862357250', // Security bypass
+    '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
   ];
 
   // Rolleri kaldır
