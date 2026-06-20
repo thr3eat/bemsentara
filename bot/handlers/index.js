@@ -44,6 +44,7 @@ function initializeDiscordHandlers(client) {
     const { startStaffScheduler } = require("../services/staffSystem");
     const { RULE_PREFIX } = require("../services/tmtAutomodService");
     const { startAtaturkHistoryScheduler } = require("../services/ataturkHistoryAI");
+    const { startEkoYildizHistoryScheduler } = require("../services/ekoYildizHistoryAI");
     const { initializeRoblox, ensureRobloxManagementMenu, ensureEkoYildizRobloxMenu, ensureAlliedRobloxMenu, ensureBemRobloxMenu } = require("../services/robloxGroupManager");
     const { startAuditLogPoller } = require("../services/robloxAuditLogPoller");
     const { initTMTInvites, ensureTMTLogEmbed } = require("../services/tmtLogger");
@@ -72,6 +73,7 @@ function initializeDiscordHandlers(client) {
     startCleanupScheduler();
     startStaffScheduler(client);
     startAtaturkHistoryScheduler(client);
+    startEkoYildizHistoryScheduler(client);
 
     // AI Kanal Sohbet İzleme
     const { startAIChatMonitor } = require('../services/aiChannelChat');
