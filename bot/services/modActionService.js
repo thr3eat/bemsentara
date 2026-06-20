@@ -7,6 +7,7 @@ const {
   EKOYILDIZ_FOTO_ENGELI_ROLE_ID,
   EKOYILDIZ_MOD_LOG_CHANNEL_ID,
 } = require("../../config");
+const { recordModAction } = require("./modReportTracker");
 
 // ── Yetki Kontrolü ─────────────────────────────────────────────────────────────
 /** Sadece bu role sahip kişiler /modislem kullanabilir */
@@ -294,8 +295,13 @@ async function executeModAction(interaction, targetUser, reasonKey, kanitAttachm
     return sendApprovalRequest(interaction, targetUser, reasonKey, reason, kanitAttachment);
   }
 
-  // ── Hafif / Orta / Ağır cezalar: direkt uygula ────────────────────────────
-  return applyPenalties(interaction, guild, member, targetUser, reasonKey, reason, kanitAttachment);
+  // ── Hafif / Orta / Ağır cezalar: direkt uygula ────────────────────────
+  const result = await applyPenalties(interaction, guild, member, targetUser, reasonKey, reason, kanitAttachment);
+
+  // ── Rapor Takip: Otomatik logla (/modislem komutuyla yapıldı) ──────────
+  recordModAction(interaction.user.id, 'modislem', targetUser.id, targetUser.tag, `Sebep: ${reason.label}`, true);
+
+  return result;
 }
 
 // ── Çok Ağır cezalar için onay isteği gönder ─────────────────────────────────
@@ -570,6 +576,10 @@ async function handleModActionApproval(interaction) {
     await interaction.update({ embeds: [updatedEmbed], components: [] });
 
     pendingActions.delete(actionId);
+
+    // ── Rapor Takip: Otomatik logla (onaylanmış /modislem) ──────────────
+    recordModAction(pending.moderatorId, 'modislem', pending.targetUserId, pending.targetUserTag, `Sebep: ${reason.label} (Onaylayan: ${interaction.user.tag})`, true);
+
     return;
   } else {
     // Reddedildi

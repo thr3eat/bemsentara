@@ -76,6 +76,14 @@ const staffProgressSchema = new mongoose.Schema({
     lastChallengeWeek:   { type: Number, default: 0 },   // Son challenge haftası
   },
 
+  // Moderasyon Rapor Takip Sistemi
+  modReports: {
+    unloggedCount:   { type: Number, default: 0 },     // Loglanmamış işlem sayısı
+    totalReports:    { type: Number, default: 0 },      // Toplam rapor sayısı
+    totalPenalties:  { type: Number, default: 0 },      // Toplam ceza sayısı
+    lastPenaltyDate: { type: String, default: null },   // Son ceza tarihi
+  },
+
   // Uyarı sistemi
   warnings: {
     count:        { type: Number, default: 0 },    // Kaç gün üst üste görev yapılmadı
