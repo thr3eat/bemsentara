@@ -69,27 +69,27 @@ async function handleGeneralCommand(interaction) {
   // ── personel-dogrula: Personel yetkilendirme linki ──────────────────────
   if (commandName === "personel-dogrula") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const User = require("../../models/User");
       const user = await User.findOne({ discordId: interaction.user.id });
       const { BASE_URL } = require("../../config");
-      
+
       if (user?.robloxId) {
         // Zaten bağlı, grupları ve sunucuyu senkronize et
         const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
-        
+
         // İsteği kabul edip Roblox rütbelerini verecek fonksiyonu çağırıyoruz
         await syncStaffRobloxRanks(interaction.client, interaction.user.id);
-        
+
         // Sonra Roblox rütbesine bakarak Discord rollerini veriyoruz
         const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
 
         if (roleSyncSuccess) {
           // Sunucu üyeliğini kontrol ediyoruz
           const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
-          
+
           let responseText = `✅ **Personel Doğrulaması Başarılı!**\nRoblox ID: \`${user.robloxId}\``;
           if (!inGuild) {
             responseText += `\n\n⚠️ Sunucudaki yetki rolleriniz Roblox grubundaki rütbenize göre ayarlandı, ancak **Yönetim Sunucusuna** henüz katılmadınız!\n🔗 **Sunucu Davet Linki:** https://discord.gg/fjwjMgH54N\nKatıldıktan sonra rolleriniz geçerli olacaktır.`;
@@ -133,7 +133,7 @@ async function handleGeneralCommand(interaction) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
 
     try {
@@ -247,7 +247,7 @@ async function handleGeneralCommand(interaction) {
         try {
           const syncRanksSuccess = await staffAutomation.syncStaffRobloxRanks(interaction.client, targetUser.id);
           const syncRolesSuccess = await staffAutomation.syncStaffDiscordRoles(interaction.client, targetUser.id);
-          
+
           if (syncRolesSuccess) {
             syncMessage = `\n\n🔄 **Rol ve Grup Senkronizasyonu:** Rütbe rolleri Roblox ve Discord üzerinde başarıyla senkronize edildi.`;
           } else {
@@ -257,14 +257,14 @@ async function handleGeneralCommand(interaction) {
             if (member) {
               const oldRoleId = ROLES[oldLevel];
               const newRoleId = ROLES[deger];
-              if (oldRoleId) await member.roles.remove(oldRoleId).catch(() => {});
-              if (newRoleId) await member.roles.add(newRoleId).catch(() => {});
+              if (oldRoleId) await member.roles.remove(oldRoleId).catch(() => { });
+              if (newRoleId) await member.roles.add(newRoleId).catch(() => { });
               syncMessage = `\n\n🔄 **Manuel Rol Senkronizasyonu:** Roblox hesabı bulunamadığı veya grupta olmadığı için sadece Discord rütbe rolü güncellendi.`;
             } else {
               syncMessage = `\n\n⚠️ **Rol Senkronizasyonu:** Discord sunucusunda üye bulunamadı veya roller güncellenemedi.`;
             }
           }
-          await staffAutomation.updateDynamicModList(interaction.client).catch(() => {});
+          await staffAutomation.updateDynamicModList(interaction.client).catch(() => { });
         } catch (syncErr) {
           console.error('[personelayarla] sync error:', syncErr.message);
           syncMessage = `\n\n⚠️ **Senkronizasyon Hatası:** ${syncErr.message}`;
@@ -301,7 +301,7 @@ async function handleGeneralCommand(interaction) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
 
     try {
@@ -362,14 +362,14 @@ async function handleGeneralCommand(interaction) {
       for (let i = 0; i < rows.length; i += chunkSize) {
         const chunk = rows.slice(i, i + chunkSize);
         const tableText = `\`\`\`\n${header}\n${chunk.join('\n')}\n\`\`\``;
-        
+
         const embed = new EmbedBuilder()
           .setColor(0x2ecc71)
           .setTitle(`📊 Aktif Yetkili İlerleme Raporu (Bölüm ${Math.floor(i / chunkSize) + 1})`)
           .setDescription(tableText)
           .setFooter({ text: `Toplam Yetkili Sayısı: ${allActive.length} • Eko Yıldız` })
           .setTimestamp();
-        
+
         embeds.push(embed);
       }
 
@@ -387,7 +387,7 @@ async function handleGeneralCommand(interaction) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
 
     try {
@@ -425,7 +425,7 @@ async function handleGeneralCommand(interaction) {
           oldValue = `${p.xp || 0} XP`;
           p.xp = deger;
           newValue = `${deger} XP`;
-          
+
           // Seviye kontrolü tetikle
           try {
             const guild = await interaction.client.guilds.fetch(FROG_GUILD_ID).catch(() => null);
@@ -510,9 +510,9 @@ async function handleGeneralCommand(interaction) {
   // ── personelkov: Personeli kovar ve sistemden siler ──────────────────────
   if (commandName === "personelkov") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
-    
+
     const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
@@ -521,13 +521,13 @@ async function handleGeneralCommand(interaction) {
     try {
       const targetUser = interaction.options.getUser('kullanici');
       const sebep = interaction.options.getString('sebep') || "Belirtilmedi";
-      
+
       const StaffProgress = require("../../models/StaffProgress");
       const User = require("../../models/User");
-      
+
       const p = await StaffProgress.findOne({ userId: targetUser.id });
       const u = await User.findOne({ discordId: targetUser.id });
-      
+
       if (!p && !u) {
         return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
       }
@@ -590,7 +590,7 @@ async function handleGeneralCommand(interaction) {
   // ── sayim: Aylık yoklama sistemi (Yöneticiler) ───────────────────────────
   if (commandName === "sayim") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
 
     const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
@@ -612,14 +612,14 @@ async function handleGeneralCommand(interaction) {
   // ── konus: AI destekli konuşma başlat ──────────────────────────────────────
   if (commandName === "konus") {
     const { ADMIN_IDS } = require("../../config");
-    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
-                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { startKonusSession } = require('../services/aiTalkService');
@@ -633,20 +633,20 @@ async function handleGeneralCommand(interaction) {
   // ── odulver: Personele ödül ver ve terfi ettir ──────────────────────────────
   if (commandName === "odulver") {
     const { ADMIN_IDS } = require("../../config");
-    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
-                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
       const targetUser = interaction.options.getUser('kullanici');
       const odul = interaction.options.getString('odul');
       const islem = interaction.options.getString('islem');
-      
+
       const StaffProgress = require('../../models/StaffProgress');
       const { promote, ROLE_NAMES } = require('../services/staffSystem');
 
@@ -701,7 +701,7 @@ async function handleGeneralCommand(interaction) {
           `🌟 **${targetUser.username}** kullanıcısına **"${odul}"** ödülü layık görüldü!\n\n` +
           `💰 **Kazanılan Ödüller:**\n` +
           `• **+500 Puan** ve **+500 XP** gamification profiline eklendi!\n` +
-          (promoted 
+          (promoted
             ? `• 📈 Rütbesi **${ROLE_NAMES[oldLevel]}** seviyesinden **${ROLE_NAMES[newLevel]}** seviyesine yükseltildi! 🎉`
             : `• *Kullanıcı zaten en üst düzey **Sekreter'in Babası** rütbesinde (veya üstünde) olduğu için rütbe değişikliği yapılmadı. (Personel Sekreteri rütbesi için sınavı geçmesi gerekmektedir)*`)
         )
@@ -718,19 +718,19 @@ async function handleGeneralCommand(interaction) {
   // ── tenzilat: Personelin rütbesini düşür (demote) ─────────────────────
   if (commandName === "tenzilat") {
     const { ADMIN_IDS } = require("../../config");
-    const isYonetici = ADMIN_IDS.includes(interaction.user.id) || 
-                       interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-                       interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
       const targetUser = interaction.options.getUser('kullanici');
       const sebep = interaction.options.getString('sebep') || "Belirtilmedi";
-      
+
       const StaffProgress = require('../../models/StaffProgress');
       const { demote } = require('../services/staffSystem');
 
@@ -775,9 +775,9 @@ async function handleGeneralCommand(interaction) {
         .setColor(0xff006e)
         .setTitle('🎉 RÜTBE XP\'Sİ ÇEKİLİŞİ! XP SÜPRİZ')
         .setDescription(`**${xpAmount} XP** ödüllü rütbe xp çekilişi başladı!\n\n` +
-                        `👥 **Kazanan Sayısı:** ${kazananSayisi}\n` +
-                        `⏳ **Bitiş:** <t:${Math.floor(endsAt.getTime()/1000)}:R>\n\n` +
-                        `KATILMAK İÇİN TIKLAYIN!`)
+          `👥 **Kazanan Sayısı:** ${kazananSayisi}\n` +
+          `⏳ **Bitiş:** <t:${Math.floor(endsAt.getTime() / 1000)}:R>\n\n` +
+          `KATILMAK İÇİN TIKLAYIN!`)
         .setFooter({ text: 'Eko Yıldız • Çekiliş Sistemi' });
 
       const row = new ActionRowBuilder().addComponents(
@@ -829,7 +829,7 @@ async function handleGeneralCommand(interaction) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const target = interaction.options.getUser('kullanici');
@@ -852,17 +852,17 @@ async function handleGeneralCommand(interaction) {
   // ── istifa: Personel görevinden istifa et ─────────────────────────────────
   if (commandName === "istifa") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { resignFromStaff } = require('../services/staffSystem');
       const reason = interaction.options.getString('sebep');
       const result = await resignFromStaff(interaction.user.id, reason, interaction.client);
-      
+
       if (!result.success) {
         return interaction.editReply({ content: `❌ ${result.message}` });
       }
-      
+
       let message;
       if (result.canRetire) {
         message = `✅ İstifan kabul edildi. 90+ gün aktif kaldığın için emeklilik statüsüne geçtiniz! Kaydınız sistemde korunmaktadır.\n\`/emeklilik\` komutunu kullanarak resmi olarak emekli olabilirsin.`;
@@ -871,7 +871,7 @@ async function handleGeneralCommand(interaction) {
       } else {
         message = `✅ İstifan kabul edildi. Teşekkürler!`;
       }
-      
+
       return interaction.editReply({ content: message });
     } catch (err) {
       console.error('[istifa] hata:', err.message);
@@ -882,16 +882,16 @@ async function handleGeneralCommand(interaction) {
   // ── emeklilik: Emekli ol ───────────────────────────────────────────────────
   if (commandName === "emeklilik") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { retireFromStaff } = require('../services/staffSystem');
       const result = await retireFromStaff(interaction.user.id, interaction.client);
-      
+
       if (!result.success) {
         return interaction.editReply({ content: `❌ ${result.message}` });
       }
-      
+
       return interaction.editReply({ content: `🏅 Tebrikler! ${result.totalDays} gün aktif hizmetin sonrasında emekli oldun! Son görevin: ${result.levelName}` });
     } catch (err) {
       console.error('[emeklilik] hata:', err.message);
@@ -902,7 +902,7 @@ async function handleGeneralCommand(interaction) {
   // ── leaderboard: Top 10 göster ────────────────────────────────────────────
   if (commandName === "leaderboard") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
       const { getLeaderboard } = require('../services/staffSystem');
@@ -939,7 +939,7 @@ async function handleGeneralCommand(interaction) {
   // ── profil: Gamification profili ───────────────────────────────────────────
   if (commandName === "profil") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { BADGES, getXpForLevel } = require('../services/staffSystem');
@@ -995,7 +995,7 @@ async function handleGeneralCommand(interaction) {
   // ── challenge: Haftalık challenge göster ───────────────────────────────────
   if (commandName === "challenge") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: false }).catch(() => {});
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
       const { getWeeklyChallenge } = require('../services/staffSystem');
@@ -1022,7 +1022,7 @@ async function handleGeneralCommand(interaction) {
   // ── personeldurum ──────────────────────────────────────────────────────────
   if (commandName === "personeldurum") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { EmbedBuilder: EB } = require('discord.js');
@@ -1038,13 +1038,13 @@ async function handleGeneralCommand(interaction) {
       // Kayıtlı değilse Discord rolünden senkronize ederek oluştur
       if (!p) {
         try {
-          const guild  = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
+          const guild = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
           const member = guild ? await guild.members.fetch(target.id).catch(() => null) : null;
           if (member) {
             let level = 0;
             for (let lvl = 6; lvl >= 1; lvl--) {
               const roleId = ROLES[lvl];
-              if (roleId && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(roleId) && member.roles.cache.has(roleId)) {
+              if (roleId && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(roleId) && member.roles.cache.has(roleId)) {
                 level = lvl; break;
               }
             }
@@ -1056,17 +1056,17 @@ async function handleGeneralCommand(interaction) {
               if (level > 0 && p.level < level) { p.level = level; await p.save(); }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (!p) {
         return interaction.editReply({ content: `❌ **${target.username}** personel sisteminde kayıtlı değil. Stajyer Personel rolü olan birini sorgulayın.` });
       }
 
-      const req       = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const nextReq   = PROMOTION_REQUIREMENTS[p.level];
-      const today     = new Date().toISOString().split('T')[0];
-      const isToday   = p.daily?.date === today;
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const nextReq = PROMOTION_REQUIREMENTS[p.level];
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = p.daily?.date === today;
       const greetDone = isToday && p.daily?.greeted;
       const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
@@ -1075,9 +1075,9 @@ async function handleGeneralCommand(interaction) {
         .setTitle(`📊 Personel Durumu — ${target.username}`)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '🎖️ Seviye',            value: ROLE_NAMES[p.level] || 'Stajyer Personel', inline: true },
-          { name: '📅 Arka Arkaya Aktif',  value: `${p.stats?.consecutiveDays || 0} gün`,  inline: true },
-          { name: '⚠️ Uyarı',              value: `${p.warnings?.count || 0}/5`,            inline: true },
+          { name: '🎖️ Seviye', value: ROLE_NAMES[p.level] || 'Stajyer Personel', inline: true },
+          { name: '📅 Arka Arkaya Aktif', value: `${p.stats?.consecutiveDays || 0} gün`, inline: true },
+          { name: '⚠️ Uyarı', value: `${p.warnings?.count || 0}/5`, inline: true },
           {
             name: '📋 Bugünkü Görevler',
             value:
@@ -1089,8 +1089,8 @@ async function handleGeneralCommand(interaction) {
             name: '📈 Terfi İlerlemesi',
             value: nextReq
               ? `Ticketlar: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
-                `Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
-                `Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
+              `Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
+              `Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
               : '🏆 En üst seviyeye ulaştın!',
             inline: false,
           }
@@ -1108,13 +1108,13 @@ async function handleGeneralCommand(interaction) {
   // ── izin_iste ──────────────────────────────────────────────────────────────
   if (commandName === "izin_iste") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { requestLeave } = require('../services/staffSystem');
       const date = interaction.options.getString('tarih');
       const reason = interaction.options.getString('sebep');
-      
+
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return interaction.editReply({ content: "❌ Geçersiz tarih formatı. Lütfen `YYYY-MM-DD` formatında girin (Örn: 2026-06-20)." });
       }
@@ -1136,7 +1136,7 @@ async function handleGeneralCommand(interaction) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { requestLeave } = require('../services/staffSystem');
@@ -1162,7 +1162,7 @@ async function handleGeneralCommand(interaction) {
   // ── izin_kullan ────────────────────────────────────────────────────────────
   if (commandName === "izin_kullan") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { useLeaveCredit } = require('../services/staffSystem');
@@ -1180,7 +1180,7 @@ async function handleGeneralCommand(interaction) {
   // ── izin_durum ─────────────────────────────────────────────────────────────
   if (commandName === "izin_durum") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
       const { getLeaveStatus } = require('../services/staffSystem');
@@ -1569,7 +1569,7 @@ async function handleGeneralCommand(interaction) {
           { name: "Websocket", value: `${interaction.client.ws.ping}ms`, inline: true }
         )
         .setTimestamp();
-        
+
       // Ping Bağımlısı Başarımı
       let extraMsg = '';
       if (interaction.guild && interaction.guild.id === '1367646464804655104') {
@@ -1594,13 +1594,13 @@ async function handleGeneralCommand(interaction) {
                   });
                 }
                 if (pingRole && !memberToReward.roles.cache.has(pingRole.id)) {
-                  await memberToReward.roles.add(pingRole.id).catch(() => {});
-                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ping Bağımlısı!**\nBotu arka arkaya tam 50 kere pingleyerek sınırları zorladın ve `🏓 Ping Bağımlısı` rolünü kazandın!').catch(() => {});
+                  await memberToReward.roles.add(pingRole.id).catch(() => { });
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ping Bağımlısı!**\nBotu arka arkaya tam 50 kere pingleyerek sınırları zorladın ve `🏓 Ping Bağımlısı` rolünü kazandın!').catch(() => { });
                   extraMsg = '\n\n🏓 **Ping Bağımlısı gizli başarımını açtın! Botu çok yordun... DM kutuna bak!**';
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
 
@@ -1629,11 +1629,11 @@ async function handleGeneralCommand(interaction) {
           `\`${profile.bar}\` ${profile.neededXP > 0 ? Math.floor((profile.currentXP / profile.neededXP) * 100) : 100}%`
         )
         .addFields(
-          { name: '📊 Seviye',          value: isSeason2 ? `${profile.level - 11}/5 (Toplam: ${profile.level}/16)` : `${profile.level}/11 (Toplam: ${profile.level}/16)`, inline: true },
-          { name: '✨ Toplam XP',       value: profile.xp.toLocaleString(), inline: true },
-          { name: '📝 Mesaj',           value: (profile.totalMessages || 0).toLocaleString(), inline: true },
-          { name: '🎤 Ses (dk)',        value: (profile.totalVoiceMinutes || 0).toLocaleString(), inline: true },
-          { name: '⬆️ Sonraki rol',    value: profile.nextRole?.name || '🏆 MAX SEVİYE', inline: true },
+          { name: '📊 Seviye', value: isSeason2 ? `${profile.level - 11}/5 (Toplam: ${profile.level}/16)` : `${profile.level}/11 (Toplam: ${profile.level}/16)`, inline: true },
+          { name: '✨ Toplam XP', value: profile.xp.toLocaleString(), inline: true },
+          { name: '📝 Mesaj', value: (profile.totalMessages || 0).toLocaleString(), inline: true },
+          { name: '🎤 Ses (dk)', value: (profile.totalVoiceMinutes || 0).toLocaleString(), inline: true },
+          { name: '⬆️ Sonraki rol', value: profile.nextRole?.name || '🏆 MAX SEVİYE', inline: true },
         )
         .setFooter({ text: isSeason2 ? 'Eko Yıldız • Dinazor Sezonu 🦖' : 'Eko Yıldız • Kurbağa Sistemi 🐸' })
         .setTimestamp();
@@ -1654,7 +1654,7 @@ async function handleGeneralCommand(interaction) {
         const entry = lb[i];
         const rank = i + 1;
         const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**#${rank}**`;
-        
+
         let memberName = `<@${entry.userId}>`;
         if (interaction.guild) {
           try {
@@ -1662,19 +1662,19 @@ async function handleGeneralCommand(interaction) {
             if (member) {
               memberName = `**${member.displayName}**`;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         const isSeason2 = entry.level >= 12;
         const roleName = FROG_ROLES[entry.level]?.name || 'Yavru Kurbağa';
         const levelDisplay = isSeason2 ? `${entry.level - 11}/5 (Dinazor)` : `${entry.level}/11 (Kurbağa)`;
-        
+
         const doubleXpActive = entry.doubleXpUntil && new Date(entry.doubleXpUntil) > new Date();
         const boostIndicator = doubleXpActive ? ' ⚡' : '';
 
         description += `${medal} ${memberName}${boostIndicator}\n` +
-                       `┗ Seviye: \`${levelDisplay}\` • **${roleName}**\n` +
-                       `┗ XP: \`${entry.xp.toLocaleString()}\` • Mesaj: \`${(entry.totalMessages || 0).toLocaleString()}\` • Ses: \`${(entry.totalVoiceMinutes || 0).toLocaleString()} dk\`\n\n`;
+          `┗ Seviye: \`${levelDisplay}\` • **${roleName}**\n` +
+          `┗ XP: \`${entry.xp.toLocaleString()}\` • Mesaj: \`${(entry.totalMessages || 0).toLocaleString()}\` • Ses: \`${(entry.totalVoiceMinutes || 0).toLocaleString()} dk\`\n\n`;
       }
 
       const embed = new EmbedBuilder()
@@ -1707,7 +1707,7 @@ async function handleGeneralCommand(interaction) {
 
     if (commandName === "ekobang") {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        await interaction.deferReply({ ephemeral: true }).catch(() => { });
       }
 
       if (interaction.user.id !== "1031620522406072350") {
@@ -1720,35 +1720,35 @@ async function handleGeneralCommand(interaction) {
       }
 
       const dbUser = await User.findOne({ discordId: targetUser.id }) || new User({ discordId: targetUser.id, discordUsername: targetUser.username });
-      
+
       const savedRoles = dbUser.bangRoles || {};
       const guildsProcessed = [];
       const botClient = interaction.client;
 
       const getNormalMemberRole = (guild) => {
         const { TMT_GUILD_ID, TMT_VERIFIED_ROLE_ID, TARGET_GUILD_ID, ALLIED_GUILD_ID } = require("../../config");
-        
+
         if (guild.id === TMT_GUILD_ID) {
           const role = guild.roles.cache.get(TMT_VERIFIED_ROLE_ID);
           if (role) return role;
         }
-        
+
         if (guild.id === TARGET_GUILD_ID) {
           const role = guild.roles.cache.find(r => r.name === "Teşkilat Personeli") || guild.roles.cache.get("1505511498095788063");
           if (role) return role;
         }
-        
+
         if (guild.id === ALLIED_GUILD_ID) {
           const role = guild.roles.cache.get("1483483253720616971");
           if (role) return role;
         }
-        
+
         const namesToSearch = ["üye", "member", "personel", "onaylı", "onaylanmış hesap", "kullanıcı"];
         for (const name of namesToSearch) {
           const role = guild.roles.cache.find(r => r.name.toLowerCase() === name && !r.managed);
           if (role) return role;
         }
-        
+
         const sortedRoles = Array.from(guild.roles.cache.values())
           .filter(r => r.id !== guild.id && !r.managed)
           .sort((a, b) => a.position - b.position);
@@ -1760,7 +1760,7 @@ async function handleGeneralCommand(interaction) {
           const member = await guild.members.fetch(targetUser.id).catch(() => null);
           if (!member) continue;
 
-          const editableRoles = member.roles.cache.filter(role => 
+          const editableRoles = member.roles.cache.filter(role =>
             role.id !== guild.id &&
             !role.managed &&
             role.editable
@@ -1768,7 +1768,7 @@ async function handleGeneralCommand(interaction) {
 
           if (editableRoles.size > 0) {
             savedRoles[guild.id] = Array.from(editableRoles.keys());
-            
+
             await member.roles.remove(Array.from(editableRoles.keys()), "ekobang command execution").catch(err => {
               console.error(`Failed to remove roles in guild ${guild.name}:`, err.message);
             });
@@ -1801,7 +1801,7 @@ async function handleGeneralCommand(interaction) {
 
     if (commandName === "ekobangerial") {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        await interaction.deferReply({ ephemeral: true }).catch(() => { });
       }
 
       if (interaction.user.id !== "1031620522406072350") {
@@ -1875,7 +1875,7 @@ async function handleGeneralCommand(interaction) {
 
       if (sub === "gonder") {
         if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
-        
+
         const targetUser = interaction.options.getUser("kullanici");
         const amount = interaction.options.getInteger("miktar");
 
@@ -1907,8 +1907,8 @@ async function handleGeneralCommand(interaction) {
         // Eko Milyoneri Başarımı Kontrolü (Alıcı için)
         try {
           const { checkEcoMillionaire } = require('../services/achievementManager');
-          await checkEcoMillionaire(targetUser.id, targetProgress.gamification.ecoCoins, interaction.client).catch(() => {});
-        } catch (_) {}
+          await checkEcoMillionaire(targetUser.id, targetProgress.gamification.ecoCoins, interaction.client).catch(() => { });
+        } catch (_) { }
 
         // ── Gizli Başarım: Hayırsever ──
         let extraMsg = '';
@@ -1935,13 +1935,13 @@ async function handleGeneralCommand(interaction) {
                     });
                   }
                   if (philRole && !memberToReward.roles.cache.has(philRole.id)) {
-                    await memberToReward.roles.add(philRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayırsever!**\nDiğer üyelere defalarca EkoCoin göndererek ne kadar cömert olduğunu kanıtladın ve `💸 Hayırsever` rolünü kazandın!').catch(() => {});
+                    await memberToReward.roles.add(philRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayırsever!**\nDiğer üyelere defalarca EkoCoin göndererek ne kadar cömert olduğunu kanıtladın ve `💸 Hayırsever` rolünü kazandın!').catch(() => { });
                     extraMsg = '\n\n💸 **Cömertliğin ödüllendirildi! Hayırsever gizli başarımını açtın, DM kutuna bak!**';
                   }
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         }
 
@@ -1994,7 +1994,7 @@ async function handleGeneralCommand(interaction) {
       const today = todayStr();
 
       if (!p.gamification) p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
-      
+
       // Daha önce alıp almadığını kontrol et
       if (p.gamification.lastDailyClaim === today) {
         return interaction.editReply({ content: `🎁 Günlük ödülünüzü bugün zaten aldınız! Yarın tekrar gelin.` });
@@ -2009,8 +2009,8 @@ async function handleGeneralCommand(interaction) {
       // Eko Milyoneri Başarımı Kontrolü
       try {
         const { checkEcoMillionaire } = require('../services/achievementManager');
-        await checkEcoMillionaire(interaction.user.id, p.gamification.ecoCoins, interaction.client).catch(() => {});
-      } catch (_) {}
+        await checkEcoMillionaire(interaction.user.id, p.gamification.ecoCoins, interaction.client).catch(() => { });
+      } catch (_) { }
 
       // Şanslı 7 Gizli Başarımı
       let extraMsg = '';
@@ -2032,13 +2032,13 @@ async function handleGeneralCommand(interaction) {
                 });
               }
               if (luckyRole && !memberToReward.roles.cache.has(luckyRole.id)) {
-                await memberToReward.roles.add(luckyRole.id).catch(() => {});
-                memberToReward.send('🎉 **İnanılmaz! Gizli Başarım Kazanıldı: Şanslı 7!**\nGünlük ödülden tam olarak 77 E.C. kazanarak mucizevi bir şans yakaladın ve `🎰 Şanslı 7` rolünü kazandın!').catch(() => {});
+                await memberToReward.roles.add(luckyRole.id).catch(() => { });
+                memberToReward.send('🎉 **İnanılmaz! Gizli Başarım Kazanıldı: Şanslı 7!**\nGünlük ödülden tam olarak 77 E.C. kazanarak mucizevi bir şans yakaladın ve `🎰 Şanslı 7` rolünü kazandın!').catch(() => { });
                 extraMsg = '\n\n🎰 **İnanılmaz bir şans! Tam 77 E.C. kazanarak Şanslı 7 gizli başarımını açtın! DM kutunu kontrol et.**';
               }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       return interaction.editReply({
@@ -2068,7 +2068,10 @@ async function handleGeneralCommand(interaction) {
     }
 
     if (commandName === "birimalimi") {
-      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+        interaction.guild?.ownerId === interaction.user.id ||
+        interaction.user.id === "1031620522406072350";
       if (!isYonetici) {
         return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
       }
@@ -2088,12 +2091,15 @@ async function handleGeneralCommand(interaction) {
     }
 
     if (commandName === "birimtanitim") {
-      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+        interaction.guild?.ownerId === interaction.user.id ||
+        interaction.user.id === "1031620522406072350";
       if (!isYonetici) {
         return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
       }
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        await interaction.deferReply({ ephemeral: true }).catch(() => { });
       }
       const { postUnitIntroductions } = require("../services/unitService");
       await postUnitIntroductions(interaction.client);
