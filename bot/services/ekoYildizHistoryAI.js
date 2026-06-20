@@ -34,18 +34,50 @@ async function postEkoYildizHistory(client) {
     }
 
     const today = new Date();
+    const day = today.getDate();
+    const month = today.getMonth();
     const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-    const dateStr = `${today.getDate()} ${months[today.getMonth()]}`;
+    const dateStr = `${day} ${months[month]}`;
 
-    const systemPrompt = "Sen saygın bir tarihçisin. Türk ve Dünya tarihi hakkında net ve doğru bilgiler verirsin.";
-    const userPrompt = `Bugün ${dateStr}. Tarihte bugün (veya bu haftalarda) Türk veya dünya tarihinde yaşanan önemli bir tarihi olayı kısa, anlaşılır ve sürükleyici bir dille 1-2 paragraf halinde anlat. Hiçbir başlık, selamlama veya "Tarihte bugün" gibi giriş kelimeleri kullanma, doğrudan olayı anlat.`;
+    const systemPrompt = `Sen titiz bir tarih akademisyenisin. Türk Kurtuluş Savaşı ve Cumhuriyet tarihi konusunda derin uzmanlığa sahipsin. 
+Bilgilerin doğru, kaynaklara dayalı ve tarafsızdır. Yalnızca gerçekten yaşanmış olayları aktarırsın — spekülasyon veya kurgusal eklenti yapmazsın.`;
+
+    let userPrompt = `Bugün ${dateStr}. 
+
+Mustafa Kemal Atatürk'ün hayatında ${monthDay} tarihinde (veya bu tarihe yakın günlerde) gerçekleşmiş önemli bir olay var mı?
+
+Kurallar:
+- Varsa: 1-2 paragraf, sade ve akıcı Türkçe ile doğrudan olayı anlat
+- Yoksa: "Bu tarihe özel belgelenmiş kayda değer bir olay bulunmamaktadır." yaz
+- Başlık, selamlama, "Tarihte bugün" gibi kalıplar kullanma
+- Yıl bilgisini metnin içinde doğal biçimde ver (örn. "1919'da", "23 Nisan 1920'de")
+- Abartı veya duygusal yükleme yapma, sade bir anlatım benimse`;
+    const isFirstDayOfMonth = (day === 1);
+
+    if (isFirstDayOfMonth) {
+      userPrompt = `Bugün ${dateStr} (Ayın ilk günü). Lütfen aşağıdaki şablona tam olarak uyacak şekilde bir metin oluştur:
+
+🌟 YENİ AYA MERHABA!
+Bu ay Tarihte Bugün EkoYıldız'da [bu ay içinde yaşanmış, Türk ve dünya tarihinden 3-4 adet dikkat çeken önemli tarihi konu başlığı/tema] konularını göreceksiniz.
+
+📅 Bugünün Tarihte Bugünü:
+[Tarihte bugün yaşanan önemli bir tarihi olay hakkında 1-2 paragraflık sürükleyici anlatım]
+
+Kurallar:
+- Şablondaki başlıkları (🌟 YENİ AYA MERHABA!, 📅 Bugünün Tarihte Bugünü:) aynen kullan.
+- Metin doğrudan bu şablonla başlasın, ek giriş-çıkış veya selamlama cümleleri ekleme.`;
+    }
 
     let aiContent = "";
     try {
       aiContent = await chatWithAI([{ role: 'user', content: userPrompt }], systemPrompt);
     } catch (aiErr) {
       console.error("❌ [EkoYildizHistoryAI] AI isteği başarısız:", aiErr.message);
-      aiContent = `${dateStr} gününde yaşanan tarihi gelişmeleri ve önemli olayları saygıyla hatırlıyoruz. (Yapay zeka servisinde anlık bir sorun oluştu)`;
+      if (isFirstDayOfMonth) {
+        aiContent = `🌟 YENİ AYA MERHABA!\nBu ay Tarihte Bugün EkoYıldız'da dünya ve Türk tarihinin en önemli dönüm noktalarını göreceksiniz.\n\n📅 Bugünün Tarihte Bugünü:\n${dateStr} tarihinde yaşanan tüm gelişmeleri ve tarihi olayları saygıyla hatırlıyoruz.`;
+      } else {
+        aiContent = `${dateStr} gününde yaşanan tarihi gelişmeleri ve önemli olayları saygıyla hatırlıyoruz. (Yapay zeka servisinde anlık bir sorun oluştu)`;
+      }
     }
 
     const embed = new EmbedBuilder()
