@@ -237,6 +237,29 @@ async function levelUp(p, member, client) {
     console.warn('[frogLevel] Rol hatası:', err.message);
   }
 
+  // 2. Sezona (Dinazor) geçişte EkoYıldız sunucusundaysa Roblox grubunda 5 rankını ver
+  if (newLevel === 12 && member.guild.id === FROG_GUILD_ID) {
+    try {
+      const User = require('../../models/User');
+      const dbUser = await User.findOne({ discordId: member.id });
+      if (dbUser && dbUser.robloxId) {
+        const robloxId = parseInt(dbUser.robloxId);
+        if (!isNaN(robloxId)) {
+          const noblox = require('noblox.js');
+          const { ROBLOX } = require('./staffAutomation');
+
+          await noblox.handleJoinRequest(ROBLOX.EKOYILDIZ, robloxId, true).catch(() => {});
+          await noblox.setRank(ROBLOX.EKOYILDIZ, robloxId, 5).catch(err => {
+            console.error(`[frogLevel] Failed to set rank 5 in EkoYildiz group for ${member.id}:`, err.message);
+          });
+          console.log(`[frogLevel] Successfully set rank 5 in EkoYildiz group for user ${member.id}`);
+        }
+      }
+    } catch (err) {
+      console.error('[frogLevel] Roblox rank sync error during Dinosaur transition:', err.message);
+    }
+  }
+
   const isFinal = newLevel === maxLevel;
   const newRoleInfo = FROG_ROLES[newLevel];
   const isSeason2 = newLevel >= 12;
