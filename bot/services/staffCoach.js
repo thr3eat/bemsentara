@@ -139,7 +139,6 @@ Kurallar:
 - İsim olarak "Koç" kullan
 - Gerekirse soru sor, tek cevap verme`;
 }
-}
 
 // ── /koc komutu çalıştığında ───────────────────────────────────────────────
 async function startCoachSession(interaction) {
