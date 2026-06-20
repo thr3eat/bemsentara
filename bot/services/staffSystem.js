@@ -267,13 +267,8 @@ async function recordGreet(userId, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed in recordGreet:', err.message);
-      return null;
-    });
-    
-    if (!p) {
-      console.warn(`[staffSystem] recordGreet: Cannot create/fetch record for ${userId}`);
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') {
       return;
     }
     
@@ -340,13 +335,8 @@ async function addVoiceMinutes(userId, minutes, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed in addVoiceMinutes:', err.message);
-      return null;
-    });
-    
-    if (!p) {
-      console.warn(`[staffSystem] addVoiceMinutes: Cannot create/fetch record for ${userId}`);
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') {
       return;
     }
     
@@ -412,12 +402,8 @@ async function recordModerationAction(userId, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed:', err.message);
-      return null;
-    });
-    
-    if (!p) return;
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') return;
     
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
@@ -446,12 +432,8 @@ async function recordWeeklyReport(userId, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed:', err.message);
-      return null;
-    });
-    
-    if (!p) return;
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') return;
     
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
@@ -575,15 +557,8 @@ async function recordTicketSolved(userId, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed in recordTicketSolved:', err.message);
-      return null;
-    });
-    
-    if (!p) {
-      console.warn(`[staffSystem] recordTicketSolved: Cannot create/fetch record for ${userId}`);
-      return;
-    }
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') return;
     
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
@@ -687,12 +662,8 @@ async function recordChatMessage(userId, client) {
       return;
     }
     
-    const p = await getOrCreate(userId, GUILD_ID).catch(err => {
-      console.error('[staffSystem] getOrCreate failed:', err.message);
-      return null;
-    });
-    
-    if (!p) return;
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || p.status !== 'active') return;
     
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
