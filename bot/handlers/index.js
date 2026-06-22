@@ -524,10 +524,13 @@ function initializeDiscordHandlers(client) {
       if (reaction.partial) {
         try { await reaction.fetch(); } catch (_) { return; }
       }
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
         const { logTMTReactionAdd } = require("../services/tmtLogger");
         logTMTReactionAdd(reaction, user);
+      } else if (reaction.message.guild && reaction.message.guild.id === GUILD2_ID) {
+        const { logEkoReactionAdd } = require("../services/ekoLogger");
+        logEkoReactionAdd(reaction, user);
       }
 
       // ── Gizli Başarım: Tepki Kolik ──
@@ -571,10 +574,13 @@ function initializeDiscordHandlers(client) {
       if (reaction.partial) {
         try { await reaction.fetch(); } catch (_) { return; }
       }
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
         const { logTMTReactionRemove } = require("../services/tmtLogger");
         logTMTReactionRemove(reaction, user);
+      } else if (reaction.message.guild && reaction.message.guild.id === GUILD2_ID) {
+        const { logEkoReactionRemove } = require("../services/ekoLogger");
+        logEkoReactionRemove(reaction, user);
       }
     } catch (err) {
       console.error("messageReactionRemove hatası:", err);
