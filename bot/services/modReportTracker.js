@@ -17,7 +17,7 @@ const StaffProgress = require('../../models/StaffProgress');
 
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const REPORT_GUILD_ID    = '1367646464804655104';
-const REPORT_LOG_CHANNEL = '1498009677743788155';
+const REPORT_LOG_CHANNEL = '1518693023934844959';
 const REPORT_DEADLINE_MS = 60 * 60 * 1000; // 1 saat
 const XP_PENALTY         = 50;
 const POINTS_PENALTY     = 25;
@@ -25,10 +25,12 @@ const PENALTY_THRESHOLD  = 2; // 2'den fazla loglanmamış işlem olunca ceza ba
 
 // ── Personel Rolleri ───────────────────────────────────────────────────────
 const STAFF_ROLE_IDS = [
-  '1475082184896548864', // Stajyer Personel
-  '1417530761774366821', // Personel
-  '1417533740892291214', // Gelişmiş Personel
-  '1419688146689593415', // Sekreter
+  '1518692395774906648', // Stajyer Personel
+  '1518692394495643830', // Personel
+  '1518692393660973186', // Kıdemli Personel
+  '1518692392415395971', // Sekreter
+  '1518709348506013706', // Kıdemli Sekreter
+  '1518692391312298045', // Genel Koordinatör
 ];
 
 // ── In-Memory: Loglanmış işlem takibi ──────────────────────────────────────

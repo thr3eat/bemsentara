@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const { EmbedBuilder } = require("discord.js");
 const { chatWithAI } = require("./aiService");
 
-const TARGET_CHANNEL_ID = "1514583020680777760";
+const TARGET_CHANNEL_IDS = ["1514583020680777760", "1518692463177498674"];
 
 /**
  * Her gün sabah 09:00'da Atatürk ile ilgili tarihi bilgi atar.
@@ -27,12 +27,6 @@ function startAtaturkHistoryScheduler(client) {
  */
 async function postAtaturkHistory(client) {
   try {
-    const channel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
-    if (!channel || !channel.isTextBased()) {
-      console.warn("⚠️ [AtaturkHistoryAI] Hedef kanal bulunamadı veya metin kanalı değil:", TARGET_CHANNEL_ID);
-      return;
-    }
-
     const today = new Date();
     const day = today.getDate();
     const month = today.getMonth();
@@ -102,8 +96,15 @@ async function postAtaturkHistory(client) {
       .setFooter({ text: "TMT Yapay Zeka Tarih Sistemi", iconURL: client.user.displayAvatarURL() })
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
-    console.log(`✅ [AtaturkHistoryAI] ${dateStr} mesajı başarıyla gönderildi.`);
+    for (const channelId of TARGET_CHANNEL_IDS) {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel && channel.isTextBased()) {
+        await channel.send({ embeds: [embed] }).catch(() => {});
+        console.log(`✅ [AtaturkHistoryAI] ${dateStr} mesajı ${channelId} kanalına başarıyla gönderildi.`);
+      } else {
+        console.warn(`⚠️ [AtaturkHistoryAI] Hedef kanal bulunamadı veya metin kanalı değil: ${channelId}`);
+      }
+    }
   } catch (error) {
     console.error("❌ [AtaturkHistoryAI] Mesaj gönderim hatası:", error);
   }

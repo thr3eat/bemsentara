@@ -24,7 +24,7 @@ let wordSynced = false;
  * Bom oyununu kanal geçmişinden senkronize et.
  * Son mesajlara bakarak currentBomNumber'ı belirle.
  */
-async function syncBomFromHistory(channel) {
+async function syncBomFromHistory(channel, currentMsgId) {
   if (bomSynced) return;
   bomSynced = true;
 
@@ -32,7 +32,9 @@ async function syncBomFromHistory(channel) {
     // Son 50 mesajı çek (bot mesajları dahil)
     const messages = await channel.messages.fetch({ limit: 50 });
     // Kronolojik sırayla (eskiden yeniye)
-    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     let foundNumber = 0;
     let foundUser = null;
@@ -88,13 +90,15 @@ async function syncBomFromHistory(channel) {
  * Kelime oyununu kanal geçmişinden senkronize et.
  * Son mesajlara bakarak lastWordLetter ve usedWords'ü belirle.
  */
-async function syncWordFromHistory(channel) {
+async function syncWordFromHistory(channel, currentMsgId) {
   if (wordSynced) return;
   wordSynced = true;
 
   try {
     const messages = await channel.messages.fetch({ limit: 50 });
-    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     for (const msg of sorted) {
       if (msg.author.bot) continue;
@@ -188,7 +192,7 @@ async function handleTMTGames(message, client) {
   // 4. Bom Game
   if (channelId === TMT_BOM_CHANNEL_ID) {
     // İlk mesajda kanal geçmişinden senkronize et
-    await syncBomFromHistory(message.channel);
+    await syncBomFromHistory(message.channel, message.id);
 
     const content = message.content.toLowerCase().trim();
     
@@ -232,7 +236,7 @@ async function handleTMTGames(message, client) {
   // 5. Kelime Oyunu
   if (channelId === TMT_WORDGAME_CHANNEL_ID) {
     // İlk mesajda kanal geçmişinden senkronize et
-    await syncWordFromHistory(message.channel);
+    await syncWordFromHistory(message.channel, message.id);
 
     // Aynı kişi üst üste oynayamaz
     if (message.author.id === lastWordUser && lastWordLetter !== null) {

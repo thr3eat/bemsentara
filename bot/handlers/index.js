@@ -39,6 +39,7 @@ function initializeDiscordHandlers(client) {
     const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
     const { ensureTMTVerifyHelpMessage } = require("../services/tmtVerifyHelpMessage");
     const { ensureTMTSupportMessage } = require("../services/tmtSupportMessage");
+    const { ensureEkoSupportMessage } = require("../services/ekoSupportMessage");
     const { ensureTMTRules } = require("../services/ensureTMTRules");
     const { startCleanupScheduler } = require("../services/ticketCleanup");
     const { startStaffScheduler } = require("../services/staffSystem");
@@ -55,6 +56,7 @@ function initializeDiscordHandlers(client) {
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
     await ensureTMTSupportMessage(client);
+    await ensureEkoSupportMessage(client);
     await ensureTMTRules(client);
     await ensureAdminPanels(client);
     await initializeRoblox();
@@ -830,6 +832,16 @@ function initializeDiscordHandlers(client) {
 
     if (message.author.bot || !message.guild) return;
 
+    // ── 1518692502679588954 Kanalı Tepki Ekleme ─────────────────────────────────────
+    if (message.channel.id === '1518692502679588954') {
+      try {
+        await message.react('👍').catch(() => {});
+        await message.react('👎').catch(() => {});
+      } catch (err) {
+        console.error('[reaction] Tepki ekleme hatası:', err.message);
+      }
+    }
+
     // ── TMT Oyunlar ve Honeypot ─────────────────────────────────────────────
     try {
       const { handleTMTGames } = require('../services/tmtGames');
@@ -1251,6 +1263,69 @@ function initializeDiscordHandlers(client) {
       } catch (err) {
         console.error("Emoji listesi çekilirken hata:", err);
         await statusMsg.edit(`❌ Emojiler güncellenirken genel bir hata oluştu: ${err.message}`);
+      }
+    }
+
+    if (message.content === "!ekorolsync") {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Rolleri Yönet` veya `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const statusMsg = await message.reply("🔄 EkoYıldız Rol Senkronizasyonu başlatıldı. Üyeler ve DB taranıyor...");
+
+      try {
+        const guild = message.guild;
+        // Fetch all members
+        const members = await guild.members.fetch();
+
+        const StaffProgress = require('../../models/StaffProgress');
+        const FrogLevel = require('../../models/FrogLevel');
+        const { ROLES } = require('../services/staffSystem');
+        const staffAutomation = require('../services/staffAutomation');
+        const frogLevel = require('../services/frogLevel');
+
+        let syncedCount = 0;
+        let staffCount = 0;
+        let levelCount = 0;
+
+        for (const [memberId, member] of members.entries()) {
+          if (member.user.bot) continue;
+
+          let updated = false;
+
+          // 1. Staff System Sync
+          const progress = await StaffProgress.findOne({ userId: memberId });
+          if (progress && progress.level) {
+            const roleId = ROLES[progress.level];
+            if (roleId) {
+              if (!member.roles.cache.has(roleId)) {
+                await member.roles.add(roleId, "EkoRolSync: Staff Seviye Kurtarma").catch(() => {});
+              }
+              // Also run main guild roles sync
+              await staffAutomation.syncMainGuildRoles(client, memberId).catch(() => {});
+              staffCount++;
+              updated = true;
+            }
+          }
+
+          // 2. Frog Level (Dinazor/Penguen) System Sync
+          const frog = await FrogLevel.findOne({ userId: memberId, guildId: guild.id });
+          if (frog && frog.level !== undefined) {
+            await frogLevel.syncRolesFromLevel(member, frog.level, client).catch(() => {});
+            levelCount++;
+            updated = true;
+          }
+
+          if (updated) {
+            syncedCount++;
+          }
+        }
+
+        await statusMsg.edit(`✅ **Senkronizasyon Başarıyla Tamamlandı!**\n\n👥 **Taranan Toplam Üye:** ${members.size}\n🔄 **Rolleri Güncellenen / Senkronize Edilen Üye:** ${syncedCount}\n👔 **Personel Rolü Verilenler:** ${staffCount}\n🦖 **Dinazor/Penguen Rolü Verilenler:** ${levelCount}`);
+      } catch (err) {
+        console.error("EkoRolSync hatası:", err);
+        await statusMsg.edit(`❌ Senkronizasyon sırasında hata oluştu: ${err.message}`);
       }
     }
   });

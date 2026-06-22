@@ -26,13 +26,15 @@ let wordSynced = false;
 /**
  * Sayı saymacayı kanal geçmişinden senkronize et.
  */
-async function syncCountingFromHistory(channel) {
+async function syncCountingFromHistory(channel, currentMsgId) {
   if (countingSynced) return;
   countingSynced = true;
 
   try {
     const messages = await channel.messages.fetch({ limit: 50 });
-    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     let foundNumber = 0;
     let foundUser = null;
@@ -68,13 +70,15 @@ async function syncCountingFromHistory(channel) {
 /**
  * Bom oyununu kanal geçmişinden senkronize et.
  */
-async function syncBomFromHistory(channel) {
+async function syncBomFromHistory(channel, currentMsgId) {
   if (bomSynced) return;
   bomSynced = true;
 
   try {
     const messages = await channel.messages.fetch({ limit: 50 });
-    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     let foundNumber = 0;
     let foundUser = null;
@@ -124,13 +128,15 @@ async function syncBomFromHistory(channel) {
 /**
  * Kelime oyununu kanal geçmişinden senkronize et.
  */
-async function syncWordFromHistory(channel) {
+async function syncWordFromHistory(channel, currentMsgId) {
   if (wordSynced) return;
   wordSynced = true;
 
   try {
     const messages = await channel.messages.fetch({ limit: 50 });
-    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     for (const msg of sorted) {
       if (msg.author.bot) continue;
@@ -157,7 +163,7 @@ async function syncWordFromHistory(channel) {
  * Sayı Saymaca Oyunu Mantığı
  */
 async function runCountingGame(message) {
-  await syncCountingFromHistory(message.channel);
+  await syncCountingFromHistory(message.channel, message.id);
 
   const content = message.content.toLowerCase().trim();
 
@@ -186,7 +192,7 @@ async function runCountingGame(message) {
  * Bom Oyunu Mantığı
  */
 async function runBomGame(message) {
-  await syncBomFromHistory(message.channel);
+  await syncBomFromHistory(message.channel, message.id);
 
   const content = message.content.toLowerCase().trim();
 
@@ -227,7 +233,7 @@ async function runBomGame(message) {
  * Kelime Oyunu Mantığı
  */
 async function runWordGame(message) {
-  await syncWordFromHistory(message.channel);
+  await syncWordFromHistory(message.channel, message.id);
 
   if (message.author.id === lastWordUser && lastWordLetter !== null) {
     await message.delete().catch(() => {});

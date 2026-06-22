@@ -22,15 +22,15 @@ const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || "150551149809578806
 // ── İkinci sunucu (EKOYILDIZ) ────────────────────────────────────────────────
 const GUILD2_ID = process.env.GUILD2_ID || "1367646464804655104";
 /** Ticket kanallarının açılacağı kategori */
-const GUILD2_TICKET_CATEGORY_ID = process.env.GUILD2_TICKET_CATEGORY_ID || "1493662634044559440";
+const GUILD2_TICKET_CATEGORY_ID = process.env.GUILD2_TICKET_CATEGORY_ID || "1518716275239551046";
 /** Ticket log kanalı (isteğe bağlı, boş bırakılabilir) */
 const GUILD2_TICKET_LOG_ID = process.env.GUILD2_TICKET_LOG_ID || "1412828986240929852";
 /** Join-to-create ses kanalı */
-const GUILD2_VOICE_JOIN_ID = process.env.GUILD2_VOICE_JOIN_ID || "1466134451191943291";
+const GUILD2_VOICE_JOIN_ID = process.env.GUILD2_VOICE_JOIN_ID || "1518715842227863552";
 /** Ses kanallarının oluşturulacağı kategori (join kanalıyla aynı kategori kullanılır) */
 const GUILD2_VOICE_CATEGORY_ID = process.env.GUILD2_VOICE_CATEGORY_ID || "1460284319183536190";
 /** Ses sistemi panel kanalı */
-const GUILD2_VOICE_PANEL_ID = process.env.GUILD2_VOICE_PANEL_ID || "1505505849924255955";
+const GUILD2_VOICE_PANEL_ID = process.env.GUILD2_VOICE_PANEL_ID || "1518716065872609490";
 
 // ── Üçüncü sunucu (TMT - Türk Silahlı Kuvvetleri) ──────────────────────────────
 const TMT_GUILD_ID = "1514569307886063666";
@@ -92,11 +92,11 @@ const EKOYILDIZ_YAZMA_ENGELI_ROLE_ID = process.env.EKOYILDIZ_YAZMA_ENGELI_ROLE_I
 /** Fotoğraf engeli rolü (AttachFiles+EmbedLinks deny) */
 const EKOYILDIZ_FOTO_ENGELI_ROLE_ID = process.env.EKOYILDIZ_FOTO_ENGELI_ROLE_ID || "1518707267632103576";
 /** Mod işlem log kanalı */
-const EKOYILDIZ_MOD_LOG_CHANNEL_ID = process.env.EKOYILDIZ_MOD_LOG_CHANNEL_ID || "1437506814148087941";
+const EKOYILDIZ_MOD_LOG_CHANNEL_ID = process.env.EKOYILDIZ_MOD_LOG_CHANNEL_ID || "1518693119082889376";
 /** EkoYıldız Sayı Saymaca Kanalı */
 const EKOYILDIZ_SAYI_SAYMACA_CHANNEL_ID = process.env.EKOYILDIZ_SAYI_SAYMACA_CHANNEL_ID || "1518692512607240425";
 /** EkoYıldız Kelime Oyunu Kanalı */
-const EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID = process.env.EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID || "1518692510384521226";
+const EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID = process.env.EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID || "1518692507406565488";
 /** EkoYıldız Bom Oyunu Kanalı */
 const EKOYILDIZ_BOM_CHANNEL_ID = process.env.EKOYILDIZ_BOM_CHANNEL_ID || "1518692510384521226";
 

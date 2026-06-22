@@ -7,7 +7,7 @@ const StaffProgress = require('../../models/StaffProgress');
 const { chatWithAI } = require('./aiService');
 
 const MAIN_GUILD_ID = '1367646464804655104';
-const INTRODUCTION_CHANNEL_ID = '1517931237480861868';
+const INTRODUCTION_CHANNEL_ID = '1518716989302898728';
 const UPPER_ROLE_ID = '1517929818715455700'; // Üst sınır
 const LOWER_ROLE_ID = '1467077860240916534'; // Alt sınır
 

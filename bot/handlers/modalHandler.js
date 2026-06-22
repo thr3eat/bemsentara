@@ -17,7 +17,7 @@ const {
 
 async function handleModalSubmit(interaction) {
   // ── Ticket oluşturma modal'ı ─────────────────────────────────────────────
-  if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_")) {
+  if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_") || interaction.customId.startsWith("ekoyildiz_support_modal_")) {
     return handleSupportModal(interaction);
   }
 
@@ -71,7 +71,11 @@ async function handleModalSubmit(interaction) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function handleSupportModal(interaction) {
   const isTMT = interaction.customId.startsWith("tmt_support_modal_");
-  const category = interaction.customId.replace("support_modal_", "").replace("tmt_support_modal_", "");
+  const isEko = interaction.customId.startsWith("ekoyildiz_support_modal_");
+  const category = interaction.customId
+    .replace("support_modal_", "")
+    .replace("tmt_support_modal_", "")
+    .replace("ekoyildiz_support_modal_", "");
   const subject = interaction.fields.getTextInputValue("support_subject");
   const description = interaction.fields.getTextInputValue("support_description");
 
@@ -124,7 +128,7 @@ async function handleSupportModal(interaction) {
 
     // Hangi sunucudan geldiğini belirle
     const sourceGuildId = interaction.guild?.id;
-    const isGuild2 = sourceGuildId === GUILD2_ID;
+    const isGuild2 = sourceGuildId === GUILD2_ID || isEko;
     const isAllied = sourceGuildId === "1483482948320891074";
 
     // Hedef sunucu: TMT ise TMT sunucusu, Guild2 ise Guild2, Allied ise Allied, yoksa Target Guild
@@ -153,12 +157,8 @@ async function handleSupportModal(interaction) {
 
     // ── TÜM MODERAT/PERSONEL ROLLERINI EKLE (ticket görülebilsin) ──────────
     try {
-      const STAFF_ROLES = {
-        1: process.env.ROLE_STAJYER  || '1475082184896548864',
-        2: process.env.ROLE_PERSONEL || '1417530761774366821',
-        3: process.env.ROLE_GELISMIS || '1417533740892291214',
-        4: process.env.ROLE_SEKRETER || '1419688146689593415',
-      };
+      const { ROLES } = require("../services/staffSystem");
+      const STAFF_ROLES = ROLES;
       
       for (const roleId of Object.values(STAFF_ROLES)) {
         if (roleId && targetGuild.roles.cache.has(roleId)) {

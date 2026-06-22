@@ -46,10 +46,11 @@ async function handleSelectInteraction(interaction) {
     return;
   }
 
-  if (interaction.customId !== "support_category" && interaction.customId !== "tmt_support_category") return null;
+  if (interaction.customId !== "support_category" && interaction.customId !== "tmt_support_category" && interaction.customId !== "ekoyildiz_support_category") return null;
 
   const category = interaction.values[0];
   const isTMT = interaction.customId === "tmt_support_category";
+  const isEko = interaction.customId === "ekoyildiz_support_category";
 
   // Kategori bazlı başlık ve placeholder
   const categoryTitles = {
@@ -61,6 +62,13 @@ async function handleSelectInteraction(interaction) {
     account:   'Hesap Sorunu',
     genel:     'Genel Destek',
     other:     'Diğer Konu',
+    // TMT Categories
+    discord:   'Discord Destek',
+    game:      'Oyun Destek',
+    // EkoYildiz Categories
+    kullanici_destek: 'Kullanıcı Destek',
+    reklam_destek:    'Reklam Destek',
+    diger_destek:     'Diğer Destek',
   };
   const categoryDescHints = {
     ban:       'Kimi şikayet ediyorsunuz? (kullanıcı adı/ID)',
@@ -74,12 +82,18 @@ async function handleSelectInteraction(interaction) {
     // TMT Categories
     discord:   'Discord ile ilgili sorununuzu açıklayın',
     game:      'Oyun içindeki sorununuzu açıklayın',
+    // EkoYildiz Categories
+    kullanici_destek: 'Kimi ve neden şikayet ediyorsunuz?',
+    reklam_destek:    'Reklam talebinizi açıklayın',
+    diger_destek:     'Talebinizi açıklayın',
   };
 
   const title = categoryTitles[category] || 'Destek Talebi';
   const descHint = categoryDescHints[category] || 'Sorununuzu açıklayın';
 
-  const modalCustomId = isTMT ? `tmt_support_modal_${category}` : `support_modal_${category}`;
+  let modalCustomId = `support_modal_${category}`;
+  if (isTMT) modalCustomId = `tmt_support_modal_${category}`;
+  else if (isEko) modalCustomId = `ekoyildiz_support_modal_${category}`;
 
   const modal = new ModalBuilder()
     .setCustomId(modalCustomId)

@@ -259,12 +259,8 @@ async function handleUserMessage(message, client) {
         isModerator = true;
       }
       if (!isModerator) {
-        const STAFF_ROLES = {
-          1: process.env.ROLE_STAJYER  || '1475082184896548864',
-          2: process.env.ROLE_PERSONEL || '1417530761774366821',
-          3: process.env.ROLE_GELISMIS || '1417533740892291214',
-          4: process.env.ROLE_SEKRETER || '1419688146689593415',
-        };
+        const { ROLES } = require("./staffSystem");
+        const STAFF_ROLES = ROLES;
         for (const roleId of Object.values(STAFF_ROLES)) {
           if (roleId && message.member?.roles.cache.has(roleId)) {
             isModerator = true;
