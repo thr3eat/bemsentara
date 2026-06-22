@@ -370,6 +370,25 @@ async function syncMainGuildRoles(client, discordUserId) {
     const targetRoles = [];
     const rolesToRemove = [];
 
+    const staffRoleIds = [
+      '1518692395774906648', // Stajyer Personel
+      '1518692394495643830', // Personel
+      '1518692393660973186', // Kıdemli Personel
+      '1518692392415395971', // Sekreter
+      '1518709348506013706', // Kıdemli Sekreter
+      '1518692391312298045', // Genel Koordinatör
+    ];
+
+    const hasStaffRole = staffRoleIds.some(rid => currentRoles.includes(rid));
+
+    if (hasStaffRole) {
+      targetRoles.push('1518692386836971610'); // 🧸 Moderasyon
+      targetRoles.push('1518692389169135666'); // Moderatör Ekibi
+    } else {
+      rolesToRemove.push('1518692386836971610');
+      rolesToRemove.push('1518692389169135666');
+    }
+
     // Condition 1
     if (currentRoles.includes('1518692395774906648') || currentRoles.includes('1518692394495643830')) {
       targetRoles.push('1518692393660973186');

@@ -220,10 +220,10 @@ async function syncRolesFromLevel(member, level, client) {
     const currentRoles = member.roles.cache.map(r => r.id);
     const targetRole = FROG_ROLES[level];
     
-    // Temizlenecek diğer tüm seviye rollerini bul
+    // Temizlenecek diğer tüm seviye rollerini bul (yavru dinazor hariç)
     const rolesToRemove = [];
     for (const fr of FROG_ROLES) {
-      if (fr.level !== level && currentRoles.includes(fr.id)) {
+      if (fr.level !== level && fr.level !== 0 && currentRoles.includes(fr.id)) {
         rolesToRemove.push(fr.id);
       }
     }
@@ -232,8 +232,19 @@ async function syncRolesFromLevel(member, level, client) {
       await member.roles.remove(rolesToRemove, 'Seviye Rol Senkronizasyonu').catch(() => {});
     }
 
+    const rolesToAdd = [];
     if (targetRole && !currentRoles.includes(targetRole.id)) {
-      await member.roles.add(targetRole.id, 'Seviye Rol Senkronizasyonu').catch(() => {});
+      rolesToAdd.push(targetRole.id);
+    }
+
+    // Yavru Dinazor (level 0) rolünün de verilmesini/korunmasını sağla
+    const level0Role = FROG_ROLES[0];
+    if (level0Role && level !== 0 && !currentRoles.includes(level0Role.id)) {
+      rolesToAdd.push(level0Role.id);
+    }
+
+    if (rolesToAdd.length > 0) {
+      await member.roles.add(rolesToAdd, 'Seviye Rol Senkronizasyonu').catch(() => {});
     }
 
     // 2. Sezon (Dinazor) geçişinde/seviyelerinde Roblox grubunda rank 5 ver

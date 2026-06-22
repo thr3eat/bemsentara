@@ -83,6 +83,12 @@ function initializeDiscordHandlers(client) {
       console.error('[ekoRoleRestore] Hata:', err);
     });
 
+    // EkoYıldız Gelişmiş Loglama Sistemini Başlat (Kanalları Otomatik Oluşturur)
+    const { initializeEkoLogger } = require('../services/ekoLogger');
+    await initializeEkoLogger(client).catch(err => {
+      console.error('[ekoLogger] Başlatma Hatası:', err);
+    });
+
     // AI Kanal Sohbet İzleme
     const { startAIChatMonitor } = require('../services/aiChannelChat');
     startAIChatMonitor(client);
@@ -147,7 +153,7 @@ function initializeDiscordHandlers(client) {
         console.error('[guildMemberAdd] restoreKonusRoles hatası:', err.message);
       }
 
-      const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID, TMT_GUILD_ID, TMT_UNVERIFIED_ROLE_ID } = require("../../config");
+      const { TARGET_GUILD_ID, UNVERIFIED_ROLE_ID, TMT_GUILD_ID, TMT_UNVERIFIED_ROLE_ID, GUILD2_ID } = require("../../config");
       const { PermissionFlagsBits } = require('discord.js');
 
       let targetRoleId = null;
@@ -157,6 +163,10 @@ function initializeDiscordHandlers(client) {
         targetRoleId = TMT_UNVERIFIED_ROLE_ID;
         const { logTMTMemberJoin } = require("../services/tmtLogger");
         logTMTMemberJoin(member);
+      } else if (member.guild.id === GUILD2_ID) {
+        const { logEkoMemberJoin } = require("../services/ekoLogger");
+        logEkoMemberJoin(member);
+        return;
       } else {
         return;
       }
@@ -253,7 +263,7 @@ function initializeDiscordHandlers(client) {
 
   client.on("guildMemberRemove", async (member) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (member.guild.id === TMT_GUILD_ID) {
         const { logTMTMemberLeave } = require("../services/tmtLogger");
         logTMTMemberLeave(member);
@@ -284,6 +294,9 @@ function initializeDiscordHandlers(client) {
         } catch (e) {
           console.error('[guildMemberRemove] Sadık Yıldız başarım hatası:', e.message);
         }
+      } else if (member.guild.id === GUILD2_ID) {
+        const { logEkoMemberLeave } = require("../services/ekoLogger");
+        logEkoMemberLeave(member);
       }
     } catch (err) {
       console.error("guildMemberRemove hatası:", err);
@@ -292,10 +305,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("guildMemberUpdate", async (oldMember, newMember) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newMember.guild.id === TMT_GUILD_ID) {
         const { logTMTMemberUpdate } = require("../services/tmtLogger");
         logTMTMemberUpdate(oldMember, newMember);
+      } else if (newMember.guild.id === GUILD2_ID) {
+        const { logEkoMemberUpdate } = require("../services/ekoLogger");
+        logEkoMemberUpdate(oldMember, newMember);
       }
     } catch (err) {
       console.error("guildMemberUpdate hatası:", err);
@@ -305,10 +321,13 @@ function initializeDiscordHandlers(client) {
   client.on("messageDelete", async (message) => {
     try {
       if (message.partial) return;
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (message.guild && message.guild.id === TMT_GUILD_ID && !message.author?.bot) {
         const { logTMTMessageDelete } = require("../services/tmtLogger");
         logTMTMessageDelete(message);
+      } else if (message.guild && message.guild.id === GUILD2_ID && !message.author?.bot) {
+        const { logEkoMessageDelete } = require("../services/ekoLogger");
+        logEkoMessageDelete(message);
       }
     } catch (err) {
       console.error("messageDelete hatası:", err);
@@ -320,10 +339,13 @@ function initializeDiscordHandlers(client) {
   client.on("messageUpdate", async (oldMessage, newMessage) => {
     try {
       if (oldMessage.partial || newMessage.partial) return;
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newMessage.guild && newMessage.guild.id === TMT_GUILD_ID && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
         const { logTMTMessageUpdate } = require("../services/tmtLogger");
         logTMTMessageUpdate(oldMessage, newMessage);
+      } else if (newMessage.guild && newMessage.guild.id === GUILD2_ID && !newMessage.author?.bot && oldMessage.content !== newMessage.content) {
+        const { logEkoMessageUpdate } = require("../services/ekoLogger");
+        logEkoMessageUpdate(oldMessage, newMessage);
       }
 
       // ── Gizli Başarım: Kararsız (Mesaj Düzenleme) ──
@@ -364,10 +386,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("roleCreate", async (role) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (role.guild.id === TMT_GUILD_ID) {
         const { logTMTRoleCreate } = require("../services/tmtLogger");
         logTMTRoleCreate(role);
+      } else if (role.guild.id === GUILD2_ID) {
+        const { logEkoRoleCreate } = require("../services/ekoLogger");
+        logEkoRoleCreate(role);
       }
     } catch (err) {
       console.error("roleCreate hatası:", err);
@@ -376,10 +401,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("roleDelete", async (role) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (role.guild.id === TMT_GUILD_ID) {
         const { logTMTRoleDelete } = require("../services/tmtLogger");
         logTMTRoleDelete(role);
+      } else if (role.guild.id === GUILD2_ID) {
+        const { logEkoRoleDelete } = require("../services/ekoLogger");
+        logEkoRoleDelete(role);
       }
     } catch (err) {
       console.error("roleDelete hatası:", err);
@@ -388,10 +416,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("roleUpdate", async (oldRole, newRole) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newRole.guild.id === TMT_GUILD_ID) {
         const { logTMTRoleUpdate } = require("../services/tmtLogger");
         logTMTRoleUpdate(oldRole, newRole);
+      } else if (newRole.guild.id === GUILD2_ID) {
+        const { logEkoRoleUpdate } = require("../services/ekoLogger");
+        logEkoRoleUpdate(oldRole, newRole);
       }
     } catch (err) {
       console.error("roleUpdate hatası:", err);
@@ -400,10 +431,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("emojiCreate", async (emoji) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (emoji.guild.id === TMT_GUILD_ID) {
         const { logTMTEmojiCreate } = require("../services/tmtLogger");
         logTMTEmojiCreate(emoji);
+      } else if (emoji.guild.id === GUILD2_ID) {
+        const { logEkoEmojiCreate } = require("../services/ekoLogger");
+        logEkoEmojiCreate(emoji);
       }
     } catch (err) {
       console.error("emojiCreate hatası:", err);
@@ -412,10 +446,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("emojiDelete", async (emoji) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (emoji.guild.id === TMT_GUILD_ID) {
         const { logTMTEmojiDelete } = require("../services/tmtLogger");
         logTMTEmojiDelete(emoji);
+      } else if (emoji.guild.id === GUILD2_ID) {
+        const { logEkoEmojiDelete } = require("../services/ekoLogger");
+        logEkoEmojiDelete(emoji);
       }
     } catch (err) {
       console.error("emojiDelete hatası:", err);
@@ -424,10 +461,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("emojiUpdate", async (oldEmoji, newEmoji) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newEmoji.guild.id === TMT_GUILD_ID) {
         const { logTMTEmojiUpdate } = require("../services/tmtLogger");
         logTMTEmojiUpdate(oldEmoji, newEmoji);
+      } else if (newEmoji.guild.id === GUILD2_ID) {
+        const { logEkoEmojiUpdate } = require("../services/ekoLogger");
+        logEkoEmojiUpdate(oldEmoji, newEmoji);
       }
     } catch (err) {
       console.error("emojiUpdate hatası:", err);
@@ -436,10 +476,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("channelCreate", async (channel) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (channel.guild && channel.guild.id === TMT_GUILD_ID) {
         const { logTMTChannelCreate } = require("../services/tmtLogger");
         logTMTChannelCreate(channel);
+      } else if (channel.guild && channel.guild.id === GUILD2_ID) {
+        const { logEkoChannelCreate } = require("../services/ekoLogger");
+        logEkoChannelCreate(channel);
       }
     } catch (err) {
       console.error("channelCreate hatası:", err);
@@ -448,10 +491,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("channelDelete", async (channel) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (channel.guild && channel.guild.id === TMT_GUILD_ID) {
         const { logTMTChannelDelete } = require("../services/tmtLogger");
         logTMTChannelDelete(channel);
+      } else if (channel.guild && channel.guild.id === GUILD2_ID) {
+        const { logEkoChannelDelete } = require("../services/ekoLogger");
+        logEkoChannelDelete(channel);
       }
     } catch (err) {
       console.error("channelDelete hatası:", err);
@@ -460,10 +506,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("channelUpdate", async (oldChannel, newChannel) => {
     try {
-      const { TMT_GUILD_ID } = require("../../config");
+      const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newChannel.guild && newChannel.guild.id === TMT_GUILD_ID) {
         const { logTMTChannelUpdate } = require("../services/tmtLogger");
         logTMTChannelUpdate(oldChannel, newChannel);
+      } else if (newChannel.guild && newChannel.guild.id === GUILD2_ID) {
+        const { logEkoChannelUpdate } = require("../services/ekoLogger");
+        logEkoChannelUpdate(oldChannel, newChannel);
       }
     } catch (err) {
       console.error("channelUpdate hatası:", err);

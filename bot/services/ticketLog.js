@@ -34,7 +34,12 @@ async function resolveLogChannel(ticket) {
   if (isTMT) {
     logChannelId = "1514583177849606204";
   } else if (isGuild2) {
-    logChannelId = GUILD2_TICKET_LOG_ID || null;
+    try {
+      const { getEkoLogChannelId } = require("./ekoLogger");
+      logChannelId = getEkoLogChannelId("talep") || GUILD2_TICKET_LOG_ID || null;
+    } catch {
+      logChannelId = GUILD2_TICKET_LOG_ID || null;
+    }
   } else if (isAllied) {
     logChannelId = "1483483313225203732";
   } else {
