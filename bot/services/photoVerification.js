@@ -4,7 +4,7 @@ const { GUILD2_ID } = require('../../config');
 // Channel ve Role ID'leri
 const PHOTO_UPLOAD_CHANNEL = '1393374779104432220'; // Fotoğraf yükleme kanalı (Eko Yıldız)
 const PHOTO_LOG_CHANNEL = '1512419986294050938'; // Fotoğraf gözden geçirme kanalı
-const SUBSCRIBER_ROLE_ID = '1367646745324159127'; // Abone rolü
+const SUBSCRIBER_ROLE_ID = '1518707259633303814'; // Abone rolü (Aboneci Dinazor)
 
 // Fake abone kontrol sistem
 const fakeSubscriberReports = new Map();

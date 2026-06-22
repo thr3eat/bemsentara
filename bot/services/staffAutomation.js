@@ -239,13 +239,13 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       if (staff && staff.level === 5) {
         TARGET_ROLES.push('1517656567481372772'); // Moderatör sunucusu Level 5 rolü
 
-        // Ana sunucuya da (1367646464804655104) Level 5 rolünü (1517651154220355836) verelim
+        // Ana sunucuya da (1367646464804655104) Level 5 rolünü (1518709348506013706) verelim
         try {
           const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
           if (mainGuild) {
             const mainMember = await mainGuild.members.fetch(discordUserId).catch(() => null);
             if (mainMember) {
-              await mainMember.roles.add('1517651154220355836').catch(() => { });
+              await mainMember.roles.add('1518709348506013706').catch(() => { });
             }
           }
         } catch (e) {
@@ -257,13 +257,13 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       if (staff && staff.level >= 6) {
         TARGET_ROLES.push('1517695716594683904'); // Moderatör sunucusu Level 6 rolü
 
-        // Ana sunucuya da (1367646464804655104) Level 6 rolünü (1517651154220355836) verelim
+        // Ana sunucuya da (1367646464804655104) Level 6 rolünü (1518692391312298045) verelim
         try {
           const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
           if (mainGuild) {
             const mainMember = await mainGuild.members.fetch(discordUserId).catch(() => null);
             if (mainMember) {
-              await mainMember.roles.add('1517651154220355836').catch(() => { });
+              await mainMember.roles.add('1518692391312298045').catch(() => { });
             }
           }
         } catch (e) {
@@ -371,24 +371,24 @@ async function syncMainGuildRoles(client, discordUserId) {
     const rolesToRemove = [];
 
     // Condition 1
-    if (currentRoles.includes('1417534492251394149') || currentRoles.includes('1417530761774366821')) {
-      targetRoles.push('1417533740892291214');
+    if (currentRoles.includes('1518692395774906648') || currentRoles.includes('1518692394495643830')) {
+      targetRoles.push('1518692393660973186');
     } else {
-      rolesToRemove.push('1417533740892291214');
+      rolesToRemove.push('1518692393660973186');
     }
 
     // Condition 2
-    if (currentRoles.includes('1417533740892291214') || currentRoles.includes('1419688146689593415')) {
-      targetRoles.push('1517919240861257758');
+    if (currentRoles.includes('1518692393660973186') || currentRoles.includes('1518692392415395971')) {
+      targetRoles.push('1518708137920823327');
     } else {
-      rolesToRemove.push('1517919240861257758');
+      rolesToRemove.push('1518708137920823327');
     }
 
     // Condition 3
-    if (currentRoles.includes('1517651154220355836') || currentRoles.includes('1517695304147796058')) {
-      targetRoles.push('1517919442279858307');
+    if (currentRoles.includes('1518709348506013706') || currentRoles.includes('1518692391312298045')) {
+      targetRoles.push('1518707673846251691');
     } else {
-      rolesToRemove.push('1517919442279858307');
+      rolesToRemove.push('1518707673846251691');
     }
 
     // Apply removals

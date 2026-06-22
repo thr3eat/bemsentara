@@ -88,9 +88,9 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || "1031620522406072350")
 
 // ── EkoYıldız Moderasyon Rolleri ve Kanalları ──────────────────────────────────
 /** Yazma engeli rolü (SendMessages deny) */
-const EKOYILDIZ_YAZMA_ENGELI_ROLE_ID = process.env.EKOYILDIZ_YAZMA_ENGELI_ROLE_ID || "1437506814148087941";
+const EKOYILDIZ_YAZMA_ENGELI_ROLE_ID = process.env.EKOYILDIZ_YAZMA_ENGELI_ROLE_ID || "1518707609241129142";
 /** Fotoğraf engeli rolü (AttachFiles+EmbedLinks deny) */
-const EKOYILDIZ_FOTO_ENGELI_ROLE_ID = process.env.EKOYILDIZ_FOTO_ENGELI_ROLE_ID || "1437506814148087941";
+const EKOYILDIZ_FOTO_ENGELI_ROLE_ID = process.env.EKOYILDIZ_FOTO_ENGELI_ROLE_ID || "1518707267632103576";
 /** Mod işlem log kanalı */
 const EKOYILDIZ_MOD_LOG_CHANNEL_ID = process.env.EKOYILDIZ_MOD_LOG_CHANNEL_ID || "1437506814148087941";
 /** EkoYıldız Sayı Saymaca Kanalı */

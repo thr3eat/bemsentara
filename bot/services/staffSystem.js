@@ -16,20 +16,20 @@ const CHOSEN_TASKS = {
 };
 
 const ROLES = {
-  1: process.env.ROLE_STAJYER || '1475082184896548864', // Stajyer Personel
-  2: process.env.ROLE_PERSONEL || '1417530761774366821', // Personel
-  3: process.env.ROLE_GELISMIS || '1417533740892291214', // Gelişmiş Personel
-  4: process.env.ROLE_SEKRETER || '1419688146689593415', // Sekreter
-  5: '1517656567481372772',                             // Kıdemli Sekreter
-  6: '1517695716594683904',                             // Genel Koordinatör
+  1: process.env.ROLE_STAJYER || '1518692395774906648', // Stajyer Personel
+  2: process.env.ROLE_PERSONEL || '1518692394495643830', // Personel
+  3: process.env.ROLE_GELISMIS || '1518692393660973186', // Kıdemli Personel
+  4: process.env.ROLE_SEKRETER || '1518692392415395971', // Sekreter
+  5: '1518709348506013706',                             // Kıdemli Sekreter
+  6: '1518692391312298045',                             // Genel Koordinatör
 };
 
 const ROLE_NAMES = {
   1: '🎓 Stajyer Personel',
   2: '👔 Personel',
-  3: '⭐ Gelişmiş Personel',
+  3: '⭐ Kıdemli Personel',
   4: '👑 Sekreter',
-  5: '👨‍✈️ Sekreter\'in Babası',
+  5: '👨‍✈️ Kıdemli Sekreter',
   6: '💼 Genel Koordinatör',
 };
 
@@ -1591,13 +1591,11 @@ async function removeRole(progress, client) {
     // Alınması gereken tüm yetkili ve mod rolleri
     const rolesToRemove = [
       ...Object.values(ROLES),
-      '1517656567481372772', '1517651154220355836', // Level 5 rolleri
-      '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
-      '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
-      '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
-      '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-      '1467152505862357250', // Security bypass
-      '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
+      '1518709348506013706', // Kıdemli Sekreter (Level 5)
+      '1518692389169135666', // Moderatör Ekibi
+      '1518708137920823327', // modizm
+      '1518707673846251691', // adminizm
+      '1518692384928567456'  // Kaptan
     ];
 
     for (const rId of rolesToRemove) {
@@ -1753,13 +1751,11 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   // Rolleri kaldır
   const rolesToRemove = [
     ...Object.values(ROLES),
-    '1517656567481372772', '1517651154220355836', // Level 5 rolleri
-    '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
-    '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
-    '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
-    '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-    '1467152505862357250', // Security bypass
-    '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
+    '1518709348506013706', // Kıdemli Sekreter (Level 5)
+    '1518692389169135666', // Moderatör Ekibi
+    '1518708137920823327', // modizm
+    '1518707673846251691', // adminizm
+    '1518692384928567456'  // Kaptan
   ];
 
   try {

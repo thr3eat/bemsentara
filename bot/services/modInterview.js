@@ -14,7 +14,7 @@ const {
 const { chatWithAI }   = require('./aiService');
 const StaffProgress    = require('../../models/StaffProgress');
 
-const MOD_ROLE_ID   = process.env.MOD_ROLE_ID   || '1475082184896548864'; // Moderatör Ekibi (veya başka bir ID)
+const MOD_ROLE_ID   = process.env.MOD_ROLE_ID   || '1518692389169135666'; // Moderatör Ekibi (veya başka bir ID)
 const MOD_GUILD_ID  = process.env.MOD_GUILD_ID  || '1367646464804655104'; // EkoYıldız
 
 // Aktif mülakatlar: userId → { adminId, guildId, history[], score, questionCount }

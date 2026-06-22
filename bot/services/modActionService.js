@@ -11,7 +11,7 @@ const { recordModAction } = require("./modReportTracker");
 
 // ── Yetki Kontrolü ─────────────────────────────────────────────────────────────
 /** Sadece bu role sahip kişiler /modislem kullanabilir */
-const MODISLEM_ROLE_ID = "1475082184896548864";
+const MODISLEM_ROLE_ID = "1518692389169135666";
 /** Çok ağır cezalar için onay kanalı */
 const MODISLEM_ONAY_CHANNEL_ID = "1511411777521455256";
 
