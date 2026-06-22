@@ -1,9 +1,9 @@
 'use strict';
 
 const { EmbedBuilder } = require('discord.js');
-const StaffProgress    = require('../../models/StaffProgress');
-const { chatWithAI }   = require('./aiService');
-const staffAutomation  = require('./staffAutomation');
+const StaffProgress = require('../../models/StaffProgress');
+const { chatWithAI } = require('./aiService');
+const staffAutomation = require('./staffAutomation');
 
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
@@ -16,12 +16,12 @@ const CHOSEN_TASKS = {
 };
 
 const ROLES = {
-  1: process.env.ROLE_STAJYER  || '1475082184896548864', // Stajyer Personel
+  1: process.env.ROLE_STAJYER || '1475082184896548864', // Stajyer Personel
   2: process.env.ROLE_PERSONEL || '1417530761774366821', // Personel
   3: process.env.ROLE_GELISMIS || '1417533740892291214', // Gelişmiş Personel
   4: process.env.ROLE_SEKRETER || '1419688146689593415', // Sekreter
-  5: '1517656567481372772',                             // Sekreter'in Babası
-  6: '1517695716594683904',                             // Personel Sekreteri
+  5: '1517656567481372772',                             // Kıdemli Sekreter
+  6: '1517695716594683904',                             // Genel Koordinatör
 };
 
 const ROLE_NAMES = {
@@ -30,7 +30,7 @@ const ROLE_NAMES = {
   3: '⭐ Gelişmiş Personel',
   4: '👑 Sekreter',
   5: '👨‍✈️ Sekreter\'in Babası',
-  6: '💼 Personel Sekreteri',
+  6: '💼 Genel Koordinatör',
 };
 
 // ── Seviyeye özgü günlük görevler ─────────────────────────────────────────
@@ -95,7 +95,7 @@ const LEVEL_TASKS = {
     tips: 'Sunucunun yüzüsün. Disiplin ve liderlik göster!',
   },
   5: {
-    name: "Sekreter'in Babası",
+    name: "Kıdemli Sekreter",
     dailyTasks: [
       '✅ Sohbet kanalına 12x selam ver (zorunlu)',
       '🎤 Ses kanalında en az 90 dk kal (zorunlu)',
@@ -108,7 +108,7 @@ const LEVEL_TASKS = {
     tips: 'Liderliği elden bırakma ve ekibi koordine et!'
   },
   6: {
-    name: 'Personel Sekreteri',
+    name: 'Genel Koordinatör',
     dailyTasks: [
       '✅ Sohbet kanalına 15x selam ver (zorunlu)',
       '🎤 Ses kanalında en az 120 dk kal (zorunlu)',
@@ -135,7 +135,7 @@ function getDailyRequirements(level, consecutiveDays = 0) {
   };
   const b = base[level] || base[1];
   return {
-    greets:       Math.min(b.greets * multiplier, 20),
+    greets: Math.min(b.greets * multiplier, 20),
     voiceMinutes: Math.min(b.voiceMinutes * multiplier, 180),
   };
 }
@@ -144,7 +144,7 @@ function getDailyRequirements(level, consecutiveDays = 0) {
 async function checkLowActivityWarning(progress, client) {
   const activeDays = progress.stats?.activeDays || 0;
   const level = progress.level || 1;
-  
+
   // Sadece 1 gün aktifse özel uyarı gönder
   if (activeDays === 1 && !progress.warnings?.lowActivityNotified) {
     const embed = new EmbedBuilder()
@@ -157,12 +157,12 @@ async function checkLowActivityWarning(progress, client) {
       )
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz!' })
       .setTimestamp();
-    
+
     try {
       const user = await client.users.fetch(progress.userId);
       await user.send({ embeds: [embed] });
-    } catch (_) {}
-    
+    } catch (_) { }
+
     progress.warnings.lowActivityNotified = true;
     await progress.save();
   }
@@ -171,62 +171,62 @@ async function checkLowActivityWarning(progress, client) {
 // ── Terfi gereksinimleri (ZOR) ─────────────────────────────────────────────
 const PROMOTION_REQUIREMENTS = {
   1: {
-    ticketsSolved:    10,
-    chatMessages:     50,
+    ticketsSolved: 10,
+    chatMessages: 50,
     totalVoiceMinutes: 120,
-    activeDays:       10,
+    activeDays: 10,
     moderationActions: 10,
-    weeklyReports:    0,
+    weeklyReports: 0,
     description: '10 ticket + 50 mesaj + 120 dk ses + 10 mod işlem + 10 gün aktif',
     promotionBonus: { points: 250, xp: 350 },
   },
   2: {
-    ticketsSolved:    50,
-    chatMessages:     200,
+    ticketsSolved: 50,
+    chatMessages: 200,
     totalVoiceMinutes: 500,
-    activeDays:       25,
+    activeDays: 25,
     moderationActions: 30,
-    weeklyReports:    5,
+    weeklyReports: 5,
     description: '50 ticket + 200 mesaj + 500 dk ses + 30 mod işlem + 5 rapor + 25 gün aktif',
     promotionBonus: { points: 500, xp: 750 },
   },
   3: {
-    ticketsSolved:    150,
-    chatMessages:     750,
+    ticketsSolved: 150,
+    chatMessages: 750,
     totalVoiceMinutes: 1500,
-    activeDays:       45,
+    activeDays: 45,
     moderationActions: 80,
-    weeklyReports:    15,
+    weeklyReports: 15,
     description: '150 ticket + 750 mesaj + 1500 dk ses + 80 mod işlem + 15 rapor + 45 gün aktif',
     promotionBonus: { points: 1000, xp: 1500 },
   },
   4: {
-    ticketsSolved:    350,
-    chatMessages:     1500,
+    ticketsSolved: 350,
+    chatMessages: 1500,
     totalVoiceMinutes: 2500,
-    activeDays:       60,
+    activeDays: 60,
     moderationActions: 150,
-    weeklyReports:    30,
+    weeklyReports: 30,
     description: '350 ticket + 1500 mesaj + 2500 dk ses + 150 mod işlem + 30 rapor + 60 gün aktif',
     promotionBonus: { points: 2000, xp: 3000 }
   },
   5: {
-    ticketsSolved:    500,
-    chatMessages:     3000,
+    ticketsSolved: 500,
+    chatMessages: 3000,
     totalVoiceMinutes: 5000,
-    activeDays:       90,
+    activeDays: 90,
     moderationActions: 250,
-    weeklyReports:    45,
+    weeklyReports: 45,
     description: '500 ticket + 3000 mesaj + 5000 dk ses + 250 mod işlem + 45 rapor + 90 gün aktif',
     promotionBonus: { points: 4000, xp: 5000 }
   },
   6: {
-    ticketsSolved:    750,
-    chatMessages:     5000,
+    ticketsSolved: 750,
+    chatMessages: 5000,
     totalVoiceMinutes: 7500,
-    activeDays:       120,
+    activeDays: 120,
     moderationActions: 350,
-    weeklyReports:    60,
+    weeklyReports: 60,
     description: 'Maksimum Seviye Aylık Kotası: 750 ticket + 5000 mesaj + 7500 dk ses + 120 gün aktif (Aylık/Dönemlik)',
     promotionBonus: { points: 6000, xp: 7500 }
   }
@@ -248,7 +248,7 @@ async function getOrCreate(userId, guildId) {
 
 function resetDaily(progress) {
   const today = todayStr();
-  
+
   // 🔧 Güvenlik: daily objesi tanımlı değilse oluştur
   if (!progress.daily) {
     const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
@@ -265,7 +265,7 @@ function resetDaily(progress) {
     };
     return;
   }
-  
+
   // Tarih değişmişse sıfırla
   if (progress.daily.date !== today) {
     const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
@@ -287,16 +287,16 @@ async function recordGreet(userId, client) {
       console.warn('[staffSystem] recordGreet: Invalid userId');
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') {
       return;
     }
-    
+
     resetDaily(p);
     if (!p.daily.greeted) {
       p.daily.greeted = true;
-      
+
       // EkoCoin İyileştirmesi: Selamlaşma için +15 EkoCoin verelim (Seri çarpanı ile!)
       if (!p.gamification) {
         p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
@@ -306,7 +306,7 @@ async function recordGreet(userId, client) {
       const baseGreetCoins = 15;
       const greetCoins = Math.floor(baseGreetCoins * streakMultiplier);
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + greetCoins;
-      
+
       await p.save().catch(err => {
         console.error('[staffSystem] Save failed in recordGreet:', err.message);
         return;
@@ -337,7 +337,7 @@ async function recordGreet(userId, client) {
               .setStyle(ButtonStyle.Primary)
           );
 
-          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => {});
+          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => { });
         }
       } catch (dmErr) {
         console.warn(`[staffSystem] Greet DM error:`, dmErr.message);
@@ -346,8 +346,8 @@ async function recordGreet(userId, client) {
       // Eko Milyoneri Başarımı Kontrolü
       try {
         const { checkEcoMillionaire } = require('./achievementManager');
-        await checkEcoMillionaire(userId, p.gamification.ecoCoins, client).catch(() => {});
-      } catch (_) {}
+        await checkEcoMillionaire(userId, p.gamification.ecoCoins, client).catch(() => { });
+      } catch (_) { }
 
       await checkDailyCompletion(p, client).catch(err => {
         console.error('[staffSystem] checkDailyCompletion failed:', err.message);
@@ -364,12 +364,12 @@ async function addVoiceMinutes(userId, minutes, client) {
       console.warn('[staffSystem] addVoiceMinutes: Invalid parameters', { userId, minutes });
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') {
       return;
     }
-    
+
     resetDaily(p);
     const req = getDailyRequirements(p.level, p.stats.consecutiveDays || 0);
     const wasVoiceDoneBefore = (p.daily.voiceMinutes || 0) >= req.voiceMinutes;
@@ -394,21 +394,21 @@ async function addVoiceMinutes(userId, minutes, client) {
             )
             .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
             .setTimestamp();
-            
+
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId('talk_to_coach')
               .setLabel('💬 Koçla Konuş')
               .setStyle(ButtonStyle.Primary)
           );
-          
-          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => {});
+
+          await discordUser.send({ embeds: [embed], components: [row] }).catch(() => { });
         }
       } catch (dmErr) {
         console.warn(`[staffSystem] Voice task completion DM error:`, dmErr.message);
       }
     }
-    
+
     // YENİ: Ses aktifliği için E.C. kazanımı (Saatte 15 E.C. -> Dakikada 0.25 E.C.)
     // Bunu sadece 60'ın katlarında veya saat başı hesaplayabiliriz ya da küsüratlı verip gösterebiliriz.
     // Şimdilik 60 dakikada bir toplu ödül verelim:
@@ -424,14 +424,14 @@ async function addVoiceMinutes(userId, minutes, client) {
       console.error('[staffSystem] Save failed in addVoiceMinutes:', err.message);
       return;
     });
-    await checkChosenTaskCompletion(p, client).catch(() => {});
+    await checkChosenTaskCompletion(p, client).catch(() => { });
     await checkDailyCompletion(p, client).catch(err => {
       console.error('[staffSystem] checkDailyCompletion failed:', err.message);
     });
     try {
       const { checkAutoPromotion } = require('./unitService');
-      await checkAutoPromotion(userId, client, 'voice').catch(() => {});
-    } catch (_) {}
+      await checkAutoPromotion(userId, client, 'voice').catch(() => { });
+    } catch (_) { }
   } catch (err) {
     console.error('[staffSystem] addVoiceMinutes error:', err.message);
   }
@@ -441,7 +441,7 @@ async function addVoiceMinutes(userId, minutes, client) {
 async function addEkoCoin(progress, amount, client, reason) {
   progress.gamification = progress.gamification || {};
   progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + amount;
-  
+
   if (client) {
     try {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
@@ -459,8 +459,8 @@ async function addEkoCoin(progress, amount, client, reason) {
           .setStyle(ButtonStyle.Success)
       );
 
-      await user.send({ embeds: [embed], components: [row] }).catch(() => {});
-    } catch (_) {}
+      await user.send({ embeds: [embed], components: [row] }).catch(() => { });
+    } catch (_) { }
   }
 }
 
@@ -471,23 +471,23 @@ async function recordModerationAction(userId, client) {
       console.warn('[staffSystem] recordModerationAction: Invalid userId');
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
-    
+
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
-    
+
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
     p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
-    
+
     // YENİ: E.C. Kazandır
     await addEkoCoin(p, 10, client, 'Moderasyon İşlemi');
 
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
-    await checkChosenTaskCompletion(p, client).catch(() => {});
+    await checkChosenTaskCompletion(p, client).catch(() => { });
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -503,13 +503,13 @@ async function recordWeeklyReport(userId, client) {
       console.warn('[staffSystem] recordWeeklyReport: Invalid userId');
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
-    
+
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
-    
+
     p.stats.weeklyReports = (p.stats.weeklyReports || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
@@ -533,7 +533,7 @@ async function checkDailyCompletion(progress, client) {
   if (!progress.stats) progress.stats = {};
   if (!progress.daily) progress.daily = { date: '', greeted: false, voiceMinutes: 0 };
   if (!progress.warnings) progress.warnings = { count: 0 };
-  
+
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const greetDone = progress.daily.greeted;
@@ -544,11 +544,11 @@ async function checkDailyCompletion(progress, client) {
 
   if (greetDone && voiceDone && !alreadyCompletedToday) {
     // Görev tamamlandı ve bugün ilk kez tamamlanıyor
-    progress.stats.activeDays      = (progress.stats.activeDays || 0) + 1;
+    progress.stats.activeDays = (progress.stats.activeDays || 0) + 1;
     progress.stats.consecutiveDays = (progress.stats.consecutiveDays || 0) + 1;
     progress.stats.lastCompleteDay = today;
     progress.warnings.count = 0;
-    
+
     // 🎮 Gamification: Günlük görev tamamlama ödülü
     if (!progress.gamification) {
       progress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 }, lastDailyClaim: '' };
@@ -556,14 +556,14 @@ async function checkDailyCompletion(progress, client) {
     const levelMultiplier = 1 + (progress.level * 0.25); // Seviye arttıkça daha fazla ödül
     progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + Math.floor(25 * levelMultiplier); // Günlük 25+ puan
     progress.gamification.currentXP = (progress.gamification.currentXP || 0) + Math.floor(100 * levelMultiplier); // Günlük 100+ XP
-    
+
     // EkoCoin İyileştirmesi: Tüm görevlerin tamamlanması halinde EkoCoin ödülü (Seri çarpanı ile!)
     const consecutiveDays = progress.stats?.consecutiveDays || 0;
     const streakMultiplier = consecutiveDays >= 30 ? 2.0 : (consecutiveDays >= 15 ? 1.5 : (consecutiveDays >= 5 ? 1.2 : 1.0));
     const baseCoinReward = Math.floor(40 * levelMultiplier);
     const coinReward = Math.floor(baseCoinReward * streakMultiplier);
     progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + coinReward;
-    
+
     // Görev tamamlama mesajı gönder
     if (client) {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -579,7 +579,7 @@ async function checkDailyCompletion(progress, client) {
         )
         .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
         .setTimestamp();
-      
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('talk_to_coach')
@@ -589,22 +589,22 @@ async function checkDailyCompletion(progress, client) {
 
       try {
         const user = await client.users.fetch(progress.userId);
-        await user.send({ embeds: [taskEmbed], components: [row] }).catch(() => {});
-      } catch (_) {}
+        await user.send({ embeds: [taskEmbed], components: [row] }).catch(() => { });
+      } catch (_) { }
     }
 
     // Eko Milyoneri Başarımı Kontrolü
     try {
       const { checkEcoMillionaire } = require('./achievementManager');
-      await checkEcoMillionaire(progress.userId, progress.gamification.ecoCoins, client).catch(() => {});
-    } catch (_) {}
+      await checkEcoMillionaire(progress.userId, progress.gamification.ecoCoins, client).catch(() => { });
+    } catch (_) { }
 
     // Level up kontrol et
     const nextLevelXp = getXpForLevel((progress.gamification.level || 1) + 1);
     if (progress.gamification.currentXP >= nextLevelXp) {
       progress.gamification.level = (progress.gamification.level || 1) + 1;
       progress.gamification.currentXP = 0;
-      
+
       // Level up mesajı gönder
       if (client && progress.gamification.level > 1) {
         const levelEmbed = new EmbedBuilder()
@@ -613,18 +613,18 @@ async function checkDailyCompletion(progress, client) {
           .setDescription(`Seni görüyoruz! Her görev seni daha güçlü yapıyor! 🚀`)
           .setFooter({ text: 'Eko Yıldız • Gamification' })
           .setTimestamp();
-        
+
         try {
           const user = await client.users.fetch(progress.userId);
           await user.send({ embeds: [levelEmbed] });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
-    
+
     await progress.save().catch(err => {
       console.error('[staffSystem] Save failed in checkDailyCompletion:', err.message);
     });
-    
+
     console.log(`[staffSystem] ${progress.userId} günlük görev tamamlandı — ${progress.stats.activeDays} gün`);
     await checkPromotion(progress, client);
   }
@@ -658,7 +658,7 @@ async function checkChosenTaskCompletion(progress, client) {
 
     if (completed) {
       progress.daily.chosenTaskCompleted = true;
-      
+
       // %25 terfi katkısı ekle
       const nextReq = PROMOTION_REQUIREMENTS[progress.level];
       if (nextReq) {
@@ -695,13 +695,13 @@ async function checkChosenTaskCompletion(progress, client) {
             )
             .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
             .setTimestamp();
-          
-          await discordUser.send({ embeds: [embed] }).catch(() => {});
+
+          await discordUser.send({ embeds: [embed] }).catch(() => { });
         }
       }
 
       // Terfi durumunu kontrol et
-      await checkPromotion(progress, client).catch(() => {});
+      await checkPromotion(progress, client).catch(() => { });
     }
   } catch (err) {
     console.error('[staffSystem] checkChosenTaskCompletion error:', err.message);
@@ -714,16 +714,16 @@ async function recordTicketSolved(userId, client) {
       console.warn('[staffSystem] recordTicketSolved: Invalid userId');
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
-    
+
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
-    
+
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
-    
+
     // 🎮 Gamification: XP ve Puan ekle
     if (!p.gamification) {
       p.gamification = {
@@ -735,20 +735,20 @@ async function recordTicketSolved(userId, client) {
         challengeProgress: {},
       };
     }
-    
+
     // 📊 Seviye-bazlı puan artışı (sınıflandırma teşviki) - ⬆️ ARTTIRILDI
     const levelMultiplier = 1 + (p.level * 0.25); // Level arttıkça daha fazla puan (0.2 → 0.25)
     const xpGain = Math.floor(85 * levelMultiplier); // Ticket başına 85+ XP (55 → 85)
     const pointsGain = Math.floor(20 * levelMultiplier); // Ticket başına 20+ puan (12 → 20)
     p.gamification.totalPoints = (p.gamification.totalPoints || 0) + pointsGain;
     p.gamification.currentXP = (p.gamification.currentXP || 0) + xpGain;
-    
+
     // Level up kontrol et
     const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
     if (p.gamification.currentXP >= nextLevelXp) {
       p.gamification.level = (p.gamification.level || 1) + 1;
       p.gamification.currentXP = 0;
-      
+
       // Level up mesajı gönder
       if (client && p.gamification.level > 1) {
         const levelEmbed = new EmbedBuilder()
@@ -757,30 +757,30 @@ async function recordTicketSolved(userId, client) {
           .setDescription(`Seni görüyoruz! Her ticket seni daha güçlü yapıyor! 🚀`)
           .setFooter({ text: 'Eko Yıldız • Gamification' })
           .setTimestamp();
-        
+
         try {
           const user = await client.users.fetch(userId);
           await user.send({ embeds: [levelEmbed] });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
-    
+
     // Sert çalışma takibi: gün içinde 3+ ticket = haftada 1 gün izin hediyesi
     if (!p.stats.dailyTicketsToday) p.stats.dailyTicketsToday = 0;
     p.stats.dailyTicketsToday += 1;
-    
+
     if (p.stats.dailyTicketsToday % 2 === 0) {
       p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
       await sendBreakRewardDM(p, client).catch(err => {
         console.warn(`[staffSystem] sendBreakRewardDM error for ${userId}:`, err.message);
       });
     }
-    
+
     // Hız ustası rozeti kontrol et
     if (p.stats.dailyTicketsToday === 5 && !p.gamification.badges?.speedRunner) {
       await checkAndUnlockBadges(p, client);
     }
-    
+
     // YENİ: Gizli Başarım (Günde 30 Ticket)
     if (p.stats.dailyTicketsToday === 30) {
       try {
@@ -790,27 +790,27 @@ async function recordTicketSolved(userId, client) {
           .setTitle('🔥 GİZLİ BAŞARIM AÇILDI: Efsanevi Çalışan!')
           .setDescription('Bugün tam 30 ticket çözdün! Bu muazzam bir başarı! Sana özel **+1000 E.C.** bonus hediye ediyoruz!')
           .setFooter({ text: 'Eko Yıldız • Gizli Başarımlar' });
-        await user.send({ embeds: [secretEmbed] }).catch(() => {});
+        await user.send({ embeds: [secretEmbed] }).catch(() => { });
         await addEkoCoin(p, 1000, client, 'GİZLİ BAŞARIM: Efsanevi Çalışan (30 Ticket)');
-      } catch (_) {}
+      } catch (_) { }
     }
 
     // YENİ: E.C. Kazandır
     await addEkoCoin(p, 5, client, 'Ticket Çözümü');
-    
+
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed in recordTicketSolved:', err.message);
       return;
     });
-    
+
     // Rozetleri kontrol et
-    await checkAndUnlockBadges(p, client).catch(() => {});
-    await checkChosenTaskCompletion(p, client).catch(() => {});
+    await checkAndUnlockBadges(p, client).catch(() => { });
+    await checkChosenTaskCompletion(p, client).catch(() => { });
     try {
       const { checkAutoPromotion } = require('./unitService');
-      await checkAutoPromotion(userId, client, 'ticket').catch(() => {});
-    } catch (_) {}
-    
+      await checkAutoPromotion(userId, client, 'ticket').catch(() => { });
+    } catch (_) { }
+
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -825,24 +825,24 @@ async function recordChatMessage(userId, client) {
       console.warn('[staffSystem] recordChatMessage: Invalid userId');
       return;
     }
-    
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
-    
+
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
-    
+
     p.stats.chatMessages = (p.stats.chatMessages || 0) + 1;
     p.daily.chatMessagesToday = (p.daily.chatMessagesToday || 0) + 1;
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
-    await checkAndUnlockBadges(p, client).catch(() => {});
-    await checkChosenTaskCompletion(p, client).catch(() => {});
+    await checkAndUnlockBadges(p, client).catch(() => { });
+    await checkChosenTaskCompletion(p, client).catch(() => { });
     try {
       const { checkAutoPromotion } = require('./unitService');
-      await checkAutoPromotion(userId, client, 'chat').catch(() => {});
-    } catch (_) {}
+      await checkAutoPromotion(userId, client, 'chat').catch(() => { });
+    } catch (_) { }
     await checkPromotion(p, client).catch(err => {
       console.error('[staffSystem] checkPromotion failed:', err.message);
     });
@@ -857,7 +857,7 @@ async function checkPromotion(progress, client) {
       console.warn('[staffSystem] checkPromotion: Invalid progress object');
       return;
     }
-    
+
     const currentLevel = progress.level || 1;
     const req = PROMOTION_REQUIREMENTS[currentLevel];
     if (!req) {
@@ -867,12 +867,12 @@ async function checkPromotion(progress, client) {
 
     const stats = progress.stats;
     const ok =
-      (stats.ticketsSolved    || 0) >= req.ticketsSolved    &&
+      (stats.ticketsSolved || 0) >= req.ticketsSolved &&
       (stats.chatMessages || 0) >= req.chatMessages &&
       (stats.totalVoiceMinutes || 0) >= req.totalVoiceMinutes &&
-      (stats.activeDays       || 0) >= req.activeDays       &&
-      (stats.moderationActions|| 0) >= req.moderationActions &&
-      (stats.weeklyReports    || 0) >= req.weeklyReports;
+      (stats.activeDays || 0) >= req.activeDays &&
+      (stats.moderationActions || 0) >= req.moderationActions &&
+      (stats.weeklyReports || 0) >= req.weeklyReports;
 
     if (ok) {
       if (currentLevel >= 6) {
@@ -920,7 +920,7 @@ async function checkPromotion(progress, client) {
               )
               .setFooter({ text: 'Eko Yıldız • Sınav ve Eğitim Sistemi' })
               .setTimestamp();
-            await user.send({ embeds: [infoEmbed] }).catch(() => {});
+            await user.send({ embeds: [infoEmbed] }).catch(() => { });
           }
           console.log(`[staffSystem] ${progress.userId} has qualified for Level ${targetLevel} exam. Scheduled at: ${scheduled}`);
         } catch (e) {
@@ -939,7 +939,7 @@ async function promote(progress, client) {
       console.warn('[staffSystem] promote: Missing progress or client');
       return;
     }
-    
+
     const oldLevel = progress.level || 1;
     const newLevel = oldLevel + 1;
     if (newLevel > 6) return;
@@ -951,32 +951,32 @@ async function promote(progress, client) {
       progress.gamification.currentXP = (progress.gamification.currentXP || 0) + req.promotionBonus.xp;
     }
 
-    progress.level      = newLevel;
+    progress.level = newLevel;
     progress.promotedAt = new Date();
     // İstatistik sıfırla
-    progress.stats.ticketsSolved     = 0;
-    progress.stats.chatMessages  = 0;
+    progress.stats.ticketsSolved = 0;
+    progress.stats.chatMessages = 0;
     progress.stats.totalVoiceMinutes = 0;
-    progress.stats.activeDays        = 0;
+    progress.stats.activeDays = 0;
     progress.stats.moderationActions = 0;
-    progress.stats.weeklyReports     = 0;
-    
+    progress.stats.weeklyReports = 0;
+
     await progress.save().catch(err => {
       console.error('[staffSystem] Save failed in promote:', err.message);
       return;
     });
 
     // ── Role management ──────────────────────────────────────────────────────
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(err => {
+    const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
       console.warn(`[staffSystem] Guild ${GUILD_ID} not found:`, err.code);
       return null;
     });
-    
+
     if (!guild) {
       console.error(`[staffSystem] Cannot access guild ${GUILD_ID} for role assignment`);
       return;
     }
-    
+
     const member = await guild.members.fetch(progress.userId).catch(err => {
       console.warn(`[staffSystem] Member ${progress.userId} not found:`, err.code);
       return null;
@@ -988,7 +988,7 @@ async function promote(progress, client) {
 
     const oldRoleId = ROLES[oldLevel];
     const newRoleId = ROLES[newLevel];
-    
+
     // Eski rolü kaldır
     if (oldRoleId) {
       await member.roles.remove(oldRoleId, 'Terfi').catch(roleErr => {
@@ -998,7 +998,7 @@ async function promote(progress, client) {
         }
       });
     }
-    
+
     // Yeni rolü ekle
     if (newRoleId) {
       await member.roles.add(newRoleId, 'Terfi').catch(roleErr => {
@@ -1009,20 +1009,20 @@ async function promote(progress, client) {
       });
     }
 
-    await staffAutomation.syncMainGuildRoles(client, progress.userId).catch(() => {});
+    await staffAutomation.syncMainGuildRoles(client, progress.userId).catch(() => { });
 
     const isFinal = newLevel === 6;
     const embed = new EmbedBuilder()
       .setColor(isFinal ? 0xffd700 : 0x4ade80)
-      .setTitle(isFinal ? '🏆 TEBRİKLER! Personel Sekreteri oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
+      .setTitle(isFinal ? '🏆 TEBRİKLER! Genel Koordinatör oldun!' : `🎉 TERFİ! ${ROLE_NAMES[newLevel]}`)
       .setDescription(
         isFinal
-          ? `Eko Yıldız'ın en üst yetkili rütbesi olan **Personel Sekreteri** rütbesine ulaştın! Bu sınavı geçerek yetkinliğini kanıtladın. Başarılar dileriz! 💼`
+          ? `Eko Yıldız'ın en üst yetkili rütbesi olan **Genel Koordinatör** rütbesine ulaştın! Bu sınavı geçerek yetkinliğini kanıtladın. Başarılar dileriz! 💼`
           : `**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\n${getNextRequirementsText(newLevel)}`
       )
       .addFields(
-        { name: '📅 Tarih',  value: `<t:${Math.floor(Date.now()/1000)}:f>`, inline: true },
-        { name: '📊 Seviye', value: `${oldLevel} → ${newLevel}`,            inline: true },
+        { name: '📅 Tarih', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: true },
+        { name: '📊 Seviye', value: `${oldLevel} → ${newLevel}`, inline: true },
       )
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
@@ -1033,16 +1033,16 @@ async function promote(progress, client) {
     } catch (dmErr) {
       console.warn(`[staffSystem] Cannot send promotion DM to ${progress.userId}:`, dmErr.code);
     }
-    
+
     // YENİ: Roblox Rütbelerini Senkronize Et
     await staffAutomation.syncStaffRobloxRanks(client, progress.userId);
-    
+
     // YENİ: Yönetim Discorduna Log Gönder
     await staffAutomation.sendAdminLog(client, 'TERFI_LOG', embed);
-    
+
     // YENİ: Yönetim Listesini Güncelle
     await staffAutomation.updateDynamicModList(client);
-    
+
     console.log(`[staffSystem] ${progress.userId} promoted to level ${newLevel}`);
   } catch (err) {
     console.error('[staffSystem] promote error:', err.message);
@@ -1053,7 +1053,7 @@ async function demote(progress, client, reason = "Belirtilmedi") {
   try {
     const oldLevel = progress.level;
     const newLevel = oldLevel - 1;
-    
+
     if (newLevel < 1) {
       console.warn(`[staffSystem] Personel ${progress.userId} zaten en düşük rütbede.`);
       return false;
@@ -1073,10 +1073,10 @@ async function demote(progress, client, reason = "Belirtilmedi") {
     const newRoleId = ROLES[newLevel];
 
     if (oldRoleId) {
-      await member.roles.remove(oldRoleId, `Tenzilat: ${reason}`).catch(() => {});
+      await member.roles.remove(oldRoleId, `Tenzilat: ${reason}`).catch(() => { });
     }
     if (newRoleId) {
-      await member.roles.add(newRoleId, `Tenzilat: ${reason}`).catch(() => {});
+      await member.roles.add(newRoleId, `Tenzilat: ${reason}`).catch(() => { });
     }
 
     const embed = new EmbedBuilder()
@@ -1084,8 +1084,8 @@ async function demote(progress, client, reason = "Belirtilmedi") {
       .setTitle(`📉 TENZİLAT! ${ROLE_NAMES[newLevel]}`)
       .setDescription(`**${ROLE_NAMES[oldLevel]}** → **${ROLE_NAMES[newLevel]}**\n\nMaalesef rütben düşürüldü.\n**Sebep:** ${reason}`)
       .addFields(
-        { name: '📅 Tarih',  value: `<t:${Math.floor(Date.now()/1000)}:f>`, inline: true },
-        { name: '📊 Seviye', value: `${oldLevel} → ${newLevel}`,            inline: true },
+        { name: '📅 Tarih', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: true },
+        { name: '📊 Seviye', value: `${oldLevel} → ${newLevel}`, inline: true },
       )
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
@@ -1093,7 +1093,7 @@ async function demote(progress, client, reason = "Belirtilmedi") {
     try {
       const user = await client.users.fetch(progress.userId);
       await user.send({ embeds: [embed] });
-    } catch (dmErr) {}
+    } catch (dmErr) { }
 
     const staffAutomation = require('./staffAutomation');
     await staffAutomation.syncStaffRobloxRanks(client, progress.userId);
@@ -1112,12 +1112,12 @@ function getNextRequirementsText(level) {
   const req = PROMOTION_REQUIREMENTS[level];
   if (!req) return '🏆 En üst seviyeye ulaştın! Sunucu seni sayıyor! 💫';
   const lines = [
-    req.ticketsSolved     > 0 && `• ${req.ticketsSolved} ticket çöz (Her biri insanı mutlu ediyor!)`,
-    req.chatMessages  > 0 && `• ${req.chatMessages} mesaj gönder (Sohbet kanalında aktif ol!)`,
+    req.ticketsSolved > 0 && `• ${req.ticketsSolved} ticket çöz (Her biri insanı mutlu ediyor!)`,
+    req.chatMessages > 0 && `• ${req.chatMessages} mesaj gönder (Sohbet kanalında aktif ol!)`,
     req.totalVoiceMinutes > 0 && `• ${req.totalVoiceMinutes} dk sesli sohbette bulun (Oyuncularla iç içe!)`,
     req.moderationActions > 0 && `• ${req.moderationActions} moderasyon işlemi (Adil ve nazik ol!)`,
-    req.weeklyReports     > 0 && `• ${req.weeklyReports} haftalık rapor (Yöneticilere görünürlük!)`,
-    req.activeDays        > 0 && `• ${req.activeDays} gün aktif ol (Haftaları taksitle yapabilirsin!)`,
+    req.weeklyReports > 0 && `• ${req.weeklyReports} haftalık rapor (Yöneticilere görünürlük!)`,
+    req.activeDays > 0 && `• ${req.activeDays} gün aktif ol (Haftaları taksitle yapabilirsin!)`,
   ].filter(Boolean);
   const dailyReq = getDailyRequirements(level);
   lines.push(`\n📅 **Günlük (Çok Kolay):**\n• ${dailyReq.greets}x selam\n• ${dailyReq.voiceMinutes} dk ses`);
@@ -1152,14 +1152,14 @@ async function sendMorningBriefing(progress, client) {
     const randomTask = allowedTasks[Math.floor(Math.random() * allowedTasks.length)];
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
-    await progress.save().catch(() => {});
+    await progress.save().catch(() => { });
   }
 
   const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
-  const req       = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const nextReq   = PROMOTION_REQUIREMENTS[progress.level];
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const nextReq = PROMOTION_REQUIREMENTS[progress.level];
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
-  const daysLeft  = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
+  const daysLeft = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
 
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
@@ -1175,7 +1175,7 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
-  } catch (_) {}
+  } catch (_) { }
 
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
@@ -1249,19 +1249,19 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     const daysNeeded = Math.max(0, nextReq.activeDays - (s.activeDays || 0));
     const modsNeeded = Math.max(0, (nextReq.moderationActions || 0) - (s.moderationActions || 0));
     const reportsNeeded = Math.max(0, (nextReq.weeklyReports || 0) - (s.weeklyReports || 0));
-    
+
     // Terfi yüzdesi hesapla
     const maxTickets = nextReq.ticketsSolved || 1;
     const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
-    
+
     embed.addFields({
       name: '🚀 Rütbe Atlaması',
-      value: 
-        `${progress.level < 4 ? `🎫 Ticket: ${s.ticketsSolved||0}/${nextReq.ticketsSolved} ${ticketsNeeded > 0 ? `(${ticketsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `${nextReq.chatMessages ? `💬 Mesaj: ${s.chatMessages||0}/${nextReq.chatMessages} ${chatNeeded > 0 ? `(${chatNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `📅 Aktif: ${s.activeDays||0}/${nextReq.activeDays} gün ${daysNeeded > 0 ? `(${daysNeeded} gün kaldı!)` : '✅'}\n` +
-        `${nextReq.moderationActions ? `🛡️ Moderasyon: ${s.moderationActions||0}/${nextReq.moderationActions} ${modsNeeded > 0 ? `(${modsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `${nextReq.weeklyReports ? `📋 Rapor: ${s.weeklyReports||0}/${nextReq.weeklyReports} ${reportsNeeded > 0 ? `(${reportsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+      value:
+        `${progress.level < 4 ? `🎫 Ticket: ${s.ticketsSolved || 0}/${nextReq.ticketsSolved} ${ticketsNeeded > 0 ? `(${ticketsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `${nextReq.chatMessages ? `💬 Mesaj: ${s.chatMessages || 0}/${nextReq.chatMessages} ${chatNeeded > 0 ? `(${chatNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `📅 Aktif: ${s.activeDays || 0}/${nextReq.activeDays} gün ${daysNeeded > 0 ? `(${daysNeeded} gün kaldı!)` : '✅'}\n` +
+        `${nextReq.moderationActions ? `🛡️ Moderasyon: ${s.moderationActions || 0}/${nextReq.moderationActions} ${modsNeeded > 0 ? `(${modsNeeded} kaldı!)` : '✅'}\n` : ''}` +
+        `${nextReq.weeklyReports ? `📋 Rapor: ${s.weeklyReports || 0}/${nextReq.weeklyReports} ${reportsNeeded > 0 ? `(${reportsNeeded} kaldı!)` : '✅'}\n` : ''}` +
         `\n💪 **${Math.floor((100 - ticketProgress) * 0.5)}% daha çaba!** Başarabilirsin!`,
       inline: false,
     });
@@ -1323,12 +1323,12 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
     await user.send({ embeds: [embed], components: [rowButtons, rowSelect] });
     console.log(`[staffSystem] Sabah brifing gönderildi: ${progress.userId}`);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
 async function sendWarningDM(progress, client) {
-  const req      = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
   const warnLeft = MAX_WARNINGS - (progress.warnings?.count || 0);
 
@@ -1340,7 +1340,7 @@ Bu ${progress.warnings?.count || 1}. uyarısı. ${warnLeft} hakkı kaldı.
 Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı ol!`;
     aiWarn = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiWarn = aiWarn?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
-  } catch (_) {}
+  } catch (_) { }
 
   const embed = new EmbedBuilder()
     .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
@@ -1373,7 +1373,7 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 async function sendRequirementIncreaseDM(progress, client) {
@@ -1394,7 +1394,7 @@ async function sendRequirementIncreaseDM(progress, client) {
   try {
     const user = await client.users.fetch(progress.userId);
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── Sert çalışma ödülü: 1 gün izin kredisi ─────────────────────────────────
@@ -1423,7 +1423,7 @@ async function sendBreakRewardDM(progress, client) {
     const user = await client.users.fetch(progress.userId);
     await user.send({ embeds: [embed] });
     console.log(`[staffSystem] Break reward gönderildi: ${progress.userId} (total: ${totalCredits})`);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── Motivasyon mesajları: rasgele teşvik ─────────────────────────────────
@@ -1472,7 +1472,7 @@ async function sendRandomMotivationDM(progress, client) {
   try {
     const user = await client.users.fetch(progress.userId);
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── İZİN SİSTEMİ — Personele ara ara izin ────────────────────────────────────
@@ -1485,7 +1485,7 @@ async function sendRandomMotivationDM(progress, client) {
 async function requestLeave(userId, leaveDate, reason) {
   try {
     const p = await getOrCreate(userId, GUILD_ID);
-    
+
     if (p.status !== 'active') {
       return { success: false, message: 'Aktif personel değilsin.' };
     }
@@ -1514,11 +1514,11 @@ async function requestLeave(userId, leaveDate, reason) {
     p.leaves.totalCredits = (p.leaves.totalCredits || 0) + 1;
 
     await p.save();
-    
-    return { 
-      success: true, 
-      message: `İzin onaylandı: ${leaveDate}`, 
-      remaining: monthlyLimit - p.leaves.monthlyLeaveUsed 
+
+    return {
+      success: true,
+      message: `İzin onaylandı: ${leaveDate}`,
+      remaining: monthlyLimit - p.leaves.monthlyLeaveUsed
     };
   } catch (err) {
     console.error('[staffSystem] İzin hatası:', err.message);
@@ -1532,7 +1532,7 @@ async function requestLeave(userId, leaveDate, reason) {
 async function getLeaveStatus(userId) {
   try {
     const p = await getOrCreate(userId, GUILD_ID);
-    
+
     const monthlyLimit = 2; // Sıkılaştırıldı
     const weeklyLimit = 1;
 
@@ -1571,10 +1571,10 @@ async function useLeaveCredit(userId) {
 
     await p.save();
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: 'Bugün izin kredisi kullanarak skip ettirdin!',
-      creditsRemaining: p.stats.breakCredits 
+      creditsRemaining: p.stats.breakCredits
     };
   } catch (err) {
     console.error('[staffSystem] Kredi hata:', err.message);
@@ -1584,7 +1584,7 @@ async function useLeaveCredit(userId) {
 
 async function removeRole(progress, client) {
   try {
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     if (!guild) return;
     const member = await guild.members.fetch(progress.userId).catch(() => null);
     if (!member) return;
@@ -1602,7 +1602,7 @@ async function removeRole(progress, client) {
 
     for (const rId of rolesToRemove) {
       if (member.roles.cache.has(rId)) {
-        await member.roles.remove(rId, '3 gün üst üste görev yapmadı - Sistemden atıldı').catch(() => {});
+        await member.roles.remove(rId, '3 gün üst üste görev yapmadı - Sistemden atıldı').catch(() => { });
       }
     }
 
@@ -1614,12 +1614,12 @@ async function removeRole(progress, client) {
         if (mainMember) {
           for (const rId of rolesToRemove) {
             if (mainMember.roles.cache.has(rId)) {
-              await mainMember.roles.remove(rId, 'Görev yapılmadığı için sistemden silindi').catch(() => {});
+              await mainMember.roles.remove(rId, 'Görev yapılmadığı için sistemden silindi').catch(() => { });
             }
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     const embed = new EmbedBuilder()
       .setColor(0xff9500)
       .setTitle('⏸️ Personel Rolü Duraklatıldı — Geri Dön!')
@@ -1639,7 +1639,7 @@ async function removeRole(progress, client) {
       .setTimestamp();
 
     const user = await client.users.fetch(progress.userId).catch(() => null);
-    if (user) await user.send({ embeds: [embed] }).catch(() => {});
+    if (user) await user.send({ embeds: [embed] }).catch(() => { });
     await StaffProgress.deleteOne({ userId: progress.userId });
     console.log(`[staffSystem] Rol alındı (5 gün): ${progress.userId}`);
   } catch (err) {
@@ -1650,13 +1650,13 @@ async function removeRole(progress, client) {
 // ── Öğlen hatırlatma (13:00) ──────────────────────────────────────────────
 async function sendMidDayReminder(progress, client) {
   const today = todayStr();
-  const req   = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
-  const voiceDone   = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+  const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
   const missing = [];
   if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets}x selam ver`);
-  if (!voiceDone)   missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal`);
+  if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal`);
 
   if (missing.length === 0) return; // Zaten tamamlamış
 
@@ -1669,8 +1669,8 @@ async function sendMidDayReminder(progress, client) {
       `\n\n☕ Bir ara ver, sonra bitir. Zaman yeter! 💪`
     )
     .addFields(
-      { name: '📊 Seviye',       value: ROLE_NAMES[progress.level], inline: true },
-      { name: '🎤 Ses (bugün)',  value: `${progress.daily?.voiceMinutes || 0}/${req.voiceMinutes} dk`, inline: true },
+      { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
+      { name: '🎤 Ses (bugün)', value: `${progress.daily?.voiceMinutes || 0}/${req.voiceMinutes} dk`, inline: true },
     )
     .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz!' })
     .setTimestamp();
@@ -1685,15 +1685,15 @@ async function sendMidDayReminder(progress, client) {
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── Akşam son uyarı (19:00) ───────────────────────────────────────────────
 async function sendEveningWarning(progress, client) {
   const today = todayStr();
-  const req   = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
-  const voiceDone   = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+  const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
   if (isGreetDone && voiceDone) return; // Tamamlamış
 
@@ -1706,7 +1706,7 @@ async function sendEveningWarning(progress, client) {
 Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve anlayışlı Türkçe uyarı yaz.`;
     aiMsg = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiMsg = aiMsg?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
-  } catch (_) {}
+  } catch (_) { }
 
   const embed = new EmbedBuilder()
     .setColor(0xff9500)
@@ -1716,7 +1716,7 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
       `**Gece 23:30'a kadar** görevlerini tamamlamazsan yarın uyarı sayacın artacak!\n\n` +
       `📋 **Yapman gerekenler:**\n` +
       (!isGreetDone ? `• ✅ Sohbete ${req.greets}x selam ver\n` : '') +
-      (!voiceDone   ? `• 🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal\n` : '') +
+      (!voiceDone ? `• 🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal\n` : '') +
       `\n🕐 **${7 - warnCount} uyarı hakkın kaldı.** (Sonra rol geçici olarak alınır)\n\n` +
       `Meşgulsen, yapabilecekten bile yararlı! Kısmi tamamlama da iyi!`
     )
@@ -1733,7 +1733,7 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // ── KÖV (KOV) SİSTEMİ — Yönetici tarafından personel alınması ────────────────
@@ -1743,10 +1743,10 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   if (p.status !== 'active') return { success: false, message: 'Zaten aktif değil.' };
 
   const levelName = ROLE_NAMES[p.level];
-  
+
   // Kov kaydı
-  p.status       = 'dismissed';
-  p.dismissedAt  = new Date();
+  p.status = 'dismissed';
+  p.dismissedAt = new Date();
   p.dismissReason = reason?.slice(0, 300) || 'Belirtilmedi';
   await p.save();
 
@@ -1763,12 +1763,12 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   ];
 
   try {
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
     if (member) {
       for (const roleId of rolesToRemove) {
         if (roleId && member.roles.cache.has(roleId)) {
-          await member.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => {});
+          await member.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => { });
         }
       }
     }
@@ -1779,12 +1779,12 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
       if (mainMember) {
         for (const roleId of rolesToRemove) {
           if (roleId && mainMember.roles.cache.has(roleId)) {
-            await mainMember.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => {});
+            await mainMember.roles.remove(roleId, `Kov: ${reason || 'Yönetici Kararı'}`).catch(() => { });
           }
         }
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Kullanıcıya DM
   try {
@@ -1800,7 +1800,7 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 
   // Yönetici bildirim
   try {
@@ -1815,8 +1815,8 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
       )
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
-    await admin.send({ embeds: [embed] }).catch(() => {});
-  } catch (_) {}
+    await admin.send({ embeds: [embed] }).catch(() => { });
+  } catch (_) { }
 
   console.log(`[staffSystem] Kov: ${userId} (${levelName}) - Sebep: ${reason}`);
   return { success: true, levelName };
@@ -1848,12 +1848,12 @@ async function resignFromStaff(userId, reason, client) {
 
   // Rolleri kaldır
   try {
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
     if (member) {
       for (const roleId of rolesToRemove) {
         if (roleId && member.roles.cache.has(roleId)) {
-          await member.roles.remove(roleId, 'İstifa').catch(() => {});
+          await member.roles.remove(roleId, 'İstifa').catch(() => { });
         }
       }
     }
@@ -1864,18 +1864,18 @@ async function resignFromStaff(userId, reason, client) {
       if (mainMember) {
         for (const roleId of rolesToRemove) {
           if (roleId && mainMember.roles.cache.has(roleId)) {
-            await mainMember.roles.remove(roleId, 'İstifa').catch(() => {});
+            await mainMember.roles.remove(roleId, 'İstifa').catch(() => { });
           }
         }
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // İstifa kaydını işle
   if (canRetire) {
     // 90+ gün: Emeklilik statüsüne çevir, kaydı tut
-    p.status     = 'retired';
-    p.retiredAt  = new Date();
+    p.status = 'retired';
+    p.retiredAt = new Date();
     await p.save();
     console.log(`[staffSystem] İstifa → Emeklilik: ${userId} (${levelName})`);
   } else {
@@ -1896,16 +1896,16 @@ async function resignFromStaff(userId, reason, client) {
       .setTitle('👋 İstifan Alındı')
       .setDescription(
         `**${levelName}** görevinden istifa ettin.\n\n` +
-        `**Geçirdiğin süre:** ${totalDays}+ aktif gün\n` +
-        `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
-        canRetire
+          `**Geçirdiğin süre:** ${totalDays}+ aktif gün\n` +
+          `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
+          canRetire
           ? `🏅 **90+ gün aktif kaldığın için** emeklilik statüsüne geçtiniz!\n**Kaydın sistemde korunmaktadır.**\n\`/emeklilik\` komutunu kullanarak resmi olarak emekli olabilirsin.`
           : `Tekrar başvurmak istersen yöneticilere yazabilirsin. Başarılar!`
       )
       .setFooter({ text: 'Eko Yıldız • Teşekkürler!' })
       .setTimestamp();
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 
   return { success: true, canRetire, recordDeleted: !canRetire };
 }
@@ -1927,30 +1927,30 @@ async function retireFromStaff(userId, client) {
     };
   }
 
-  const levelName  = ROLE_NAMES[p.level];
-  const oldLevel   = p.level;
+  const levelName = ROLE_NAMES[p.level];
+  const oldLevel = p.level;
 
   // Emeklilik kaydı
-  p.status     = 'retired';
-  p.retiredAt  = new Date();
-  p.retiredAt  = new Date();
+  p.status = 'retired';
+  p.retiredAt = new Date();
+  p.retiredAt = new Date();
   await p.save();
 
   // Staff rollerini kaldır, emekli rolü ver
   try {
-    const guild  = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
     if (member) {
       for (const roleId of Object.values(ROLES)) {
         if (roleId && member.roles.cache.has(roleId)) {
-          await member.roles.remove(roleId, 'Emeklilik').catch(() => {});
+          await member.roles.remove(roleId, 'Emeklilik').catch(() => { });
         }
       }
       if (RETIREMENT_ROLE_ID) {
-        await member.roles.add(RETIREMENT_ROLE_ID, 'Emeklilik').catch(() => {});
+        await member.roles.add(RETIREMENT_ROLE_ID, 'Emeklilik').catch(() => { });
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Emeklilik DM
   try {
@@ -1966,14 +1966,14 @@ async function retireFromStaff(userId, client) {
         (RETIREMENT_ROLE_ID ? `🎖️ **Emekli Personel** rozeti verildi!` : '')
       )
       .addFields(
-        { name: '⏰ Toplam Aktif Gün',  value: `${totalDays} gün`, inline: true },
-        { name: '📊 Son Seviye',        value: levelName,           inline: true },
-        { name: '🎫 Çözülen Ticket',   value: `${p.stats?.ticketsSolved || 0}+`, inline: true },
+        { name: '⏰ Toplam Aktif Gün', value: `${totalDays} gün`, inline: true },
+        { name: '📊 Son Seviye', value: levelName, inline: true },
+        { name: '🎫 Çözülen Ticket', value: `${p.stats?.ticketsSolved || 0}+`, inline: true },
       )
       .setFooter({ text: 'Eko Yıldız • Emeklilik Belgesi 🎖️' })
       .setTimestamp();
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 
   console.log(`[staffSystem] Emeklilik: ${userId} (${levelName}, ${totalDays} gün)`);
   return { success: true, totalDays, levelName };
@@ -1992,7 +1992,7 @@ async function runDailyCheck(client) {
       if (!p.warnings) p.warnings = { count: 0 };
       if (!p.leaves) p.leaves = { totalCredits: 0, usedDays: [], lastLeaveDate: null, monthlyLeaveUsed: 0, weeklyLeaveUsed: 0 };
       if (!p.gamification) p.gamification = { totalPoints: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
-      
+
       // İstatistik alanlarını başlat
       p.stats.dailyTicketsToday = p.stats.dailyTicketsToday || 0;
       p.stats.ticketsSolved = p.stats.ticketsSolved || 0;
@@ -2003,13 +2003,13 @@ async function runDailyCheck(client) {
       p.stats.weeklyReports = p.stats.weeklyReports || 0;
       p.stats.lastCompleteDay = p.stats.lastCompleteDay || '';
       p.stats.breakCredits = p.stats.breakCredits || 0;
-      
+
       // 🔧 Günü sıfırla (ertesi gün başlasın temiz)
       resetDaily(p);
-      
+
       // Günlük ticket sayacını sıfırla
       p.stats.dailyTicketsToday = 0;
-      
+
       // Aylık/haftalık izin sayacını sıfırla
       const todayDate = new Date();
       const startOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
@@ -2026,7 +2026,7 @@ async function runDailyCheck(client) {
           p.leaves.weeklyLeaveUsed = 0;
         }
       }
-      
+
       // 🔧 BUG FIX: Bugünün görevleri tamamlandı mı kontrol et (dün değil)
       const completedToday = p.stats.lastCompleteDay === today;
       const activeDays = p.stats?.activeDays || 0;
@@ -2052,7 +2052,7 @@ async function runDailyCheck(client) {
         // ✅ Sabah brifing — görevi yapanlara da gönder (motive et)
         await sendMorningBriefing(p, client);
       }
-      
+
       // ⚠️ Aktif gün < 2 uyarısı
       if (activeDays < 2) {
         await checkLowActivityWarning(p, client);
@@ -2070,7 +2070,7 @@ function startStaffScheduler(client) {
   // Belirli saatte çalışacak görev planla
   function scheduleAt(hour, minute, callback) {
     function run() {
-      const now  = new Date();
+      const now = new Date();
       const next = new Date();
       // Bugün o saat geçtiyse yarın planla
       next.setHours(hour, minute, 0, 0);
@@ -2089,19 +2089,19 @@ function startStaffScheduler(client) {
     console.log('[staffSystem] 09:00 sabah brifing gönderiliyor...');
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
-      await sendMorningBriefing(p, client).catch(() => {});
+      await sendMorningBriefing(p, client).catch(() => { });
     }
   });
 
   // 13:00 — Öğlen hatırlatma (görevi tamamlamamış olanlara)
   scheduleAt(13, 0, async () => {
     console.log('[staffSystem] 13:00 öğlen hatırlatması...');
-    const today        = todayStr();
-    const allProgress  = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const today = todayStr();
+    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
       const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= getDailyRequirements(p.level, p.stats?.consecutiveDays || 0).voiceMinutes;
       if (!isComplete) {
-        await sendMidDayReminder(p, client).catch(() => {});
+        await sendMidDayReminder(p, client).catch(() => { });
       }
     }
   });
@@ -2109,13 +2109,13 @@ function startStaffScheduler(client) {
   // 19:00 — Akşam uyarısı (hâlâ tamamlamamışlara)
   scheduleAt(19, 0, async () => {
     console.log('[staffSystem] 19:00 akşam uyarısı...');
-    const today       = todayStr();
+    const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
-      const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
       if (!isComplete) {
-        await sendEveningWarning(p, client).catch(() => {});
+        await sendEveningWarning(p, client).catch(() => { });
       }
     }
   });
@@ -2127,7 +2127,7 @@ function startStaffScheduler(client) {
     for (const p of allProgress) {
       // %50 şansla motivasyon gönder (tüm gruba yazarsak spam olur)
       if (Math.random() > 0.5) {
-        await sendRandomMotivationDM(p, client).catch(() => {});
+        await sendRandomMotivationDM(p, client).catch(() => { });
       }
     }
   });
@@ -2139,7 +2139,7 @@ function startStaffScheduler(client) {
     for (const p of allProgress) {
       // %60 şansla eğlenceli mesaj gönder
       if (Math.random() > 0.4) {
-        await sendFunMessage(p.userId, client).catch(() => {});
+        await sendFunMessage(p.userId, client).catch(() => { });
       }
     }
   });
@@ -2147,12 +2147,12 @@ function startStaffScheduler(client) {
   // 21:00 — Akşam geç saatlerde teşvik mesajı
   scheduleAt(21, 0, async () => {
     console.log('[staffSystem] 21:00 gece motivasyonu...');
-    const today       = todayStr();
+    const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
-      const req        = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
-      
+
       // Tamamlayanları tebrik et, tamamlayamayanlara son çağrı yap
       if (isComplete) {
         const embed = new EmbedBuilder()
@@ -2164,7 +2164,7 @@ function startStaffScheduler(client) {
         try {
           const user = await client.users.fetch(p.userId);
           await user.send({ embeds: [embed] });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   });
@@ -2193,14 +2193,14 @@ function startStaffScheduler(client) {
   });
 
   console.log('[staffSystem] Scheduler başlatıldı (09:00 / 12:00 / 13:00 / 17:00 / 19:00 / 23:30)');
-  
+
   // Başlangıçta hemen doğrulama kontrolünü bir defa yap
   setTimeout(() => checkStaffVerifications(client), 10000); // 10 saniye sonra
   setTimeout(() => {
     try {
       const { checkActiveExams } = require('./aiExamService');
       checkActiveExams(client);
-    } catch (_) {}
+    } catch (_) { }
   }, 15000); // 15 saniye sonra
 }
 
@@ -2216,7 +2216,7 @@ async function checkStaffVerifications(client) {
 
     for (const p of allProgress) {
       const user = await User.findOne({ discordId: p.userId });
-      
+
       const missingRoblox = !user || !user.robloxId;
       const missingGuild = !p.guildJoined; // guildJoined is in StaffProgress
       let missingRobloxGroup = false;
@@ -2240,7 +2240,7 @@ async function checkStaffVerifications(client) {
           const modMember = await modGuild.members.fetch(p.userId).catch(() => null);
           if (modMember) inModeratorServer = true;
         }
-      } catch (e) {}
+      } catch (e) { }
 
       if (inModeratorServer) continue; // Kullanıcı sunucuda ise DM atma!
 
@@ -2304,8 +2304,8 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
     for (const p of allProgress) {
       try {
         const user = await client.users.fetch(p.userId);
-        if (user) await user.send({ embeds: [embed] }).catch(() => {});
-      } catch (_) {}
+        if (user) await user.send({ embeds: [embed] }).catch(() => { });
+      } catch (_) { }
     }
 
     console.log(`[staffSystem] ${allProgress.length} personele güncelleme bildirimi gönderildi`);
@@ -2318,8 +2318,8 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
 async function sendSystemUpdateNotification(client) {
   try {
     // Sadece systemIntroduced: false veya undefined olanları bul
-    const allProgress = await StaffProgress.find({ 
-      level: { $gte: 1, $lte: 5 }, 
+    const allProgress = await StaffProgress.find({
+      level: { $gte: 1, $lte: 5 },
       status: 'active',
       $or: [
         { 'gamification.systemIntroduced': false },
@@ -2336,7 +2336,7 @@ async function sendSystemUpdateNotification(client) {
       .addFields(
         {
           name: '🎁 EkoCoin Mağazası Geldi!',
-          value: 
+          value:
             '• Bilet çözerek (5 E.C.), Moderasyon yaparak (10 E.C.) ve Seste kalarak (saatte 15 E.C.) coin kazanırsın.\n' +
             '• Kazandığında gelen "🛒 MAĞAZAYI İNCELE" butonuyla Profil Renkleri veya İzin satın alabilirsin!',
           inline: false,
@@ -2361,13 +2361,13 @@ async function sendSystemUpdateNotification(client) {
       try {
         const user = await client.users.fetch(p.userId);
         if (user) {
-          await user.send({ embeds: [embed] }).catch(() => {});
-          
+          await user.send({ embeds: [embed] }).catch(() => { });
+
           p.gamification = p.gamification || {};
           p.gamification.systemIntroduced = true;
-          await p.save().catch(() => {});
+          await p.save().catch(() => { });
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     console.log(`[staffSystem] ${allProgress.length} personele Gamification 3.0 bildirimi gönderildi`);
@@ -2388,7 +2388,7 @@ async function notifyStaff(userId, title, message, color = 0x7c6af7, client) {
       .setDescription(message)
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
-    
+
     await user.send({ embeds: [embed] });
   } catch (err) {
     console.warn(`[staffSystem] Bildirim gönderilemedi (${userId}):`, err.message);
@@ -2499,11 +2499,11 @@ async function checkAndUnlockBadges(progress, client) {
   // Yeni rozetler için gönder
   if (newBadges.length > 0) {
     for (const badgeId of newBadges) {
-      await sendBadgeUnlockedDM(progress, badgeId, client).catch(() => {});
+      await sendBadgeUnlockedDM(progress, badgeId, client).catch(() => { });
     }
   }
 
-  await progress.save().catch(() => {});
+  await progress.save().catch(() => { });
   return newBadges;
 }
 
@@ -2530,7 +2530,7 @@ async function sendBadgeUnlockedDM(progress, badgeId, client) {
     const user = await client.users.fetch(progress.userId);
     await user.send({ embeds: [embed] });
     console.log(`[staffSystem] Rozet açıldı: ${progress.userId} → ${badgeId}`);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 /**
@@ -2663,7 +2663,7 @@ async function sendFunMessage(userId, client) {
   try {
     const user = await client.users.fetch(userId);
     await user.send({ embeds: [embed] });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 module.exports = {

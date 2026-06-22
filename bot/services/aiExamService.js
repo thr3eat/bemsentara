@@ -161,9 +161,9 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 2
     }
   ],
-  5: [ // Target Level 5 (Sekreter'in Babası) - Very Hard
+  5: [ // Target Level 5 (Kıdemli Sekreter) - Very Hard
     {
-      question: "Sekreter'in Babası rütbesinin temel görevi nedir?",
+      question: "Kıdemli Sekreter rütbesinin temel görevi nedir?",
       options: ["Yöneticilerle koordineli çalışmak, tüm moderatör ekibini denetlemek ve yönetmek", "Sadece oyun oynamak", "Roblox grubunu tamamen silmek", "Biletlerin tamamını tek başına çözmek"],
       correctIndex: 0
     },
@@ -173,12 +173,12 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 1
     },
     {
-      question: "Roblox grubunda Sekreter'in Babası (Yönetici) rütbesinin rank ID'si kaçtır?",
+      question: "Roblox grubunda Kıdemli Sekreter (Yönetici) rütbesinin rank ID'si kaçtır?",
       options: ["Rank 4", "Rank 7", "Rank 8", "Rank 9"],
       correctIndex: 2
     },
     {
-      question: "Sekreter'in Babası rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
+      question: "Kıdemli Sekreter rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
       options: ["30 dakika", "60 dakika", "90 dakika", "120 dakika"],
       correctIndex: 2
     },
@@ -193,13 +193,13 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 1
     },
     {
-      question: "Ekip içinde moral ve motivasyon düşüklüğü yaşanıyorsa Sekreter'in Babası olarak ilk adımınız ne olmalıdır?",
+      question: "Ekip içinde moral ve motivasyon düşüklüğü yaşanıyorsa Kıdemli Sekreter olarak ilk adımınız ne olmalıdır?",
       options: ["Herkese ceza ve uyarı yağdırmak", "Birebir görüşmeler veya toplantılarla sorunları dinlemek, motivasyon etkinlikleri/ödüllendirmeler planlamak", "İstifa etmek", "Görmezden gelip ekibi suçlamak"],
       correctIndex: 1
     },
     {
       question: "Yetkili cüzdanındaki EkoCoin (E.C.) puanlarının dağıtımı ve doğruluğunu denetlemek kimin yetkisindedir?",
-      options: ["Stajyer personellerin", "Normal sunucu üyelerinin", "Sekreter'in Babası ve üst düzey yöneticilerin", "Dışarıdan bir botun"],
+      options: ["Stajyer personellerin", "Normal sunucu üyelerinin", "Kıdemli Sekreter ve üst düzey yöneticilerin", "Dışarıdan bir botun"],
       correctIndex: 2
     },
     {
@@ -208,14 +208,14 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 1
     },
     {
-      question: "Sekreter'in Babası için günlük selamlaşma gereksinimi en az kaçtır?",
+      question: "Kıdemli Sekreter için günlük selamlaşma gereksinimi en az kaçtır?",
       options: ["6x", "10x", "12x", "15x"],
       correctIndex: 2
     }
   ],
-  6: [ // Target Level 6 (Personel Sekreteri) - Expert
+  6: [ // Target Level 6 (Genel Koordinatör) - Expert
     {
-      question: "Personel Sekreteri rütbesinin en üst düzeydeki sorumluluğu nedir?",
+      question: "Genel Koordinatör rütbesinin en üst düzeydeki sorumluluğu nedir?",
       options: ["Tüm personel ve moderasyon operasyonlarını koordine etmek, yeni personellerin sınav süreçlerini tasarlamak ve genel sunucu denetimini gerçekleştirmek", "Sadece ticket kanallarını izlemek", "Roblox grubunu yöneticiye devretmek", "Sadece sohbette aktif olmak"],
       correctIndex: 0
     },
@@ -225,12 +225,12 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 0
     },
     {
-      question: "Roblox grubunda Personel Sekreteri rütbesinin rank ID'si kaçtır?",
+      question: "Roblox grubunda Genel Koordinatör rütbesinin rank ID'si kaçtır?",
       options: ["Rank 7", "Rank 8", "Rank 9", "Rank 201"],
       correctIndex: 2
     },
     {
-      question: "Personel Sekreteri rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
+      question: "Genel Koordinatör rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
       options: ["60 dakika", "90 dakika", "120 dakika", "180 dakika"],
       correctIndex: 2
     },
@@ -240,7 +240,7 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 1
     },
     {
-      question: "EkoYıldız Moderatör Ekibi ana sunucusunda Personel Sekreteri rütbesine atanan kişinin rol ID'si nedir?",
+      question: "EkoYıldız Moderatör Ekibi ana sunucusunda Genel Koordinatör rütbesine atanan kişinin rol ID'si nedir?",
       options: ["1517651154220355836", "1517695716594683904", "1517656567481372772", "1419688146689593415"],
       correctIndex: 0
     },
@@ -255,7 +255,7 @@ const FALLBACK_QUESTIONS_BY_LEVEL = {
       correctIndex: 1
     },
     {
-      question: "Personel Sekreteri için günlük selamlaşma gereksinimi en az kaçtır?",
+      question: "Genel Koordinatör için günlük selamlaşma gereksinimi en az kaçtır?",
       options: ["10x", "12x", "15x", "20x"],
       correctIndex: 2
     },
@@ -318,13 +318,13 @@ async function sendQuestion(user, progress) {
 
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
-    .setTitle(`📝 Personel Sekreteri Yetkinlik Sınavı — Soru ${index + 1}/10`)
+    .setTitle(`📝 Genel Koordinatör Yetkinlik Sınavı — Soru ${index + 1}/10`)
     .setDescription(`**${q.question}**\n\n` + q.options.map((opt, i) => `**${String.fromCharCode(65 + i)})** ${opt}`).join('\n'))
     .setFooter({ text: 'Lütfen aşağıdaki butonlardan birini seçerek cevabınızı verin.' })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    q.options.map((_, i) => 
+    q.options.map((_, i) =>
       new ButtonBuilder()
         .setCustomId(`exam_ans_${index}_${i}`)
         .setLabel(String.fromCharCode(65 + i))
@@ -341,12 +341,12 @@ async function handleAnswerInteraction(interaction, client) {
   const customId = interaction.customId;
   if (!customId.startsWith('exam_ans_')) return;
 
-  await interaction.deferUpdate().catch(() => {});
+  await interaction.deferUpdate().catch(() => { });
 
   const userId = interaction.user.id;
   const progress = await StaffProgress.findOne({ userId });
   if (!progress || progress.exam.status !== 'ongoing') {
-    return interaction.followUp({ content: '❌ Aktif bir sınavınız bulunmuyor.', ephemeral: true }).catch(() => {});
+    return interaction.followUp({ content: '❌ Aktif bir sınavınız bulunmuyor.', ephemeral: true }).catch(() => { });
   }
 
   const parts = customId.split('_');
@@ -359,7 +359,7 @@ async function handleAnswerInteraction(interaction, client) {
   }
 
   // Sorunun butonlarını kaldırarak tekrar tıklanmasını önle
-  await interaction.editReply({ components: [] }).catch(() => {});
+  await interaction.editReply({ components: [] }).catch(() => { });
 
   progress.exam.answers.push(selectedIndex);
   progress.exam.currentQuestionIndex += 1;
@@ -399,7 +399,7 @@ async function handleAnswerInteraction(interaction, client) {
     } else {
       // Başarısız: Yeniden planla (Sınav durumunu scheduled yapıyoruz ki scheduler yarın tetiklesin)
       progress.exam.status = 'scheduled';
-      
+
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(12, 0, 0, 0);
@@ -414,7 +414,7 @@ async function handleAnswerInteraction(interaction, client) {
         console.error('[aiExamService] Failed to generate new questions for retake, using fallback:', err.message);
         progress.exam.questions = FALLBACK_QUESTIONS_BY_LEVEL[targetLevel] || FALLBACK_QUESTIONS_BY_LEVEL[6];
       }
-      
+
       await progress.save();
 
       const failEmbed = new EmbedBuilder()
@@ -431,7 +431,7 @@ async function handleAnswerInteraction(interaction, client) {
 
       const user = await client.users.fetch(userId).catch(() => null);
       if (user) {
-        await user.send({ embeds: [failEmbed] }).catch(() => {});
+        await user.send({ embeds: [failEmbed] }).catch(() => { });
       }
     }
   }
@@ -490,16 +490,16 @@ async function checkActiveExams(client) {
 
 async function handleStartTrigger(interaction) {
   if (interaction.customId !== 'exam_start_trigger') return;
-  await interaction.deferUpdate().catch(() => {});
+  await interaction.deferUpdate().catch(() => { });
 
   const userId = interaction.user.id;
   const progress = await StaffProgress.findOne({ userId });
   if (!progress || progress.exam.status !== 'ongoing') {
-    return interaction.followUp({ content: '❌ Aktif sınavınız bulunamadı veya süre dolmuş.', ephemeral: true }).catch(() => {});
+    return interaction.followUp({ content: '❌ Aktif sınavınız bulunamadı veya süre dolmuş.', ephemeral: true }).catch(() => { });
   }
 
   // "Sınavı Başlat" butonunu kaldırarak tekrar tıklanmasını önle
-  await interaction.editReply({ components: [] }).catch(() => {});
+  await interaction.editReply({ components: [] }).catch(() => { });
 
   // İlk soruyu gönder
   await sendQuestion(interaction.user, progress);

@@ -34,7 +34,7 @@ async function syncStaffRobloxRanks(client, discordUserId) {
   try {
     const User = require('../../models/User');
     const StaffProgress = require('../../models/StaffProgress');
-    
+
     const user = await User.findOne({ discordId: discordUserId });
     if (!user || !user.robloxId) {
       console.log(`[StaffAutomation] User ${discordUserId} does not have a Roblox ID linked.`);
@@ -62,8 +62,8 @@ async function syncStaffRobloxRanks(client, discordUserId) {
     else if (staff.level === 2) modRank = 3; // Personel
     else if (staff.level === 3) modRank = 4; // Gelişmiş Personel
     else if (staff.level === 4) modRank = 7; // Sekreter
-    else if (staff.level === 5) modRank = 8; // Sekreter'in Babası (Yönetici)
-    else if (staff.level >= 6) modRank = 9; // Personel Sekreteri
+    else if (staff.level === 5) modRank = 8; // Kıdemli Sekreter (Yönetici)
+    else if (staff.level >= 6) modRank = 9; // Genel Koordinatör
 
     // Rank logic for EkoYıldız Main (35431216)
     let mainRank = 0;
@@ -187,7 +187,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     } catch (e) {
       console.warn("[StaffAutomation] noblox getRankNameInGroup error:", e.message);
     }
-    
+
     // Eğer noblox'tan gelmezse (veya hata verirse), normal API'dan deneyelim
     if (!rankName) {
       const axios = require('axios');
@@ -202,14 +202,14 @@ async function syncStaffDiscordRoles(client, discordUserId) {
 
     // Eğer API'dan gelmezse (örn. Roblox önbelleği gecikmesi), veritabanındaki StaffProgress seviyesini kullan
     let staff = await require('../../models/StaffProgress').findOne({ userId: discordUserId });
-    
+
     if (!rankName && staff) {
       if (staff.level === 1) rankName = "Stajyer Personel";
       else if (staff.level === 2) rankName = "Personel";
       else if (staff.level === 3) rankName = "Gelişmiş Personel";
       else if (staff.level === 4) rankName = "Sekreter";
-      else if (staff.level === 5) rankName = "Sekreter'in Babası";
-      else if (staff.level >= 6) rankName = "Personel Sekreteri";
+      else if (staff.level === 5) rankName = "Kıdemli Sekreter";
+      else if (staff.level >= 6) rankName = "Genel Koordinatör";
     }
 
     if (!rankName) {
@@ -228,7 +228,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
 
       // Sunucudaki tüm rolleri önbelleğe al
       await guild.roles.fetch();
-      
+
       // Doğrudan isme göre rütbe rolünü bul ve TARGET_ROLES'a ekle
       const exactRole = guild.roles.cache.find(r => r.name.toLowerCase() === rankName.toLowerCase());
       if (exactRole) {
@@ -245,7 +245,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
           if (mainGuild) {
             const mainMember = await mainGuild.members.fetch(discordUserId).catch(() => null);
             if (mainMember) {
-              await mainMember.roles.add('1517651154220355836').catch(() => {});
+              await mainMember.roles.add('1517651154220355836').catch(() => { });
             }
           }
         } catch (e) {
@@ -263,7 +263,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
           if (mainGuild) {
             const mainMember = await mainGuild.members.fetch(discordUserId).catch(() => null);
             if (mainMember) {
-              await mainMember.roles.add('1517651154220355836').catch(() => {});
+              await mainMember.roles.add('1517651154220355836').catch(() => { });
             }
           }
         } catch (e) {
@@ -320,9 +320,9 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       if (rankName === "Personel") level = 2;
       else if (rankName === "Gelişmiş Personel") level = 3;
       else if (["Sekreter", "Genel Sekreter", "Yönetim Ekibi"].includes(rankName)) level = 4;
-      else if (["Kıdemli Sekreter", "Yönetici", "Sekreter'in Babası"].includes(rankName)) level = 5;
-      else if (rankName === "Personel Sekreteri") level = 6;
-      
+      else if (["Kıdemli Sekreter", "Yönetici", "Kıdemli Sekreter"].includes(rankName)) level = 5;
+      else if (rankName === "Genel Koordinatör") level = 6;
+
       staffUpdate = new StaffProgress({
         userId: discordUserId,
         level: level,
@@ -333,7 +333,7 @@ async function syncStaffDiscordRoles(client, discordUserId) {
       await staffUpdate.save();
     }
 
-    await syncMainGuildRoles(client, discordUserId).catch(() => {});
+    await syncMainGuildRoles(client, discordUserId).catch(() => { });
     return true;
   } catch (error) {
     console.error("[StaffAutomation] syncStaffDiscordRoles Error:", error);
@@ -427,8 +427,8 @@ async function updateDynamicModList(client) {
     let listContent = "📋 **EkoYıldız Güncel Yetkili Listesi**\n\n";
 
     const levels = {
-      6: "💼 Personel Sekreteri",
-      5: "👨‍✈️ Sekreter'in Babası",
+      6: "💼 Genel Koordinatör",
+      5: "👨‍✈️ Kıdemli Sekreter",
       4: "🟣 Sekreter",
       3: "🔵 Gelişmiş Personel",
       2: "🟢 Personel",

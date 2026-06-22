@@ -837,6 +837,13 @@ function initializeDiscordHandlers(client) {
       if (handled) return;
     } catch (_) {}
 
+    // ── EkoYıldız Oyunları ─────────────────────────────────────────────────
+    try {
+      const { handleEkoGames } = require('../services/ekoGames');
+      const handled = await handleEkoGames(message, client);
+      if (handled) return;
+    } catch (_) {}
+
     // ── Abone fotoğraf doğrulama (Eko Yıldız) ──────────────────────────────
     try {
       const { handlePhotoUpload } = require('../services/photoVerification');

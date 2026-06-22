@@ -703,7 +703,7 @@ async function handleGeneralCommand(interaction) {
           `• **+500 Puan** ve **+500 XP** gamification profiline eklendi!\n` +
           (promoted
             ? `• 📈 Rütbesi **${ROLE_NAMES[oldLevel]}** seviyesinden **${ROLE_NAMES[newLevel]}** seviyesine yükseltildi! 🎉`
-            : `• *Kullanıcı zaten en üst düzey **Sekreter'in Babası** rütbesinde (veya üstünde) olduğu için rütbe değişikliği yapılmadı. (Personel Sekreteri rütbesi için sınavı geçmesi gerekmektedir)*`)
+            : `• *Kullanıcı zaten en üst düzey **Kıdemli Sekreter** rütbesinde (veya üstünde) olduğu için rütbe değişikliği yapılmadı. (Genel Koordinatör rütbesi için sınavı geçmesi gerekmektedir)*`)
         )
         .setFooter({ text: 'Eko Yıldız • Yetkili Ödüllendirme' })
         .setTimestamp();
