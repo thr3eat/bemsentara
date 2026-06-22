@@ -77,6 +77,12 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // EkoYıldız Otomatik Rol Kurtarma (Bot Yeniden Başlatılınca)
+    const { autoRestoreRoles } = require('../services/ekoRoleRestore');
+    autoRestoreRoles(client).catch(err => {
+      console.error('[ekoRoleRestore] Hata:', err);
+    });
+
     // AI Kanal Sohbet İzleme
     const { startAIChatMonitor } = require('../services/aiChannelChat');
     startAIChatMonitor(client);
