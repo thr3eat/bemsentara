@@ -2703,4 +2703,5 @@ module.exports = {
   GUILD_ID,
   CHOSEN_TASKS,
   checkChosenTaskCompletion,
+  checkDailyCompletion,
 };

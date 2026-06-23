@@ -31,8 +31,8 @@ async function handleModalSubmit(interaction) {
     return handleRatingModal(interaction);
   }
 
-  // ── Abone Rolü Kaldırma Sebebi modal'ı ─────────────────────────────────
-  if (interaction.customId.startsWith("abone_reason_")) {
+  // ── Abone Rolü Kaldırma / Reddetme Sebebi modal'ı ──────────────────────
+  if (interaction.customId.startsWith("abone_reason_") || interaction.customId.startsWith("abone_reject_reason_")) {
     try {
       const { handleRemoveSubscriberModal } = require('../services/photoVerification');
       await handleRemoveSubscriberModal(interaction, interaction.client);

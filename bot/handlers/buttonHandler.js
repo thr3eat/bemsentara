@@ -513,11 +513,11 @@ async function handleButtonInteraction(interaction) {
     return interaction.showModal(modal);
   }
 
-  // ── Abone Doğrulama: "HAYIR ABONE DEĞİL" butonu ────────────────────────
-  if (interaction.customId.startsWith('abone_no_')) {
+  // ── Abone Doğrulama: Butonlar ──────────────────────────────────────────
+  if (interaction.customId.startsWith('abone_approve_') || interaction.customId.startsWith('abone_reject_') || interaction.customId.startsWith('abone_no_')) {
     try {
-      const { handleNoSubscriberButton } = require('../services/photoVerification');
-      await handleNoSubscriberButton(interaction, interaction.client);
+      const { handleSubscriberButtons } = require('../services/photoVerification');
+      await handleSubscriberButtons(interaction, interaction.client);
     } catch (err) {
       console.error('[photoVerification] Button hata:', err.message);
       try {
