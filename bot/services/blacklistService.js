@@ -98,6 +98,40 @@ async function renderBlacklist(client) {
       `### 🛡️ İlgili Gruplar / Platformlar\n\n` +
       `${formatList(groups)}`;
 
+    // Helper to split text into chunks of <= 1900 chars, preserving lines
+    const splitTextIntoChunks = (text, maxLength = 1900) => {
+      const lines = text.split('\n');
+      const chunks = [];
+      let currentChunk = '';
+
+      for (const line of lines) {
+        if (line.length > maxLength) {
+          let tempLine = line;
+          while (tempLine.length > 0) {
+            const part = tempLine.substring(0, maxLength);
+            tempLine = tempLine.substring(maxLength);
+            if (currentChunk.length + part.length + 1 > maxLength) {
+              chunks.push(currentChunk.trim());
+              currentChunk = part;
+            } else {
+              currentChunk = currentChunk ? currentChunk + '\n' + part : part;
+            }
+          }
+        } else if (currentChunk.length + line.length + 1 > maxLength) {
+          chunks.push(currentChunk.trim());
+          currentChunk = line;
+        } else {
+          currentChunk = currentChunk ? currentChunk + '\n' + line : line;
+        }
+      }
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+      }
+      return chunks;
+    };
+
+    const chunks = splitTextIntoChunks(mainContent);
+
     // Create custom Turkish date string
     const now = new Date();
     const formatter = new Intl.DateTimeFormat('tr-TR', {
@@ -114,26 +148,61 @@ async function renderBlacklist(client) {
       .setFooter({ text: 'Eko Yıldız • Karaliste Sistemi' })
       .setTimestamp();
 
-    // Fetch message history to find previous post
-    const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
-    let mainMsg = null;
+    // Fetch message history to find previous posts
+    const messagesCollection = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!messagesCollection) {
+      console.warn('[blacklist] Failed to fetch message history.');
+      return;
+    }
+
+    const botMessages = Array.from(messagesCollection.values())
+      .filter(m => m.author.id === client.user.id)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp); // Oldest first
+
+    // Find and extract update embed message
+    const updateMsgIndex = botMessages.findIndex(m => m.embeds.length > 0 && m.embeds[0].title === 'ℹ️ Karaliste Bilgi ve Güncelleme');
     let updateMsg = null;
-
-    if (messages) {
-      mainMsg = messages.find(m => m.author.id === client.user.id && m.content.includes('# 🚫 KARALİSTE (BLACKLIST)'));
-      updateMsg = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === 'ℹ️ Karaliste Bilgi ve Güncelleme');
+    if (updateMsgIndex !== -1) {
+      updateMsg = botMessages[updateMsgIndex];
+      botMessages.splice(updateMsgIndex, 1); // Remove from list messages
     }
 
-    if (mainMsg) {
-      await mainMsg.edit({ content: mainContent });
-    } else {
-      mainMsg = await channel.send({ content: mainContent });
+    const contentMessages = botMessages;
+    let sentNewContentMsg = false;
+
+    // Update content messages chunk by chunk
+    for (let i = 0; i < chunks.length; i++) {
+      if (i < contentMessages.length) {
+        await contentMessages[i].edit({ content: chunks[i] }).catch(err => {
+          console.error(`[blacklist] Failed to edit content message ${i}:`, err.message);
+        });
+      } else {
+        await channel.send({ content: chunks[i] }).catch(err => {
+          console.error(`[blacklist] Failed to send new content message:`, err.message);
+        });
+        sentNewContentMsg = true;
+      }
     }
 
+    // Delete surplus content messages
+    if (contentMessages.length > chunks.length) {
+      for (let i = chunks.length; i < contentMessages.length; i++) {
+        await contentMessages[i].delete().catch(err => {
+          console.warn(`[blacklist] Failed to delete surplus message:`, err.message);
+        });
+      }
+    }
+
+    // Update or re-send update embed
     if (updateMsg) {
-      await updateMsg.edit({ embeds: [updateEmbed] });
+      if (sentNewContentMsg) {
+        await updateMsg.delete().catch(() => {});
+        await channel.send({ embeds: [updateEmbed] }).catch(() => {});
+      } else {
+        await updateMsg.edit({ embeds: [updateEmbed] }).catch(() => {});
+      }
     } else {
-      await channel.send({ embeds: [updateEmbed] });
+      await channel.send({ embeds: [updateEmbed] }).catch(() => {});
     }
   } catch (err) {
     console.error('[blacklist] Render error:', err.message);
