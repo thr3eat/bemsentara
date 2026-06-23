@@ -766,4 +766,5 @@ module.exports = {
   handleNightUnbanButton,
   cancelPendingNightBan,
   cancelPendingAIBan,
+  nightModePendingBans
 };

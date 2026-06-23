@@ -59,7 +59,8 @@ const GENERAL_COMMANDS = new Set([
   "birimalimi",
   "birimterfi",
   "birimistifa",
-  "birimtanitim"
+  "birimtanitim",
+  "abusetest"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -2292,6 +2293,61 @@ async function handleGeneralCommand(interaction) {
         console.error("[ozelrolisim] Rol ismi değiştirme hatası:", roleErr);
         return interaction.editReply({ content: `❌ Rol ismi değiştirilirken bir hata oluştu: ${roleErr.message}` });
       }
+    }
+
+    if (commandName === "abusetest") {
+      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+                         interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      if (!isYonetici) {
+        return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+      }
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ ephemeral: false }).catch(() => { });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle("🚨 DISCORD SUNUCU ABUSE ŞÜPHESİ (TEST)")
+        .setDescription(
+          `**Test Sunucusu** üzerinde şüpheli bir aktivite tespit edildi!\n\n` +
+          `> **🔨 Toplu Banlama (TEST)**\n` +
+          `> ⚡ Son 20 saniyede **3 kez** gerçekleşti\n\n` +
+          `⚠️ Aşağıdaki butonlarla müdahale edebilirsiniz.`
+        )
+        .setColor(0xFF0000)
+        .addFields(
+          { name: "🏠 Sunucu",            value: `**Test Sunucusu**\nID: \`test\``,                                                     inline: true  },
+          { name: "👤 Şüpheli Kullanıcı", value: `${interaction.user.toString()}\n\`${interaction.user.tag}\`\nID: \`test\``,                 inline: true  },
+          { name: "⚠️ Tespit Edilen",     value: "Toplu Banlama",                                                                              inline: true  },
+          { name: "🤖 Yapay Zeka Risk Analizi", value: "**Risk Seviyesi:** YÜKSEK\n**Analiz:** Bu bir test uyarısıdır. Gerçek sistemdeki tüm buton işlevleri simüle edilmektedir.", inline: false }
+        )
+        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setTimestamp()
+        .setFooter({ text: "Sentara Discord Abuse Tespit Sistemi (TEST)", iconURL: interaction.client.user.displayAvatarURL() });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`disc_abuse_removeroles_test_test`)
+          .setLabel("🗑️ Rolleri Al")
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji("🗑️"),
+        new ButtonBuilder()
+          .setCustomId(`disc_abuse_kick_test_test`)
+          .setLabel("At")
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji("👢"),
+        new ButtonBuilder()
+          .setCustomId(`disc_abuse_ban_test_test`)
+          .setLabel("Banla")
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji("🔨"),
+        new ButtonBuilder()
+          .setCustomId(`disc_abuse_ignore_test_test`)
+          .setLabel("🚫 Yoksay")
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji("🚫")
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
     }
 
     return null;

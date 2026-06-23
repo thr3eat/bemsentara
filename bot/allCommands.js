@@ -19,18 +19,6 @@ const generalCommands = [
     .setDMPermission(true),
 
   new SlashCommandBuilder()
-    .setName("xpcekilis")
-    .setDescription("[Yönetici] Rütbe XP'si için çekiliş başlatır (Ertesi gün öğlen 12:00'de açıklanır)")
-    .addIntegerOption((o) =>
-      o.setName("xp_miktari").setDescription("Dağıtılacak XP miktarı").setRequired(true)
-    )
-    .addIntegerOption((o) =>
-      o.setName("kazanan_sayisi").setDescription("Kaç kişi kazanacak? (Varsayılan 1)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(true),
-
-  new SlashCommandBuilder()
     .setName("profile")
     .setDescription("Profil bilgilerini göster")
     .setDMPermission(true),
@@ -68,73 +56,6 @@ const generalCommands = [
     .setDMPermission(true),
 
   new SlashCommandBuilder()
-    .setName("ayarlar")
-    .setDescription("Botun özelliklerini sunucunuzda aktif etmenize yarar")
-    .addSubcommand((sub) =>
-      sub.setName("goruntule").setDescription("Sunucu ayarlarını görüntüle")
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("guncelle")
-        .setDescription("Ayarları güncelle")
-        .addStringOption((o) =>
-          o
-            .setName("ayar")
-            .setDescription("Güncellenecek ayar")
-            .setRequired(true)
-            .addChoices(
-              { name: "Ekonomi Sistemi", value: "economy" },
-              { name: "Moderasyon", value: "moderation" },
-              { name: "Eğlence", value: "fun" }
-            )
-        )
-        .addBooleanOption((o) =>
-          o.setName("durum").setDescription("Etkin/Devre dışı").setRequired(true)
-        )
-    ),
-
-  new SlashCommandBuilder()
-    .setName("kanal")
-    .setDescription("Belirtilen kanala veya kategoriye yetki ekler/kaldırır")
-    .addSubcommand((sub) =>
-      sub
-        .setName("izin_ekle")
-        .setDescription("Kanala izin ekle")
-        .addChannelOption((o) =>
-          o.setName("kanal").setDescription("Hedef Kanal").setRequired(true)
-        )
-        .addStringOption((o) =>
-          o
-            .setName("izin")
-            .setDescription("İzin tipi")
-            .setRequired(true)
-            .addChoices(
-              { name: "Bot Komutları", value: "commands" },
-              { name: "Ekonomi", value: "economy" },
-              { name: "Eğlence", value: "fun" }
-            )
-        )
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("izin_kaldir")
-        .setDescription("Kanaldaki izni kaldır")
-        .addChannelOption((o) =>
-          o.setName("kanal").setDescription("Hedef Kanal").setRequired(true)
-        )
-    ),
-
-  new SlashCommandBuilder()
-    .setName("otomod")
-    .setDescription("Sunucunuzda Discord'un otomod sistemini etkinleştirir")
-    .addSubcommand((sub) =>
-      sub.setName("ayarla").setDescription("Otomod ayarlarını yapılandır")
-    )
-    .addSubcommand((sub) =>
-      sub.setName("kapat").setDescription("Otomodu kapat")
-    ),
-
-  new SlashCommandBuilder()
     .setName("yardim")
     .setDescription("Komutları ve kategorileri görüntüle")
     .addStringOption((o) =>
@@ -145,8 +66,7 @@ const generalCommands = [
         .addChoices(
           { name: "Genel Komutlar", value: "general" },
           { name: "Ekonomi", value: "economy" },
-          { name: "Eğlence", value: "fun" },
-          { name: "Moderasyon", value: "moderation" }
+          { name: "Eğlence", value: "fun" }
         )
     ),
 
@@ -155,39 +75,8 @@ const generalCommands = [
     .setDescription("Botun gecikmesini ölç"),
 
   new SlashCommandBuilder()
-    .setName("anketai")
-    .setDescription("AI destekli anket gönder")
-    .addUserOption(o =>
-      o.setName("kullanici").setDescription("Anket gönderilecek kişi").setRequired(true)
-    )
-    .addStringOption(o =>
-      o.setName("konu").setDescription("Anketin konusu").setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-
-  new SlashCommandBuilder()
     .setName("stats")
     .setDescription("Bot istatistiklerini ve sistem durumunu göster"),
-
-  new SlashCommandBuilder()
-    .setName("modbasvuru")
-    .setDescription("[Yönetici] Kullanıcıya moderatör başvurusu sun")
-    .addUserOption(o =>
-      o.setName("kullanici").setDescription("Moderatör adayı").setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
-    .setName("istifa")
-    .setDescription("Personel görevinden istifa et")
-    .addStringOption(o =>
-      o.setName("sebep").setDescription("İstifa sebebin (opsiyonel)").setRequired(false)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("emeklilik")
-    .setDescription("90+ aktif gün sonra emekli ol (kalıcı)"),
 
   new SlashCommandBuilder()
     .setName("koc")
@@ -200,66 +89,6 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
-    .setName("personelkov")
-    .setDescription("Bir personeli kovar ve sistemden siler")
-    .addUserOption(o =>
-      o.setName("kullanici").setDescription("Kovulacak personel").setRequired(true)
-    )
-    .addStringOption(o =>
-      o.setName("sebep").setDescription("Kovulma sebebi").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
-
-  new SlashCommandBuilder()
-    .setName("personeldurum")
-    .setDescription("Kendi personel durumunuzu ve istatistiklerinizi görüntüler"),
-
-  new SlashCommandBuilder()
-    .setName("personelayarla")
-    .setDescription("[Yönetici] Bir personelin istatistik veya seviye bilgilerini günceller")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("İşlem yapılacak personel").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o
-        .setName("parametre")
-        .setDescription("Güncellenecek parametre")
-        .setRequired(true)
-        .addChoices(
-          { name: "Bilet (Tickets Solved)", value: "tickets" },
-          { name: "Mesaj (Chat Messages)", value: "messages" },
-          { name: "Ses (Voice Minutes)", value: "voice" },
-          { name: "Aktif Gün (Active Days)", value: "active_days" },
-          { name: "Seviye (Staff Level)", value: "level" },
-          { name: "Uyarı (Warnings Count)", value: "warnings" },
-          { name: "EkoCoin (E.C. Bakiyesi)", value: "ekocoin" },
-          { name: "Sınav Durumu Sıfırla (Reset Exam)", value: "reset_exam" }
-        )
-    )
-    .addIntegerOption((o) =>
-      o.setName("deger").setDescription("Yeni değer (Sınav sıfırlama için boş bırakın)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
-    .setName("personelrapor")
-    .setDescription("[Yönetici] Aktif tüm personellerin genel ilerleme raporunu listeler")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
-    .setName("sayim")
-    .setDescription("Moderatör ekibi için aylık sayım (yoklama) sistemini yönetir")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand(sub =>
-      sub.setName("baslat").setDescription("Yeni bir personel sayımı (yoklaması) başlatır")
-    )
-    .addSubcommand(sub =>
-      sub.setName("bitir").setDescription("Mevcut aktif sayımı sonlandırır ve sonuçları gösterir")
-    ),
-
-  new SlashCommandBuilder()
     .setName("seviye")
     .setDescription("Kurbağa seviyeni ve XP durumunu göster")
     .addUserOption(o =>
@@ -269,30 +98,6 @@ const generalCommands = [
   new SlashCommandBuilder()
     .setName("seviyetop")
     .setDescription("Kurbağa ve Dinazor seviye sisteminde en yüksek sıralamaya sahip ilk 10 üyeyi gösterir"),
-
-  new SlashCommandBuilder()
-    .setName("seviyeayarla")
-    .setDescription("[Yönetici] Bir kullanıcının Kurbağa/Dinazor seviye veya XP bilgilerini günceller")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("İşlem yapılacak üye").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o
-        .setName("parametre")
-        .setDescription("Güncellenecek parametre")
-        .setRequired(true)
-        .addChoices(
-          { name: "Seviye (Level)", value: "level" },
-          { name: "XP", value: "xp" },
-          { name: "Double XP Süresi (Saat)", value: "double_xp_hours" },
-          { name: "Sıfırla (Reset)", value: "reset" }
-        )
-    )
-    .addIntegerOption((o) =>
-      o.setName("deger").setDescription("Yeni değer (Sıfırlama için boş bırakın)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .setDMPermission(false),
 
   new SlashCommandBuilder()
     .setName("verify")
@@ -330,18 +135,6 @@ const generalCommands = [
     .setDMPermission(false),
 
   new SlashCommandBuilder()
-    .setName("debug-update")
-    .setDescription("[Yönetici] Rol senkron,h debug — önizleme veya uygulama")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Test edilecek kullanıcı (boş = kendin)").setRequired(false)
-    )
-    .addBooleanOption((o) =>
-      o.setName("uygula").setDescription("true = rolleri gerçekten uygula").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("🏆 Top 10 personeli göster - XP, Puan, Rozetler!"),
 
@@ -357,63 +150,6 @@ const generalCommands = [
     .setDescription("🎯 Bu hafta challenge'ını göster!"),
 
   new SlashCommandBuilder()
-    .setName("ekobang")
-    .setDescription("[Özel] Kullanıcının tüm sunuculardaki yetkili rollerini alır ve kaydeder")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Rolleri alınacak kullanıcı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("ekobangerial")
-    .setDescription("[Özel] Kullanıcının kaydedilen rollerini geri yükler")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Rolleri iade edilecek kullanıcı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("konus")
-    .setDescription("[Yönetici] Belirtilen kullanıcı ile AI destekli DM konuşması başlatır")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Konuşulacak kullanıcı").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("konu").setDescription("Konuşulacak konu / sebep").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("personel-dogrula")
-    .setDescription("Yetkili (Staff) Roblox hesabı doğrulama linki gönderir"),
-
-  new SlashCommandBuilder()
-    .setName("odulver")
-    .setDescription("[Yönetici] Belirtilen personelin ödüllerini yönetir (Ver/Geri Al)")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("İşlem yapılacak personel/moderatör").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("islem")
-        .setDescription("Ödül verilsin mi, geri mi alınsın?")
-        .setRequired(true)
-        .addChoices(
-          { name: "🎁 Ödül Ver", value: "ver" },
-          { name: "❌ Ödülü Geri Al", value: "al" }
-        )
-    )
-    .addStringOption((o) =>
-      o.setName("odul").setDescription("İşlem yapılacak ödülün adı / açıklaması").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("tenzilat")
-    .setDescription("[Yönetici] Personelin rütbesini düşürür (Tenzil)")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Rütbesi düşürülecek personel").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("Tenzil sebebi").setRequired(false)
-    ),
-
-  new SlashCommandBuilder()
     .setName("izin_iste")
     .setDescription("Kişisel izin kotandan izin günü talep et")
     .addStringOption((o) =>
@@ -424,20 +160,6 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
-    .setName("izin_ver")
-    .setDescription("[Yönetici] Bir personele izin günü tanımlar")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("İzin verilecek personel").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("tarih").setDescription("İzin tarihi (YYYY-MM-DD formatında, örn: 2026-06-20)").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("İzin verilme sebebi").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
     .setName("izin_kullan")
     .setDescription("Birikmiş izin kredini kullanarak bugünlük görevlerini pas geç (skip et)"),
 
@@ -446,49 +168,8 @@ const generalCommands = [
     .setDescription("Mevcut izin kotanı ve birikmiş izin kredilerini görüntüle"),
 
   new SlashCommandBuilder()
-    .setName("grupcekeko")
-    .setDescription("[Özel] Roblox kullanıcısının tüm gruplardaki rollerini en alta çeker")
-    .addStringOption((o) =>
-      o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("grupcekekogerial")
-    .setDescription("[Özel] grupcekeko ile çekilen rolleri eski haline geri yükler")
-    .addStringOption((o) =>
-      o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("birimalimi")
-    .setDescription("Yönetici ve birim alımı duyurusu gönderir (Admin)")
-    .addStringOption((o) =>
-      o.setName("birim")
-        .setDescription("Alım yapılacak birim")
-        .setRequired(true)
-        .addChoices(
-          { name: "BAN BİRİMİ", value: "BAN_BIRIMI" },
-          { name: "SES BİRİMİ", value: "SES_BIRIMI" },
-          { name: "SOHBET BİRİMİ", value: "SOHBET_BIRIMI" }
-        )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
-    .setName("birimterfi")
-    .setDescription("Biriminizdeki bir personeli terfi ettirir (Rütbe 13-15)")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Terfi ettirilecek personel").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
     .setName("birimistifa")
     .setDescription("Bulunduğunuz birimden istifa edersiniz"),
-
-  new SlashCommandBuilder()
-    .setName("birimtanitim")
-    .setDescription("Birim yetki ve tanıtım mesajlarını gönderir (Admin)")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
     .setName("renk")
@@ -527,6 +208,11 @@ const generalCommands = [
     .addStringOption((o) =>
       o.setName("isim").setDescription("Yeni rol ismi").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("EkoYıldız Yetkili ve Moderasyon Kontrol Paneli")
+    .setDMPermission(false),
 ];
 
 const economyCommands = [
@@ -643,134 +329,16 @@ const funCommands = [
     ),
 ];
 
-const moderationCommands = [
-  new SlashCommandBuilder()
-    .setName("mesaj_sil")
-    .setDescription("Bulunulan kanalda belirtilen miktarda mesaj siler")
-    .addNumberOption((o) =>
-      o.setName("miktar").setDescription("Silinecek Mesaj Sayısı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("sustur")
-    .setDescription("Hedeflenen kullanıcıyı sunucuda susturur")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Hedef Kullanıcı").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sure").setDescription("Susturma Süresi (1m, 1h, 1d)").setRequired(false)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("Susturma Sebebi").setRequired(false)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("susturma_kaldir")
-    .setDescription("Hedeflenen kullanıcının sunucudaki susturmasını kaldırır")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Hedef Kullanıcı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("yasakla")
-    .setDescription("Hedeflenen kullanıcıyı sunucudan yasaklar")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Hedef Kullanıcı").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("Yasak Sebebi").setRequired(false)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("yasaklama_kaldir")
-    .setDescription("Hedeflenen kullanıcının sunucudaki yasağını kaldırır")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Hedef Kullanıcı").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("modislem")
-    .setDescription("Kullanıcıya moderasyon işlemi uygula (sebebe göre otomatik ceza)")
-    .addUserOption((o) =>
-      o.setName("kullanici").setDescription("Ceza verilecek kullanıcı").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("İhlal sebebi").setRequired(true)
-        .addChoices(
-          { name: "🤬 Küfür / Hakaret", value: "KUFUR" },
-          { name: "🤬 Ağır Küfür", value: "AGIR_KUFUR" },
-          { name: "🚫 Irkçılık / Nefret Söylemi", value: "IRKCILIK" },
-          { name: "🔞 Cinsel İçerik / NSFW", value: "NSFW" },
-          { name: "📨 Spam / Flood", value: "SPAM" },
-          { name: "📢 Reklam / Tanıtım", value: "REKLAM" },
-          { name: "🔒 Kişisel Bilgi Paylaşma", value: "KISISEL_BILGI" },
-          { name: "⚔️ Tehdit / Şiddet", value: "TEHDIT" },
-          { name: "🎭 Trolleme / Provokasyon", value: "TROLLEME" },
-          { name: "🔤 Büyük Harf Spam", value: "BUYUKHARF" },
-          { name: "😂 Emoji / Sticker Spam", value: "EMOJI_SPAM" },
-          { name: "📌 Yanlış Kanal Kullanımı", value: "YANLIS_KANAL" },
-          { name: "😏 Alay / Dalga Geçme", value: "ALAY" },
-          { name: "🛡️ Saygısızlık (Yetkililere)", value: "SAYGISIZLIK" },
-          { name: "🤥 Sahte Bilgi / Yalan", value: "YALAN" },
-          { name: "🔊 Sesli Kanalda Rahatsızlık", value: "SES_RAHATSIZLIK" },
-          { name: "🖼️ Uygunsuz Profil / Fotoğraf", value: "UYGUNSUZ_PROFIL" },
-          { name: "🔗 Link Paylaşma (İzinsiz)", value: "LINK_PAYLASMA" },
-          { name: "👥 Alt Hesap / Yan Hesap", value: "ALT_HESAP" },
-          { name: "✉️ DM Rahatsızlık", value: "DM_RAHATSIZLIK" },
-          { name: "⚖️ Moderatör Kararına İtiraz", value: "MOD_ITIRAZ" },
-          { name: "📋 Kanal Kurallarını İhlal", value: "KANAL_KURALLARI" },
-          { name: "🔥 Tartışma Başlatma / Kışkırtma", value: "KISKIRTMA" },
-          { name: "🔄 Tekrarlayan İhlal", value: "TEKRAR_IHLAL" },
-          { name: "💀 Dolandırıcılık / Scam", value: "DOLANDIRICILIK" }
-        )
-    )
-    .addAttachmentOption((o) =>
-      o.setName("kanit").setDescription("Kanıt ekran görüntüsü (opsiyonel)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
-    .setName("tamban")
-    .setDescription("[Yönetici] Kullanıcıyı tüm sunuculardan banlar ve Roblox gruplarından rütbe indirir")
-    .addStringOption((o) =>
-      o.setName("kullanici_id").setDescription("Yasaklanacak kullanıcının Discord ID'si veya etiket").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("seviye").setDescription("Banlama Seviyesi").setRequired(true)
-        .addChoices(
-          { name: "Çok Yüksek", value: "very_high" },
-          { name: "Yüksek", value: "high" },
-          { name: "Orta", value: "medium" },
-          { name: "Düşük", value: "low" },
-          { name: "Çok Düşük", value: "very_low" }
-        )
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("Banlama gerekçesi").setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(false),
-
-  new SlashCommandBuilder()
-    .setName("tamban_kaldir")
-    .setDescription("[Yönetici] Kullanıcının tambanını kaldırır ve Roblox rütbelerini iade eder")
-    .addStringOption((o) =>
-      o.setName("kullanici_id").setDescription("Yasağı kaldırılacak kullanıcının Discord ID'si veya etiket").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("sebep").setDescription("Yasak kaldırma gerekçesi").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(false),
-];
-
-// JSON'a dönüştürülmüş komut listesi (Deploy etmek için)
 const allCommands = [
   ...generalCommands,
   ...economyCommands,
   ...funCommands,
-  ...moderationCommands,
 ].map((c) => c.toJSON());
 
-module.exports = { allCommands, generalCommands, economyCommands, funCommands, moderationCommands };
+module.exports = {
+  allCommands,
+  generalCommands,
+  economyCommands,
+  funCommands,
+  moderationCommands: []
+};

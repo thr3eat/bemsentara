@@ -6,6 +6,11 @@ const {
 } = require("discord.js");
 
 async function handleSelectInteraction(interaction) {
+  if (interaction.customId.startsWith('panel_')) {
+    const { handlePanelSelect } = require("../services/mainPanelService");
+    return handlePanelSelect(interaction);
+  }
+
   if (interaction.customId === "select_daily_task") {
     const selectedTask = interaction.values[0];
     const StaffProgress = require("../../models/StaffProgress");

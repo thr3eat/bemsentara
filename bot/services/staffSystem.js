@@ -2208,7 +2208,7 @@ async function checkStaffVerifications(client) {
     const { BASE_URL } = require('../../config');
     let notifiedCount = 0;
     const { fetchUserGroups } = require('./roleSyncService');
-    const { ROBLOX } = require('./staffAutomation');
+    const { ROBLOX, ADMIN_GUILD_ID } = require('./staffAutomation');
 
     for (const p of allProgress) {
       const user = await User.findOne({ discordId: p.userId });
@@ -2231,7 +2231,7 @@ async function checkStaffVerifications(client) {
       // EĞER KULLANICI MODERATÖR SUNUCUSUNDAYSA UYARIYI ATMA
       let inModeratorServer = false;
       try {
-        const modGuild = await client.guilds.fetch(staffAutomation.ADMIN_GUILD_ID).catch(() => null);
+        const modGuild = await client.guilds.fetch(ADMIN_GUILD_ID).catch(() => null);
         if (modGuild) {
           const modMember = await modGuild.members.fetch(p.userId).catch(() => null);
           if (modMember) inModeratorServer = true;

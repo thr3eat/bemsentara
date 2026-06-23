@@ -12,6 +12,11 @@ const { syncTMTRoles } = require("../services/tmtRoleSyncService");
 const { handleRollCallButton } = require("../services/rollCallService");
 
 async function handleButtonInteraction(interaction) {
+  if (interaction.customId.startsWith('panel_')) {
+    const { handlePanelButton } = require("../services/mainPanelService");
+    return handlePanelButton(interaction);
+  }
+
   if (interaction.customId === 'talk_to_coach') {
     const { startCoachSession } = require('../services/staffCoach');
     return startCoachSession(interaction);

@@ -42,12 +42,12 @@ async function handleDiscordAbuseButton(interaction) {
         .setDisabled(true),
       new ButtonBuilder()
         .setCustomId(`disc_abuse_kick_${guildId}_${userId}`)
-        .setLabel("👢 At")
+        .setLabel("At")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(true),
       new ButtonBuilder()
         .setCustomId(`disc_abuse_ban_${guildId}_${userId}`)
-        .setLabel("🔨 Banla")
+        .setLabel("Banla")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(true),
       new ButtonBuilder()
@@ -57,6 +57,20 @@ async function handleDiscordAbuseButton(interaction) {
         .setDisabled(true)
     );
   }
+
+  // If this is a test simulation, handle it immediately
+  if (guildId === "test" || userId === "test") {
+    const actionLabel = action === "removeroles" ? "Roller Alındı" : action === "kick" ? "Üye Atıldı" : action === "ban" ? "Üye Banlandı" : "Yoksayıldı";
+    const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+      .setColor(action === "ignore" ? 0x95A5A6 : 0x2ECC71)
+      .setTitle(`🚨 Abuse Müdahalesi Gerçekleştirildi (TEST - ${actionLabel})`)
+      .setDescription(
+        (interaction.message.embeds[0].description || "") +
+        `\n\n> **${interaction.user.toString()}** tarafından **TEST** müdahalesi yapıldı: **${action.toUpperCase()}**`
+      );
+    return interaction.update({ embeds: [updatedEmbed], components: [makeDisabledRow(action)] });
+  }
+
 
   // ── YOKSAY ──────────────────────────────────────────────────────────────────
   if (action === "ignore") {

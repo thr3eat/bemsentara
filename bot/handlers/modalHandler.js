@@ -16,6 +16,11 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  if (interaction.customId.startsWith('panel_modal_')) {
+    const { handlePanelModal } = require("../services/mainPanelService");
+    return handlePanelModal(interaction);
+  }
+
   // ── Ticket oluşturma modal'ı ─────────────────────────────────────────────
   if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_") || interaction.customId.startsWith("ekoyildiz_support_modal_")) {
     return handleSupportModal(interaction);

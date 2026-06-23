@@ -77,6 +77,14 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Telegram AI Chat dinleyicisini başlat
+    try {
+      const { startTelegramPolling } = require("../services/telegramService");
+      startTelegramPolling(client);
+    } catch (err) {
+      console.error("[Telegram] Başlatılamadı:", err.message);
+    }
+
     // EkoYıldız Otomatik Rol Kurtarma (Bot Yeniden Başlatılınca)
     const { RESTORE_ROLES_ON_START } = require('../../config');
     if (RESTORE_ROLES_ON_START) {
@@ -924,6 +932,12 @@ function initializeDiscordHandlers(client) {
 
 
   client.on("messageCreate", async (message) => {
+    // Son mesajları Telegram AI kullanımı için kaydet
+    try {
+      const { recordMessage } = require("../services/telegramService");
+      recordMessage();
+    } catch (_) {}
+
     // Partial mesajları fetch et (DM için zorunlu)
     if (message.partial) {
       try { await message.fetch(); } catch (_) { return; }
@@ -1712,6 +1726,11 @@ async function handleInteraction(interaction) {
     }
 
     if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "panel") {
+        const { handlePanelSlashCommand } = require("./panelCommandHandler");
+        return handlePanelSlashCommand(interaction);
+      }
+
       // ── Gizli Başarım: Botun Kankası ──
       if (interaction.guild && interaction.guild.id === '1367646464804655104') {
         const uId = interaction.user.id;
