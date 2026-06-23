@@ -390,14 +390,19 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Success)
     );
 
-    const row3 = new ActionRowBuilder().addComponents(
+    const row2b = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("panel_mod_alim")
+        .setLabel("🛡️ MOD-ALIM Sistemi")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_tab_home")
         .setLabel("⬅️ Ana Menü")
         .setStyle(ButtonStyle.Secondary)
     );
 
-    components.push(row1, row2, row3);
+    components.push(row1, row2, row2b);
   }
 
   else if (tabName === "toggles") {
@@ -530,6 +535,34 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     components.push(row);
   }
 
+  else if (tabName === "mod_alim") {
+    embed
+      .setTitle("🛡️ MOD-ALIM: Moderatör Mülakatı")
+      .setColor(0xE74C3C)
+      .setDescription(
+        "Yeni moderatör adaylarını 7 soruluk AI mülakatından geçirerek ekibinize ekleyin.\n\n" +
+        "**Sistem:**\n" +
+        "• Adaya profesyonel mülakat daveti gönderilir\n" +
+        "• AI 7 zor soru sorar ve puanlar\n" +
+        "• Başarılı olursa otomatik moderatör olur\n" +
+        "• Staff sisteme kaydedilir"
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("panel_mod_alim_search")
+        .setLabel("🔍 Aday Seç")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_tab_system")
+        .setLabel("⬅️ Geri Dön")
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    components.push(row);
+  }
+
   await interaction.editReply({
     embeds: [embed],
     components
@@ -598,7 +631,8 @@ async function handlePanelButton(interaction) {
     panel_sys_toggles: "toggles",
     panel_sys_roblox_ranks: "roblox_ranks",
     panel_sys_birim: "birim",
-    panel_sys_giveaway_ai: "giveaway_ai"
+    panel_sys_giveaway_ai: "giveaway_ai",
+    panel_mod_alim: "mod_alim"
   };
 
   if (subTabs[customId]) {
@@ -1313,6 +1347,35 @@ async function handlePanelButton(interaction) {
       return interaction.editReply(`❌ Abuse test embedi gönderilemedi: ${e.message}`);
     }
   }
+
+  // MOD-ALIM Handler
+  if (customId === "panel_mod_alim_search") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { startModInterview } = require('./modInterview');
+      
+      // Modal göster - kullanıcı seçimi için
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_mod_alim")
+        .setTitle("🛡️ MOD-ALIM: Mülakat Gönder");
+      
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("mod_alim_user")
+            .setLabel("Aday Kullanıcı (ID veya @Etiket)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder("Örn: @kullanici veya 1234567890")
+        )
+      );
+      
+      return interaction.showModal(modal);
+    } catch (err) {
+      console.error("[panel_mod_alim_search]", err);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
 }
 
 /**
@@ -1879,6 +1942,52 @@ async function handlePanelModal(interaction) {
       return interaction.editReply(`❌ AI DM Konuşması başlatılamadı: ${e.message}`);
     }
     return;
+  }
+
+  // MOD-ALIM Modal Handler
+  if (customId === "panel_modal_mod_alim") {
+    const userVal = interaction.fields.getTextInputValue("mod_alim_user").trim();
+    const targetUserId = userVal.replace(/[<@!>]/g, "");
+    
+    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    if (!targetUser) {
+      return interaction.editReply({ content: "❌ Kullanıcı bulunamadı. Geçerli bir ID veya etiket gir." });
+    }
+
+    if (targetUser.bot) {
+      return interaction.editReply({ content: "❌ Botlara mülakat gönderilemez." });
+    }
+
+    try {
+      const { startModInterview } = require('./modInterview');
+      const sent = await startModInterview(targetUser, interaction.user.id, interaction.guild?.id, client);
+
+      if (sent) {
+        const successEmbed = new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle("✅ MOD-ALIM Mülakatı Gönderildi")
+          .setDescription(
+            `**Adat:** ${targetUser}\n` +
+            `**Tarih:** ${new Date().toLocaleString('tr-TR')}\n\n` +
+            `Kullanıcıya mülakat daveti DM'de gönderildi.`
+          )
+          .addFields(
+            { name: '⏱️ Beklenen Süre', value: '5-10 dakika', inline: false },
+            { name: '📋 Mülakat Turu', value: 'MOD-ALIM: 7 Soru - Master Moderatör Mülakatı', inline: false }
+          )
+          .setFooter({ text: 'Panel üzerinden gönderildi' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [successEmbed] });
+      } else {
+        return interaction.editReply({ 
+          content: `❌ **${targetUser.username}** kullanıcısına DM gönderilemedi.\n\n💡 *Kullanıcı DM'lerini kapamış olabilir.*` 
+        });
+      }
+    } catch (err) {
+      console.error('[panel_modal_mod_alim]', err);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
   }
 
   return interaction.editReply("❌ Bilinmeyen modal işlemi.");
