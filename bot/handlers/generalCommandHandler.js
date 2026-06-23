@@ -28,6 +28,7 @@ const GENERAL_COMMANDS = new Set([
   "seviyetop",
   "seviyeayarla",
   "modbasvuru",
+  "mod-alim",
   "istifa",
   "emeklilik",
   "koc",
@@ -846,6 +847,66 @@ async function handleGeneralCommand(interaction) {
       }
     } catch (err) {
       console.error('[modbasvuru] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── mod-alim: Geliştirilmiş moderatör mülakatı (MOD-ALIM Sistemi) ─────────
+  if (commandName === "mod-alim") {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ 
+        content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir!', 
+        ephemeral: true 
+      });
+    }
+    
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const target = interaction.options.getUser('kullanici');
+      
+      // Validation checks
+      if (target.bot) {
+        return interaction.editReply({ 
+          content: '❌ Botlara MOD-ALIM mülakatı gönderilemez.' 
+        });
+      }
+
+      if (target.id === interaction.user.id) {
+        return interaction.editReply({ 
+          content: '❌ Kendine mülakat gönderemezsin!' 
+        });
+      }
+
+      const { startModInterview } = require('../services/modInterview');
+      const sent = await startModInterview(target, interaction.user.id, interaction.guild?.id, interaction.client);
+
+      if (sent) {
+        const successEmbed = new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle('✅ MOD-ALIM Mülakatı Gönderildi')
+          .setDescription(
+            `**Aday:** ${target}\n` +
+            `**Tarih:** ${new Date().toLocaleString('tr-TR')}\n\n` +
+            `Kullanıcıya mülakat daveti DM'de gönderildi.`
+          )
+          .addFields(
+            { name: '⏱️ Beklenen Süre', value: '5-10 dakika', inline: false },
+            { name: '📋 Mülakat Turu', value: 'MOD-ALIM: 7 Soru - Master Moderatör Mülakatı', inline: false }
+          )
+          .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [successEmbed] });
+      } else {
+        return interaction.editReply({ 
+          content: `❌ **${target.username}** kullanıcısına DM gönderilemedi.\n\n💡 *Kullanıcı DM'lerini kapalmış olabilir.*` 
+        });
+      }
+    } catch (err) {
+      console.error('[mod-alim] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

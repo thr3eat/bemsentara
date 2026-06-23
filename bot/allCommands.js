@@ -213,6 +213,17 @@ const generalCommands = [
     .setName("panel")
     .setDescription("EkoYıldız Yetkili ve Moderasyon Kontrol Paneli")
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("mod-alim")
+    .setDescription("🛡️ MOD-ALIM: Kullanıcıya Moderatör Mülakatı Gönder (Sadece Yöneticiler)")
+    .addUserOption((o) =>
+      o.setName("kullanici")
+        .setDescription("Mülakat gönderilecek kullanıcı")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
 ];
 
 const economyCommands = [
