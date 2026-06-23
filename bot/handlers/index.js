@@ -96,6 +96,24 @@ function initializeDiscordHandlers(client) {
     const { startAIChatMonitor } = require('../services/aiChannelChat');
     startAIChatMonitor(client);
 
+    // Karaliste Sistemini Başlat (Dinamik Mesajları Oluşturur/Günceller)
+    try {
+      const { initializeBlacklist, checkBlacklistCleanup } = require('../services/blacklistService');
+      await initializeBlacklist(client);
+      await checkBlacklistCleanup(client);
+      
+      // Karaliste temizleme interval'i (24 saatte bir)
+      setInterval(async () => {
+        try {
+          await checkBlacklistCleanup(client);
+        } catch (err) {
+          console.error('[blacklist] Günlük temizleme hatası:', err.message);
+        }
+      }, 24 * 60 * 60 * 1000);
+    } catch (err) {
+      console.error('[blacklist] Başlatma Hatası:', err);
+    }
+
     // İlk defaya mahsus personele yeni gamification sistemi tanıtım mesajı at
     const { sendSystemUpdateNotification } = require('../services/staffSystem');
     sendSystemUpdateNotification(client);
@@ -899,6 +917,17 @@ function initializeDiscordHandlers(client) {
     // Partial mesajları fetch et (DM için zorunlu)
     if (message.partial) {
       try { await message.fetch(); } catch (_) { return; }
+    }
+
+    // ── Karaliste Mesaj Kontrolü (EkoYıldız) ──────────────────────────────────
+    if (message.channel && message.channel.id === '1518692472367222915') {
+      try {
+        const { handleBlacklistMessage } = require('../services/blacklistService');
+        await handleBlacklistMessage(message, client);
+      } catch (err) {
+        console.error('[blacklist] Mesaj işleme hatası:', err.message);
+      }
+      return;
     }
 
     // ── DM mesajları ────────────────────────────────────────────────────────
