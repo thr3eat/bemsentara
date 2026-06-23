@@ -100,11 +100,19 @@ passport.use(
           profile.sub ??
           (profile._json && (profile._json.sub || profile._json.id));
 
-        user.robloxId = rawRobloxId != null ? String(rawRobloxId) : null;
-
-        if (!user.robloxId) {
+        const rbxIdStr = rawRobloxId != null ? String(rawRobloxId) : null;
+        if (!rbxIdStr) {
           return done(new Error("Roblox hesap ID alınamadı. Tekrar deneyin."));
         }
+
+        // Check if this Roblox ID is already linked to another Discord user who is banned
+        const bannedUser = await User.findOne({ robloxId: rbxIdStr, isBanned: true });
+        if (bannedUser && String(bannedUser._id) !== String(user._id)) {
+          console.warn(`[passport] Roblox link blocked: Roblox ID ${rbxIdStr} is already associated with banned Discord user ${bannedUser.discordId}`);
+          return done(new Error("Bu Roblox hesabı yasaklı bir Discord hesabına bağlıdır. Giriş engellendi!"));
+        }
+
+        user.robloxId = rbxIdStr;
 
         if (req.user.discordId && String(user.discordId) !== String(req.user.discordId)) {
           user.discordId = String(req.user.discordId);

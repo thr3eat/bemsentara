@@ -139,8 +139,14 @@ async function processInactivityCheck(ticket, client, warnCutoff) {
     
     if (!guild) return;
 
-    const channel = await guild.channels.fetch(ticket.channelId).catch(err => {
+    const channel = await guild.channels.fetch(ticket.channelId).catch(async err => {
       console.debug(`[ticketCleanup] Channel ${ticket.channelId} not found:`, err.code);
+      if (err.code === 10003 || err.status === 404) {
+        ticket.channelDeleted = true;
+        ticket.channelDeletedAt = new Date();
+        await ticket.save().catch(() => {});
+        console.log(`[ticketCleanup] Ticket ${ticket.ticketId} channel was deleted externally. Marked in DB.`);
+      }
       return null;
     });
     

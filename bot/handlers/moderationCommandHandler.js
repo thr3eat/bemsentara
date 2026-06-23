@@ -219,7 +219,7 @@ async function handleModerationCommand(interaction) {
 
     if (commandName === "tamban") {
       const inputId = interaction.options.getString("kullanici_id");
-      const targetUserId = inputId.replace(/[<@!>]/g, "");
+      let targetUserId = inputId.replace(/[<@!>]/g, "");
       const seviye = interaction.options.getString("seviye");
       const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
 
@@ -228,7 +228,50 @@ async function handleModerationCommand(interaction) {
       const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
       const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require("discord.js");
 
+      // Resolve numeric ID if a username/mention was typed
+      if (!/^\d+$/.test(targetUserId)) {
+        const allUsers = await User.find({});
+        const found = allUsers.find(u => 
+          (u.discordUsername && u.discordUsername.toLowerCase() === targetUserId.toLowerCase()) ||
+          (u.robloxUsername && u.robloxUsername.toLowerCase() === targetUserId.toLowerCase())
+        );
+        if (found) {
+          targetUserId = found.discordId;
+        } else {
+          // Check guild members cache
+          const memberFound = interaction.guild.members.cache.find(m => 
+            m.user.username.toLowerCase() === targetUserId.toLowerCase() || 
+            (m.nickname && m.nickname.toLowerCase() === targetUserId.toLowerCase())
+          );
+          if (memberFound) {
+            targetUserId = memberFound.id;
+          } else {
+            return interaction.editReply({ content: `❌ Kullanıcı ID veya kullanıcı adı bulunamadı: \`${inputId}\`` });
+          }
+        }
+      }
+
       let dbUser = await User.findOne({ discordId: targetUserId });
+      if (!dbUser) {
+        dbUser = new User({
+          discordId: targetUserId,
+          discordUsername: "Bilinmiyor",
+          isBanned: true,
+          banReason: sebep,
+          bannedAt: new Date(),
+          bannedBy: interaction.user.id,
+          banLevel: seviye
+        });
+        await dbUser.save();
+      } else {
+        dbUser.isBanned = true;
+        dbUser.banReason = sebep;
+        dbUser.bannedAt = new Date();
+        dbUser.bannedBy = interaction.user.id;
+        dbUser.banLevel = seviye;
+        await dbUser.save();
+      }
+
       let robloxId = dbUser?.robloxId;
       let robloxUsername = dbUser?.robloxUsername;
 
@@ -243,19 +286,28 @@ async function handleModerationCommand(interaction) {
             try {
               const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxUserId);
               if (rankInGroup > 0) {
-                const roles = await noblox.getRoles(parseInt(groupId));
-                const lowest = roles.filter(r => r.rank > 0).sort((a, b) => a.rank - b.rank)[0];
-                if (lowest && rankInGroup !== lowest.rank) {
+                if (seviye === "very_high") {
                   savedGroupRanks[groupId] = {
                     oldRank: rankInGroup,
-                    oldRoleId: lowest.rank
+                    exiled: true
                   };
-                  await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: lowest.rank });
-                  robloxLogs.push(`${groupName}`);
+                  await noblox.exile(parseInt(groupId), robloxUserId);
+                  robloxLogs.push(`${groupName} (Sürgün Edildi)`);
+                } else {
+                  const roles = await noblox.getRoles(parseInt(groupId));
+                  const lowest = roles.filter(r => r.rank > 0).sort((a, b) => a.rank - b.rank)[0];
+                  if (lowest && rankInGroup !== lowest.rank) {
+                    savedGroupRanks[groupId] = {
+                      oldRank: rankInGroup,
+                      oldRoleId: lowest.rank
+                    };
+                    await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: lowest.rank });
+                    robloxLogs.push(`${groupName} (Rütbe Düşürüldü)`);
+                  }
                 }
               }
             } catch (err) {
-              console.warn(`[tamban] Roblox group ${groupId} demotion error:`, err.message);
+              console.warn(`[tamban] Roblox group ${groupId} demotion/exile error:`, err.message);
             }
           }
         }
@@ -263,18 +315,15 @@ async function handleModerationCommand(interaction) {
 
       if (dbUser && Object.keys(savedGroupRanks).length > 0) {
         dbUser.tambanSavedRanks = savedGroupRanks;
-      }
-
-      if (dbUser) {
-        dbUser.isBanned = true;
-        dbUser.banReason = sebep;
-        dbUser.bannedAt = new Date();
-        dbUser.bannedBy = interaction.user.id;
-        dbUser.banLevel = seviye;
         await dbUser.save();
       }
 
       const targetUserObj = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      if (targetUserObj && dbUser && dbUser.discordUsername === "Bilinmiyor") {
+        dbUser.discordUsername = targetUserObj.username;
+        await dbUser.save();
+      }
+
       const dmSent = { success: false };
 
       const getNormalMemberRole = (guild) => {
@@ -308,37 +357,54 @@ async function handleModerationCommand(interaction) {
       for (const guild of interaction.client.guilds.cache.values()) {
         try {
           const member = await guild.members.fetch(targetUserId).catch(() => null);
-          if (!member) continue;
-          discGuildNames.push(guild.name);
 
           if (seviye === "very_high" || seviye === "high") {
-            await member.ban({ reason: `Tam Ban (${seviye}): ${sebep}` }).catch(() => {});
-            discordLogs.push(`${guild.name} (Banlandı)`);
+            await guild.bans.create(targetUserId, { reason: `Tam Ban (${seviye}): ${sebep}` }).catch(() => {});
+            if (member) {
+              discGuildNames.push(guild.name);
+              discordLogs.push(`${guild.name} (Banlandı)`);
+            } else {
+              discordLogs.push(`${guild.name} (Gıyabında Banlandı)`);
+            }
           } else if (seviye === "medium") {
             const { TMT_GUILD_ID } = require("../../config");
             const isMain = guild.id === TMT_GUILD_ID || guild.id === "1367646464804655104";
             if (isMain) {
-              await member.ban({ reason: `Tam Ban (Orta): ${sebep}` }).catch(() => {});
-              discordLogs.push(`${guild.name} (Banlandı)`);
+              await guild.bans.create(targetUserId, { reason: `Tam Ban (Orta): ${sebep}` }).catch(() => {});
+              if (member) {
+                discGuildNames.push(guild.name);
+                discordLogs.push(`${guild.name} (Banlandı)`);
+              } else {
+                discordLogs.push(`${guild.name} (Gıyabında Banlandı)`);
+              }
             } else {
-              await member.kick(`Tam Ban (Orta): ${sebep}`).catch(() => {});
-              discordLogs.push(`${guild.name} (Atıldı)`);
+              if (member) {
+                discGuildNames.push(guild.name);
+                await member.kick(`Tam Ban (Orta): ${sebep}`).catch(() => {});
+                discordLogs.push(`${guild.name} (Atıldı)`);
+              }
             }
           } else if (seviye === "low") {
-            await member.kick(`Tam Ban (Düşük): ${sebep}`).catch(() => {});
-            discordLogs.push(`${guild.name} (Atıldı)`);
+            if (member) {
+              discGuildNames.push(guild.name);
+              await member.kick(`Tam Ban (Düşük): ${sebep}`).catch(() => {});
+              discordLogs.push(`${guild.name} (Atıldı)`);
+            }
           } else if (seviye === "very_low") {
-            const editableRoles = member.roles.cache.filter(role => 
-              role.id !== guild.id && !role.managed && role.editable
-            );
-            if (editableRoles.size > 0) {
-              await member.roles.remove(Array.from(editableRoles.keys()), `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
+            if (member) {
+              discGuildNames.push(guild.name);
+              const editableRoles = member.roles.cache.filter(role => 
+                role.id !== guild.id && !role.managed && role.editable
+              );
+              if (editableRoles.size > 0) {
+                await member.roles.remove(Array.from(editableRoles.keys()), `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
+              }
+              const basicRole = getNormalMemberRole(guild);
+              if (basicRole) {
+                await member.roles.add(basicRole, `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
+              }
+              discordLogs.push(`${guild.name} (Roller Sıfırlandı)`);
             }
-            const basicRole = getNormalMemberRole(guild);
-            if (basicRole) {
-              await member.roles.add(basicRole, `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
-            }
-            discordLogs.push(`${guild.name} (Roller Sıfırlandı)`);
           }
         } catch (gErr) {
           console.warn(`[tamban] Guild ${guild.name} action error:`, gErr.message);
@@ -383,7 +449,7 @@ async function handleModerationCommand(interaction) {
         `📂 **Ban Seviyesi:** \`${seviye.toUpperCase()}\`\n` +
         `📋 **Gerekçe:** ${sebep}\n` +
         `🤖 **Roblox Bağlantısı:** ${robloxId ? `Evet (\`${robloxUsername || robloxId}\`)` : "Hayır"}\n\n` +
-        `🛡️ **Roblox İşlemleri:** ${robloxLogs.length > 0 ? robloxLogs.join(", ") + " rütbe düşürüldü." : "Yapılmadı."}\n` +
+        `🛡️ **Roblox İşlemleri:** ${robloxLogs.length > 0 ? robloxLogs.join(", ") : "Yapılmadı."}\n` +
         `🏠 **Discord İşlemleri:** ${discordLogs.length > 0 ? discordLogs.join(", ") : "Herhangi bir sunucuda bulunamadı."}\n` +
         `📬 **DM Durumu:** ${dmSent.success ? "✅ Gönderildi" : "❌ Gönderilemedi"}`;
 
@@ -398,11 +464,34 @@ async function handleModerationCommand(interaction) {
 
     if (commandName === "tamban_kaldir") {
       const inputId = interaction.options.getString("kullanici_id");
-      const targetUserId = inputId.replace(/[<@!>]/g, "");
+      let targetUserId = inputId.replace(/[<@!>]/g, "");
       const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
 
       const User = require("../../models/User");
       const noblox = require("noblox.js");
+
+      // Resolve numeric ID if a username/mention was typed
+      if (!/^\d+$/.test(targetUserId)) {
+        const allUsers = await User.find({});
+        const found = allUsers.find(u => 
+          (u.discordUsername && u.discordUsername.toLowerCase() === targetUserId.toLowerCase()) ||
+          (u.robloxUsername && u.robloxUsername.toLowerCase() === targetUserId.toLowerCase())
+        );
+        if (found) {
+          targetUserId = found.discordId;
+        } else {
+          // Check guild members cache
+          const memberFound = interaction.guild.members.cache.find(m => 
+            m.user.username.toLowerCase() === targetUserId.toLowerCase() || 
+            (m.nickname && m.nickname.toLowerCase() === targetUserId.toLowerCase())
+          );
+          if (memberFound) {
+            targetUserId = memberFound.id;
+          } else {
+            return interaction.editReply({ content: `❌ Kullanıcı ID veya kullanıcı adı bulunamadı: \`${inputId}\`` });
+          }
+        }
+      }
 
       let dbUser = await User.findOne({ discordId: targetUserId });
       
@@ -417,9 +506,11 @@ async function handleModerationCommand(interaction) {
             try {
               const groupName = ROBLOX_GROUPS[groupId] || `Grup ${groupId}`;
               const oldRank = rankInfo.oldRank;
-              if (oldRank) {
+              if (rankInfo.exiled) {
+                robloxLogs.push(`${groupName} (Sürgün edilmişti - Geri katıldığında rütbe ${oldRank} yapılmalı)`);
+              } else if (oldRank) {
                 await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: oldRank });
-                robloxLogs.push(`${groupName}`);
+                robloxLogs.push(`${groupName} (Rütbe İade Edildi)`);
               }
             } catch (err) {
               console.warn(`[tamban_kaldir] Roblox group ${groupId} restore error:`, err.message);

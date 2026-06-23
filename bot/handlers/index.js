@@ -28,6 +28,61 @@ const photoTracker = new Map();
 const botFriendTracker = new Map();
 
 function initializeDiscordHandlers(client) {
+  // Intercept and patch interaction replies to avoid ephemeral deprecation warnings
+  try {
+    const { CommandInteraction, MessageComponentInteraction, ModalSubmitInteraction, MessageFlags } = require("discord.js");
+    const EphemeralFlag = MessageFlags?.Ephemeral ?? 64;
+
+    const patchInteractionOptions = (options) => {
+      if (options && typeof options === "object") {
+        if (options.ephemeral !== undefined) {
+          if (options.ephemeral) {
+            options.flags = (options.flags || 0) | EphemeralFlag;
+          }
+          delete options.ephemeral;
+        }
+      }
+      return options;
+    };
+
+    const classesToPatch = [CommandInteraction, MessageComponentInteraction, ModalSubmitInteraction];
+    for (const cls of classesToPatch) {
+      if (cls && cls.prototype) {
+        const origReply = cls.prototype.reply;
+        if (origReply) {
+          cls.prototype.reply = function (options) {
+            if (typeof options === "string") {
+              options = { content: options };
+            }
+            patchInteractionOptions(options);
+            return origReply.call(this, options);
+          };
+        }
+
+        const origDeferReply = cls.prototype.deferReply;
+        if (origDeferReply) {
+          cls.prototype.deferReply = function (options) {
+            patchInteractionOptions(options);
+            return origDeferReply.call(this, options);
+          };
+        }
+
+        const origFollowUp = cls.prototype.followUp;
+        if (origFollowUp) {
+          cls.prototype.followUp = function (options) {
+            if (typeof options === "string") {
+              options = { content: options };
+            }
+            patchInteractionOptions(options);
+            return origFollowUp.call(this, options);
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[deprecationPatch] Failed to apply interaction reply patches:", err.message);
+  }
+
   const { initializeVoiceAndBanHandlers } = require("./voiceHandler");
   initializeVoiceAndBanHandlers(client);
   
@@ -334,6 +389,58 @@ function initializeDiscordHandlers(client) {
 
   client.on("guildMemberAdd", async (member) => {
     try {
+      // 1. Veritabanı Ban Kontrolü ve Otomatik Cezalandırma
+      const User = require("../../models/User");
+      const dbUser = await User.findOne({ discordId: member.id });
+      if (dbUser && dbUser.isBanned) {
+        const seviye = dbUser.banLevel || "high";
+        const sebep = dbUser.banReason || "Veritabanı Ban Kaydı";
+
+        if (seviye === "very_high" || seviye === "high") {
+          await member.ban({ reason: `Otomatik Veritabanı Banı (${seviye}): ${sebep}` }).catch(() => {});
+          console.log(`[AutoBan] Banned user ${member.id} (${member.user.tag}) on join.`);
+          return;
+        } else if (seviye === "medium") {
+          const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
+          const isMain = member.guild.id === TMT_GUILD_ID || member.guild.id === GUILD2_ID;
+          if (isMain) {
+            await member.ban({ reason: `Otomatik Veritabanı Banı (Orta): ${sebep}` }).catch(() => {});
+            console.log(`[AutoBan] Banned user ${member.id} (${member.user.tag}) on join (main guild).`);
+            return;
+          } else {
+            await member.kick(`Otomatik Veritabanı Cezası (Orta): ${sebep}`).catch(() => {});
+            console.log(`[AutoBan] Kicked user ${member.id} (${member.user.tag}) on join.`);
+            return;
+          }
+        } else if (seviye === "low") {
+          await member.kick(`Otomatik Veritabanı Cezası (Düşük): ${sebep}`).catch(() => {});
+          console.log(`[AutoBan] Kicked user ${member.id} (${member.user.tag}) on join.`);
+          return;
+        } else if (seviye === "very_low") {
+          const editableRoles = member.roles.cache.filter(role => 
+            role.id !== member.guild.id && !role.managed && role.editable
+          );
+          if (editableRoles.size > 0) {
+            await member.roles.remove(Array.from(editableRoles.keys())).catch(() => {});
+          }
+          const namesToSearch = ["üye", "member", "personel", "onaylı", "onaylanmış hesap", "kullanıcı"];
+          let basicRole = null;
+          for (const name of namesToSearch) {
+            const role = member.guild.roles.cache.find(r => r.name.toLowerCase() === name && !r.managed);
+            if (role) {
+              basicRole = role;
+              break;
+            }
+          }
+          if (basicRole) {
+            await member.roles.add(basicRole, `Otomatik Veritabanı Cezası (Çok Düşük): ${sebep}`).catch(() => {});
+          }
+          console.log(`[AutoBan] Reset roles for user ${member.id} on join.`);
+          return;
+        }
+      }
+
+      // 2. Normal Giriş İşlemleri
       const { GUILD2_ID } = require("../../config");
       if (member.guild.id === GUILD2_ID) {
         // Sunucuya yeni giren herkese Yavru Dinazor rolünü ver (Zorunlu ilk rol)
@@ -343,6 +450,12 @@ function initializeDiscordHandlers(client) {
             console.error("[guildMemberAdd] Yavru Dinazor rolü verilirken hata:", err.message);
           });
         }
+
+        // Sunucu Etiketi (Clan Tag) Kontrolü
+        const { checkAndRewardTag } = require("../services/clanTagService");
+        await checkAndRewardTag(member).catch(err => {
+          console.error("[guildMemberAdd] checkAndRewardTag error:", err.message);
+        });
       }
     } catch (err) {
       console.error("guildMemberAdd hatası:", err);
@@ -389,6 +502,24 @@ function initializeDiscordHandlers(client) {
       }
     } catch (err) {
       console.error("guildMemberUpdate hatası:", err);
+    }
+  });
+
+  client.on("userUpdate", async (oldUser, newUser) => {
+    try {
+      const { GUILD2_ID } = require("../../config");
+      const guild = client.guilds.cache.get(GUILD2_ID) || await client.guilds.fetch(GUILD2_ID).catch(() => null);
+      if (guild) {
+        const member = guild.members.cache.get(newUser.id) || await guild.members.fetch(newUser.id).catch(() => null);
+        if (member) {
+          const { checkAndRewardTag } = require("../services/clanTagService");
+          await checkAndRewardTag(member).catch(err => {
+            console.error("[userUpdate] checkAndRewardTag error:", err.message);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("userUpdate hatası:", err);
     }
   });
 
@@ -693,13 +824,18 @@ function initializeDiscordHandlers(client) {
 
       if (!oldState.channelId && newState.channelId) {
         // Sese girdi
-        const { TMT_GUILD_ID } = require("../../config");
+        const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
         if (guildId === TMT_GUILD_ID) {
           const { logTMTVoiceStateUpdate } = require("../services/tmtLogger");
           logTMTVoiceStateUpdate(oldState, newState);
         }
         voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
         if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
+
+        if (guildId === GUILD2_ID) {
+          const { checkAndRewardTag } = require("../services/clanTagService");
+          await checkAndRewardTag(member).catch(() => {});
+        }
         
         // ── Sabah Kuşu Başarımı (Ses) ──
         if (guildId === '1367646464804655104') {

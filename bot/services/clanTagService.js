@@ -19,12 +19,15 @@ function hasClanTagTextOrNative(member) {
     primaryGuild.tag.toUpperCase() === "EKO";
   if (hasNativeTag) return true;
   
-  // 2. Check nickname / username (case-insensitive for 'EKO')
-  const name = member.displayName || member.user?.username || "";
-  const nameUpper = name.toUpperCase();
+  // 2. Check nickname, username, globalName and displayName (case-insensitive for 'EKO')
+  const nickname = member.nickname || "";
+  const username = member.user?.username || "";
+  const globalName = member.user?.globalName || "";
+  const displayName = member.displayName || "";
   
-  // Look for "EKO" tag (we can check if it contains the word "EKO")
-  return nameUpper.includes("EKO");
+  const matches = (str) => str.toUpperCase().includes("EKO");
+  
+  return matches(nickname) || matches(username) || matches(globalName) || matches(displayName);
 }
 
 /**

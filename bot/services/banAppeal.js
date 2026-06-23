@@ -70,7 +70,7 @@ async function sendAppealDM(user, guildName, guildId, reason, type = 'ban') {
     console.log(`[banAppeal] İtiraz DM gönderildi: ${user.tag} (${type}, sunucu: ${guildName})`);
     return true;
   } catch (err) {
-    console.warn(`[banAppeal] DM gönderilemedi (${user.tag}):`, err.message);
+    console.log(`[banAppeal] DM gönderilemedi (${user.tag}): Ortak sunucu yok veya DM kapalı.`);
     return false;
   }
 }

@@ -83,13 +83,11 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_tab_staff")
         .setLabel("👥 Personel")
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(!auth.isManager),
+        .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⚙️ Sistem & Otomasyon")
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(!auth.isAdmin),
+        .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId("panel_close")
         .setLabel("❌ Kapat")
@@ -117,26 +115,31 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_mod_mute")
         .setLabel("🔇 Sustur (Mute)")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_unmute")
         .setLabel("🔊 Susturma Aç")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_modaction")
         .setLabel("🚷 Ceza İşlem (Modİşlem)")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_bulk_delete")
         .setLabel("🗑️ Toplu Sil")
         .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isMod)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_mod_blacklist")
         .setLabel("🚫 Karaliste (Blacklist)")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_tamban")
         .setLabel("🔨 Tam Ban (Global)")
@@ -187,7 +190,8 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId(`panel_blacklist_btn_openform:${blacklistOption}`)
         .setLabel("➕ Formu Aç")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_tab_moderation")
         .setLabel("⬅️ Geri Dön")
@@ -213,26 +217,31 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_staff_setstats")
         .setLabel("⚙️ İstatistik/Seviye Ayarla")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_fire")
         .setLabel("🚪 Personel Kov (Sil)")
         .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isManager)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_staff_promote_demote")
         .setLabel("🎖️ Terfi / Tenzilat")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_reward")
         .setLabel("🎁 Ödül Yönetimi")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_giveleave")
         .setLabel("🏖️ İzin Günü Tanımla")
         .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager)
     );
 
     const row3 = new ActionRowBuilder().addComponents(
@@ -261,11 +270,13 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_staff_attendance_start")
         .setLabel("🟢 Yoklama Başlat")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_attendance_stop")
         .setLabel("🔴 Yoklamayı Bitir & Sonuçlar")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_tab_staff")
         .setLabel("⬅️ Geri Dön")
@@ -291,11 +302,13 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_sys_channel_perms")
         .setLabel("🔒 Kanal İzinleri")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_sys_otomod")
         .setLabel("🛡️ Otomod Ayarları")
         .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isAdmin)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
@@ -333,15 +346,18 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_sys_toggle_economy")
         .setLabel("💰 Ekonomi Sistemi")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_sys_toggle_moderation")
         .setLabel("🛡️ Moderasyon Sistemi")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_sys_toggle_fun")
         .setLabel("🎮 Eğlence Oyunları")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⬅️ Geri Dön")
@@ -361,22 +377,26 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_sys_ekobang")
         .setLabel("🔒 EkoBang Uygula")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_sys_ekobangerial")
         .setLabel("🔓 EkoBang İade Et")
         .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_sys_grupcekeko")
         .setLabel("⬇️ GrupÇekEko")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_sys_grupcekekogerial")
         .setLabel("⬆️ GrupÇekEko Geri Al")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⬅️ Geri Dön")
@@ -396,11 +416,13 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_sys_birimalimi")
         .setLabel("📢 Birim Alımı Duyur")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_sys_birimtanitim")
         .setLabel("📋 Birim Tanıtımı Gönder")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⬅️ Geri Dön")
@@ -420,11 +442,13 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_sys_xpcekilis")
         .setLabel("🎉 XP Çekilişi Başlat")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_sys_konus")
         .setLabel("💬 AI DM Konuşma")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_sys_abusetest")
         .setLabel("🧪 Abuse Embed Test")

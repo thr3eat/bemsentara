@@ -180,6 +180,15 @@ function startTelegramPolling(client) {
   isPollingActive = true;
   console.log("[Telegram] Polling dinleyici başlatıldı.");
 
+  // Delete webhook first to avoid 409 Conflict errors
+  axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`)
+    .then(() => {
+      console.log("[Telegram] Webhook silindi (polling aktif).");
+    })
+    .catch((err) => {
+      console.warn("[Telegram] Webhook silinirken hata (yok sayılabilir):", err.message);
+    });
+
   async function poll() {
     try {
       const response = await axios.get(
