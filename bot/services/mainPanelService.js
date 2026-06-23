@@ -22,7 +22,37 @@ const { renderBlacklist } = require("./blacklistService");
 
 // Configuration values
 const BLACKLIST_LOG_CHANNEL_ID = '1518920074264842380';
-const STAFF_ATTENDANCE_CHANNEL_ID = '1466945894250188912'; // Default channel for attendance count
+const STAFF_ATTENDANCE_CHANNEL_ID = '1466945894250188912';
+
+/**
+ * Escapes special regex characters from user input to prevent ReDoS / injection
+ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Parses duration string into milliseconds.
+ * Supports composite durations like "1h30m", "2d12h", etc.
+ */
+function parseDuration(timeStr) {
+  const unitMap = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  // Match all (number + unit) pairs
+  const matches = [...timeStr.matchAll(/(\d+)([smhd])/g)];
+  if (!matches.length) return 10 * 60 * 1000; // default 10 minutes
+
+  return matches.reduce((total, match) => {
+    const value = parseInt(match[1]);
+    const unit = match[2];
+    return total + value * (unitMap[unit] || 1000);
+  }, 0);
+}
 
 /**
  * Checks authorization levels:
@@ -36,8 +66,9 @@ async function getAuth(member) {
   const isOwner = member.user.id === "1031620522406072350";
   const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
   const isManager = member.permissions.has(PermissionFlagsBits.ManageGuild);
-  const isMod = member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-                member.permissions.has(PermissionFlagsBits.ModerateMembers);
+  const isMod =
+    member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+    member.permissions.has(PermissionFlagsBits.ModerateMembers);
 
   const staff = await StaffProgress.findOne({ userId: member.user.id });
   const isStaff = staff && staff.status === 'active';
@@ -52,7 +83,8 @@ async function getAuth(member) {
 }
 
 /**
- * Generates Embed and Component rows based on tabName
+ * Generates Embed and Component rows based on tabName.
+ * Always uses editReply — caller must deferUpdate() or deferReply() beforehand.
  */
 async function renderPanel(interaction, tabName, blacklistOption = '1') {
   const auth = await getAuth(interaction.member);
@@ -72,14 +104,25 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       )
       .addFields(
         { name: "Yetkili", value: `${interaction.user.tag}`, inline: true },
-        { name: "Rol", value: auth.isAdmin ? "👑 Yönetici" : auth.isManager ? "👨‍✈️ Yönetici / Manager" : auth.isMod ? "🛡️ Moderatör" : "👔 Personel", inline: true }
+        {
+          name: "Rol",
+          value: auth.isAdmin
+            ? "👑 Yönetici"
+            : auth.isManager
+              ? "👨‍✈️ Yönetici / Manager"
+              : auth.isMod
+                ? "🛡️ Moderatör"
+                : "👔 Personel",
+          inline: true
+        }
       );
 
     const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
     if (allowedSpecial.includes(interaction.user.id)) {
       embed.addFields({
         name: "🚨 Acil Durum Arama",
-        value: "Aşağıdaki **📞 Acil Ara** butonunu kullanarak Telegram üzerinden anında sesli arama çağrısı başlatabilirsiniz.",
+        value:
+          "Aşağıdaki **📞 Acil Ara** butonunu kullanarak Telegram üzerinden anında sesli arama çağrısı başlatabilirsiniz.",
         inline: false
       });
     }
@@ -431,7 +474,9 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     embed
       .setTitle("📣 Birim Duyuru & Alım")
       .setColor(0x9B59B6)
-      .setDescription("Branş birimleri için başvuru/alım açabilir ya da birim kurallarını kanallara gönderebilirsiniz.");
+      .setDescription(
+        "Branş birimleri için başvuru/alım açabilir ya da birim kurallarını kanallara gönderebilirsiniz."
+      );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -457,7 +502,9 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     embed
       .setTitle("🎲 Çekiliş & Yapay Zeka Test")
       .setColor(0x1ABC9C)
-      .setDescription("Otomatik XP çekilişleri başlatabilir veya AI DM konuşma testlerini uygulayabilirsiniz.");
+      .setDescription(
+        "Otomatik XP çekilişleri başlatabilir veya AI DM konuşma testlerini uygulayabilirsiniz."
+      );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -495,15 +542,22 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
 async function handlePanelButton(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
-  
+
   if (customId === "panel_close") {
-    return interaction.update({ content: "🔒 Kontrol paneli kapatıldı.", embeds: [], components: [] });
+    return interaction.update({
+      content: "🔒 Kontrol paneli kapatıldı.",
+      embeds: [],
+      components: []
+    });
   }
 
   if (customId === "panel_emergency_call") {
     const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
     if (!allowedSpecial.includes(interaction.user.id)) {
-      return interaction.reply({ content: "❌ Bu butonu kullanmaya yetkiniz bulunmamaktadır!", ephemeral: true });
+      return interaction.reply({
+        content: "❌ Bu butonu kullanmaya yetkiniz bulunmamaktadır!",
+        ephemeral: true
+      });
     }
 
     await interaction.deferReply({ ephemeral: true });
@@ -513,31 +567,38 @@ async function handlePanelButton(interaction) {
       const callText = `Sentara sunucu yonetim paneli. Yonetici ${interaction.user.username} tarafindan acil cagri baslatildi. Lutfen hemen sunucuyu kontrol edin.`;
       const success = await callTelegramUser(callText);
       if (success) {
-        return interaction.editReply({ content: "✅ **Acil arama Telegram üzerinden başarıyla başlatıldı!** Bot sizi arıyor." });
+        return interaction.editReply({
+          content: "✅ **Acil arama Telegram üzerinden başarıyla başlatıldı!** Bot sizi arıyor."
+        });
       } else {
-        return interaction.editReply({ content: "❌ **Arama başarısız.** Lütfen Telegram botunuzun ve arama servisinin (CallMeBot) yapılandırıldığından emin olun." });
+        return interaction.editReply({
+          content:
+            "❌ **Arama başarısız.** Lütfen Telegram botunuzun ve arama servisinin (CallMeBot) yapılandırıldığından emin olun."
+        });
       }
     } catch (err) {
       console.error("[panel_emergency_call] Error:", err);
-      return interaction.editReply({ content: `❌ Arama tetiklenirken hata oluştu: ${err.message}` });
+      return interaction.editReply({
+        content: `❌ Arama tetiklenirken hata oluştu: ${err.message}`
+      });
     }
   }
 
-  // Handle Tab navigation
+  // Tab navigation
   if (customId.startsWith("panel_tab_")) {
     const tabName = customId.replace("panel_tab_", "");
     await interaction.deferUpdate();
     return renderPanel(interaction, tabName);
   }
 
-  // Handle sub-tab navigation
+  // Sub-tab navigation
   const subTabs = {
-    "panel_mod_blacklist": "blacklist",
-    "panel_staff_attendance": "attendance",
-    "panel_sys_toggles": "toggles",
-    "panel_sys_roblox_ranks": "roblox_ranks",
-    "panel_sys_birim": "birim",
-    "panel_sys_giveaway_ai": "giveaway_ai"
+    panel_mod_blacklist: "blacklist",
+    panel_staff_attendance: "attendance",
+    panel_sys_toggles: "toggles",
+    panel_sys_roblox_ranks: "roblox_ranks",
+    panel_sys_birim: "birim",
+    panel_sys_giveaway_ai: "giveaway_ai"
   };
 
   if (subTabs[customId]) {
@@ -545,112 +606,257 @@ async function handlePanelButton(interaction) {
     return renderPanel(interaction, subTabs[customId]);
   }
 
-  // MODERATION ACTIONS (Mutes, Bans, Modals)
+  // ── MODERATION MODALS ──────────────────────────────────────────────────────
+
   if (customId === "panel_mod_bulk_delete") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_bulk_delete").setTitle("🗑️ Toplu Mesaj Sil");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_bulk_delete")
+      .setTitle("🗑️ Toplu Mesaj Sil");
     modal.addComponents(
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("miktar").setLabel("Silinecek Mesaj Sayısı (1-100)").setStyle(TextInputStyle.Short).setRequired(true)
+        new TextInputBuilder()
+          .setCustomId("miktar")
+          .setLabel("Silinecek Mesaj Sayısı (1-100)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
       )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_mod_mute") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_mute").setTitle("🔇 Kullanıcı Sustur (Timeout)");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_mute")
+      .setTitle("🔇 Kullanıcı Sustur (Timeout)");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Kullanıcı ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sure").setLabel("Süre (Örn: 10m, 1h, 1d)").setValue("10m").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Susturma Sebebi").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Kullanıcı ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sure")
+          .setLabel("Süre (Örn: 10m, 1h, 1d veya 1h30m)")
+          .setValue("10m")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Susturma Sebebi")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_mod_unmute") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_unmute").setTitle("🔊 Susturma Kaldır");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_unmute")
+      .setTitle("🔊 Susturma Kaldır");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Kullanıcı ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Kullanıcı ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_mod_modaction") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_modaction").setTitle("🚷 Ceza İşlem (Modİşlem)");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_modaction")
+      .setTitle("🚷 Ceza İşlem (Modİşlem)");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Ceza Verilecek Kullanıcı (ID/Etiket)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("İhlal Kodu (Örn: KUFUR, SPAM, REKLAM)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kanit").setLabel("Kanıt Ekran Görüntüsü Linki (Opsiyonel)").setStyle(TextInputStyle.Short).setRequired(false))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Ceza Verilecek Kullanıcı (ID/Etiket)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("İhlal Kodu (Örn: KUFUR, SPAM, REKLAM)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kanit")
+          .setLabel("Kanıt Ekran Görüntüsü Linki (Opsiyonel)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_mod_tamban") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_tamban").setTitle("🔨 Tam Ban (Global)");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_tamban")
+      .setTitle("🔨 Tam Ban (Global)");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici_id").setLabel("Kullanıcı Discord ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("seviye").setLabel("Ban Seviyesi (very_high, high, medium, low)").setValue("high").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Gerekçe").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici_id")
+          .setLabel("Kullanıcı Discord ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("seviye")
+          .setLabel("Ban Seviyesi (very_high, high, medium, low)")
+          .setValue("high")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Gerekçe")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_mod_tamban_kaldir") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_tamban_kaldir").setTitle("🔓 Tam Ban Kaldır");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_tamban_kaldir")
+      .setTitle("🔓 Tam Ban Kaldır");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici_id").setLabel("Kullanıcı Discord ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Kaldırma Gerekçesi").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici_id")
+          .setLabel("Kullanıcı Discord ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Kaldırma Gerekçesi")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
-  // BLACKLIST MODAL OPEN BUTTON (Triggered based on current selected blacklistOption)
+  // ── BLACKLIST MODAL OPEN ───────────────────────────────────────────────────
+
   if (customId.startsWith("panel_blacklist_btn_openform:")) {
     const option = customId.split(":")[1];
-    
-    if (option === "1") { // Add Person
-      const modal = new ModalBuilder().setCustomId("panel_modal_bl_add_person").setTitle("👤 Karalisteye Kişi Ekle");
+
+    if (option === "1") {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bl_add_person")
+        .setTitle("👤 Karalisteye Kişi Ekle");
       modal.addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Kullanıcı Adı veya Discord ID'si / Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Engelleme Gerekçesi").setStyle(TextInputStyle.Paragraph).setRequired(true))
-      );
-      return interaction.showModal(modal);
-    }
-    
-    if (option === "2") { // Add Group
-      const modal = new ModalBuilder().setCustomId("panel_modal_bl_add_group").setTitle("🛡️ Karalisteye Grup Ekle");
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Grup veya Platform İsmi").setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Engelleme Gerekçesi").setStyle(TextInputStyle.Paragraph).setRequired(true))
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("name")
+            .setLabel("Kullanıcı Adı veya Discord ID'si / Etiket")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("reason")
+            .setLabel("Engelleme Gerekçesi")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        )
       );
       return interaction.showModal(modal);
     }
 
-    if (option === "3") { // Sorun Çözüldü Kaldır
-      const modal = new ModalBuilder().setCustomId("panel_modal_bl_remove_standard").setTitle("📤 Karalisteden Kaldır");
+    if (option === "2") {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bl_add_group")
+        .setTitle("🛡️ Karalisteye Grup Ekle");
       modal.addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Kaldırılacak Kişi / Grup İsmi").setStyle(TextInputStyle.Short).setRequired(true))
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("name")
+            .setLabel("Grup veya Platform İsmi")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("reason")
+            .setLabel("Engelleme Gerekçesi")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        )
       );
       return interaction.showModal(modal);
     }
 
-    if (option === "4") { // Tamamen Sil
-      const modal = new ModalBuilder().setCustomId("panel_modal_bl_remove_complete").setTitle("🗑️ Karalisteden Tamamen Sil");
+    if (option === "3") {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bl_remove_standard")
+        .setTitle("📤 Karalisteden Kaldır");
       modal.addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Silinecek Kişi / Grup İsmi").setStyle(TextInputStyle.Short).setRequired(true))
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("name")
+            .setLabel("Kaldırılacak Kişi / Grup İsmi")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
       );
       return interaction.showModal(modal);
     }
 
-    if (option === "5") { // Yeniden Aç
-      const modal = new ModalBuilder().setCustomId("panel_modal_bl_reopen").setTitle("🔄 Karalisteyi Yeniden Aç");
+    if (option === "4") {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bl_remove_complete")
+        .setTitle("🗑️ Karalisteden Tamamen Sil");
       modal.addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Yeniden Açılacak Kişi / Grup İsmi").setStyle(TextInputStyle.Short).setRequired(true))
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("name")
+            .setLabel("Silinecek Kişi / Grup İsmi")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
+      );
+      return interaction.showModal(modal);
+    }
+
+    if (option === "5") {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bl_reopen")
+        .setTitle("🔄 Karalisteyi Yeniden Aç");
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("name")
+            .setLabel("Yeniden Açılacak Kişi / Grup İsmi")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
       );
       return interaction.showModal(modal);
     }
   }
 
-  // STAFF MANAGEMENT ACTIONS
+  // ── STAFF MANAGEMENT ───────────────────────────────────────────────────────
+
   if (customId === "panel_staff_report") {
     await interaction.deferReply({ ephemeral: true });
     try {
@@ -663,61 +869,161 @@ async function handlePanelButton(interaction) {
   }
 
   if (customId === "panel_staff_setstats") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_staff_setstats").setTitle("⚙️ Personel İstatistik Güncelle");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_setstats")
+      .setTitle("⚙️ Personel İstatistik Güncelle");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Personel Discord ID'si / Etiketi").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("parametre").setLabel("Seçenek (tickets/messages/voice/level/warnings)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("deger").setLabel("Yeni Sayısal Değer").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Personel Discord ID'si / Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("parametre")
+          .setLabel("Seçenek (tickets/messages/voice/level/warnings)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("deger")
+          .setLabel("Yeni Sayısal Değer")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_staff_fire") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_staff_fire").setTitle("🚪 Personel Kov & Sil");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_fire")
+      .setTitle("🚪 Personel Kov & Sil");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Kovulacak Personel ID/Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Kovulma Sebebi").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Kovulacak Personel ID/Etiket")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Kovulma Sebebi")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_staff_promote_demote") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_staff_promote_demote").setTitle("🎖️ Terfi veya Tenzilat");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_promote_demote")
+      .setTitle("🎖️ Terfi veya Tenzilat");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Personel Discord ID/Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("islem").setLabel("İşlem Tipi (terfi veya tenzilat)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Gerekçe / Açıklama").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Personel Discord ID/Etiket")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("islem")
+          .setLabel("İşlem Tipi (terfi veya tenzilat)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Gerekçe / Açıklama")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_staff_reward") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_staff_reward").setTitle("🎁 Ödül Ver veya Al");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_reward")
+      .setTitle("🎁 Ödül Ver veya Al");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Personel Discord ID/Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("islem").setLabel("İşlem Tipi (ver veya al)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("odul").setLabel("Ödül İsmi veya Açıklaması").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Personel Discord ID/Etiket")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("islem")
+          .setLabel("İşlem Tipi (ver veya al)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("odul")
+          .setLabel("Ödül İsmi veya Açıklaması")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_staff_giveleave") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_staff_giveleave").setTitle("🏖️ İzin Günü Tanımla");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_giveleave")
+      .setTitle("🏖️ İzin Günü Tanımla");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("İzin Verilecek Personel Discord ID/Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("tarih").setLabel("İzin Tarihi (YYYY-MM-DD)").setPlaceholder("Örn: 2026-07-15").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sebep").setLabel("Gerekçe").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("İzin Verilecek Personel Discord ID/Etiket")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("tarih")
+          .setLabel("İzin Tarihi (YYYY-MM-DD)")
+          .setPlaceholder("Örn: 2026-07-15")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Gerekçe")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
-  // ATTENDANCE ACTIONS
+  // ── ATTENDANCE ─────────────────────────────────────────────────────────────
+
   if (customId === "panel_staff_attendance_start") {
     await interaction.deferReply({ ephemeral: true });
     try {
       const { handleAttendanceStart } = require("./staffSystem");
       const success = await handleAttendanceStart(client);
-      return interaction.editReply(success ? "🟢 Yeni personel sayımı (yoklama) başarıyla başlatıldı!" : "❌ Aktif bir sayım zaten bulunuyor.");
+      return interaction.editReply(
+        success
+          ? "🟢 Yeni personel sayımı (yoklama) başarıyla başlatıldı!"
+          : "❌ Aktif bir sayım zaten bulunuyor."
+      );
     } catch (e) {
       return interaction.editReply(`❌ Yoklama başlatılamadı: ${e.message}`);
     }
@@ -729,7 +1035,10 @@ async function handlePanelButton(interaction) {
       const { handleAttendanceStop } = require("./staffSystem");
       const resultsEmbed = await handleAttendanceStop(client);
       if (resultsEmbed) {
-        return interaction.editReply({ content: "🔴 Yoklama başarıyla bitirildi.", embeds: [resultsEmbed] });
+        return interaction.editReply({
+          content: "🔴 Yoklama başarıyla bitirildi.",
+          embeds: [resultsEmbed]
+        });
       } else {
         return interaction.editReply("❌ Sonlandırılacak aktif bir sayım bulunamadı.");
       }
@@ -738,57 +1047,97 @@ async function handlePanelButton(interaction) {
     }
   }
 
-  // SYSTEM TOGGLES
+  // ── SYSTEM TOGGLES ─────────────────────────────────────────────────────────
+
   if (customId.startsWith("panel_sys_toggle_")) {
     const toggleName = customId.replace("panel_sys_toggle_", "");
     await interaction.deferReply({ ephemeral: true });
     try {
-      // Direct server configuration update
       const ServerConfig = require("../../models/ServerConfig");
       const { TARGET_GUILD_ID } = require("../../config");
-      let cfg = await ServerConfig.findOne({ guildId: TARGET_GUILD_ID }) || new ServerConfig({ guildId: TARGET_GUILD_ID });
-      
-      let key = "";
-      if (toggleName === "economy") key = "economyEnabled";
-      if (toggleName === "moderation") key = "moderationEnabled";
-      if (toggleName === "fun") key = "funEnabled";
+      let cfg =
+        (await ServerConfig.findOne({ guildId: TARGET_GUILD_ID })) ||
+        new ServerConfig({ guildId: TARGET_GUILD_ID });
 
-      if (key) {
-        cfg[key] = !cfg[key];
-        await cfg.save();
-        return interaction.editReply(`✅ **${toggleName.toUpperCase()}** sistemi durumu güncellendi: **${cfg[key] ? "AKTİF" : "DEVRE DIŞI"}**`);
-      }
-      return interaction.editReply("❌ Geçersiz sistem modülü.");
+      const keyMap = {
+        economy: "economyEnabled",
+        moderation: "moderationEnabled",
+        fun: "funEnabled"
+      };
+      const key = keyMap[toggleName];
+
+      if (!key) return interaction.editReply("❌ Geçersiz sistem modülü.");
+
+      cfg[key] = !cfg[key];
+      await cfg.save();
+      return interaction.editReply(
+        `✅ **${toggleName.toUpperCase()}** sistemi durumu güncellendi: **${cfg[key] ? "AKTİF" : "DEVRE DIŞI"}**`
+      );
     } catch (e) {
       return interaction.editReply(`❌ Sistem toggle işlemi başarısız: ${e.message}`);
     }
   }
 
-  // CHANNEL PERMS MODAL
+  // ── SYSTEM MODALS ──────────────────────────────────────────────────────────
+
   if (customId === "panel_sys_channel_perms") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_channel_perms").setTitle("🔒 Kanal İzinlerini Yönet");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_channel_perms")
+      .setTitle("🔒 Kanal İzinlerini Yönet");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kanal").setLabel("Kanal ID").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("islem").setLabel("İşlem Tipi (izin_ekle veya izin_kaldir)").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("izin").setLabel("İzin Tipi (commands/economy/fun)").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kanal")
+          .setLabel("Kanal ID")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("islem")
+          .setLabel("İşlem Tipi (izin_ekle veya izin_kaldir)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("izin")
+          .setLabel("İzin Tipi (commands/economy/fun)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
-  // OTOMOD CONFIG
   if (customId === "panel_sys_otomod") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_otomod").setTitle("🛡️ Discord Otomod Yönetimi");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_otomod")
+      .setTitle("🛡️ Discord Otomod Yönetimi");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("islem").setLabel("İşlem (ayarla veya kapat)").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("islem")
+          .setLabel("İşlem (ayarla veya kapat)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
-  // DUYURULAR & BIRIMLER
   if (customId === "panel_sys_birimalimi") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_birimalimi").setTitle("📢 Branş Birim Alımı Başlat");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_birimalimi")
+      .setTitle("📢 Branş Birim Alımı Başlat");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("birim").setLabel("Birim (BAN_BIRIMI / SES_BIRIMI)").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("birim")
+          .setLabel("Birim (BAN_BIRIMI / SES_BIRIMI)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
@@ -796,9 +1145,6 @@ async function handlePanelButton(interaction) {
   if (customId === "panel_sys_birimtanitim") {
     await interaction.deferReply({ ephemeral: true });
     try {
-      const { sendBirimTanitim } = require("../handlers/generalCommandHandler"); // Or fallback direct execution
-      // Fallback post message
-      const targetChan = interaction.channel;
       const embed = new EmbedBuilder()
         .setTitle("🛡️ EkoYıldız Birim Tanıtımları")
         .setDescription(
@@ -808,61 +1154,124 @@ async function handlePanelButton(interaction) {
         )
         .setColor(0x3498DB)
         .setTimestamp();
-      await targetChan.send({ embeds: [embed] });
+      await interaction.channel.send({ embeds: [embed] });
       return interaction.editReply("✅ Birim tanıtım mesajları kanala gönderildi.");
     } catch (e) {
       return interaction.editReply(`❌ Birim tanıtımı gönderilemedi: ${e.message}`);
     }
   }
 
-  // ROBLOX ACTIONS (Bang, GrupCekEko)
+  // ── ROBLOX MODALS ──────────────────────────────────────────────────────────
+
   if (customId === "panel_sys_ekobang") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_ekobang").setTitle("🔒 EkoBang Yetki Al");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_ekobang")
+      .setTitle("🔒 EkoBang Yetki Al");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Kullanıcı Discord ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Kullanıcı Discord ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_sys_ekobangerial") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_ekobangerial").setTitle("🔓 EkoBang Geri Yükle");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_ekobangerial")
+      .setTitle("🔓 EkoBang Geri Yükle");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Kullanıcı Discord ID veya Etiketi").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Kullanıcı Discord ID veya Etiketi")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_sys_grupcekeko") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_grupcekeko").setTitle("⬇️ GrupÇekEko Rütbe İndir");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_grupcekeko")
+      .setTitle("⬇️ GrupÇekEko Rütbe İndir");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("username").setLabel("Roblox Kullanıcı Adı").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("username")
+          .setLabel("Roblox Kullanıcı Adı")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_sys_grupcekekogerial") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_grupcekekogerial").setTitle("⬆️ GrupÇekEko Rütbe İade");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_grupcekekogerial")
+      .setTitle("⬆️ GrupÇekEko Rütbe İade");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("username").setLabel("Roblox Kullanıcı Adı").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("username")
+          .setLabel("Roblox Kullanıcı Adı")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
-  // AI & GIVEAWAY ACTIONS
+  // ── AI & GIVEAWAY MODALS ───────────────────────────────────────────────────
+
   if (customId === "panel_sys_xpcekilis") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_xpcekilis").setTitle("🎉 Rütbe XP Çekilişi");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_xpcekilis")
+      .setTitle("🎉 Rütbe XP Çekilişi");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("xp_miktari").setLabel("Dağıtılacak Toplam XP Miktarı").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kazanan_sayisi").setLabel("Kazanan Kişi Sayısı").setValue("1").setStyle(TextInputStyle.Short).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("xp_miktari")
+          .setLabel("Dağıtılacak Toplam XP Miktarı")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kazanan_sayisi")
+          .setLabel("Kazanan Kişi Sayısı")
+          .setValue("1")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
 
   if (customId === "panel_sys_konus") {
-    const modal = new ModalBuilder().setCustomId("panel_modal_sys_konus").setTitle("💬 AI Destekli DM Uyarısı");
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_sys_konus")
+      .setTitle("💬 AI Destekli DM Uyarısı");
     modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("kullanici").setLabel("Konuşulacak Kişi ID/Etiket").setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("konu").setLabel("Görüşülecek Konu / İhlal").setStyle(TextInputStyle.Paragraph).setRequired(true))
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Konuşulacak Kişi ID/Etiket")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("konu")
+          .setLabel("Görüşülecek Konu / İhlal")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
     return interaction.showModal(modal);
   }
@@ -870,19 +1279,32 @@ async function handlePanelButton(interaction) {
   if (customId === "panel_sys_abusetest") {
     await interaction.deferReply({ ephemeral: true });
     try {
-      const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require("discord.js");
       const embed = new EmbedBuilder()
         .setTitle("🚨 Olası Abuse Tespit Edildi")
-        .setDescription("Aşağıdaki kullanıcı sunucuda şüpheli hareketler sergilemektedir (Mock Test).")
-        .setColor(0xFF0000)
-        .addFields({ name: "Kullanıcı", value: `Simüle Edilen Üye` })
+        .setDescription(
+          "Aşağıdaki kullanıcı sunucuda şüpheli hareketler sergilemektedir (Mock Test)."
+        )
+        .setColor(0xff0000)
+        .addFields({ name: "Kullanıcı", value: "Simüle Edilen Üye" })
         .setTimestamp();
-      
+
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("abuse_roles_take:test").setLabel("Rolleri Al").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("abuse_kick:test").setLabel("Sunucudan At").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("abuse_ban:test").setLabel("Yasaka / Ban").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("abuse_ignore:test").setLabel("Yoksay").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder()
+          .setCustomId("abuse_roles_take:test")
+          .setLabel("Rolleri Al")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("abuse_kick:test")
+          .setLabel("Sunucudan At")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("abuse_ban:test")
+          .setLabel("Yasaka / Ban")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("abuse_ignore:test")
+          .setLabel("Yoksay")
+          .setStyle(ButtonStyle.Secondary)
       );
 
       await interaction.channel.send({ embeds: [embed], components: [row] });
@@ -905,22 +1327,30 @@ async function handlePanelSelect(interaction) {
 }
 
 /**
- * Processes inputs from modal submissions
+ * Processes inputs from modal submissions.
+ *
+ * FIX: Modal interactions must be replied to via deferReply/editReply OR
+ * the downstream handler must use the same interaction token.
+ * For handlers that delegate to external functions (tamban, modaction, etc.)
+ * we now pass a lightweight proxy so those functions can call editReply safely
+ * after we have already deferred.
  */
 async function handlePanelModal(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
   const logChannel = await client.channels.fetch(BLACKLIST_LOG_CHANNEL_ID).catch(() => null);
 
+  // Defer first — all paths below must use editReply, never reply()
   await interaction.deferReply({ ephemeral: true });
 
-  // 1. BLACKLIST: Add Person
+  // ── BLACKLIST: Kişi Ekle ───────────────────────────────────────────────────
   if (customId === "panel_modal_bl_add_person") {
     const name = interaction.fields.getTextInputValue("name").trim();
     const reason = interaction.fields.getTextInputValue("reason").trim();
 
     try {
-      let entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      const safePattern = new RegExp(`^${escapeRegex(name)}$`, 'i');
+      let entry = await Blacklist.findOne({ name: { $regex: safePattern } });
       let isNew = false;
 
       if (entry) {
@@ -936,10 +1366,13 @@ async function handlePanelModal(interaction) {
       }
 
       await renderBlacklist(client);
-      
+
       if (logChannel) {
         await logChannel.send({
-          content: `📥 **[KARALİSTE EKLEME]** <@${interaction.user.id}> tarafından **${name}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** Kişi (${isNew ? 'Yeni Kayıt' : 'Güncellendi'})`
+          content:
+            `📥 **[KARALİSTE EKLEME]** <@${interaction.user.id}> tarafından **${name}** listeye eklendi.\n` +
+            `📋 **Sebep:** ${reason}\n` +
+            `📂 **Tür:** Kişi (${isNew ? 'Yeni Kayıt' : 'Güncellendi'})`
         });
       }
       return interaction.editReply(`✅ **${name}** başarıyla karalisteye kişi olarak eklendi!`);
@@ -948,14 +1381,15 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // 2. BLACKLIST: Add Group
+  // ── BLACKLIST: Grup Ekle ───────────────────────────────────────────────────
   if (customId === "panel_modal_bl_add_group") {
     const rawName = interaction.fields.getTextInputValue("name").trim();
     const name = rawName.endsWith(" grubu") ? rawName : rawName + " grubu";
     const reason = interaction.fields.getTextInputValue("reason").trim();
 
     try {
-      let entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      const safePattern = new RegExp(`^${escapeRegex(name)}$`, 'i');
+      let entry = await Blacklist.findOne({ name: { $regex: safePattern } });
       let isNew = false;
 
       if (entry) {
@@ -974,7 +1408,10 @@ async function handlePanelModal(interaction) {
 
       if (logChannel) {
         await logChannel.send({
-          content: `📥 **[KARALİSTE EKLEME (GRUP)]** <@${interaction.user.id}> tarafından **${name}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** 🛡️ Grup (${isNew ? 'Yeni Kayıt' : 'Güncellendi'})`
+          content:
+            `📥 **[KARALİSTE EKLEME (GRUP)]** <@${interaction.user.id}> tarafından **${name}** listeye eklendi.\n` +
+            `📋 **Sebep:** ${reason}\n` +
+            `📂 **Tür:** 🛡️ Grup (${isNew ? 'Yeni Kayıt' : 'Güncellendi'})`
         });
       }
       return interaction.editReply(`✅ **${name}** başarıyla karalisteye grup olarak eklendi!`);
@@ -983,12 +1420,13 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // 3. BLACKLIST: Sorun Çözüldü Kaldır (Standard Removal)
+  // ── BLACKLIST: Sorun Çözüldü Kaldır ───────────────────────────────────────
   if (customId === "panel_modal_bl_remove_standard") {
     const name = interaction.fields.getTextInputValue("name").trim();
 
     try {
-      const entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      const safePattern = new RegExp(`^${escapeRegex(name)}$`, 'i');
+      const entry = await Blacklist.findOne({ name: { $regex: safePattern } });
       if (!entry) return interaction.editReply(`❌ **${name}** karalistede bulunamadı!`);
 
       entry.status = 'removed';
@@ -1008,12 +1446,13 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // 4. BLACKLIST: Tamamen Sil (Complete Removal)
+  // ── BLACKLIST: Tamamen Sil ─────────────────────────────────────────────────
   if (customId === "panel_modal_bl_remove_complete") {
     const name = interaction.fields.getTextInputValue("name").trim();
 
     try {
-      const entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      const safePattern = new RegExp(`^${escapeRegex(name)}$`, 'i');
+      const entry = await Blacklist.findOne({ name: { $regex: safePattern } });
       if (!entry) return interaction.editReply(`❌ **${name}** karalistede bulunamadı!`);
 
       await Blacklist.deleteOne({ _id: entry._id });
@@ -1030,12 +1469,13 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // 5. BLACKLIST: Yeniden Aç
+  // ── BLACKLIST: Yeniden Aç ──────────────────────────────────────────────────
   if (customId === "panel_modal_bl_reopen") {
     const name = interaction.fields.getTextInputValue("name").trim();
 
     try {
-      const entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      const safePattern = new RegExp(`^${escapeRegex(name)}$`, 'i');
+      const entry = await Blacklist.findOne({ name: { $regex: safePattern } });
       if (!entry) return interaction.editReply(`❌ **${name}** karalistede bulunamadı!`);
 
       entry.status = 'active';
@@ -1055,22 +1495,27 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // TOPLU MESAJ SİL
+  // ── TOPLU MESAJ SİL ────────────────────────────────────────────────────────
   if (customId === "panel_modal_bulk_delete") {
-    const miktar = parseInt(interaction.fields.getTextInputValue("miktar").trim());
+    const miktar = parseInt(interaction.fields.getTextInputValue("miktar").trim(), 10);
     if (isNaN(miktar) || miktar < 1 || miktar > 100) {
       return interaction.editReply("❌ Lütfen 1 ile 100 arasında geçerli bir sayı girin.");
     }
 
     try {
-      await interaction.channel.bulkDelete(miktar);
-      return interaction.editReply(`✅ **${miktar}** mesaj başarıyla silindi.`);
+      const deleted = await interaction.channel.bulkDelete(miktar, true); // true = only messages < 14 days
+      return interaction.editReply(
+        `✅ **${deleted.size}** mesaj başarıyla silindi.` +
+        (deleted.size < miktar
+          ? ` (${miktar - deleted.size} mesaj 14 günden eski olduğu için atlandı.)`
+          : "")
+      );
     } catch (e) {
       return interaction.editReply(`❌ Mesajlar silinemedi: ${e.message}`);
     }
   }
 
-  // SUSTUR (MUTE)
+  // ── SUSTUR (MUTE) ──────────────────────────────────────────────────────────
   if (customId === "panel_modal_mute") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const durationVal = interaction.fields.getTextInputValue("sure").trim();
@@ -1083,13 +1528,15 @@ async function handlePanelModal(interaction) {
     try {
       const durationMs = parseDuration(durationVal);
       await member.timeout(durationMs, `Panel yetkilisi: ${interaction.user.tag} - Sebep: ${reason}`);
-      return interaction.editReply(`✅ **${member.user.tag}** kullanıcısı **${durationVal}** süreyle susturuldu.\nSebep: ${reason}`);
+      return interaction.editReply(
+        `✅ **${member.user.tag}** kullanıcısı **${durationVal}** süreyle susturuldu.\nSebep: ${reason}`
+      );
     } catch (e) {
       return interaction.editReply(`❌ Susturma işlemi başarısız: ${e.message}`);
     }
   }
 
-  // SUSTURMA AÇ
+  // ── SUSTURMA AÇ ────────────────────────────────────────────────────────────
   if (customId === "panel_modal_unmute") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const targetUserId = userVal.replace(/[<@!>]/g, "");
@@ -1104,84 +1551,74 @@ async function handlePanelModal(interaction) {
     }
   }
 
-  // CEZA İŞLEM (MODİŞLEM)
+  // ── CEZA İŞLEM (MODİŞLEM) ─────────────────────────────────────────────────
+  // FIX: We build a proper proxy object instead of mutating the live interaction.
   if (customId === "panel_modal_modaction") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const reason = interaction.fields.getTextInputValue("sebep").trim();
-    const attachmentUrl = interaction.fields.getTextInputValue("kanit") || null;
+    const attachmentUrl = interaction.fields.getTextInputValue("kanit").trim() || null;
 
     const targetUserId = userVal.replace(/[<@!>]/g, "");
     const targetUser = await client.users.fetch(targetUserId).catch(() => null);
     if (!targetUser) return interaction.editReply("❌ Kullanıcı bulunamadı.");
 
     try {
-      // Emulate attachment structure
       const fakeAttachment = attachmentUrl ? { url: attachmentUrl } : null;
       const { executeModAction } = require("./modActionService");
-      // Set options in interaction so executeModAction can parse
-      interaction.options = {
-        getUser: () => targetUser,
-        getString: () => reason,
-        getAttachment: () => fakeAttachment
-      };
       await executeModAction(interaction, targetUser, reason, fakeAttachment);
-      return; // Already replied in executeModAction
+      // executeModAction should call interaction.editReply internally
     } catch (e) {
       return interaction.editReply(`❌ Ceza işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // TAM BAN
+  // ── TAM BAN ────────────────────────────────────────────────────────────────
+  // FIX: Build an isolated proxy — never mutate interaction.commandName on the live object.
   if (customId === "panel_modal_tamban") {
-    const userVal = interaction.fields.getTextInputValue("kullanici_id").trim();
-    const level = interaction.fields.getTextInputValue("seviye").trim();
-    const reason = interaction.fields.getTextInputValue("sebep").trim();
+    const kullanici_id = interaction.fields.getTextInputValue("kullanici_id").trim().replace(/[<@!>]/g, "");
+    const seviye = interaction.fields.getTextInputValue("seviye").trim();
+    const sebep = interaction.fields.getTextInputValue("sebep").trim();
 
-    const targetUserId = userVal.replace(/[<@!>]/g, "");
     try {
-      // Emulate options in interaction
-      interaction.options = {
+      const { handleModerationCommand } = require("../handlers/moderationCommandHandler");
+      const proxy = buildProxy(interaction, "tamban", {
         getString: (name) => {
-          if (name === "kullanici_id") return targetUserId;
-          if (name === "seviye") return level;
-          if (name === "sebep") return reason;
+          if (name === "kullanici_id") return kullanici_id;
+          if (name === "seviye") return seviye;
+          if (name === "sebep") return sebep;
           return null;
         }
-      };
-      const { handleModerationCommand } = require("../handlers/moderationCommandHandler");
-      // Temporarily mock commandName
-      interaction.commandName = "tamban";
-      await handleModerationCommand(interaction);
-      return;
+      });
+      await handleModerationCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Tam Ban işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // TAM BAN KALDIR
+  // ── TAM BAN KALDIR ─────────────────────────────────────────────────────────
   if (customId === "panel_modal_tamban_kaldir") {
-    const userVal = interaction.fields.getTextInputValue("kullanici_id").trim();
-    const reason = interaction.fields.getTextInputValue("sebep").trim();
+    const kullanici_id = interaction.fields.getTextInputValue("kullanici_id").trim().replace(/[<@!>]/g, "");
+    const sebep = interaction.fields.getTextInputValue("sebep").trim();
 
-    const targetUserId = userVal.replace(/[<@!>]/g, "");
     try {
-      interaction.options = {
+      const { handleModerationCommand } = require("../handlers/moderationCommandHandler");
+      const proxy = buildProxy(interaction, "tamban_kaldir", {
         getString: (name) => {
-          if (name === "kullanici_id") return targetUserId;
-          if (name === "sebep") return reason;
+          if (name === "kullanici_id") return kullanici_id;
+          if (name === "sebep") return sebep;
           return null;
         }
-      };
-      const { handleModerationCommand } = require("../handlers/moderationCommandHandler");
-      interaction.commandName = "tamban_kaldir";
-      await handleModerationCommand(interaction);
-      return;
+      });
+      await handleModerationCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Tam Ban kaldırılamadı: ${e.message}`);
     }
+    return;
   }
 
-  // STAFF STATS EDIT
+  // ── STAFF STATS EDIT ───────────────────────────────────────────────────────
   if (customId === "panel_modal_staff_setstats") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const param = interaction.fields.getTextInputValue("parametre").trim();
@@ -1192,21 +1629,20 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Belirtilen personel bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "personelayarla", {
         getUser: () => targetUser,
         getString: () => param,
-        getInteger: () => parseInt(valStr) || 0
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "personelayarla";
-      await handleGeneralCommand(interaction);
-      return;
+        getInteger: () => parseInt(valStr, 10) || 0
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ İstatistik güncellenemedi: ${e.message}`);
     }
+    return;
   }
 
-  // STAFF FIRE
+  // ── STAFF FIRE ─────────────────────────────────────────────────────────────
   if (customId === "panel_modal_staff_fire") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const reason = interaction.fields.getTextInputValue("sebep").trim();
@@ -1216,20 +1652,19 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "personelkov", {
         getUser: () => targetUser,
         getString: () => reason
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "personelkov";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Personel silinemedi: ${e.message}`);
     }
+    return;
   }
 
-  // STAFF PROMOTE / DEMOTE
+  // ── STAFF PROMOTE / DEMOTE ─────────────────────────────────────────────────
   if (customId === "panel_modal_staff_promote_demote") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const operation = interaction.fields.getTextInputValue("islem").trim().toLowerCase();
@@ -1240,24 +1675,27 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+
       if (operation === "terfi") {
-        interaction.options = { getUser: () => targetUser };
-        const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-        interaction.commandName = "birimterfi";
-        await handleGeneralCommand(interaction);
+        const proxy = buildProxy(interaction, "birimterfi", { getUser: () => targetUser });
+        await handleGeneralCommand(proxy);
+      } else if (operation === "tenzilat") {
+        const proxy = buildProxy(interaction, "tenzilat", {
+          getUser: () => targetUser,
+          getString: () => reason
+        });
+        await handleGeneralCommand(proxy);
       } else {
-        interaction.options = { getUser: () => targetUser, getString: () => reason };
-        const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-        interaction.commandName = "tenzilat";
-        await handleGeneralCommand(interaction);
+        return interaction.editReply("❌ Geçersiz işlem tipi. 'terfi' veya 'tenzilat' girin.");
       }
-      return;
     } catch (e) {
       return interaction.editReply(`❌ Rütbe işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // STAFF REWARDS
+  // ── STAFF REWARDS ──────────────────────────────────────────────────────────
   if (customId === "panel_modal_staff_reward") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const operation = interaction.fields.getTextInputValue("islem").trim().toLowerCase();
@@ -1268,24 +1706,23 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "odulver", {
         getUser: () => targetUser,
         getString: (name) => {
           if (name === "islem") return operation;
           if (name === "odul") return rewardName;
           return null;
         }
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "odulver";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Ödül işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // STAFF GIVE LEAVE
+  // ── STAFF GIVE LEAVE ───────────────────────────────────────────────────────
   if (customId === "panel_modal_staff_giveleave") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const dateVal = interaction.fields.getTextInputValue("tarih").trim();
@@ -1296,24 +1733,23 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "izin_ver", {
         getUser: () => targetUser,
         getString: (name) => {
           if (name === "tarih") return dateVal;
           if (name === "sebep") return reason;
           return null;
         }
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "izin_ver";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ İzin tanımlanamadı: ${e.message}`);
     }
+    return;
   }
 
-  // CHANNEL PERMS UPDATE
+  // ── CHANNEL PERMS ──────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_channel_perms") {
     const channelId = interaction.fields.getTextInputValue("kanal").trim();
     const operation = interaction.fields.getTextInputValue("islem").trim();
@@ -1323,55 +1759,52 @@ async function handlePanelModal(interaction) {
     if (!channelObj) return interaction.editReply("❌ Belirtilen kanal bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "kanal", {
         getSubcommand: () => operation,
         getChannel: () => channelObj,
         getString: () => permType
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "kanal";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Kanal izinleri güncellenemedi: ${e.message}`);
     }
+    return;
   }
 
-  // OTOMOD CONFIG
+  // ── OTOMOD CONFIG ──────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_otomod") {
     const operation = interaction.fields.getTextInputValue("islem").trim();
 
     try {
-      interaction.options = {
-        getSubcommand: () => operation
-      };
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "otomod";
-      await handleGeneralCommand(interaction);
-      return;
+      const proxy = buildProxy(interaction, "otomod", {
+        getSubcommand: () => operation
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Otomod güncellenemedi: ${e.message}`);
     }
+    return;
   }
 
-  // BRANŞ BIRIM ALIMI
+  // ── BRANŞ BİRİM ALIMI ─────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_birimalimi") {
     const unitName = interaction.fields.getTextInputValue("birim").trim();
 
     try {
-      interaction.options = {
-        getString: () => unitName
-      };
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "birimalimi";
-      await handleGeneralCommand(interaction);
-      return;
+      const proxy = buildProxy(interaction, "birimalimi", {
+        getString: () => unitName
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Birim alımı başlatılamadı: ${e.message}`);
     }
+    return;
   }
 
-  // ROBLOX EKOBANG
+  // ── ROBLOX EKOBANG ─────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_ekobang" || customId === "panel_modal_sys_ekobangerial") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const targetUserId = userVal.replace(/[<@!>]/g, "");
@@ -1379,58 +1812,54 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Kullanıcı bulunamadı.");
 
     try {
-      interaction.options = {
-        getUser: () => targetUser
-      };
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = customId === "panel_modal_sys_ekobang" ? "ekobang" : "ekobangerial";
-      await handleGeneralCommand(interaction);
-      return;
+      const cmdName = customId === "panel_modal_sys_ekobang" ? "ekobang" : "ekobangerial";
+      const proxy = buildProxy(interaction, cmdName, { getUser: () => targetUser });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Roblox EkoBang işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // ROBLOX GRUP CEK EKO
+  // ── ROBLOX GRUP ÇEK EKO ───────────────────────────────────────────────────
   if (customId === "panel_modal_sys_grupcekeko" || customId === "panel_modal_sys_grupcekekogerial") {
     const username = interaction.fields.getTextInputValue("username").trim();
 
     try {
-      interaction.options = {
-        getString: () => username
-      };
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = customId === "panel_modal_sys_grupcekeko" ? "grupcekeko" : "grupcekekogerial";
-      await handleGeneralCommand(interaction);
-      return;
+      const cmdName =
+        customId === "panel_modal_sys_grupcekeko" ? "grupcekeko" : "grupcekekogerial";
+      const proxy = buildProxy(interaction, cmdName, { getString: () => username });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Roblox GrupÇekEko işlemi başarısız: ${e.message}`);
     }
+    return;
   }
 
-  // XP ÇEKİLİŞİ
+  // ── XP ÇEKİLİŞİ ───────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_xpcekilis") {
     const xp = interaction.fields.getTextInputValue("xp_miktari").trim();
     const winners = interaction.fields.getTextInputValue("kazanan_sayisi").trim();
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "xpcekilis", {
         getInteger: (name) => {
-          if (name === "xp_miktari") return parseInt(xp) || 0;
-          if (name === "kazanan_sayisi") return parseInt(winners) || 1;
+          if (name === "xp_miktari") return parseInt(xp, 10) || 0;
+          if (name === "kazanan_sayisi") return parseInt(winners, 10) || 1;
           return null;
         }
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "xpcekilis";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Çekiliş başlatılamadı: ${e.message}`);
     }
+    return;
   }
 
-  // AI DM TALK
+  // ── AI DM KONUŞMA ──────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_konus") {
     const userVal = interaction.fields.getTextInputValue("kullanici").trim();
     const subject = interaction.fields.getTextInputValue("konu").trim();
@@ -1440,40 +1869,40 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Kullanıcı bulunamadı.");
 
     try {
-      interaction.options = {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "konus", {
         getUser: () => targetUser,
         getString: () => subject
-      };
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      interaction.commandName = "konus";
-      await handleGeneralCommand(interaction);
-      return;
+      });
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ AI DM Konuşması başlatılamadı: ${e.message}`);
     }
+    return;
   }
 
   return interaction.editReply("❌ Bilinmeyen modal işlemi.");
 }
 
 /**
- * Utility helper to parse duration string (e.g. 10m, 1h, 1d) into ms
+ * Builds a proxy object that mimics a Discord.js interaction for delegation
+ * to external command handlers. Uses the already-deferred interaction for
+ * reply methods so handlers can safely call editReply without conflicts.
+ *
+ * @param {import('discord.js').Interaction} interaction - The real (already deferred) interaction
+ * @param {string} commandName - The command name to set on the proxy
+ * @param {object} optionOverrides - Override methods for interaction.options
  */
-function parseDuration(timeStr) {
-  const matches = timeStr.match(/(\d+)([smhd])/);
-  if (!matches) return 10 * 60 * 1000;
-
-  const value = parseInt(matches[1]);
-  const unit = matches[2];
-
-  const unitMap = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-  };
-
-  return value * (unitMap[unit] || 1000);
+function buildProxy(interaction, commandName, optionOverrides = {}) {
+  return new Proxy(interaction, {
+    get(target, prop) {
+      if (prop === 'commandName') return commandName;
+      if (prop === 'options') return optionOverrides;
+      return typeof target[prop] === 'function'
+        ? target[prop].bind(target)
+        : target[prop];
+    }
+  });
 }
 
 module.exports = {
