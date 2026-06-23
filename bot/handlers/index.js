@@ -367,6 +367,10 @@ function initializeDiscordHandlers(client) {
           await enforceFrogRoles(newMember).catch(err => {
             console.error("[guildMemberUpdate] enforceFrogRoles error:", err.message);
           });
+          const { enforceRoleDividers } = require("../services/dividerService");
+          await enforceRoleDividers(newMember).catch(err => {
+            console.error("[guildMemberUpdate] enforceRoleDividers error:", err.message);
+          });
         }
       }
     } catch (err) {
