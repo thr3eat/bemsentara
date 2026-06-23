@@ -301,6 +301,8 @@ function initializeDiscordHandlers(client) {
     } catch (err) {
       console.error("guildMemberRemove hatası:", err);
     }
+  });
+
   client.on("guildMemberAdd", async (member) => {
     try {
       const { GUILD2_ID } = require("../../config");
