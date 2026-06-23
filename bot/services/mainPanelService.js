@@ -2023,8 +2023,6 @@ async function handlePanelModal(interaction) {
 
   // DIREKT MOD ALIM Modal Handler (Rol Ver + Doğrula)
   if (customId === "panel_modal_mod_alim_direct") {
-    await interaction.deferReply({ ephemeral: true });
-
     const userVal = interaction.fields.getTextInputValue("direct_mod_user").trim();
     const targetUserId = userVal.replace(/[<@!>]/g, "");
     
