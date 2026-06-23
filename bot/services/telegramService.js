@@ -37,7 +37,12 @@ async function getTelegramChatId() {
       }
     }
   } catch (err) {
-    console.error("[Telegram] Updates çekilirken hata oluştu:", err.message);
+    if (err.response?.status === 409) {
+      console.warn("[Telegram] Chat ID sorgulanırken 409 çakışması algılandı, webhook siliniyor...");
+      await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+    } else {
+      console.error("[Telegram] Updates çekilirken hata oluştu:", err.message);
+    }
   }
   return null;
 }
@@ -170,7 +175,7 @@ Kurallar:
   }
 }
 
-function startTelegramPolling(client) {
+async function startTelegramPolling(client) {
   if (isPollingActive) return;
   if (!TELEGRAM_TOKEN) {
     console.warn("[Telegram Polling] Token yapılandırılmamış, polling başlatılmadı.");
@@ -178,16 +183,15 @@ function startTelegramPolling(client) {
   }
   
   isPollingActive = true;
-  console.log("[Telegram] Polling dinleyici başlatıldı.");
+  console.log("[Telegram] Polling dinleyici başlatılıyor...");
 
   // Delete webhook first to avoid 409 Conflict errors
-  axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`)
-    .then(() => {
-      console.log("[Telegram] Webhook silindi (polling aktif).");
-    })
-    .catch((err) => {
-      console.warn("[Telegram] Webhook silinirken hata (yok sayılabilir):", err.message);
-    });
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`);
+    console.log("[Telegram] Webhook silindi (polling aktif).");
+  } catch (err) {
+    console.warn("[Telegram] Webhook silinirken hata:", err.message);
+  }
 
   async function poll() {
     try {
@@ -205,7 +209,12 @@ function startTelegramPolling(client) {
     } catch (err) {
       // Normal timeouts are ignored to avoid spamming console
       if (!err.message?.includes("timeout")) {
-        console.error("[Telegram Polling] Hata:", err.message);
+        if (err.response?.status === 409) {
+          console.warn("[Telegram Polling] 409 Conflict algılandı, webhook tekrar siliniyor...");
+          await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+        } else {
+          console.error("[Telegram Polling] Hata:", err.message);
+        }
       }
     }
     // Her 3 saniyede bir yeni mesajları sorgula
