@@ -397,6 +397,11 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
+        .setCustomId("panel_sys_restart")
+        .setLabel("🔄 Botu Yeniden Başlat")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
         .setCustomId("panel_tab_home")
         .setLabel("⬅️ Ana Menü")
         .setStyle(ButtonStyle.Secondary)
@@ -578,6 +583,28 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
 async function handlePanelButton(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
+
+  if (customId === "panel_sys_restart") {
+    const auth = await getAuth(interaction.member);
+    if (!auth.isAdmin) {
+      return interaction.reply({
+        content: "❌ Bu işlemi gerçekleştirmek için **Yönetici** yetkisine sahip olmalısınız!",
+        ephemeral: true
+      });
+    }
+
+    await interaction.reply({
+      content: "🔄 **Bot yeniden başlatılıyor...** Lütfen birkaç saniye bekleyin. Bot aktif olduğunda tekrar kullanılabilir duruma gelecektir.",
+      ephemeral: true
+    });
+
+    console.log(`[restart] Bot is being restarted by admin ${interaction.user.tag} (ID: ${interaction.user.id})`);
+    
+    setTimeout(() => {
+      process.exit(0);
+    }, 1500);
+    return;
+  }
 
   if (customId === "panel_close") {
     return interaction.update({
