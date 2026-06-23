@@ -1619,15 +1619,39 @@ async function handleGeneralCommand(interaction) {
       }
 
       const isSeason2 = profile.level >= 12;
+      const member = interaction.guild ? await interaction.guild.members.fetch(target.id).catch(() => null) : null;
+      const isBooster = member && member.premiumSince;
+
+      // Booster badge and indicator
+      let boosterText = '';
+      if (isBooster) {
+        boosterText = '\n⚡ **Server Booster** (2x XP Aktif!)';
+      }
+
+      // Max level legend badge
+      let legendText = '';
+      if (profile.level === 16) {
+        legendText = '\n👑 **Sentara Efsanesi** (Maksimum Seviye!)';
+      }
+
+      // Set custom color if set
+      let embedColor = isSeason2 ? 0xe67e22 : 0x4ade80;
+      if (profile.profileColor) {
+        const hex = profile.profileColor.replace('#', '');
+        const parsed = parseInt(hex, 16);
+        if (!isNaN(parsed)) embedColor = parsed;
+      }
+
+      const description = `**${profile.currentRole?.name || 'Yavru Kurbağa'}**${boosterText}${legendText}\n\n` +
+        `XP: **${profile.currentXP.toLocaleString()}** / **${profile.neededXP > 0 ? profile.neededXP.toLocaleString() : 'MAX'}**\n` +
+        `\`${profile.bar}\` ${profile.neededXP > 0 ? Math.floor((profile.currentXP / profile.neededXP) * 100) : 100}%\n\n` +
+        (profile.profileBio ? `*${profile.profileBio}*\n` : '');
+
       const embed = new EmbedBuilder()
-        .setColor(isSeason2 ? 0xe67e22 : 0x4ade80)
+        .setColor(embedColor)
         .setTitle(isSeason2 ? `🦖 ${target.username} — Dinazor Sezonu (2. Sezon)` : `🐸 ${target.username} — Kurbağa Seviyesi`)
         .setThumbnail(target.displayAvatarURL())
-        .setDescription(
-          `**${profile.currentRole?.name || 'Yavru Kurbağa'}**\n\n` +
-          `XP: **${profile.currentXP.toLocaleString()}** / **${profile.neededXP > 0 ? profile.neededXP.toLocaleString() : 'MAX'}**\n` +
-          `\`${profile.bar}\` ${profile.neededXP > 0 ? Math.floor((profile.currentXP / profile.neededXP) * 100) : 100}%`
-        )
+        .setDescription(description)
         .addFields(
           { name: '📊 Seviye', value: isSeason2 ? `${profile.level - 11}/5 (Toplam: ${profile.level}/16)` : `${profile.level}/11 (Toplam: ${profile.level}/16)`, inline: true },
           { name: '✨ Toplam XP', value: profile.xp.toLocaleString(), inline: true },
@@ -2000,7 +2024,17 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `🎁 Günlük ödülünüzü bugün zaten aldınız! Yarın tekrar gelin.` });
       }
 
-      const reward = Math.floor(Math.random() * (150 - 50 + 1)) + 50; // 50 ile 150 arası
+      let reward = Math.floor(Math.random() * (150 - 50 + 1)) + 50; // 50 ile 150 arası
+
+      // Level 16 (Kral Penguen) double coins check
+      const FrogLevelModel = require("../../models/FrogLevel");
+      const frogProfile = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild?.id || "1367646464804655104" });
+      let isMaxLevel = false;
+      if (frogProfile && frogProfile.level >= 16) {
+        reward *= 2;
+        isMaxLevel = true;
+      }
+
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + reward;
       p.gamification.lastDailyClaim = today;
 
@@ -2041,8 +2075,10 @@ async function handleGeneralCommand(interaction) {
         } catch (_) { }
       }
 
+      const doubleText = isMaxLevel ? ' 🚀 *(Kral Penguen 2x Çarpanı Etkin!)*' : '';
+
       return interaction.editReply({
-        content: `🎉 **Tebrikler!** Günlük girişinizden **${reward} E.C.** kazandınız!\nMevcut Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\`${extraMsg}`
+        content: `🎉 **Tebrikler!** Günlük girişinizden **${reward} E.C.** kazandınız!${doubleText}\nMevcut Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\`${extraMsg}`
       });
     }
 
@@ -2104,6 +2140,158 @@ async function handleGeneralCommand(interaction) {
       const { postUnitIntroductions } = require("../services/unitService");
       await postUnitIntroductions(interaction.client);
       return interaction.editReply({ content: '✅ Birim tanıtım mesajları başarıyla gönderildi.' });
+    }
+
+    if (commandName === "renk") {
+      const hexInput = interaction.options.getString("hex");
+      const hexRegex = /^#?[0-9A-F]{6}$/i;
+      if (!hexRegex.test(hexInput)) {
+        return interaction.editReply({ content: "❌ Geçersiz HEX renk kodu! Örnek: `#ff0000` veya `ff0000`" });
+      }
+      const finalHex = hexInput.startsWith("#") ? hexInput : `#${hexInput}`;
+
+      const FrogLevelModel = require("../../models/FrogLevel");
+      let frog = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild.id });
+      if (!frog) {
+        frog = new FrogLevelModel({ userId: interaction.user.id, guildId: interaction.guild.id });
+        await frog.save();
+      }
+
+      const isBooster = interaction.member && interaction.member.premiumSince;
+      if (!isBooster && frog.level < 10) {
+        return interaction.editReply({ content: "❌ Bu ayrıcalık sadece **Server Booster**'lara ve **Level 10 (İyi Dinazor)** ve üzeri üyelere özeldir!" });
+      }
+
+      const guild = interaction.guild;
+      let role = null;
+
+      if (frog.customRoleId) {
+        role = guild.roles.cache.get(frog.customRoleId);
+        if (!role) {
+          role = await guild.roles.fetch(frog.customRoleId).catch(() => null);
+        }
+      }
+
+      try {
+        if (role) {
+          // Update role color
+          await role.setColor(finalHex, `Renk değişimi: ${interaction.user.tag}`);
+        } else {
+          // Create new role
+          role = await guild.roles.create({
+            name: `Renk-${interaction.user.username}`,
+            color: finalHex,
+            reason: `Özel renk rolü: ${interaction.user.tag}`
+          });
+          frog.customRoleId = role.id;
+          await frog.save();
+        }
+
+        // Set position to highest manageable position
+        const botMember = await guild.members.fetchMe();
+        if (role.position < botMember.roles.highest.position) {
+          await role.setPosition(botMember.roles.highest.position - 1).catch(() => {});
+        }
+
+        // Add role to user
+        if (!interaction.member.roles.cache.has(role.id)) {
+          await interaction.member.roles.add(role.id);
+        }
+
+        return interaction.editReply({ content: `🎨 İsim renginiz başarıyla **${finalHex}** olarak güncellendi ve rolünüz tanımlandı!` });
+      } catch (roleErr) {
+        console.error("[renk] Rol işlemi hatası:", roleErr);
+        return interaction.editReply({ content: `❌ Rol rengi güncellenirken bir hata oluştu: ${roleErr.message}` });
+      }
+    }
+
+    if (commandName === "profilrenk") {
+      const hexInput = interaction.options.getString("hex");
+      const hexRegex = /^#?[0-9A-F]{6}$/i;
+      if (!hexRegex.test(hexInput)) {
+        return interaction.editReply({ content: "❌ Geçersiz HEX renk kodu! Örnek: `#ff0000` veya `ff0000`" });
+      }
+      const finalHex = hexInput.startsWith("#") ? hexInput : `#${hexInput}`;
+
+      const FrogLevelModel = require("../../models/FrogLevel");
+      let frog = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild.id });
+      if (!frog || frog.level < 3) {
+        return interaction.editReply({ content: "❌ Bu ayrıcalık en az **Level 3 (Zeki Dinazor)** seviyesindeki üyelere özeldir!" });
+      }
+
+      frog.profileColor = finalHex;
+      await frog.save();
+
+      return interaction.editReply({ content: `🎨 Seviye profil kartı renginiz başarıyla **${finalHex}** olarak güncellendi!` });
+    }
+
+    if (commandName === "biyografi") {
+      const bioText = interaction.options.getString("metin");
+      if (bioText.length > 200) {
+        return interaction.editReply({ content: "❌ Biyografi metni en fazla 200 karakter olabilir!" });
+      }
+
+      const FrogLevelModel = require("../../models/FrogLevel");
+      let frog = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild.id });
+      if (!frog || frog.level < 6) {
+        return interaction.editReply({ content: "❌ Bu ayrıcalık en az **Level 6 (Olay Dinazor)** seviyesindeki üyelere özeldir!" });
+      }
+
+      frog.profileBio = bioText;
+      await frog.save();
+
+      return interaction.editReply({ content: "📝 Profil biyografiniz başarıyla güncellendi!" });
+    }
+
+    if (commandName === "oda-olustur") {
+      const FrogLevelModel = require("../../models/FrogLevel");
+      const frog = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild.id });
+      if (!frog || frog.level < 12) {
+        return interaction.editReply({ content: "❌ Bu ayrıcalık en az **Level 12 (Oyuncu Penguen)** seviyesindeki üyelere özeldir!" });
+      }
+
+      const roomName = interaction.options.getString("oda_adi") || "";
+      const limit = interaction.options.getInteger("kisi_limiti") || 0;
+
+      const { createTempVoiceChannel } = require("../services/tempVoiceService");
+      const result = await createTempVoiceChannel(interaction.member, roomName, limit);
+
+      return interaction.editReply({ content: result.message });
+    }
+
+    if (commandName === "ozelrolisim") {
+      const newName = interaction.options.getString("isim");
+      if (newName.length > 32) {
+        return interaction.editReply({ content: "❌ Rol ismi en fazla 32 karakter olabilir!" });
+      }
+
+      const FrogLevelModel = require("../../models/FrogLevel");
+      const frog = await FrogLevelModel.findOne({ userId: interaction.user.id, guildId: interaction.guild.id });
+      if (!frog || frog.level < 15) {
+        return interaction.editReply({ content: "❌ Bu ayrıcalık en az **Level 15 (Volkanik Penguen)** seviyesindeki üyelere özeldir!" });
+      }
+
+      if (!frog.customRoleId) {
+        return interaction.editReply({ content: "❌ Henüz bir özel rolünüz bulunmuyor! Önce `/renk` komutuyla bir renk seçmelisiniz." });
+      }
+
+      const guild = interaction.guild;
+      let role = guild.roles.cache.get(frog.customRoleId);
+      if (!role) {
+        role = await guild.roles.fetch(frog.customRoleId).catch(() => null);
+      }
+
+      if (!role) {
+        return interaction.editReply({ content: "❌ Özel rolünüz sunucuda bulunamadı. Lütfen önce `/renk` komutuyla yeni bir rol oluşturun." });
+      }
+
+      try {
+        await role.setName(newName, `İsim değişimi: ${interaction.user.tag}`);
+        return interaction.editReply({ content: `🎨 Özel rolünüzün ismi başarıyla **${newName}** olarak güncellendi!` });
+      } catch (roleErr) {
+        console.error("[ozelrolisim] Rol ismi değiştirme hatası:", roleErr);
+        return interaction.editReply({ content: `❌ Rol ismi değiştirilirken bir hata oluştu: ${roleErr.message}` });
+      }
     }
 
     return null;

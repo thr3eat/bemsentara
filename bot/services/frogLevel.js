@@ -145,9 +145,9 @@ async function addMessageXP(member, client) {
     xpGain *= 2;
   }
 
-  // Server booster multiplier (1.5x XP)
+  // Server booster multiplier (2x XP)
   if (member.premiumSince) {
-    xpGain = Math.ceil(xpGain * 1.5);
+    xpGain = Math.ceil(xpGain * 2);
   }
 
   p.xp            += xpGain;
@@ -190,9 +190,9 @@ async function addVoiceXP(userId, minutes, client) {
       xpGain *= 2;
     }
 
-    // Server booster multiplier (1.5x XP)
+    // Server booster multiplier (2x XP)
     if (member && member.premiumSince) {
-      xpGain = Math.ceil(xpGain * 1.5);
+      xpGain = Math.ceil(xpGain * 2);
     }
 
     p.xp                += xpGain;
@@ -566,6 +566,9 @@ async function getFrogProfile(userId, client) {
     totalMessages:    p.totalMessages,
     totalVoiceMinutes: p.totalVoiceMinutes,
     promotions: p.promotions || [],
+    profileColor:     p.profileColor || null,
+    profileBio:       p.profileBio || null,
+    customRoleId:     p.customRoleId || null,
   };
 }
 

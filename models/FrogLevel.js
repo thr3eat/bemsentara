@@ -25,6 +25,11 @@ const frogLevelSchema = new mongoose.Schema({
 
   // Terfi geçmişi
   promotions: [{ level: Number, date: Date }],
+
+  // Ayrıcalıklar / Kişiselleştirme
+  profileColor:  { type: String, default: null },
+  profileBio:    { type: String, default: null },
+  customRoleId:  { type: String, default: null },
 }, { timestamps: true });
 
 const FrogLevel = mongoose.models.FrogLevel

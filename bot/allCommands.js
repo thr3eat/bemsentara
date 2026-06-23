@@ -489,6 +489,44 @@ const generalCommands = [
     .setName("birimtanitim")
     .setDescription("Birim yetki ve tanıtım mesajlarını gönderir (Admin)")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("renk")
+    .setDescription("İsim renginizi özelleştirin (Server Booster'lar veya Level 10+)")
+    .addStringOption((o) =>
+      o.setName("hex").setDescription("HEX renk kodu (Örn: #ff0000)").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("profilrenk")
+    .setDescription("Seviye kartınızın rengini özelleştirin (Level 3+)")
+    .addStringOption((o) =>
+      o.setName("hex").setDescription("HEX renk kodu (Örn: #ff0000)").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("biyografi")
+    .setDescription("Seviye kartınıza özel biyografi/hakkımda yazısı ekleyin (Level 6+)")
+    .addStringOption((o) =>
+      o.setName("metin").setDescription("Yeni biyografi metniniz").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("oda-olustur")
+    .setDescription("Geçici özel ses kanalı oluşturun (Level 12+)")
+    .addStringOption((o) =>
+      o.setName("oda_adi").setDescription("Oda ismi (Opsiyonel)").setRequired(false)
+    )
+    .addIntegerOption((o) =>
+      o.setName("kisi_limiti").setDescription("Oda kişi limiti (Opsiyonel)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ozelrolisim")
+    .setDescription("Özel renk rolünüzün ismini değiştirin (Level 15+)")
+    .addStringOption((o) =>
+      o.setName("isim").setDescription("Yeni rol ismi").setRequired(true)
+    ),
 ];
 
 const economyCommands = [

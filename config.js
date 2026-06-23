@@ -108,11 +108,13 @@ const SERVER_INVITE_LINKS = {
 };
 
 const DATA_DIR = process.env.DATA_DIR || null;
+const RESTORE_ROLES_ON_START = process.env.RESTORE_ROLES_ON_START === "true";
 
 module.exports = {
   PORT,
   BASE_URL,
   SESSION_SECRET,
+  RESTORE_ROLES_ON_START,
   BOT_ID,
   TOKEN,
   TARGET_GUILD_ID,

@@ -78,10 +78,13 @@ function initializeDiscordHandlers(client) {
     startEkoYildizHistoryScheduler(client);
 
     // EkoYıldız Otomatik Rol Kurtarma (Bot Yeniden Başlatılınca)
-    const { autoRestoreRoles } = require('../services/ekoRoleRestore');
-    autoRestoreRoles(client).catch(err => {
-      console.error('[ekoRoleRestore] Hata:', err);
-    });
+    const { RESTORE_ROLES_ON_START } = require('../../config');
+    if (RESTORE_ROLES_ON_START) {
+      const { autoRestoreRoles } = require('../services/ekoRoleRestore');
+      autoRestoreRoles(client).catch(err => {
+        console.error('[ekoRoleRestore] Hata:', err);
+      });
+    }
 
     // EkoYıldız Gelişmiş Loglama Sistemini Başlat (Kanalları Otomatik Oluşturur)
     const { initializeEkoLogger } = require('../services/ekoLogger');
@@ -873,6 +876,16 @@ function initializeDiscordHandlers(client) {
         if (guildId === TMT_GUILD_ID) {
           const { logTMTVoiceStateUpdate } = require("../services/tmtLogger");
           logTMTVoiceStateUpdate(oldState, newState);
+        }
+      }
+
+      // Geçici oda temizleme kontrolü
+      if (oldState.channel) {
+        try {
+          const { checkAndDeleteEmptyChannel } = require("../services/tempVoiceService");
+          await checkAndDeleteEmptyChannel(oldState.channel);
+        } catch (err) {
+          console.error('[voiceStateUpdate] Temp voice cleanup error:', err.message);
         }
       }
     } catch (err) {
