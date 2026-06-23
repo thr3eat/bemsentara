@@ -1350,11 +1350,10 @@ async function handlePanelButton(interaction) {
 
   // MOD-ALIM Handler
   if (customId === "panel_mod_alim_search") {
-    await interaction.deferReply({ ephemeral: true });
     try {
       const { startModInterview } = require('./modInterview');
       
-      // Modal göster - kullanıcı seçimi için
+      // Modal göster - deferReply yapmayacağız, modal direkt gösterilecek
       const modal = new ModalBuilder()
         .setCustomId("panel_modal_mod_alim")
         .setTitle("🛡️ MOD-ALIM: Mülakat Gönder");
@@ -1373,6 +1372,9 @@ async function handlePanelButton(interaction) {
       return interaction.showModal(modal);
     } catch (err) {
       console.error("[panel_mod_alim_search]", err);
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply(`❌ Hata: ${err.message}`);
+      }
       return interaction.editReply(`❌ Hata: ${err.message}`);
     }
   }
