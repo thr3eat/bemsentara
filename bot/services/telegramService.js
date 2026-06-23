@@ -179,6 +179,13 @@ let consecutive409s = 0;
 
 async function startTelegramPolling(client) {
   if (isPollingActive) return;
+  
+  const pollingEnabled = process.env.TELEGRAM_POLLING_ENABLED !== "false";
+  if (!pollingEnabled) {
+    console.log("[Telegram Polling] Telegram polling .env veya ortam değişkenleri üzerinden devre dışı bırakıldı.");
+    return;
+  }
+
   if (!TELEGRAM_TOKEN) {
     console.warn("[Telegram Polling] Token yapılandırılmamış, polling başlatılmadı.");
     return;
@@ -224,11 +231,17 @@ async function startTelegramPolling(client) {
             console.warn("⚠️ Telegram botunuz başka bir yerde (örneğin başka bir terminal, sunucu veya geliştirici bilgisayarı) çalışıyor olabilir!");
           }
 
-          if (consecutive409s >= 3) {
-            console.error("[Telegram Polling] Üst üste 409 hatası alındı. Polling döngüsü 60 saniye boyunca askıya alınıyor.");
-            setTimeout(poll, 60000);
-            return;
+          if (consecutive409s >= 5) {
+            console.error("❌ [Telegram Polling] Üst üste 5 kez çakışma (409) hatası alındı.");
+            console.error("❌ Çakışmaları ve log kirliliğini önlemek amacıyla Telegram Polling bu oturum için KAPATILDI.");
+            console.error("💡 İpucu: Botun başka bir yerde çalışıp çalışmadığını kontrol edin. İsterseniz yerel geliştirme ortamında devre dışı bırakmak için .env dosyasına TELEGRAM_POLLING_ENABLED=false ekleyebilirsiniz.");
+            isPollingActive = false;
+            return; // Exit polling loop entirely
           }
+
+          console.warn(`[Telegram Polling] Polling döngüsü askıya alınıyor... (Hata Sayısı: ${consecutive409s}/5)`);
+          setTimeout(poll, 15000); // Try again in 15 seconds
+          return;
         } else {
           console.error("[Telegram Polling] Hata:", err.message);
         }
