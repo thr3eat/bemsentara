@@ -179,7 +179,6 @@ async function syncStaffDiscordRoles(client, discordUserId) {
     // Fetch user groups using noblox to bypass some cache
     let rankName = "";
     try {
-      const { noblox, ROBLOX } = require('../../config');
       const nobloxRankName = await noblox.getRankNameInGroup(ROBLOX.EKOYILDIZ_MOD, parseInt(user.robloxId));
       if (nobloxRankName && nobloxRankName !== "Guest") {
         rankName = nobloxRankName.trim();
