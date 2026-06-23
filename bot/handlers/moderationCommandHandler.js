@@ -411,47 +411,13 @@ async function handleModerationCommand(interaction) {
         }
       }
 
-      if (targetUserObj) {
-        try {
-          const dmEmbed = new EmbedBuilder()
-            .setColor(seviye === "very_high" || seviye === "high" ? 0xff3333 : 0xff9933)
-            .setTitle(`🔨 Tam Banlama Bildirimi (${seviye.toUpperCase()})`);
-
-          let dmText = `**${interaction.user.username}** tarafından aşağıdaki Roblox gruplarından:\n` +
-            `\`${rbxListText}\`\n` +
-            `ve sunucularından:\n` +
-            `\`${discGuildNames.length > 0 ? discGuildNames.join(", ") : "Yok"}\`\n\n` +
-            `**${seviye === "very_low" ? "Rolleriniz sıfırlandı." : "kalıcı şekilde banlandınız/uzaklaştırıldınız."}**\n\n` +
-            `**Sebep:** ${sebep}\n`;
-
-          if (seviye === "very_high") {
-            dmText += `\n⚠️ **Ayrıca banınız açılmazsa Sentara botu sizin için devre dışı kalacaktır.**\nBizimle birlikte olduğunuz için teşekkür ederiz.`;
-          }
-
-          dmEmbed.setDescription(dmText);
-
-          if (seviye !== "very_low") {
-            const row = new ActionRowBuilder().addComponents(
-              new ButtonBuilder()
-                .setCustomId("ban_appeal_1367646464804655104_ban")
-                .setLabel("📝 İtiraz Et")
-                .setStyle(ButtonStyle.Danger)
-            );
-            await targetUserObj.send({ embeds: [dmEmbed], components: [row] });
-          } else {
-            await targetUserObj.send({ embeds: [dmEmbed] });
-          }
-          dmSent.success = true;
-        } catch (_) {}
-      }
-
       const statusText = `👤 **Kullanıcı ID:** \`${targetUserId}\` (${targetUserObj?.tag || "Bilinmiyor"})\n` +
         `📂 **Ban Seviyesi:** \`${seviye.toUpperCase()}\`\n` +
         `📋 **Gerekçe:** ${sebep}\n` +
         `🤖 **Roblox Bağlantısı:** ${robloxId ? `Evet (\`${robloxUsername || robloxId}\`)` : "Hayır"}\n\n` +
         `🛡️ **Roblox İşlemleri:** ${robloxLogs.length > 0 ? robloxLogs.join(", ") : "Yapılmadı."}\n` +
         `🏠 **Discord İşlemleri:** ${discordLogs.length > 0 ? discordLogs.join(", ") : "Herhangi bir sunucuda bulunamadı."}\n` +
-        `📬 **DM Durumu:** ${dmSent.success ? "✅ Gönderildi" : "❌ Gönderilemedi"}`;
+        `📬 **DM Durumu:** Devre Dışı`;
 
       const resEmbed = new EmbedBuilder()
         .setTitle("🔨 Tam Banlama Uygulandı")

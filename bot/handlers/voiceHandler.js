@@ -10,12 +10,18 @@ function initializeVoiceAndBanHandlers(client) {
     } else {
       logBanAdd(ban);
     }
-    // Discord'dan ban atılınca site ban da uygula
+    let dbUser = null;
     try {
       const User = require("../../models/User");
-      const { saveStoreNow } = require("../../models/Store");
-      const dbUser = await User.findOne({ discordId: ban.user.id });
+      dbUser = await User.findOne({ discordId: ban.user.id });
+    } catch (err) {
+      console.warn("[guildBanAdd] DB query error:", err.message);
+    }
+
+    // Discord'dan ban atılınca site ban da uygula
+    try {
       if (dbUser && !dbUser.isBanned) {
+        const { saveStoreNow } = require("../../models/Store");
         dbUser.isBanned = true;
         dbUser.banReason = ban.reason || "Discord üzerinden yasaklandı";
         dbUser.bannedAt = new Date();
@@ -26,16 +32,21 @@ function initializeVoiceAndBanHandlers(client) {
       console.warn("[guildBanAdd] Site ban uygulanamadı:", err.message);
     }
 
-    // Banlanan kullanıcıya itiraz DM'i gönder
+    // Banlanan kullanıcıya itiraz DM'i gönder (Tam Ban hariç)
     try {
-      const { sendAppealDM } = require("../services/banAppeal");
-      await sendAppealDM(
-        ban.user,
-        ban.guild.name,
-        ban.guild.id,
-        ban.reason || "Belirtilmedi",
-        "ban"
-      );
+      const isTamBan = (ban.reason && ban.reason.includes("Tam Ban")) || (dbUser && dbUser.banLevel);
+      if (!isTamBan) {
+        const { sendAppealDM } = require("../services/banAppeal");
+        await sendAppealDM(
+          ban.user,
+          ban.guild.name,
+          ban.guild.id,
+          ban.reason || "Belirtilmedi",
+          "ban"
+        );
+      } else {
+        console.log(`[guildBanAdd] Tam Ban tespit edildi, DM gönderimi atlandı: ${ban.user.tag}`);
+      }
     } catch (err) {
       console.warn("[guildBanAdd] İtiraz DM gönderilemedi:", err.message);
     }
