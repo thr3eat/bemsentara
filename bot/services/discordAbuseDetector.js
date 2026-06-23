@@ -268,7 +268,7 @@ Lütfen şu formatta kısa bir analiz yap (maksimum 3 cümle, Türkçe olsun):
         const isHighRisk = riskUpper.includes("YÜKSEK") || riskUpper.includes("ÇOK YÜKSEK");
 
         if (isHighRisk) {
-          const { sendTelegramAlert } = require("./telegramService");
+          const { sendTelegramAlert, callTelegramUser } = require("./telegramService");
           const tgMessage = `🚨 <b>YAPAY ZEKA ABUSE UYARISI (DISCORD)</b>\n\n` +
             `<b>Sunucu:</b> ${gName}\n` +
             `<b>Şüpheli:</b> ${executor.tag} (<code>${executor.id}</code>)\n` +
@@ -276,6 +276,10 @@ Lütfen şu formatta kısa bir analiz yap (maksimum 3 cümle, Türkçe olsun):
             `<b>AI Analizi:</b>\n${aiResponse}\n\n` +
             `Lütfen Discord üzerinden hemen kontrol ediniz!`;
           sendTelegramAlert(tgMessage).catch(e => console.error("[Telegram] Gönderme hatası:", e.message));
+
+          // Sesli arama tetikle
+          const callText = `Sentara sunucu abuse tespiti. ${gName} sunucusunda yuksek riskli abuse tespiti yapildi. Lutfen hemen kontrol edin.`;
+          callTelegramUser(callText).catch(e => console.error("[Telegram Call] Arama hatası:", e.message));
         }
 
         if (isHighRisk && !isNight) {

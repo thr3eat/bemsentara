@@ -11,17 +11,8 @@ async function handlePanelSlashCommand(interaction) {
   }
 
   try {
-    const isOwner = interaction.user.id === "1031620522406072350";
-    const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-    const isManager = interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
-    const isMod = interaction.member.permissions.has(PermissionFlagsBits.ManageMessages) || 
-                  interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers);
-
-    // Also check if they are active staff in database
-    const staff = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isStaff = staff && staff.status === 'active';
-
-    if (!isOwner && !isAdmin && !isManager && !isMod && !isStaff) {
+    const allowedUsers = ["1031620522406072350", "1492888195807969510"];
+    if (!allowedUsers.includes(interaction.user.id)) {
       return interaction.editReply({ content: "❌ Bu paneli kullanmaya yetkiniz bulunmamaktadır!" });
     }
 

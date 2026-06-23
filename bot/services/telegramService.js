@@ -224,8 +224,31 @@ async function startTelegramPolling(client) {
   poll();
 }
 
+/**
+ * Telegram üzerinden sesli arama başlatır (CallMeBot kullanarak)
+ */
+async function callTelegramUser(text) {
+  const username = process.env.TELEGRAM_USERNAME || "8683506546"; // Kullanıcının Telegram kullanıcı adı veya ID'si (.env'den okunacak)
+  if (!username) {
+    console.warn("[Telegram Call] Arama başarısız: TELEGRAM_USERNAME tanımlanmamış.");
+    return false;
+  }
+  try {
+    const formattedUsername = (username.startsWith("@") || /^\d+$/.test(username)) ? username : `@${username}`;
+    // tr-TR voice for Turkish text reading
+    const url = `https://api.callmebot.com/start.php?user=${formattedUsername}&text=${encodeURIComponent(text)}&lang=tr-TR-Standard-A`;
+    await axios.get(url);
+    console.log(`[Telegram Call] Arama tetiklendi: ${formattedUsername}`);
+    return true;
+  } catch (err) {
+    console.error("[Telegram Call] Arama başlatılırken hata oluştu:", err.message);
+    return false;
+  }
+}
+
 module.exports = { 
   sendTelegramAlert,
   recordMessage,
-  startTelegramPolling
+  startTelegramPolling,
+  callTelegramUser
 };
