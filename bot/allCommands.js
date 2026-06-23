@@ -224,6 +224,11 @@ const generalCommands = [
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("personel-dogrula")
+    .setDescription("Roblox hesabınızı doğrulamak için kullanılır.")
+    .setDMPermission(true),
 ];
 
 const economyCommands = [

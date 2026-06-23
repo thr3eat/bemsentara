@@ -2245,7 +2245,7 @@ async function checkStaffVerifications(client) {
         if (missingRoblox) {
           instructionText = `❌ **Aşama 1 - Roblox Hesabını Bağla:** [Buraya Tıklayarak](${BASE_URL}/dashboard) hesabınızı hemen bağlayın.\n\n*(Bu aşamayı tamamladıktan sonra sıradaki adım size iletilecektir)*`;
         } else if (missingRobloxGroup) {
-          instructionText = `❌ **Aşama 2 - Roblox Moderatör Grubuna Katıl:** Hemen yetkili grubumuza katılın: https://www.roblox.com/communities/130659145/EkoY-ld-z-Moderat-r-Ekibi#!/about\n\n*(Gruba katılma isteği gönderdikten sonra sunucuda \`/personel-dogrula\` yazarsanız isteğiniz anında onaylanacak ve rütbeniz verilecektir!)*`;
+          instructionText = `❌ **Aşama 2 - Roblox Moderatör Grubuna Katıl:** Hemen yetkili grubumuza katılın: https://www.roblox.com/communities/130659145/EkoY-ld-z-Moderat-r-Ekibi#!/about\n\n*(Gruba katılma isteği gönderdikten sonra aşağıdaki **"✅ Doğrulamayı Tamamla"** butonuna tıklayarak veya sunucuda \`/personel-dogrula\` yazarak işleminizi anında onaylatabilirsiniz!)*`;
         } else if (missingGuild) {
           instructionText = `❌ **Aşama 3 - Yönetim Sunucusuna Katıl:** Hemen yönetim sunucumuza katılın: https://discord.gg/fjwjMgH54N\n\n*(Bu son adımdır, tamamladığınızda yetkileriniz aktif kalacaktır)*`;
         }
@@ -2262,10 +2262,18 @@ async function checkStaffVerifications(client) {
           .setFooter({ text: 'EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi' })
           .setTimestamp();
 
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("btn_personel_check")
+            .setLabel("✅ Doğrulamayı Tamamla")
+            .setStyle(ButtonStyle.Success)
+        );
+
         try {
           const discordUser = await client.users.fetch(p.userId);
           if (discordUser) {
-            await discordUser.send({ embeds: [embed] });
+            await discordUser.send({ embeds: [embed], components: [row] });
             notifiedCount++;
           }
         } catch (_) { }
