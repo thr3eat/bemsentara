@@ -620,6 +620,34 @@ async function handlePanelButton(interaction) {
     }
   }
 
+  // Direkt Mod Alım - Grup Doğrulama Modalı Göster
+  if (customId.startsWith("panel_direct_mod_show_verify_")) {
+    const targetUserId = customId.replace("panel_direct_mod_show_verify_", "");
+    const verifyModal = new ModalBuilder()
+      .setCustomId(`panel_modal_mod_verify_groups_${targetUserId}`)
+      .setTitle("🔗 Roblox Grup Doğrulama");
+    
+    verifyModal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("roblox_username")
+          .setLabel("Roblox Kullanıcı Adı")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("Örn: ahmetUser123")
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("group_ids")
+          .setLabel("Grup ID'leri (virgülle ayrılmış, opsiyonel)")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setPlaceholder("Örn: 12345,67890,11111")
+      )
+    );
+    return interaction.showModal(verifyModal);
+  }
+
   // Tab navigation
   if (customId.startsWith("panel_tab_")) {
     const tabName = customId.replace("panel_tab_", "");
@@ -2100,6 +2128,106 @@ async function handlePanelModal(interaction) {
 
     } catch (err) {
       console.error('[panel_modal_mod_alim_direct]', err);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // DIREKT MOD ALIM: Grup Doğrulama Modal Submit Handler
+  if (customId.startsWith("panel_modal_mod_verify_groups_")) {
+    const targetUserId = customId.replace("panel_modal_mod_verify_groups_", "");
+    const robloxUsername = interaction.fields.getTextInputValue("roblox_username").trim();
+
+    try {
+      const noblox = require('noblox.js');
+      const robloxId = await noblox.getIdFromUsername(robloxUsername).catch(() => null);
+      if (!robloxId) {
+        return interaction.editReply(`❌ **${robloxUsername}** adında bir Roblox kullanıcısı bulunamadı. Lütfen kullanıcı adını kontrol edin.`);
+      }
+
+      // 1. Veritabanına kaydet
+      const { saveStoreNow } = require('../../models/Store');
+      const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+      
+      let dbUser = await User.findOne({ discordId: targetUserId });
+      if (!dbUser) {
+        dbUser = new User({ 
+          discordId: targetUserId,
+          discordUsername: targetUser ? targetUser.username : "Bilinmeyen Kullanıcı"
+        });
+      }
+      dbUser.robloxId = String(robloxId);
+      dbUser.robloxUsername = robloxUsername;
+      dbUser.isAuthorized = true;
+      await dbUser.save();
+      saveStoreNow();
+
+      // 2. Roblox yetkili grubu rütbelerini senkronize et
+      const { syncStaffRobloxRanks, syncStaffDiscordRoles } = require('./staffAutomation');
+      await syncStaffRobloxRanks(client, targetUserId);
+      await syncStaffDiscordRoles(client, targetUserId);
+
+      // 3. Ana sunucuda rolleri senkronize et
+      const { syncMemberRoles } = require('./roleSyncService');
+      const { TARGET_GUILD_ID, VERIFY_CHANNEL_ID } = require('../../config');
+      
+      const mainGuild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+      if (mainGuild) {
+        const mainMember = await mainGuild.members.fetch(targetUserId).catch(() => null);
+        if (mainMember) {
+          await syncMemberRoles(mainGuild, mainMember, robloxId, robloxUsername);
+        }
+      }
+
+      // 4. Kullanıcıya DM ve sunucuda grup doğrulaması mesajı gönder
+      if (targetUser) {
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0x7c6af7)
+          .setTitle("🔗 Roblox Grup Doğrulaması Başarılı")
+          .setThumbnail(targetUser.avatarURL() || null)
+          .setDescription(
+            `Merhaba **${targetUser.username}**! 👋\n\n` +
+            `Roblox hesabınız başarıyla doğrulandı ve yetkili yetkileriniz tanımlandı.\n\n` +
+            `🎮 **Roblox Kullanıcı Adı:** \`${robloxUsername}\`\n` +
+            `🆔 **Roblox ID:** \`${robloxId}\`\n` +
+            `📈 **Personel Seviyesi:** \`Stajyer (Level 1)\`\n\n` +
+            `✓ Discord rolleri senkronize edildi\n` +
+            `✓ Roblox grup rütbeleri ayarlandı\n` +
+            `✓ Staff sistem kaydı aktif edildi`
+          )
+          .setFooter({ text: "Sentara Entegrasyon Sistemi" })
+          .setTimestamp();
+
+        await targetUser.send({ embeds: [dmEmbed] }).catch(err => {
+          console.warn(`[mod_verify_groups] Could not send DM to user ${targetUserId}:`, err.message);
+        });
+      }
+
+      // Ana sunucudaki doğrulama kanalına log mesajı gönder
+      if (mainGuild && VERIFY_CHANNEL_ID) {
+        const verifyChannel = await mainGuild.channels.fetch(VERIFY_CHANNEL_ID).catch(() => null);
+        if (verifyChannel && verifyChannel.isTextBased()) {
+          const publicEmbed = new EmbedBuilder()
+            .setColor(0x4ade80)
+            .setTitle("🔗 Yeni Personel Roblox Doğrulaması")
+            .setDescription(
+              `**Kullanıcı:** <@${targetUserId}> (\`${targetUserId}\`)\n` +
+              `**Roblox Hesabı:** [${robloxUsername}](https://www.roblox.com/users/${robloxId}/profile) (\`${robloxId}\`)\n` +
+              `**Durum:** Yetkili doğrulandı ve roller sunucuda senkronize edildi.`
+            )
+            .setFooter({ text: "Sentara Roblox Doğrulama" })
+            .setTimestamp();
+          await verifyChannel.send({ embeds: [publicEmbed] }).catch(err => {
+            console.error(`[mod_verify_groups] Verify channel log failed:`, err.message);
+          });
+        }
+      }
+
+      return interaction.editReply({
+        content: `✅ **${robloxUsername}** (ID: \`${robloxId}\`) hesabı başarıyla doğrulandı.\n- Kullanıcıya DM ile bilgi gönderildi.\n- Ana sunucu ve yetkili rolleri senkronize edildi.\n- Ana sunucudaki doğrulama kanalına bilgi mesajı gönderildi.`
+      });
+
+    } catch (err) {
+      console.error('[panel_modal_mod_verify_groups]', err);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
