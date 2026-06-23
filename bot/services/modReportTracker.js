@@ -204,6 +204,13 @@ async function sendActionLog(staffId, actionType, targetUserId, targetTag, detai
   await channel.send({ embeds: [embed] }).catch(err => {
     console.error('[modReportTracker] Log gönderme hatası:', err.message);
   });
+
+  try {
+    const { logToModChannel } = require('./modChannelService');
+    await logToModChannel(_client, staffId, embed).catch(() => {});
+  } catch (err) {
+    console.error('[modReportTracker] Özel kanal log gönderme hatası:', err.message);
+  }
 }
 
 // ── 1 Saat Sonra Loglanmamış İşlem Kontrolü ────────────────────────────────
@@ -340,6 +347,13 @@ async function sendPenaltyLog(staffId, actionType, targetUserId, targetTag, deta
     .setTimestamp();
 
   await channel.send({ embeds: [embed] }).catch(() => {});
+
+  try {
+    const { logToModChannel } = require('./modChannelService');
+    await logToModChannel(_client, staffId, embed).catch(() => {});
+  } catch (err) {
+    console.error('[modReportTracker] Özel kanal ceza log gönderme hatası:', err.message);
+  }
 }
 
 // ── Başlatma ───────────────────────────────────────────────────────────────

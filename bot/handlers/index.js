@@ -1927,6 +1927,23 @@ function initializeDiscordHandlers(client) {
         await statusMsg.edit(replyText);
       }
     }
+
+    if (message.content === "!modkanallariniolustur" || message.content === "!modkanallariolustur") {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const statusMsg = await message.reply("🔄 Moderatör özel log kanalları taranıyor ve oluşturuluyor, lütfen bekleyin...");
+      try {
+        const { createAllModChannels } = require("../services/modChannelService");
+        const results = await createAllModChannels(client);
+        await statusMsg.edit(`✅ **Moderatör Kanalları Güncellemesi Tamamlandı!**\n\n- Başarıyla oluşturulan/doğrulanan: **${results.success}** adet kanal\n- Başarısız olan: **${results.failed}** adet kanal`);
+      } catch (err) {
+        console.error("Mod kanalları oluşturma komut hatası:", err);
+        await statusMsg.edit(`❌ Tarama ve kanal oluşturma sırasında bir hata oluştu: ${err.message}`);
+      }
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {

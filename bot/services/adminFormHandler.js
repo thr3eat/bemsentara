@@ -35,6 +35,10 @@ async function handleAdminFormModals(interaction, client) {
       
       // Log it (Mute log can be used as general log for now or create a new one, but let's use ANA_SUNUCU log for forms)
       await sendAdminLog(client, 'ANA_SUNUCU', embed);
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
     }
     
     else if (customId === 'modal_suggestion_form') {
@@ -48,6 +52,10 @@ async function handleAdminFormModals(interaction, client) {
         .setTimestamp();
         
       await sendAdminLog(client, 'SUGGESTION_LOG', embed);
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
       await interaction.editReply('✅ Öneriniz başarıyla iletildi. Teşekkür ederiz!');
     }
     
@@ -69,6 +77,10 @@ async function handleAdminFormModals(interaction, client) {
         .setTimestamp();
         
       await sendAdminLog(client, 'ANA_SUNUCU', embed);
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
       await interaction.editReply('✅ İstifanız işleme alındı. Yönetim ekibi bilgilendirildi.');
       
       // Here you could add logic to actually kick the user from the admin server and roblox groups
@@ -101,6 +113,10 @@ async function handleAdminFormModals(interaction, client) {
         .setTimestamp();
         
       await sendAdminLog(client, 'CEZA_LOG', embed);
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
       await interaction.editReply('✅ İşleminiz başarıyla raporlandı.');
     }
     
@@ -126,6 +142,10 @@ async function handleAdminFormModals(interaction, client) {
       
       const channel = await client.channels.fetch('1466946902154018967').catch(() => null);
       if (channel) await channel.send({ embeds: [embed] });
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
       await interaction.editReply('✅ Ban raporunuz başarıyla gönderildi.');
     }
     
@@ -149,6 +169,10 @@ async function handleAdminFormModals(interaction, client) {
       
       const channel = await client.channels.fetch('1466946762190229589').catch(() => null);
       if (channel) await channel.send({ embeds: [embed] });
+      try {
+        const { logToModChannel } = require('./modChannelService');
+        await logToModChannel(client, interaction.user.id, embed).catch(() => {});
+      } catch (_) {}
       await interaction.editReply('✅ Mute raporunuz başarıyla gönderildi.');
     }
     
