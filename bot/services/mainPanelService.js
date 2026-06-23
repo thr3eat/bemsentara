@@ -540,19 +540,22 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       .setTitle("🛡️ MOD-ALIM: Moderatör Mülakatı")
       .setColor(0xE74C3C)
       .setDescription(
-        "Yeni moderatör adaylarını 7 soruluk AI mülakatından geçirerek ekibinize ekleyin.\n\n" +
-        "**Sistem:**\n" +
-        "• Adaya profesyonel mülakat daveti gönderilir\n" +
-        "• AI 7 zor soru sorar ve puanlar\n" +
-        "• Başarılı olursa otomatik moderatör olur\n" +
-        "• Staff sisteme kaydedilir"
+        "Yeni moderatör adaylarını işleme alın.\n\n" +
+        "**İki Seçenek:**\n" +
+        "1️⃣ **Mülakat ile Alım** — 7 soruluk AI mülakatı\n" +
+        "2️⃣ **Direkt Alım** — Hemen rol ver + grup doğrula"
       );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_mod_alim_search")
-        .setLabel("🔍 Aday Seç")
+        .setLabel("🎯 Mülakat ile Alım")
         .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_mod_alim_direct")
+        .setLabel("⚡ Direkt Alım (Rol + Doğrula)")
+        .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
@@ -1351,9 +1354,7 @@ async function handlePanelButton(interaction) {
   // MOD-ALIM Handler
   if (customId === "panel_mod_alim_search") {
     try {
-      const { startModInterview } = require('./modInterview');
-      
-      // Modal göster - deferReply yapmayacağız, modal direkt gösterilecek
+      // Modal göster - kullanıcı seçimi için
       const modal = new ModalBuilder()
         .setCustomId("panel_modal_mod_alim")
         .setTitle("🛡️ MOD-ALIM: Mülakat Gönder");
@@ -1372,6 +1373,34 @@ async function handlePanelButton(interaction) {
       return interaction.showModal(modal);
     } catch (err) {
       console.error("[panel_mod_alim_search]", err);
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply(`❌ Hata: ${err.message}`);
+      }
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // DIREKT MOD ALIM (Mülakat olmadan rol ver + doğrula)
+  if (customId === "panel_mod_alim_direct") {
+    try {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_mod_alim_direct")
+        .setTitle("⚡ Direkt Moderatör Alımı");
+      
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("direct_mod_user")
+            .setLabel("Kullanıcı ID veya @Etiket")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder("Örn: @kullanici veya 1234567890")
+        )
+      );
+      
+      return interaction.showModal(modal);
+    } catch (err) {
+      console.error("[panel_mod_alim_direct]", err);
       if (!interaction.replied && !interaction.deferred) {
         return interaction.reply(`❌ Hata: ${err.message}`);
       }
@@ -1946,7 +1975,7 @@ async function handlePanelModal(interaction) {
     return;
   }
 
-  // MOD-ALIM Modal Handler
+  // MOD-ALIM Modal Handler (Mülakat ile)
   if (customId === "panel_modal_mod_alim") {
     const userVal = interaction.fields.getTextInputValue("mod_alim_user").trim();
     const targetUserId = userVal.replace(/[<@!>]/g, "");
@@ -1969,7 +1998,7 @@ async function handlePanelModal(interaction) {
           .setColor(0x4ade80)
           .setTitle("✅ MOD-ALIM Mülakatı Gönderildi")
           .setDescription(
-            `**Adat:** ${targetUser}\n` +
+            `**Aday:** ${targetUser}\n` +
             `**Tarih:** ${new Date().toLocaleString('tr-TR')}\n\n` +
             `Kullanıcıya mülakat daveti DM'de gönderildi.`
           )
@@ -1988,6 +2017,91 @@ async function handlePanelModal(interaction) {
       }
     } catch (err) {
       console.error('[panel_modal_mod_alim]', err);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // DIREKT MOD ALIM Modal Handler (Rol Ver + Doğrula)
+  if (customId === "panel_modal_mod_alim_direct") {
+    await interaction.deferReply({ ephemeral: true });
+
+    const userVal = interaction.fields.getTextInputValue("direct_mod_user").trim();
+    const targetUserId = userVal.replace(/[<@!>]/g, "");
+    
+    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    if (!targetUser) {
+      return interaction.editReply({ content: "❌ Kullanıcı bulunamadı." });
+    }
+
+    const MOD_ROLE_ID = process.env.MOD_ROLE_ID || '1518692389169135666';
+    const MOD_GUILD_ID = process.env.MOD_GUILD_ID || '1367646464804655104';
+
+    try {
+      // 1. Rol ver
+      const guild = await client.guilds.fetch(MOD_GUILD_ID);
+      const member = await guild.members.fetch(targetUserId);
+      await member.roles.add(MOD_ROLE_ID, `Direkt moderatör alımı — Yönetici: ${interaction.user.tag}`);
+
+      // 2. Staff sistemine kayıt
+      const StaffProgress = require('../../models/StaffProgress');
+      let staffRecord = await StaffProgress.findOne({ userId: targetUserId });
+      if (!staffRecord) {
+        staffRecord = new StaffProgress({ userId: targetUserId, guildId: MOD_GUILD_ID, level: 1 });
+      } else if (staffRecord.level < 1) {
+        staffRecord.level = 1;
+      }
+      await staffRecord.save();
+
+      // 3. Grup doğrula - API çağrısı için modal göster
+      const verifyModal = new ModalBuilder()
+        .setCustomId(`panel_modal_mod_verify_groups_${targetUserId}`)
+        .setTitle("🔗 Roblox Grup Doğrulama");
+      
+      verifyModal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("roblox_username")
+            .setLabel("Roblox Kullanıcı Adı")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder("Örn: ahmetUser123")
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("group_ids")
+            .setLabel("Grup ID'leri (virgülle ayrılmış, opsiyonel)")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+            .setPlaceholder("Örn: 12345,67890,11111")
+        )
+      );
+
+      // Başarı mesajı + grup doğrula modalı
+      await interaction.editReply({
+        embeds: [new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle("✅ Moderatör Alımı Başarılı")
+          .setDescription(
+            `**Kullanıcı:** ${targetUser.tag}\n` +
+            `**ID:** ${targetUserId}\n\n` +
+            `✓ Moderatör rolü verildi\n` +
+            `✓ Staff sistemine kaydedildi\n\n` +
+            `Şimdi grup doğrulaması için aşağıdaki bilgileri gir.`
+          )
+          .setFooter({ text: 'Direkt Alım Sistemi' })
+          .setTimestamp()],
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`panel_direct_mod_show_verify_${targetUserId}`)
+              .setLabel("🔗 Grup Doğrula")
+              .setStyle(ButtonStyle.Primary)
+          )
+        ]
+      });
+
+    } catch (err) {
+      console.error('[panel_modal_mod_alim_direct]', err);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
