@@ -2078,6 +2078,10 @@ async function handlePanelModal(interaction) {
       }
       await staffRecord.save();
 
+      // Moderatör yönetim sunucusunda değilse davet linki gönder
+      const { ensureAdminGuildMembership } = require('./staffAutomation');
+      await ensureAdminGuildMembership(client, targetUserId).catch(() => {});
+
       // 3. Grup doğrula - API çağrısı için modal göster
       const verifyModal = new ModalBuilder()
         .setCustomId(`panel_modal_mod_verify_groups_${targetUserId}`)
