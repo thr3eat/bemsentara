@@ -150,6 +150,16 @@ async function addMessageXP(member, client) {
     xpGain = Math.ceil(xpGain * 2);
   }
 
+  // Guild/Clan Tag multiplier (1.5x XP -> +0.5x increase)
+  const hasTag = member.user?.primaryGuild && 
+                 member.user.primaryGuild.identityGuildId === "1367646464804655104" && 
+                 member.user.primaryGuild.identityEnabled && 
+                 member.user.primaryGuild.tag && 
+                 member.user.primaryGuild.tag.toUpperCase() === "EKO";
+  if (hasTag) {
+    xpGain = Math.ceil(xpGain * 1.5);
+  }
+
   p.xp            += xpGain;
   p.totalMessages  = (p.totalMessages || 0) + 1;
   p.lastMessageAt   = new Date();
@@ -193,6 +203,16 @@ async function addVoiceXP(userId, minutes, client) {
     // Server booster multiplier (2x XP)
     if (member && member.premiumSince) {
       xpGain = Math.ceil(xpGain * 2);
+    }
+
+    // Guild/Clan Tag multiplier (1.5x XP -> +0.5x increase)
+    const hasTag = member && member.user?.primaryGuild && 
+                   member.user.primaryGuild.identityGuildId === "1367646464804655104" && 
+                   member.user.primaryGuild.identityEnabled && 
+                   member.user.primaryGuild.tag && 
+                   member.user.primaryGuild.tag.toUpperCase() === "EKO";
+    if (hasTag) {
+      xpGain = Math.ceil(xpGain * 1.5);
     }
 
     p.xp                += xpGain;

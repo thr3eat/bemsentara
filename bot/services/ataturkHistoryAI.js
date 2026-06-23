@@ -89,16 +89,19 @@ async function postAtaturkHistory(client) {
       }
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(aiContent)
-      .setColor(embedColor)
-      .setFooter({ text: "TMT Yapay Zeka Tarih Sistemi", iconURL: client.user.displayAvatarURL() })
-      .setTimestamp();
-
     for (const channelId of TARGET_CHANNEL_IDS) {
       const channel = await client.channels.fetch(channelId).catch(() => null);
       if (channel && channel.isTextBased()) {
+        const isEkoYildiz = (channel.guild && channel.guild.id === "1367646464804655104") || channelId === "1518692463177498674";
+        const footerText = isEkoYildiz ? "EkoYıldız Yapay Zeka Tarih Sistemi" : "TMT Yapay Zeka Tarih Sistemi";
+
+        const embed = new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(aiContent)
+          .setColor(embedColor)
+          .setFooter({ text: footerText, iconURL: client.user.displayAvatarURL() })
+          .setTimestamp();
+
         await channel.send({ embeds: [embed] }).catch(() => {});
         console.log(`✅ [AtaturkHistoryAI] ${dateStr} mesajı ${channelId} kanalına başarıyla gönderildi.`);
       } else {

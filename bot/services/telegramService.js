@@ -3,7 +3,7 @@
 const axios = require("axios");
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "8906443471:AAHWNkdq4kMrLsVD-GwySfOXEcLWpKDcUZU";
-let cachedChatId = process.env.TELEGRAM_CHAT_ID || null;
+let cachedChatId = process.env.TELEGRAM_CHAT_ID || "8683506546";
 
 /**
  * Dinamik olarak /getUpdates endpointinden en son mesaj yazan chat ID'sini çeker ve kaydeder.

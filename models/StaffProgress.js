@@ -107,6 +107,9 @@ const staffProgressSchema = new mongoose.Schema({
     warnedDays: { type: [String], default: [] }, // Uyarı atılan günler
   },
 
+  // Sunucu Etiketi Ödülü (EKO etiketi)
+  hasReceivedTagReward: { type: Boolean, default: false },
+
   // Terfi tarihleri
   promotedAt: { type: Date, default: null },
   joinedAt: { type: Date, default: Date.now },

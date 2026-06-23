@@ -351,6 +351,12 @@ function initializeDiscordHandlers(client) {
         const { logEkoMemberUpdate } = require("../services/ekoLogger");
         logEkoMemberUpdate(oldMember, newMember);
 
+        // Sunucu Etiketi (Clan Tag) Kontrolü
+        const { checkAndRewardTag } = require("../services/clanTagService");
+        await checkAndRewardTag(newMember).catch(err => {
+          console.error("[guildMemberUpdate] checkAndRewardTag error:", err.message);
+        });
+
         // Boost detection to reward server boosters
         const startedBoosting = !oldMember.premiumSince && newMember.premiumSince;
         if (startedBoosting) {
@@ -1005,11 +1011,14 @@ function initializeDiscordHandlers(client) {
       if (handled) return;
     } catch (_) {}
 
-    // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) ───────────────────────────
+    // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) & Sunucu Etiketi Kontrolü ────
     try {
       const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");
       if (message.guild.id === FROG_GUILD_ID) {
         await addMessageXP(message.member, client).catch(() => {});
+
+        const { checkAndRewardTag } = require("../services/clanTagService");
+        await checkAndRewardTag(message.member).catch(() => {});
       }
     } catch (_) {}
 
