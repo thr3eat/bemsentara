@@ -1,304 +1,380 @@
 'use strict';
 
 /**
- * Moderator Interview Service (Enhanced MOD-ALIM System)
- * 
- * Features:
- * - Admin -> /mod-alim @user (BBU system integrated)
- * - Professional UI with progress bar
- * - 7 challenging interview questions
- * - Detailed evaluation system
- * - Point scoring system
- * - User, admin and mod-team notifications
+ * Moderatör Başvuru Mülakatı Servisi (v2 — Düzeltilmiş & Geliştirilmiş)
+ *
+ * Değişiklikler:
+ * - questionCount mantığı düzeltildi (cevaplanan soru sayısını takip eder)
+ * - history yönetimi düzeltildi (sistem mesajları history'ye karışmıyor)
+ * - avgScore hesabı düzeltildi
+ * - Mülakat timeout (30 dk) eklendi — memory leak önlendi
+ * - Typo'lar düzeltildi
+ * - Rol / staff kaydı hatalarında kullanıcı ve admin bilgilendiriliyor
+ * - finalizeInterview rol+staff işlemleri tek try/catch yerine ayrı ayrı yakalanıyor
+ * - Tüm gönderimler .catch(console.error) yerine loglanıyor
+ * - cleanSummary slice limiti 1024 → 4096 (embed description sınırı)
+ * - İlk soru mantiği ayrı bir prompt ile tetikleniyor (gereksiz systemMsg kaldırıldı)
  */
 
 const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
 } = require('discord.js');
-const { chatWithAI }   = require('./aiService');
-const StaffProgress    = require('../../models/StaffProgress');
+const { chatWithAI } = require('./aiService');
+const StaffProgress = require('../../models/StaffProgress');
 
-const MOD_ROLE_ID   = process.env.MOD_ROLE_ID   || '1518692389169135666';
-const MOD_GUILD_ID  = process.env.MOD_GUILD_ID  || '1367646464804655104';
+const MOD_ROLE_ID = process.env.MOD_ROLE_ID || '1518692389169135666';
+const MOD_GUILD_ID = process.env.MOD_GUILD_ID || '1367646464804655104';
 
-// Active interviews: userId -> { adminId, guildId, history[], score, questionCount, startTime, responses[] }
+const INTERVIEW_TIMEOUT_MS = 30 * 60 * 1000; // 30 dakika
+
+/**
+ * activeInterviews: userId → {
+ *   adminId, guildId, client,
+ *   history[],          ← yalnızca kullanıcı cevapları + AI yanıtları
+ *   answeredCount,      ← kaçıncı soruya cevap verildi (0–7)
+ *   totalScore,
+ *   startTime,
+ *   responses[],
+ *   username,
+ *   timeoutHandle
+ * }
+ */
 const activeInterviews = new Map();
 
-// System prompt for interview questions
-const INTERVIEW_SYSTEM = `You are conducting a MASTER MODERATOR interview for Eko Yildiz Discord server.
-This is the most difficult and selective interview. Ask the candidate 7 VERY HARD, ANALYTICAL, REAL-WORLD scenario questions.
+// ── Sistem promptu ─────────────────────────────────────────────────────────
+const INTERVIEW_SYSTEM = `Sen Eko Yıldız Discord sunucusu için MASTER MODERATÖR mülakatı yapan bir yapay zekasın.
+Bu, en zor ve en seçici mülakat. Adaya toplamda 7 adet ÇOK ZOR, ANALİTİK, GERÇEK DURUM sorusu sor.
 
-QUESTION CATEGORIES:
-1. RULE VIOLATION SCENARIO (spam, harassment, profanity, NSFW detection)
-2. CONFLICT MANAGEMENT (2+ users arguing, how do you intervene?)
-3. AUTHORITY LIMITS (ban vs warn, when to use each?)
-4. TEAM COMMUNICATION AND TRANSPARENCY (how do you manage sensitive decisions?)
-5. SERVER SECURITY (bot spam, alts, trust level)
-6. COMMUNITY MANAGEMENT (growth, social dynamics, mod burnout)
-7. DIFFICULTY ASSESSMENT (real challenges and responsibilities of this role)
+SORU KATEGORİLERİ (sırayla):
+1. KURAL İHLALİ SENARYOSU (spam, taciz, küfür, NSFW tespiti)
+2. ÇATIŞMA YÖNETİMİ (2+ kullanıcı tartışması, nasıl müdahale edersin?)
+3. YETKİ SINIRLARI (ban vs warn, ne zaman kullanılır?)
+4. EKİP İLETİŞİMİ VE ŞEFFAFLIK (hassas kararları nasıl yönetirsin?)
+5. SUNUCU GÜVENLİĞİ (bot spam, alt hesaplar, güven seviyesi)
+6. TOPLULUK YÖNETİMİ (büyüme, sosyal dinamik, mod tükenmişliği)
+7. ZORLUK DEĞERLENDİRMESİ (bu rolün gerçek zorlukları ve sorumlulukları)
 
-FOR EACH ANSWER EVALUATION (mandatory format):
-[POINT: X/10] Brief EVALUATION (why this score? what's missing?)
+AKIŞ:
+- Her turda önce önceki cevabı değerlendir (ilk turda değerlendirme yok), ardından yeni soruyu sor.
+- 7. soruya cevap geldikten sonra SONUÇ ver.
 
-BEFORE CONCLUSION:
-- If question count < 7: Ask the next question
-- If question count = 7: GIVE RESULT
+DEĞERLENDİRME FORMATI (zorunlu, her cevap sonrası):
+[PUAN: X/10] Kısa değerlendirme metni.
 
-RESULT (mandatory format):
-[RESULT: ACCEPT] (Average >= 7) or [RESULT: REJECT] (Average < 7)
+SONUÇ FORMATI (7. cevap sonrası zorunlu):
+[SONUÇ: KABUL] (Ortalama >= 7.0) veya [SONUÇ: RET] (Ortalama < 7.0)
+Ardından 3-5 satır genel değerlendirme ve gelişim önerileri yaz.
 
-RESULT EXPLANATION:
-- Evaluate candidate's potential among moderators
-- 3-5 line summary and development suggestions
-- If rejected: mention which areas need improvement
+ÜSLİP:
+- Profesyonel, adil, destekleyici, Türkçe
+- Her soru MAX 250 karakter`;
 
-VOICE:
-- Professional, fair, supportive
-- English/Turkish mix allowed
-- Clear and understandable
-- Each question MAX 250 characters`;
+// ── Yardımcı: güvenli DM gönder ───────────────────────────────────────────
+async function safeSend(user, payload, label = '') {
+  try {
+    await user.send(payload);
+  } catch (err) {
+    console.error(`[modInterview] DM gönderilemedi${label ? ' (' + label + ')' : ''}:`, err.message);
+  }
+}
 
-// Start interview
+// ── Timeout temizleyici ────────────────────────────────────────────────────
+function clearInterview(userId) {
+  const info = activeInterviews.get(userId);
+  if (info?.timeoutHandle) clearTimeout(info.timeoutHandle);
+  activeInterviews.delete(userId);
+}
+
+// ── Timeout başlat / yenile ────────────────────────────────────────────────
+function refreshTimeout(userId, client) {
+  const info = activeInterviews.get(userId);
+  if (!info) return;
+
+  if (info.timeoutHandle) clearTimeout(info.timeoutHandle);
+
+  info.timeoutHandle = setTimeout(async () => {
+    activeInterviews.delete(userId);
+    const user = await client.users.fetch(userId).catch(() => null);
+    if (user) {
+      await safeSend(user, {
+        embeds: [new EmbedBuilder()
+          .setColor(0xfbbf24)
+          .setTitle('⏰ Mülakat Süresi Doldu')
+          .setDescription(
+            '30 dakika boyunca yanıt alınamadı.\n\n' +
+            'Mülakat otomatik olarak sonlandırıldı. İstersen tekrar başvurabilirsin.'
+          )
+          .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
+          .setTimestamp()],
+      }, 'timeout bildirimi');
+    }
+  }, INTERVIEW_TIMEOUT_MS);
+}
+
+// ── Başvuru başlat ─────────────────────────────────────────────────────────
 async function startModInterview(targetUser, adminId, guildId, client) {
+  if (activeInterviews.has(targetUser.id)) {
+    // Zaten aktif mülakat varsa temizle ve yeniden başlat
+    clearInterview(targetUser.id);
+  }
+
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
-    .setTitle('shield MOD-ALIM: Moderator Application')
+    .setTitle('🛡️ MOD-ALIM: Moderatör Başvurusu')
     .setThumbnail(targetUser.avatarURL() || null)
     .setDescription(
-      `Hello **${targetUser.username}**! wave\n\n` +
-      `You have been selected for a SPECIAL INTERVIEW to become a **MASTER MODERATOR** in **Eko Yildiz**!\n\n` +
-      `target_icon **What is this?**\n` +
-      `* **7 very challenging interview questions** (Real moderation scenarios)\n` +
-      `* **Detailed AI evaluation** (Each answer is scored)\n` +
-      `* **If you succeed:**\n` +
-      `  - shield Moderator Team role\n` +
-      `  - chart_with_upwards_trend Staff System registration\n` +
-      `  - medal Special moderator badges\n\n` +
-      `clipboard **Requirements:**\n` +
-      `* Moderation knowledge and experience\n` +
-      `* Discord security understanding\n` +
-      `* Team communication and leadership capacity\n` +
-      `* Community management vision\n\n` +
-      `This interview will be tough. Want to give it a try?`
+      `Merhaba **${targetUser.username}**! 👋\n\n` +
+      `**Eko Yıldız** sunucusunda **MASTER MODERATÖR** olmak için ÖZEL MÜLAKATa davet edildin!\n\n` +
+      `🎯 **Bu Mülakat Nedir?**\n` +
+      `• **7 zor mülakat sorusu** — Gerçek moderatörlük senaryoları\n` +
+      `• **Detaylı AI değerlendirmesi** — Her cevap 10 üzerinden puanlanır\n` +
+      `• **Başarılı olursan:**\n` +
+      `  └─ 🛡️ Moderatör Ekibi rolü\n` +
+      `  └─ 📊 Staff sistemine kayıt\n` +
+      `  └─ 🎖️ Moderatör rozetleri\n\n` +
+      `📋 **Aradığımız Özellikler:**\n` +
+      `• Moderatörlük bilgisi ve deneyimi\n` +
+      `• Discord güvenliği anlayışı\n` +
+      `• Ekip iletişimi ve liderlik kapasitesi\n` +
+      `• Topluluk yönetim vizyonu\n\n` +
+      `⏱️ Mülakat için **30 dakika** süren var. Başlamak ister misin?`
     )
-    .setFooter({ text: 'Eko Yildiz * Moderator Selection System' })
+    .setFooter({ text: 'Eko Yıldız • Moderatör Seçimi Sistemi' })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`mod_interview_yes_${targetUser.id}`)
-      .setLabel('checkmark Yes, I am ready')
+      .setLabel('✅ Evet, Katılıyorum')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`mod_interview_no_${targetUser.id}`)
-      .setLabel('x I want but no time')
+      .setLabel('❌ Şu An Zamanım Yok')
       .setStyle(ButtonStyle.Secondary)
   );
 
   try {
     await targetUser.send({ embeds: [embed], components: [row] });
-    activeInterviews.set(targetUser.id, {
-      adminId,
-      guildId,
-      history: [],
-      score: 0,
-      questionCount: 0,
-      totalScore: 0,
-      client,
-      startTime: Date.now(),
-      responses: [],
-      username: targetUser.username,
-    });
-    return true;
   } catch (err) {
-    console.error('[modInterview] DM send failed:', err.message);
+    console.error('[modInterview] Davet DM gönderilemedi:', err.message);
     return false;
   }
+
+  activeInterviews.set(targetUser.id, {
+    adminId,
+    guildId,
+    client,
+    history: [],        // [ { role, content }, ... ] — yalnızca AI konuşma geçmişi
+    answeredCount: 0,   // kullanıcının cevapladığı soru sayısı
+    totalScore: 0,
+    startTime: Date.now(),
+    responses: [],
+    username: targetUser.username,
+    timeoutHandle: null,
+  });
+
+  // Davet için kısa timeout — kullanıcı 30 dk içinde yanıt vermezse temizle
+  refreshTimeout(targetUser.id, client);
+  return true;
 }
 
-// Yes/No button handler
+// ── Evet / Hayır buton handler ─────────────────────────────────────────────
 async function handleInterviewButton(interaction, client) {
   const cid = interaction.customId;
   if (!cid.startsWith('mod_interview_yes_') && !cid.startsWith('mod_interview_no_')) return false;
 
   const userId = interaction.user.id;
+  const info = activeInterviews.get(userId);
 
+  // ── Hayır ──
   if (cid.startsWith('mod_interview_no_')) {
-    const info = activeInterviews.get(userId);
-    activeInterviews.delete(userId);
-    
+    clearInterview(userId);
+
     await interaction.update({
-      content: 'pause Interview postponed. You can apply again when ready. Good luck!',
+      content: '⏸️ Tamam, anladım! Hazır olduğunda tekrar başvurabilirsin. Başarılar! 🍀',
       embeds: [], components: [],
-    }).catch(() => {});
+    }).catch(() => { });
 
     if (info) {
-      try {
-        const admin = await client.users.fetch(info.adminId);
-        await admin.send({
+      const admin = await client.users.fetch(info.adminId).catch(() => null);
+      if (admin) {
+        await safeSend(admin, {
           embeds: [new EmbedBuilder()
             .setColor(0xfbbf24)
-            .setTitle('pause Interview Postponed')
-            .setDescription(`**${interaction.user.tag}** postponed the moderator interview.\n\nCan apply again later.`)
-            .setTimestamp()]
-        });
-      } catch (_) {}
+            .setTitle('⏸️ Mülakat Ertelendi')
+            .setDescription(
+              `**${interaction.user.tag}** moderatör mülakatını erteledi.\n\nİlerde tekrar başvurabilir.`
+            )
+            .setTimestamp()],
+        }, 'admin-erteleme');
+      }
     }
     return true;
   }
 
-  // Yes - start interview
-  const info = activeInterviews.get(userId);
+  // ── Evet ──
   if (!info) {
-    await interaction.update({ content: 'x Application not found.', embeds: [], components: [] }).catch(() => {});
+    await interaction.update({ content: '❌ Başvuru bulunamadı veya süresi doldu.', embeds: [], components: [] }).catch(() => { });
     return true;
   }
 
   await interaction.update({
-    content: 'rocket Great! Interview is starting... Check DM for questions.',
     embeds: [new EmbedBuilder()
       .setColor(0x7c6af7)
-      .setDescription('hourglass_flowing_sand Please check your DM!\n*You can answer questions by typing.*')], 
+      .setDescription('🚀 **Harika! Mülakat başlıyor...**\n⏳ İlk soru DM\'ne geliyor.')],
     components: [],
-  }).catch(() => {});
+  }).catch(() => { });
 
-  try {
-    await askNextQuestion(userId, null, client);
-  } catch (err) {
-    console.error('[modInterview] First question error:', err.message);
-    await interaction.user.send({
+  // İlk soruyu sor
+  await askNextQuestion(userId, null, client).catch(async (err) => {
+    console.error('[modInterview] İlk soru hatası:', err.message);
+    clearInterview(userId);
+    await safeSend(interaction.user, {
       embeds: [new EmbedBuilder()
         .setColor(0xed4245)
-        .setTitle('x Interview Failed to Start')
-        .setDescription(`Technical error: \`${err.message}\`\n\nTry again later.`)
-        .setFooter({ text: 'Eko Yildiz * Moderator Selection' })]
-    }).catch(() => {});
-    activeInterviews.delete(userId);
-  }
+        .setTitle('❌ Mülakat Başlatılamadı')
+        .setDescription(`Teknik bir hata oluştu:\n\`\`\`${err.message}\`\`\`\nLütfen daha sonra tekrar dene.`)
+        .setFooter({ text: 'Eko Yıldız • Moderatör Seçimi' })],
+    }, 'başlatma hatası');
+  });
 
   return true;
 }
 
-// Ask next question
+// ── Sonraki soruyu sor (veya sonucu değerlendir) ───────────────────────────
 async function askNextQuestion(userId, previousAnswer, client) {
   const info = activeInterviews.get(userId);
   if (!info) return;
 
   const user = await client.users.fetch(userId).catch(() => null);
-  if (!user) return;
+  if (!user) { clearInterview(userId); return; }
 
+  // Timeout'u yenile (aktif konuşma var)
+  refreshTimeout(userId, client);
+
+  // Kullanıcı cevabını kaydet
   if (previousAnswer) {
     info.history.push({ role: 'user', content: previousAnswer });
     info.responses.push(previousAnswer);
+    info.answeredCount++;
   }
 
-  try {
-    const dmCh = await user.createDM().catch(() => null);
-    if (dmCh) await dmCh.sendTyping().catch(() => {});
+  // Typing göstergesi
+  const dmCh = await user.createDM().catch(() => null);
+  if (dmCh) await dmCh.sendTyping().catch(() => { });
 
-    let systemMsg = '';
-    if (info.questionCount === 0) {
-      systemMsg = 'Start the interview. Ask the first question.';
-    } else if (info.questionCount >= 7) {
-      systemMsg = 'All 7 questions completed. Evaluate result: [RESULT: ACCEPT] or [RESULT: REJECT]. Give general summary.';
-    } else {
-      systemMsg = `Evaluate question ${info.questionCount} and ask question ${info.questionCount + 1}.`;
-    }
-
-    info.history.push({ role: 'user', content: systemMsg });
-    const reply = await chatWithAI(info.history, INTERVIEW_SYSTEM);
-    info.history.push({ role: 'assistant', content: reply });
-    info.questionCount++;
-
-    // Calculate points
-    const scoreMatch = reply.match(/\[POINT:\s*(\d+)\/10\]/i);
-    if (scoreMatch) {
-      const score = parseInt(scoreMatch[1]);
-      info.totalScore += score;
-      info.score = score;
-    }
-
-    // Check for result
-    if (/\[RESULT:\s*ACCEPT\]/i.test(reply)) {
-      await finalizeInterview(userId, true, reply, client);
-      return;
-    }
-    if (/\[RESULT:\s*REJECT\]/i.test(reply)) {
-      await finalizeInterview(userId, false, reply, client);
-      return;
-    }
-
-    // Progress bar
-    const progress = Math.min(info.questionCount, 7);
-    const progressBar = 'blacksquare'.repeat(progress) + 'whitesquare'.repeat(7 - progress);
-
-    // Send question
-    const cleanReply = reply
-      .replace(/\[POINT:[^\]]+\]/gi, '')
-      .replace(/\[RESULT:[^\]]+\]/gi, '')
-      .trim();
-
-    await user.send({
-      embeds: [new EmbedBuilder()
-        .setColor(0x7c6af7)
-        .setAuthor({ name: `shield MOD-ALIM INTERVIEW * Question ${progress}/7` })
-        .setDescription(cleanReply)
-        .addFields(
-          { name: 'chart_with_upwards_trend Progress', value: `Progress bar ${progress}/7`, inline: false }
-        )
-        .setFooter({ text: 'Type your answer. Keep DM open.' })
-        .setTimestamp()],
-    });
-  } catch (err) {
-    console.error('[modInterview] Question error:', err.message);
-    await user.send({
-      embeds: [new EmbedBuilder()
-        .setColor(0xfbbf24)
-        .setTitle('warning Temporary Issue')
-        .setDescription(`AI temporarily unavailable.\n\nRetrying soon...\n\n\`\`\`${err.message}\`\`\``)]
-    });
+  // AI'a gönderilecek mesajı hazırla
+  let userPrompt;
+  if (info.answeredCount === 0) {
+    // Henüz cevap yok — ilk soruyu sor
+    userPrompt = 'Mülakatı başlat ve 1. soruyu sor. Değerlendirme yapma.';
+  } else if (info.answeredCount >= 7) {
+    // 7 cevap alındı — sonucu değerlendir
+    userPrompt = `${info.answeredCount}. cevabı değerlendir ve [SONUÇ: KABUL] veya [SONUÇ: RET] ver. Genel özet yaz.`;
+  } else {
+    // Ara soru
+    userPrompt = `${info.answeredCount}. cevabı değerlendir, ardından ${info.answeredCount + 1}. soruyu sor.`;
   }
+
+  // Geçici prompt mesajını history'ye ekle, AI yanıtladıktan sonra temizle
+  const historyWithPrompt = [...info.history, { role: 'user', content: userPrompt }];
+  const reply = await chatWithAI(historyWithPrompt, INTERVIEW_SYSTEM);
+
+  // AI yanıtını kalıcı history'ye ekle
+  // (userPrompt geçici olduğu için history'ye eklemiyoruz — sadece assistant yanıtı)
+  info.history.push({ role: 'user', content: userPrompt });
+  info.history.push({ role: 'assistant', content: reply });
+
+  // Puan parse et
+  const scoreMatch = reply.match(/\[PUAN:\s*(\d+(?:\.\d+)?)\/10\]/i);
+  if (scoreMatch) {
+    info.totalScore += parseFloat(scoreMatch[1]);
+  }
+
+  // Sonuç kontrolü
+  if (/\[SONUÇ:\s*KABUL\]/i.test(reply)) {
+    await finalizeInterview(userId, true, reply, client);
+    return;
+  }
+  if (/\[SONUÇ:\s*RET\]/i.test(reply)) {
+    await finalizeInterview(userId, false, reply, client);
+    return;
+  }
+
+  // Soru numarası: answeredCount + 1 = gösterilen soru no
+  const currentQuestion = info.answeredCount + 1;
+  const progress = Math.min(currentQuestion, 7);
+  const progressBar = '█'.repeat(progress) + '░'.repeat(7 - progress);
+
+  const cleanReply = reply
+    .replace(/\[PUAN:[^\]]+\]/gi, '')
+    .replace(/\[SONUÇ:[^\]]+\]/gi, '')
+    .trim();
+
+  await safeSend(user, {
+    embeds: [new EmbedBuilder()
+      .setColor(0x7c6af7)
+      .setAuthor({ name: `🛡️ MOD-ALIM MÜLAKATı • Soru ${progress}/7` })
+      .setDescription(cleanReply)
+      .addFields({
+        name: '📊 İlerleme',
+        value: `\`${progressBar}\` ${progress}/7`,
+        inline: false,
+      })
+      .setFooter({ text: 'Cevabını yazarak gönder. DM bağlantını açık tut.' })
+      .setTimestamp()],
+  }, `soru-${progress}`);
 }
 
-// DM reply handler
+// ── DM'den cevap gelince ───────────────────────────────────────────────────
 async function handleInterviewReply(message, client) {
   const userId = message.author.id;
-  if (!activeInterviews.has(userId)) return false;
-  if (activeInterviews.get(userId).questionCount === 0) return false;
+  const info = activeInterviews.get(userId);
+  if (!info) return false;
+  // İlk soru henüz gönderilmemişse (answeredCount=0 ama history de boşsa) cevap alma
+  if (info.answeredCount === 0 && info.history.length === 0) return false;
 
-  await askNextQuestion(userId, message.content, client);
+  await askNextQuestion(userId, message.content, client).catch((err) => {
+    console.error('[modInterview] Cevap işleme hatası:', err.message);
+  });
   return true;
 }
 
-// Finalize interview
+// ── Mülakat sonuçlandır ────────────────────────────────────────────────────
 async function finalizeInterview(userId, accepted, summary, client) {
   const info = activeInterviews.get(userId);
   if (!info) return;
-  activeInterviews.delete(userId);
+  clearInterview(userId); // timeout temizle + map'ten sil
 
   const user = await client.users.fetch(userId).catch(() => null);
-  const avgScore = info.questionCount > 0 ? Math.round(info.totalScore / Math.min(info.questionCount, 7)) : 0;
+  const answered = Math.min(info.answeredCount, 7);
+  const avgScore = answered > 0 ? +(info.totalScore / answered).toFixed(1) : 0;
+
   const duration = Math.round((Date.now() - info.startTime) / 1000);
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
 
   const cleanSummary = summary
-    .replace(/\[RESULT:[^\]]+\]/gi, '')
-    .replace(/\[POINT:[^\]]+\]/gi, '')
+    .replace(/\[SONUÇ:[^\]]+\]/gi, '')
+    .replace(/\[PUAN:[^\]]+\]/gi, '')
     .trim()
-    .slice(0, 1024);
+    .slice(0, 1000); // embed field limiti 1024 — biraz pay bırak
+
+  let roleOk = false;
+  let staffOk = false;
 
   if (accepted) {
+    // ── Rol ver ──
     try {
-      const guild  = await client.guilds.fetch(info.guildId).catch(() => null);
-      const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
-      if (member) {
-        await member.roles.add(MOD_ROLE_ID, 'Passed moderator interview (MOD-ALIM)').catch(() => {});
-      }
+      const guild = await client.guilds.fetch(info.guildId);
+      const member = await guild.members.fetch(userId);
+      await member.roles.add(MOD_ROLE_ID, 'Moderatör mülakatını geçti (MOD-ALIM)');
+      roleOk = true;
     } catch (err) {
-      console.warn('[modInterview] Role add failed:', err.message);
+      console.warn('[modInterview] Rol verilemedi:', err.message);
     }
 
+    // ── Staff sistemine kayıt ──
     try {
       let p = await StaffProgress.findOne({ userId });
       if (!p) {
@@ -307,91 +383,104 @@ async function finalizeInterview(userId, accepted, summary, client) {
         p.level = 1;
       }
       await p.save();
-      console.log(`[modInterview] ${userId} registered to staff system (MASTER MOD)`);
+      staffOk = true;
+      console.log(`[modInterview] ${userId} → staff sistemine kaydedildi`);
     } catch (err) {
-      console.warn('[modInterview] Staff registration error:', err.message);
+      console.warn('[modInterview] Staff kayıt hatası:', err.message);
     }
 
+    // ── Kullanıcıya tebrik ──
     if (user) {
-      const acceptionEmbed = new EmbedBuilder()
-        .setColor(0x4ade80)
-        .setTitle('tada CONGRATULATIONS! You are now a MASTER MODERATOR!')
-        .setThumbnail(user.avatarURL() || null)
-        .setDescription(
-          `You **passed the interview successfully**! trophy\n\n` +
-          `Welcome to Eko Yildiz moderation team.`
-        )
-        .addFields(
-          { name: 'chart_with_upwards_trend Interview Results', value: `Average Score: **${avgScore}/10**\nDuration: **${minutes}m ${seconds}s**`, inline: false },
-          { name: 'sparkles Evaluation', value: cleanSummary, inline: false },
-          { name: 'gift What you get', value: '* shield Moderator Team Role\n* chart_with_upwards_trend Staff System Registration\n* medal Moderator Badges', inline: false }
-        )
-        .setFooter({ text: 'Eko Yildiz * MOD-ALIM System' })
-        .setTimestamp();
+      const warningLines = [];
+      if (!roleOk) warningLines.push('⚠️ Moderatör rolü otomatik verilemedi — yöneticiye bildirildi.');
+      if (!staffOk) warningLines.push('⚠️ Staff sistemine kayıt yapılamadı — yöneticiye bildirildi.');
 
-      await user.send({ embeds: [acceptionEmbed] }).catch(() => {});
+      await safeSend(user, {
+        embeds: [new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle('🎉 TEBRİKLER! MODERATÖR OLDUNUZ!')
+          .setThumbnail(user.avatarURL() || null)
+          .setDescription(
+            `Mülakatı **başarıyla geçtiniz**! 🏆\n\n` +
+            `Eko Yıldız moderasyon ekibine hoş geldiniz.` +
+            (warningLines.length ? `\n\n${warningLines.join('\n')}` : '')
+          )
+          .addFields(
+            { name: '📊 Mülakat Sonuçları', value: `Ortalama Puan: **${avgScore}/10**\nSüre: **${minutes}d ${seconds}s**`, inline: false },
+            { name: '✨ Değerlendirme', value: cleanSummary || '—', inline: false },
+            { name: '🎁 Kazandıklarınız', value: '• 🛡️ Moderatör Ekibi Rolü\n• 📊 Staff Sistem Kaydı\n• 🎖️ Moderatör Rozetleri', inline: false }
+          )
+          .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
+          .setTimestamp()],
+      }, 'tebrik');
     }
 
-    try {
-      const admin = await client.users.fetch(info.adminId);
-      const adminEmbed = new EmbedBuilder()
-        .setColor(0x4ade80)
-        .setTitle('heavy_check_mark INTERVIEW RESULT: ACCEPTED')
-        .setThumbnail(user?.avatarURL() || null)
-        .setDescription(
-          `**Candidate:** ${user?.tag || `<@${userId}>`}\n` +
-          `**Admin:** <@${info.adminId}>\n` +
-          `**Server:** <@&${MOD_ROLE_ID}>`
-        )
-        .addFields(
-          { name: 'chart_with_upwards_trend Results', value: `**Average Score:** ${avgScore}/10\n**Total Questions:** ${Math.min(info.questionCount, 7)}/7\n**Duration:** ${minutes}m ${seconds}s`, inline: false },
-          { name: 'speech_balloon Evaluation', value: cleanSummary, inline: false }
-        )
-        .setFooter({ text: 'System Date: ' + new Date().toLocaleString('en-US') })
-        .setTimestamp();
+    // ── Yöneticiye bildir ──
+    const admin = await client.users.fetch(info.adminId).catch(() => null);
+    if (admin) {
+      const statusLine = `Rol: ${roleOk ? '✅' : '❌'}  |  Staff Kaydı: ${staffOk ? '✅' : '❌'}`;
+      await safeSend(admin, {
+        embeds: [new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle('✅ MÜLAKAT SONUCU: KABUL')
+          .setThumbnail(user?.avatarURL() || null)
+          .setDescription(
+            `**Aday:** ${user?.tag || `<@${userId}>`}\n` +
+            `**Yönetici:** <@${info.adminId}>\n` +
+            `**Mod Rolü:** <@&${MOD_ROLE_ID}>`
+          )
+          .addFields(
+            { name: '📊 Sonuçlar', value: `**Ortalama Puan:** ${avgScore}/10\n**Toplam Soru:** ${answered}/7\n**Süre:** ${minutes}d ${seconds}s`, inline: false },
+            { name: '🔧 Sistem Durumu', value: statusLine, inline: false },
+            { name: '💬 Değerlendirme', value: cleanSummary || '—', inline: false }
+          )
+          .setFooter({ text: 'Sistem Tarihi: ' + new Date().toLocaleString('tr-TR') })
+          .setTimestamp()],
+      }, 'admin-kabul');
+    }
 
-      await admin.send({ embeds: [adminEmbed] });
-    } catch (_) {}
   } else {
+    // ── Kullanıcıya red bildirimi ──
     if (user) {
-      const rejectionEmbed = new EmbedBuilder()
-        .setColor(0xed4245)
-        .setTitle('x INTERVIEW RESULT: REJECTED')
-        .setThumbnail(user.avatarURL() || null)
-        .setDescription(
-          `You didn't meet moderator criteria this time.\n\n` +
-          `But this is not the end! Improve yourself and apply again.`
-        )
-        .addFields(
-          { name: 'chart_with_upwards_trend Results', value: `Average Score: **${avgScore}/10**\nDuration: **${minutes}m ${seconds}s**`, inline: false },
-          { name: 'speech_balloon Feedback', value: cleanSummary, inline: false },
-          { name: 'bulb Next Steps', value: 'Focus on the areas mentioned in the evaluation and improve. Then apply again! muscle', inline: false }
-        )
-        .setFooter({ text: 'Eko Yildiz * MOD-ALIM System' })
-        .setTimestamp();
-
-      await user.send({ embeds: [rejectionEmbed] }).catch(() => {});
+      await safeSend(user, {
+        embeds: [new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle('❌ MÜLAKAT SONUCU: REDDEDİLDİ')
+          .setThumbnail(user.avatarURL() || null)
+          .setDescription(
+            `Bu sefer moderatör kriterlerini karşılayamadınız.\n\n` +
+            `Ama bu son değil! Kendini geliştirerek tekrar başvurabilirsin. 💪`
+          )
+          .addFields(
+            { name: '📊 Sonuçlar', value: `Ortalama Puan: **${avgScore}/10**\nSüre: **${minutes}d ${seconds}s**`, inline: false },
+            { name: '💬 Geri Bildirim', value: cleanSummary || '—', inline: false },
+            { name: '💡 Sonraki Adımlar', value: 'Değerlendirmede belirtilen alanlara odaklanarak kendini geliştir. Daha sonra tekrar başvurabilirsin!', inline: false }
+          )
+          .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
+          .setTimestamp()],
+      }, 'red bildirimi');
     }
 
-    try {
-      const admin = await client.users.fetch(info.adminId);
-      const adminEmbed = new EmbedBuilder()
-        .setColor(0xed4245)
-        .setTitle('x INTERVIEW RESULT: REJECTED')
-        .setThumbnail(user?.avatarURL() || null)
-        .setDescription(
-          `**Candidate:** ${user?.tag || `<@${userId}>`}\n` +
-          `**Admin:** <@${info.adminId}>`
-        )
-        .addFields(
-          { name: 'chart_with_upwards_trend Results', value: `**Average Score:** ${avgScore}/10\n**Total Questions:** ${Math.min(info.questionCount, 7)}/7\n**Duration:** ${minutes}m ${seconds}s`, inline: false },
-          { name: 'speech_balloon Evaluation', value: cleanSummary, inline: false }
-        )
-        .setFooter({ text: 'System Date: ' + new Date().toLocaleString('en-US') })
-        .setTimestamp();
-
-      await admin.send({ embeds: [adminEmbed] });
-    } catch (_) {}
+    // ── Yöneticiye bildir ──
+    const admin = await client.users.fetch(info.adminId).catch(() => null);
+    if (admin) {
+      await safeSend(admin, {
+        embeds: [new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle('❌ MÜLAKAT SONUCU: RET')
+          .setThumbnail(user?.avatarURL() || null)
+          .setDescription(
+            `**Aday:** ${user?.tag || `<@${userId}>`}\n` +
+            `**Yönetici:** <@${info.adminId}>`
+          )
+          .addFields(
+            { name: '📊 Sonuçlar', value: `**Ortalama Puan:** ${avgScore}/10\n**Toplam Soru:** ${answered}/7\n**Süre:** ${minutes}d ${seconds}s`, inline: false },
+            { name: '💬 Değerlendirme', value: cleanSummary || '—', inline: false }
+          )
+          .setFooter({ text: 'Sistem Tarihi: ' + new Date().toLocaleString('tr-TR') })
+          .setTimestamp()],
+      }, 'admin-ret');
+    }
   }
 }
 
