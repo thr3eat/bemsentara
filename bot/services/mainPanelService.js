@@ -75,6 +75,15 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         { name: "Rol", value: auth.isAdmin ? "👑 Yönetici" : auth.isManager ? "👨‍✈️ Yönetici / Manager" : auth.isMod ? "🛡️ Moderatör" : "👔 Personel", inline: true }
       );
 
+    const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
+    if (allowedSpecial.includes(interaction.user.id)) {
+      embed.addFields({
+        name: "🚨 Acil Durum Arama",
+        value: "Aşağıdaki **📞 Acil Ara** butonunu kullanarak Telegram üzerinden anında sesli arama çağrısı başlatabilirsiniz.",
+        inline: false
+      });
+    }
+
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_tab_moderation")
@@ -87,7 +96,19 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⚙️ Sistem & Otomasyon")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    if (allowedSpecial.includes(interaction.user.id)) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId("panel_emergency_call")
+          .setLabel("📞 Acil Ara")
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
+
+    row.addComponents(
       new ButtonBuilder()
         .setCustomId("panel_close")
         .setLabel("❌ Kapat")
@@ -477,6 +498,29 @@ async function handlePanelButton(interaction) {
   
   if (customId === "panel_close") {
     return interaction.update({ content: "🔒 Kontrol paneli kapatıldı.", embeds: [], components: [] });
+  }
+
+  if (customId === "panel_emergency_call") {
+    const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
+    if (!allowedSpecial.includes(interaction.user.id)) {
+      return interaction.reply({ content: "❌ Bu butonu kullanmaya yetkiniz bulunmamaktadır!", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { callTelegramUser } = require("./telegramService");
+      const callText = `Sentara sunucu yonetim paneli. Yonetici ${interaction.user.username} tarafindan acil cagri baslatildi. Lutfen hemen sunucuyu kontrol edin.`;
+      const success = await callTelegramUser(callText);
+      if (success) {
+        return interaction.editReply({ content: "✅ **Acil arama Telegram üzerinden başarıyla başlatıldı!** Bot sizi arıyor." });
+      } else {
+        return interaction.editReply({ content: "❌ **Arama başarısız.** Lütfen Telegram botunuzun ve arama servisinin (CallMeBot) yapılandırıldığından emin olun." });
+      }
+    } catch (err) {
+      console.error("[panel_emergency_call] Error:", err);
+      return interaction.editReply({ content: `❌ Arama tetiklenirken hata oluştu: ${err.message}` });
+    }
   }
 
   // Handle Tab navigation

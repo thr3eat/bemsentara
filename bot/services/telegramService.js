@@ -175,6 +175,8 @@ Kurallar:
   }
 }
 
+let consecutive409s = 0;
+
 async function startTelegramPolling(client) {
   if (isPollingActive) return;
   if (!TELEGRAM_TOKEN) {
@@ -199,6 +201,7 @@ async function startTelegramPolling(client) {
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=15`,
         { timeout: 20000 }
       );
+      consecutive409s = 0; // Reset counter on successful update
       const updates = response.data?.result || [];
       for (const update of updates) {
         lastUpdateId = update.update_id;
@@ -210,8 +213,22 @@ async function startTelegramPolling(client) {
       // Normal timeouts are ignored to avoid spamming console
       if (!err.message?.includes("timeout")) {
         if (err.response?.status === 409) {
-          console.warn("[Telegram Polling] 409 Conflict algılandı, webhook tekrar siliniyor...");
-          await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+          consecutive409s++;
+          const description = err.response?.data?.description || "";
+          
+          if (description.toLowerCase().includes("webhook")) {
+            console.warn("[Telegram Polling] Webhook çakışması algılandı, webhook siliniyor...");
+            await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
+          } else {
+            console.warn(`[Telegram Polling] 409 Çakışma Hatası: ${description}`);
+            console.warn("⚠️ Telegram botunuz başka bir yerde (örneğin başka bir terminal, sunucu veya geliştirici bilgisayarı) çalışıyor olabilir!");
+          }
+
+          if (consecutive409s >= 3) {
+            console.error("[Telegram Polling] Üst üste 409 hatası alındı. Polling döngüsü 60 saniye boyunca askıya alınıyor.");
+            setTimeout(poll, 60000);
+            return;
+          }
         } else {
           console.error("[Telegram Polling] Hata:", err.message);
         }
