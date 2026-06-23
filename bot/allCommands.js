@@ -729,6 +729,40 @@ const moderationCommands = [
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("tamban")
+    .setDescription("[Yönetici] Kullanıcıyı tüm sunuculardan banlar ve Roblox gruplarından rütbe indirir")
+    .addStringOption((o) =>
+      o.setName("kullanici_id").setDescription("Yasaklanacak kullanıcının Discord ID'si veya etiket").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("seviye").setDescription("Banlama Seviyesi").setRequired(true)
+        .addChoices(
+          { name: "Çok Yüksek", value: "very_high" },
+          { name: "Yüksek", value: "high" },
+          { name: "Orta", value: "medium" },
+          { name: "Düşük", value: "low" },
+          { name: "Çok Düşük", value: "very_low" }
+        )
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("Banlama gerekçesi").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("tamban_kaldir")
+    .setDescription("[Yönetici] Kullanıcının tambanını kaldırır ve Roblox rütbelerini iade eder")
+    .addStringOption((o) =>
+      o.setName("kullanici_id").setDescription("Yasağı kaldırılacak kullanıcının Discord ID'si veya etiket").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("Yasak kaldırma gerekçesi").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
 ];
 
 // JSON'a dönüştürülmüş komut listesi (Deploy etmek için)

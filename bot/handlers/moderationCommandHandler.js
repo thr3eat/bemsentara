@@ -5,13 +5,20 @@ async function handleModerationCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
 
-  if (!["mesaj_sil", "sustur", "susturma_kaldir", "yasakla", "yasaklama_kaldir", "modislem"].includes(commandName)) return null;
+  if (!["mesaj_sil", "sustur", "susturma_kaldir", "yasakla", "yasaklama_kaldir", "modislem", "tamban", "tamban_kaldir"].includes(commandName)) return null;
 
   await interaction.deferReply(deferEphemeral());
 
   try {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.editReply({ content: "❌ Mesaj Yöneticisi izni gerekli" });
+    const isHardBanCommand = ["tamban", "tamban_kaldir"].includes(commandName);
+    if (isHardBanCommand) {
+      if (interaction.user.id !== "1031620522406072350" && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.editReply({ content: "❌ Bu komutu kullanmak için Eko veya Yönetici olmalısınız!" });
+      }
+    } else {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return interaction.editReply({ content: "❌ Mesaj Yöneticisi izni gerekli" });
+      }
     }
 
     if (commandName === "mesaj_sil") {
@@ -208,6 +215,253 @@ async function handleModerationCommand(interaction) {
 
       const { executeModAction } = require("../services/modActionService");
       return executeModAction(interaction, kullanici, sebep, kanit);
+    }
+
+    if (commandName === "tamban") {
+      const inputId = interaction.options.getString("kullanici_id");
+      const targetUserId = inputId.replace(/[<@!>]/g, "");
+      const seviye = interaction.options.getString("seviye");
+      const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
+
+      const User = require("../../models/User");
+      const noblox = require("noblox.js");
+      const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require("discord.js");
+
+      let dbUser = await User.findOne({ discordId: targetUserId });
+      let robloxId = dbUser?.robloxId;
+      let robloxUsername = dbUser?.robloxUsername;
+
+      let robloxLogs = [];
+      let discordLogs = [];
+      let savedGroupRanks = {};
+
+      if (robloxId && seviye !== "very_low") {
+        const robloxUserId = parseInt(robloxId);
+        if (!isNaN(robloxUserId)) {
+          for (const [groupId, groupName] of Object.entries(ROBLOX_GROUPS)) {
+            try {
+              const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxUserId);
+              if (rankInGroup > 0) {
+                const roles = await noblox.getRoles(parseInt(groupId));
+                const lowest = roles.filter(r => r.rank > 0).sort((a, b) => a.rank - b.rank)[0];
+                if (lowest && rankInGroup !== lowest.rank) {
+                  savedGroupRanks[groupId] = {
+                    oldRank: rankInGroup,
+                    oldRoleId: lowest.rank
+                  };
+                  await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: lowest.rank });
+                  robloxLogs.push(`${groupName}`);
+                }
+              }
+            } catch (err) {
+              console.warn(`[tamban] Roblox group ${groupId} demotion error:`, err.message);
+            }
+          }
+        }
+      }
+
+      if (dbUser && Object.keys(savedGroupRanks).length > 0) {
+        dbUser.tambanSavedRanks = savedGroupRanks;
+      }
+
+      if (dbUser) {
+        dbUser.isBanned = true;
+        dbUser.banReason = sebep;
+        dbUser.bannedAt = new Date();
+        dbUser.bannedBy = interaction.user.id;
+        dbUser.banLevel = seviye;
+        await dbUser.save();
+      }
+
+      const targetUserObj = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      const dmSent = { success: false };
+
+      const getNormalMemberRole = (guild) => {
+        const { TMT_GUILD_ID, TMT_VERIFIED_ROLE_ID, TARGET_GUILD_ID, ALLIED_GUILD_ID } = require("../../config");
+        if (guild.id === TMT_GUILD_ID) {
+          const role = guild.roles.cache.get(TMT_VERIFIED_ROLE_ID);
+          if (role) return role;
+        }
+        if (guild.id === TARGET_GUILD_ID) {
+          const role = guild.roles.cache.find(r => r.name === "Teşkilat Personeli") || guild.roles.cache.get("1505511498095788063");
+          if (role) return role;
+        }
+        if (guild.id === ALLIED_GUILD_ID) {
+          const role = guild.roles.cache.get("1483483253720616971");
+          if (role) return role;
+        }
+        const namesToSearch = ["üye", "member", "personel", "onaylı", "onaylanmış hesap", "kullanıcı"];
+        for (const name of namesToSearch) {
+          const role = guild.roles.cache.find(r => r.name.toLowerCase() === name && !r.managed);
+          if (role) return role;
+        }
+        const sortedRoles = Array.from(guild.roles.cache.values())
+          .filter(r => r.id !== guild.id && !r.managed)
+          .sort((a, b) => a.position - b.position);
+        return sortedRoles[0] || null;
+      };
+
+      const rbxListText = robloxLogs.length > 0 ? robloxLogs.join(", ") : "Yok";
+      const discGuildNames = [];
+
+      for (const guild of interaction.client.guilds.cache.values()) {
+        try {
+          const member = await guild.members.fetch(targetUserId).catch(() => null);
+          if (!member) continue;
+          discGuildNames.push(guild.name);
+
+          if (seviye === "very_high" || seviye === "high") {
+            await member.ban({ reason: `Tam Ban (${seviye}): ${sebep}` }).catch(() => {});
+            discordLogs.push(`${guild.name} (Banlandı)`);
+          } else if (seviye === "medium") {
+            const { TMT_GUILD_ID } = require("../../config");
+            const isMain = guild.id === TMT_GUILD_ID || guild.id === "1367646464804655104";
+            if (isMain) {
+              await member.ban({ reason: `Tam Ban (Orta): ${sebep}` }).catch(() => {});
+              discordLogs.push(`${guild.name} (Banlandı)`);
+            } else {
+              await member.kick(`Tam Ban (Orta): ${sebep}`).catch(() => {});
+              discordLogs.push(`${guild.name} (Atıldı)`);
+            }
+          } else if (seviye === "low") {
+            await member.kick(`Tam Ban (Düşük): ${sebep}`).catch(() => {});
+            discordLogs.push(`${guild.name} (Atıldı)`);
+          } else if (seviye === "very_low") {
+            const editableRoles = member.roles.cache.filter(role => 
+              role.id !== guild.id && !role.managed && role.editable
+            );
+            if (editableRoles.size > 0) {
+              await member.roles.remove(Array.from(editableRoles.keys()), `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
+            }
+            const basicRole = getNormalMemberRole(guild);
+            if (basicRole) {
+              await member.roles.add(basicRole, `Tam Ban (Çok Düşük): ${sebep}`).catch(() => {});
+            }
+            discordLogs.push(`${guild.name} (Roller Sıfırlandı)`);
+          }
+        } catch (gErr) {
+          console.warn(`[tamban] Guild ${guild.name} action error:`, gErr.message);
+        }
+      }
+
+      if (targetUserObj) {
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(seviye === "very_high" || seviye === "high" ? 0xff3333 : 0xff9933)
+            .setTitle(`🔨 Tam Banlama Bildirimi (${seviye.toUpperCase()})`);
+
+          let dmText = `**${interaction.user.username}** tarafından aşağıdaki Roblox gruplarından:\n` +
+            `\`${rbxListText}\`\n` +
+            `ve sunucularından:\n` +
+            `\`${discGuildNames.length > 0 ? discGuildNames.join(", ") : "Yok"}\`\n\n` +
+            `**${seviye === "very_low" ? "Rolleriniz sıfırlandı." : "kalıcı şekilde banlandınız/uzaklaştırıldınız."}**\n\n` +
+            `**Sebep:** ${sebep}\n`;
+
+          if (seviye === "very_high") {
+            dmText += `\n⚠️ **Ayrıca banınız açılmazsa Sentara botu sizin için devre dışı kalacaktır.**\nBizimle birlikte olduğunuz için teşekkür ederiz.`;
+          }
+
+          dmEmbed.setDescription(dmText);
+
+          if (seviye !== "very_low") {
+            const row = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId("ban_appeal_1367646464804655104_ban")
+                .setLabel("📝 İtiraz Et")
+                .setStyle(ButtonStyle.Danger)
+            );
+            await targetUserObj.send({ embeds: [dmEmbed], components: [row] });
+          } else {
+            await targetUserObj.send({ embeds: [dmEmbed] });
+          }
+          dmSent.success = true;
+        } catch (_) {}
+      }
+
+      const statusText = `👤 **Kullanıcı ID:** \`${targetUserId}\` (${targetUserObj?.tag || "Bilinmiyor"})\n` +
+        `📂 **Ban Seviyesi:** \`${seviye.toUpperCase()}\`\n` +
+        `📋 **Gerekçe:** ${sebep}\n` +
+        `🤖 **Roblox Bağlantısı:** ${robloxId ? `Evet (\`${robloxUsername || robloxId}\`)` : "Hayır"}\n\n` +
+        `🛡️ **Roblox İşlemleri:** ${robloxLogs.length > 0 ? robloxLogs.join(", ") + " rütbe düşürüldü." : "Yapılmadı."}\n` +
+        `🏠 **Discord İşlemleri:** ${discordLogs.length > 0 ? discordLogs.join(", ") : "Herhangi bir sunucuda bulunamadı."}\n` +
+        `📬 **DM Durumu:** ${dmSent.success ? "✅ Gönderildi" : "❌ Gönderilemedi"}`;
+
+      const resEmbed = new EmbedBuilder()
+        .setTitle("🔨 Tam Banlama Uygulandı")
+        .setColor(0xed4245)
+        .setDescription(statusText)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [resEmbed] });
+    }
+
+    if (commandName === "tamban_kaldir") {
+      const inputId = interaction.options.getString("kullanici_id");
+      const targetUserId = inputId.replace(/[<@!>]/g, "");
+      const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
+
+      const User = require("../../models/User");
+      const noblox = require("noblox.js");
+
+      let dbUser = await User.findOne({ discordId: targetUserId });
+      
+      let robloxLogs = [];
+      let discordLogs = [];
+
+      if (dbUser && dbUser.tambanSavedRanks && dbUser.robloxId) {
+        const robloxUserId = parseInt(dbUser.robloxId);
+        if (!isNaN(robloxUserId)) {
+          const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+          for (const [groupId, rankInfo] of Object.entries(dbUser.tambanSavedRanks)) {
+            try {
+              const groupName = ROBLOX_GROUPS[groupId] || `Grup ${groupId}`;
+              const oldRank = rankInfo.oldRank;
+              if (oldRank) {
+                await noblox.setRank({ group: parseInt(groupId), target: robloxUserId, rank: oldRank });
+                robloxLogs.push(`${groupName}`);
+              }
+            } catch (err) {
+              console.warn(`[tamban_kaldir] Roblox group ${groupId} restore error:`, err.message);
+            }
+          }
+        }
+        dbUser.tambanSavedRanks = undefined;
+      }
+
+      if (dbUser) {
+        dbUser.isBanned = false;
+        dbUser.banReason = null;
+        dbUser.bannedAt = null;
+        dbUser.bannedBy = null;
+        dbUser.banLevel = null;
+        await dbUser.save();
+      }
+
+      for (const guild of interaction.client.guilds.cache.values()) {
+        try {
+          const ban = await guild.bans.fetch(targetUserId).catch(() => null);
+          if (ban) {
+            await guild.bans.remove(targetUserId, `Tam Ban Kaldırma: ${sebep}`).catch(() => {});
+            discordLogs.push(`${guild.name}`);
+          }
+        } catch (gErr) {
+          console.warn(`[tamban_kaldir] Guild ${guild.name} unban error:`, gErr.message);
+        }
+      }
+
+      const statusText = `👤 **Kullanıcı ID:** \`${targetUserId}\`\n` +
+        `📋 **Gerekçe:** ${sebep}\n\n` +
+        `🛡️ **Roblox Rütbe İadeleri:** ${robloxLogs.length > 0 ? robloxLogs.join(", ") : "Yapılmadı."}\n` +
+        `🏠 **Discord Yasağı Kaldırılan Sunucular:** ${discordLogs.length > 0 ? discordLogs.join(", ") : "Hiçbir sunucuda aktif yasak bulunamadı."}`;
+
+      const resEmbed = new EmbedBuilder()
+        .setTitle("✅ Tam Banlama Kaldırıldı")
+        .setColor(0x4ade80)
+        .setDescription(statusText)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [resEmbed] });
     }
 
     return null;

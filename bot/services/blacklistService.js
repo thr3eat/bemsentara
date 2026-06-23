@@ -205,7 +205,7 @@ async function renderBlacklist(client) {
       await channel.send({ embeds: [updateEmbed] }).catch(() => {});
     }
   } catch (err) {
-    console.error('[blacklist] Render error:', err.message);
+    console.error('[blacklist] Render error:', err.stack || err.message);
   }
 }
 
@@ -237,10 +237,42 @@ async function handleBlacklistMessage(message, client) {
 
   // Regular expression patterns
   const additionPattern = /^\(?([^)]+?)\)?\s*\(([^)]+?)\)$/;
+  const groupAdditionPattern = /^\(?([^)]+?)\)?\s*grubu\s*\(([^)]+?)\)$/i;
   const removalPattern = /^\(?([^)]+?)\)?\s*\(sorunçözüldü\)\s*Kaldırıldı$/i;
+  const completeRemovalPattern = /^\(?([^)]+?)\)?\s*Tamamen\s*kaldırıldı$/i;
   const reopenPattern = /^\(?([^)]+?)\)?\s*\(sorun\s*çözülmemiş\)\s*Yeniden\s*Açıldı$/i;
 
-  // 1. Check Removal Pattern
+  // 1. Check Complete Removal Pattern (Instant delete without strikethrough, do not tag)
+  if (completeRemovalPattern.test(content)) {
+    const match = content.match(completeRemovalPattern);
+    const name = match[1].trim();
+
+    try {
+      const entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      if (!entry) {
+        return sendWarning(`❌ **${name}** karalistede bulunamadı!`);
+      }
+
+      await Blacklist.deleteOne({ _id: entry._id });
+
+      deleteMessage();
+      await renderBlacklist(client);
+
+      if (logChannel) {
+        const cleanName = entry.name.replace(/[<@!>]/g, "");
+        await logChannel.send({
+          content: `🗑️ **[KARALİSTE TAMAMEN SİLİNDİ]** <@${message.author.id}> tarafından **${cleanName}** listeden tamamen silindi.`,
+          allowedMentions: { users: [] }
+        }).catch(() => {});
+      }
+    } catch (dbErr) {
+      console.error('[blacklist] DB complete removal error:', dbErr.message);
+      return sendWarning(`❌ Bir veritabanı hatası oluştu: ${dbErr.message}`);
+    }
+    return;
+  }
+
+  // 2. Check Removal Pattern (Standard 15-day strikeout)
   if (removalPattern.test(content)) {
     const match = content.match(removalPattern);
     const name = match[1].trim();
@@ -259,8 +291,10 @@ async function handleBlacklistMessage(message, client) {
       await renderBlacklist(client);
 
       if (logChannel) {
+        const cleanName = entry.name.replace(/[<@!>]/g, "");
         await logChannel.send({
-          content: `📤 **[KARALİSTE KALDIRMA]** <@${message.author.id}> tarafından **${entry.name}** kaldırıldı. (15 gün sonra listeden tamamen silinecektir.)`
+          content: `📤 **[KARALİSTE KALDIRMA]** <@${message.author.id}> tarafından **${cleanName}** kaldırıldı. (15 gün sonra listeden tamamen silinecektir.)`,
+          allowedMentions: { users: [] }
         }).catch(() => {});
       }
     } catch (dbErr) {
@@ -270,7 +304,7 @@ async function handleBlacklistMessage(message, client) {
     return;
   }
 
-  // 2. Check Reopen Pattern
+  // 3. Check Reopen Pattern
   if (reopenPattern.test(content)) {
     const match = content.match(reopenPattern);
     const name = match[1].trim();
@@ -289,8 +323,10 @@ async function handleBlacklistMessage(message, client) {
       await renderBlacklist(client);
 
       if (logChannel) {
+        const cleanName = entry.name.replace(/[<@!>]/g, "");
         await logChannel.send({
-          content: `🔄 **[KARALİSTE YENİDEN ETKİN]** <@${message.author.id}> tarafından **${entry.name}** yasağı/karaliste kaydı yeniden açıldı.`
+          content: `🔄 **[KARALİSTE YENİDEN ETKİN]** <@${message.author.id}> tarafından **${cleanName}** yasağı/karaliste kaydı yeniden açıldı.`,
+          allowedMentions: { users: [] }
         }).catch(() => {});
       }
     } catch (dbErr) {
@@ -300,7 +336,50 @@ async function handleBlacklistMessage(message, client) {
     return;
   }
 
-  // 3. Check Addition Pattern
+  // 4. Check Group Addition Pattern
+  if (groupAdditionPattern.test(content)) {
+    const match = content.match(groupAdditionPattern);
+    const name = match[1].trim() + ' grubu';
+    const reason = match[2].trim();
+
+    try {
+      let entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+      let isNew = false;
+
+      if (entry) {
+        entry.reason = reason;
+        entry.status = 'active';
+        entry.removedAt = null;
+        await entry.save();
+      } else {
+        entry = new Blacklist({
+          name,
+          type: 'group',
+          reason,
+          status: 'active'
+        });
+        await entry.save();
+        isNew = true;
+      }
+
+      deleteMessage();
+      await renderBlacklist(client);
+
+      if (logChannel) {
+        const cleanName = entry.name.replace(/[<@!>]/g, "");
+        await logChannel.send({
+          content: `📥 **[KARALİSTE EKLEME (GRUP)]** <@${message.author.id}> tarafından **${cleanName}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** 🛡️ Grup (${isNew ? 'Yeni Kayıt' : 'Güncellenen Kayıt'})`,
+          allowedMentions: { users: [] }
+        }).catch(() => {});
+      }
+    } catch (dbErr) {
+      console.error('[blacklist] DB group addition error:', dbErr.message);
+      return sendWarning(`❌ Bir veritabanı hatası oluştu: ${dbErr.message}`);
+    }
+    return;
+  }
+
+  // 5. Check Addition Pattern (Standard Person/Auto-detect Group)
   if (additionPattern.test(content)) {
     const match = content.match(additionPattern);
     const name = match[1].trim();
@@ -340,8 +419,10 @@ async function handleBlacklistMessage(message, client) {
       await renderBlacklist(client);
 
       if (logChannel) {
+        const cleanName = entry.name.replace(/[<@!>]/g, "");
         await logChannel.send({
-          content: `📥 **[KARALİSTE EKLEME]** <@${message.author.id}> tarafından **${entry.name}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** ${type === 'group' ? '🛡️ Grup' : '👤 Kişi'} (${isNew ? 'Yeni Kayıt' : 'Güncellenen Kayıt'})`
+          content: `📥 **[KARALİSTE EKLEME]** <@${message.author.id}> tarafından **${cleanName}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** ${type === 'group' ? '🛡️ Grup' : '👤 Kişi'} (${isNew ? 'Yeni Kayıt' : 'Güncellenen Kayıt'})`,
+          allowedMentions: { users: [] }
         }).catch(() => {});
       }
     } catch (dbErr) {
@@ -351,12 +432,14 @@ async function handleBlacklistMessage(message, client) {
     return;
   }
 
-  // 4. Invalid Format
+  // 6. Invalid Format
   const warningText = `❌ **Hatalı biçim kullandınız!**\n\n` +
     `**Kullanılabilir Formatlar:**\n` +
-    `1️⃣ **Ekleme:** \`(isim) (sebep)\` (Örn: \`LorerYT (salaklık)\`)\n` +
-    `2️⃣ **Kaldırma:** \`isim (sorunçözüldü) Kaldırıldı\` (Örn: \`TA Kızları (sorunçözüldü) Kaldırıldı\`)\n` +
-    `3️⃣ **Yeniden Açma:** \`isim (sorun çözülmemiş) Yeniden Açıldı\` (Örn: \`TA Kızları (sorun çözülmemiş) Yeniden Açıldı\`)`;
+    `1️⃣ **Kişi Ekleme:** \`(isim) (sebep)\` (Örn: \`LorerYT (salaklık)\`)\n` +
+    `2️⃣ **Grup Ekleme:** \`(isim) grubu (sebep)\` (Örn: \`LorerYT grubu (salaklık)\`)\n` +
+    `3️⃣ **Normal Kaldırma:** \`isim (sorunçözüldü) Kaldırıldı\` (Örn: \`TA Kızları (sorunçözüldü) Kaldırıldı\`)\n` +
+    `4️⃣ **Tamamen Silme:** \`isim Tamamen kaldırıldı\` (Örn: \`LorerYT Tamamen kaldırıldı\`)\n` +
+    `5️⃣ **Yeniden Açma:** \`isim (sorun çözülmemiş) Yeniden Açıldı\` (Örn: \`TA Kızları (sorun çözülmemiş) Yeniden Açıldı\`)`;
 
   await sendWarning(warningText);
 }

@@ -50,7 +50,7 @@ async function autoRestoreRoles(client) {
 
       // 1. Staff System Sync
       const progress = await StaffProgress.findOne({ userId: memberId });
-      if (progress && progress.level) {
+      if (progress && progress.level && progress.status === 'active') {
         const roleId = ROLES[progress.level];
         if (roleId) {
           if (!member.roles.cache.has(roleId)) {
