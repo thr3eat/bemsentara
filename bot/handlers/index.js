@@ -1629,6 +1629,304 @@ function initializeDiscordHandlers(client) {
         await statusMsg.edit(`❌ Senkronizasyon sırasında hata oluştu: ${err.message}`);
       }
     }
+
+    if (message.content.startsWith("!rollerveizinleri")) {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const lines = message.content.split("\n");
+      if (lines.length <= 1 || (lines.length === 2 && !lines[1].trim())) {
+        let helpText = `ℹ️ **!rollerveizinleri Kullanım Rehberi**\n`;
+        helpText += `Bu komut, sunucudaki rollerin yetkilerini toplu olarak güncellemenizi sağlar.\n\n`;
+        helpText += `**Format:**\n`;
+        helpText += `\`\`\`\n`;
+        helpText += `!rollerveizinleri\n`;
+        helpText += `[rol_id] [true/false/ac/kapat] [yetki_ismi1] [yetki_ismi2] ...\n`;
+        helpText += `\`\`\`\n\n`;
+        helpText += `*Eğer true/false belirtilmezse varsayılan olarak yetkiler açılır (true).* \n\n`;
+        helpText += `**Örnekler:**\n`;
+        helpText += `- \`1518692395774906648 true tepkiler mesajgonder\`\n`;
+        helpText += `- \`1518692395774906648 false yonetici\`\n`;
+        helpText += `- \`1518692395774906648 baglan konus\` (Varsayılan olarak true)\n\n`;
+        helpText += `**Popüler Yetki İsimleri:**\n`;
+        helpText += `- \`yonetici\` / \`admin\`\n`;
+        helpText += `- \`rolleriyonet\` / \`rol\`\n`;
+        helpText += `- \`kanallariyonet\` / \`kanal\`\n`;
+        helpText += `- \`sunucuyuyonet\`\n`;
+        helpText += `- \`goruntule\` / \`oku\` (Kanalları Görüntüle)\n`;
+        helpText += `- \`mesajgonder\` / \`mesaj\` / \`yaz\`\n`;
+        helpText += `- \`mesajlariyonet\`\n`;
+        helpText += `- \`linkpaylas\` / \`link\`\n`;
+        helpText += `- \`dosyagonder\` / \`dosya\`\n`;
+        helpText += `- \`tepkiler\` / \`tepki\`\n`;
+        helpText += `- \`gecmisigor\`\n`;
+        helpText += `- \`baglan\` / \`ses\`\n`;
+        helpText += `- \`konus\`\n`;
+        helpText += `- \`sustur\` / \`mute\`\n`;
+        helpText += `- \`sagirlastir\`\n`;
+        helpText += `- \`tasi\`\n`;
+        helpText += `- \`yayin\` / \`ekran\`\n`;
+        helpText += `- \`zamanasimi\` / \`susturma\` / \`timeout\`\n`;
+        helpText += `- \`uygulamakomutlari\`\n`;
+        return message.reply(helpText);
+      }
+
+      const permissionMap = {
+        "yonetici": "Administrator",
+        "admin": "Administrator",
+        "administrator": "Administrator",
+        "rolleriyonet": "ManageRoles",
+        "manageroles": "ManageRoles",
+        "rol": "ManageRoles",
+        "roller": "ManageRoles",
+        "kanallariyonet": "ManageChannels",
+        "managechannels": "ManageChannels",
+        "kanal": "ManageChannels",
+        "kanallar": "ManageChannels",
+        "sunucuyuyonet": "ManageGuild",
+        "manageguild": "ManageGuild",
+        "sunucu": "ManageGuild",
+        "uyeleriat": "KickMembers",
+        "kickmembers": "KickMembers",
+        "kick": "KickMembers",
+        "uyeleriyasakla": "BanMembers",
+        "banmembers": "BanMembers",
+        "ban": "BanMembers",
+        "denetimkaydi": "ViewAuditLog",
+        "viewauditlog": "ViewAuditLog",
+        "denetim": "ViewAuditLog",
+        "goruntule": "ViewChannel",
+        "viewchannel": "ViewChannel",
+        "oku": "ViewChannel",
+        "mesajgonder": "SendMessages",
+        "sendmessages": "SendMessages",
+        "mesaj": "SendMessages",
+        "yaz": "SendMessages",
+        "mesajlariyonet": "ManageMessages",
+        "managemessages": "ManageMessages",
+        "linkpaylas": "EmbedLinks",
+        "embedlinks": "EmbedLinks",
+        "link": "EmbedLinks",
+        "baglanti": "EmbedLinks",
+        "dosyagonder": "AttachFiles",
+        "attachfiles": "AttachFiles",
+        "dosya": "AttachFiles",
+        "tepkiler": "AddReactions",
+        "tepki": "AddReactions",
+        "addreactions": "AddReactions",
+        "tepkiekle": "AddReactions",
+        "hariciemoji": "UseExternalEmojis",
+        "useexternalemojis": "UseExternalEmojis",
+        "disemoji": "UseExternalEmojis",
+        "herkesebahset": "MentionEveryone",
+        "mentioneveryone": "MentionEveryone",
+        "everyone": "MentionEveryone",
+        "etiket": "MentionEveryone",
+        "gecmisigor": "ReadMessageHistory",
+        "readmessagehistory": "ReadMessageHistory",
+        "gecmis": "ReadMessageHistory",
+        "baglan": "Connect",
+        "connect": "Connect",
+        "ses": "Connect",
+        "konus": "Speak",
+        "speak": "Speak",
+        "sustur": "MuteMembers",
+        "mutemembers": "MuteMembers",
+        "mute": "MuteMembers",
+        "sagirlastir": "DeafenMembers",
+        "deafenmembers": "DeafenMembers",
+        "sagir": "DeafenMembers",
+        "tasi": "MoveMembers",
+        "movemembers": "MoveMembers",
+        "tasima": "MoveMembers",
+        "sesaktifligi": "UseVAD",
+        "usevad": "UseVAD",
+        "yayin": "Stream",
+        "stream": "Stream",
+        "ekran": "Stream",
+        "video": "Stream",
+        "etkinlik": "UseEmbeddedActivities",
+        "useembeddedactivities": "UseEmbeddedActivities",
+        "etkinlikler": "UseEmbeddedActivities",
+        "zamanasimi": "ModerateMembers",
+        "timeout": "ModerateMembers",
+        "moderatemembers": "ModerateMembers",
+        "susturma": "ModerateMembers",
+        "uygulamakomutlari": "UseApplicationCommands",
+        "useapplicationcommands": "UseApplicationCommands",
+        "komut": "UseApplicationCommands",
+        "egikcizgi": "UseApplicationCommands",
+        "davet": "CreateInstantInvite",
+        "createinstantinvite": "CreateInstantInvite",
+        "davetolustur": "CreateInstantInvite",
+        "addegistir": "ChangeNickname",
+        "changenickname": "ChangeNickname",
+        "adlariyonet": "ManageNicknames",
+        "managenicknames": "ManageNicknames",
+        "webhooksyonet": "ManageWebhooks",
+        "managewebhooks": "ManageWebhooks",
+        "webhook": "ManageWebhooks",
+        "emojiyonet": "ManageEmojisAndStickers",
+        "manageemojisandstickers": "ManageEmojisAndStickers",
+        "ifadeleriyonet": "ManageEmojisAndStickers",
+        "konusmakiciniste": "RequestToSpeak",
+        "requesttospeak": "RequestToSpeak",
+        "etkinlikleriyonet": "ManageEvents",
+        "manageevents": "ManageEvents",
+        "basliklariyonet": "ManageThreads",
+        "managethreads": "ManageThreads",
+        "genelbasliklar": "CreatePublicThreads",
+        "createpublicthreads": "CreatePublicThreads",
+        "ozelbasliklar": "CreatePrivateThreads",
+        "createprivatethreads": "CreatePrivateThreads",
+        "hariciifadeler": "UseExternalStickers",
+        "useexternalstickers": "UseExternalStickers",
+        "basliklardamesaj": "SendMessagesInThreads",
+        "sendmessagesinthreads": "SendMessagesInThreads",
+        "sespaneli": "UseSoundboard",
+        "usesoundboard": "UseSoundboard",
+        "haricisesler": "UseExternalSounds",
+        "useexternalsounds": "UseExternalSounds",
+        "seslimesaj": "SendVoiceMessages",
+        "sendvoicemessages": "SendVoiceMessages"
+      };
+
+      function normalizeStr(str) {
+        if (!str) return "";
+        return str.toLowerCase()
+          .replace(/ı/g, 'i')
+          .replace(/ğ/g, 'g')
+          .replace(/ü/g, 'u')
+          .replace(/ş/g, 's')
+          .replace(/ö/g, 'o')
+          .replace(/ç/g, 'c')
+          .replace(/[^a-z0-9]/g, '');
+      }
+
+      const results = [];
+      const statusMsg = await message.reply("🔄 Rol yetkileri güncelleniyor, lütfen bekleyin...");
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const tokens = line.split(/[\s,]+/);
+        const roleId = tokens[0];
+
+        if (!/^\d{17,20}$/.test(roleId)) {
+          results.push(`⚠️ Satır ${i + 1}: Geçersiz rol ID formatı (\`${roleId}\`)`);
+          continue;
+        }
+
+        let role = message.guild.roles.cache.get(roleId);
+        if (!role) {
+          try {
+            role = await message.guild.roles.fetch(roleId);
+          } catch (_) {}
+        }
+
+        if (!role) {
+          results.push(`❌ Rol Bulunamadı: \`${roleId}\``);
+          continue;
+        }
+
+        if (role.name === "@everyone") {
+          results.push(`⚠️ @everyone rolü bu komutla değiştirilemez: \`${roleId}\``);
+          continue;
+        }
+
+        let value = true;
+        let permTokens = [];
+
+        if (tokens.length > 1) {
+          const normSecond = normalizeStr(tokens[1]);
+          const isTrueKeywords = ["true", "ac", "aktif", "ver", "evet", "1"];
+          const isFalseKeywords = ["false", "kapat", "deaktif", "al", "hayir", "yok", "0"];
+
+          if (isTrueKeywords.includes(normSecond)) {
+            value = true;
+            permTokens = tokens.slice(2);
+          } else if (isFalseKeywords.includes(normSecond)) {
+            value = false;
+            permTokens = tokens.slice(2);
+          } else {
+            value = true;
+            permTokens = tokens.slice(1);
+          }
+        }
+
+        if (permTokens.length === 0) {
+          results.push(`⚠️ Rol **${role.name}** (${role.id}): Güncellenecek yetki belirtilmemiş.`);
+          continue;
+        }
+
+        const resolvedBits = [];
+        const unrecognized = [];
+
+        for (const pt of permTokens) {
+          const normPt = normalizeStr(pt);
+          const mappedKey = permissionMap[normPt];
+
+          if (mappedKey && PermissionFlagsBits[mappedKey] !== undefined) {
+            resolvedBits.push(PermissionFlagsBits[mappedKey]);
+          } else {
+            const directKey = Object.keys(PermissionFlagsBits).find(
+              k => k.toLowerCase() === pt.toLowerCase() || normalizeStr(k) === normPt
+            );
+            if (directKey) {
+              resolvedBits.push(PermissionFlagsBits[directKey]);
+            } else {
+              unrecognized.push(pt);
+            }
+          }
+        }
+
+        if (resolvedBits.length === 0) {
+          results.push(`❌ Rol **${role.name}** (${role.id}): Geçerli yetki ismi bulunamadı. (Girilenler: \`${permTokens.join(", ")}\`)`);
+          continue;
+        }
+
+        try {
+          if (message.guild.members.me.roles.highest.comparePositionTo(role) <= 0) {
+            results.push(`❌ Rol **${role.name}** (${role.id}): Botun yetki sırası bu rolden düşüktür.`);
+            continue;
+          }
+
+          let currentPermissions = role.permissions;
+          if (value) {
+            currentPermissions = currentPermissions.add(resolvedBits);
+          } else {
+            currentPermissions = currentPermissions.remove(resolvedBits);
+          }
+
+          await role.setPermissions(currentPermissions, `Yetkili: ${message.author.tag} tarafından güncellendi.`);
+          
+          const actionText = value ? "Açıldı (true)" : "Kapatıldı (false)";
+          const successPerms = permTokens.filter(pt => !unrecognized.includes(pt)).join(", ");
+          let logMsg = `✅ **${role.name}** (${role.id}): Yetkiler ${actionText} -> \`${successPerms}\``;
+          if (unrecognized.length > 0) {
+            logMsg += ` (Tanınmayanlar atlandı: \`${unrecognized.join(", ")}\`)`;
+          }
+          results.push(logMsg);
+        } catch (err) {
+          console.error(`Rol ${roleId} güncellenirken hata:`, err);
+          results.push(`❌ Rol **${role.name}** (${role.id}) güncellenirken hata: ${err.message}`);
+        }
+      }
+
+      let replyText = `**Rol Yetki Güncelleme Sonuçları:**\n\n` + results.join("\n");
+      if (replyText.length > 2000) {
+        const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];
+        await statusMsg.edit(chunks[0]);
+        for (let i = 1; i < chunks.length; i++) {
+          await message.reply(chunks[i]);
+        }
+      } else {
+        await statusMsg.edit(replyText);
+      }
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {
