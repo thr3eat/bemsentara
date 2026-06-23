@@ -276,7 +276,14 @@ async function postUnitIntroductions(client) {
         )
         .setFooter({ text: `EkoYıldız Birim Tanıtım Sistemi` });
 
-      await channel.send({ embeds: [unitEmbed] });
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`apply_unit_${key}`)
+          .setLabel(`📝 ${config.label} Sınavını Başlat`)
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await channel.send({ embeds: [unitEmbed], components: [row] });
     }
 
     console.log('[unitService] Birim tanıtım mesajları başarıyla gönderildi.');
@@ -413,19 +420,49 @@ Format: {"tips": "ipuçları...", "questions": [{"question": "...", "options": [
 /**
  * Aday başvuru butonuna bastığında sınav sürecini başlatır.
  */
-async function handleApplyClick(interaction, recruitmentId) {
+async function handleApplyClick(interaction, target) {
   try {
-    const recruitment = await UnitRecruitment.findById(recruitmentId);
-    if (!recruitment) {
-      return interaction.reply({ content: '❌ Alım süreci kaydı bulunamadı.', ephemeral: true });
+    let birimKey = target;
+    let examQuestions = null;
+    let examTips = "";
+
+    if (['BAN_BIRIMI', 'SES_BIRIMI', 'SOHBET_BIRIMI'].includes(target)) {
+      birimKey = target;
+      const defaultData = DEFAULT_EXAM_DATA[target];
+      if (defaultData) {
+        examQuestions = defaultData.questions;
+        examTips = defaultData.tips;
+      }
+    } else {
+      const recruitment = await UnitRecruitment.findById(target).catch(() => null);
+      if (!recruitment) {
+        if (UNIT_CONFIG[target]) {
+          birimKey = target;
+          const defaultData = DEFAULT_EXAM_DATA[target];
+          if (defaultData) {
+            examQuestions = defaultData.questions;
+            examTips = defaultData.tips;
+          }
+        } else {
+          return interaction.reply({ content: '❌ Alım süreci kaydı bulunamadı.', ephemeral: true });
+        }
+      } else {
+        birimKey = recruitment.birim;
+        examQuestions = recruitment.examQuestions;
+        examTips = recruitment.examTips;
+
+        const now = new Date();
+        if (now < recruitment.startDate) {
+          return interaction.reply({ content: '⚠️ Alımlar henüz başlamadı! Başvuru süreci yarın sabah 09:00\'da başlayacaktır.', ephemeral: true });
+        }
+        if (now > recruitment.endDate) {
+          return interaction.reply({ content: '❌ Bu alım süreci sona ermiştir.', ephemeral: true });
+        }
+      }
     }
 
-    const now = new Date();
-    if (now < recruitment.startDate) {
-      return interaction.reply({ content: '⚠️ Alımlar henüz başlamadı! Başvuru süreci yarın sabah 09:00\'da başlayacaktır.', ephemeral: true });
-    }
-    if (now > recruitment.endDate) {
-      return interaction.reply({ content: '❌ Bu alım süreci sona ermiştir.', ephemeral: true });
+    if (!examQuestions || examQuestions.length === 0) {
+      return interaction.reply({ content: '❌ Sınav soruları yüklenemedi.', ephemeral: true });
     }
 
     // Kullanıcının halihazırda bir birimde olup olmadığını kontrol et
@@ -438,11 +475,12 @@ async function handleApplyClick(interaction, recruitmentId) {
       userUnit = new StaffUnit({ userId: interaction.user.id });
     }
 
+    const now = new Date();
     // Sınav durumunu güncelle
     userUnit.exam = {
       status: 'ongoing',
-      unit: recruitment.birim,
-      questions: recruitment.examQuestions,
+      unit: birimKey,
+      questions: examQuestions,
       currentIndex: 0,
       answers: [],
       startedAt: now
