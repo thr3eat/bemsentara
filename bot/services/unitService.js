@@ -42,6 +42,174 @@ const CHOSEN_TASKS = {
   'task_mod': '🛡️ Koruyucu: Bugün en az 1 moderasyon işlemi gerçekleştir.'
 };
 
+const DEFAULT_EXAM_DATA = {
+  BAN_BIRIMI: {
+    tips: "Ban birimi sınavında başarılı olmak için moderasyon kurallarına, ceza sürelerine ve adalet ilkelerine odaklanın.",
+    questions: [
+      {
+        question: "Bir kullanıcının reklam yaptığı tespit edilirse uygulanacak ilk işlem nedir?",
+        options: ["Kanıt alıp susturmak (Timeout) ve yetkiliye iletmek", "Doğrudan sunucudan yasaklamak (Ban)", "Sadece mesajlarını silip uyarmak", "Kullanıcıyı sunucudan atmak (Kick)"],
+        correct: 0
+      },
+      {
+        question: "Hangi durumlarda 'Tam Ban (Global)' işlemi uygulanması zorunludur?",
+        options: ["Ağır küfür, ırkçılık, dolandırıcılık veya sürekli tekrarlanan ağır ihlallerde", "Sohbette büyük harfle yazıldığında", "Ses odasında yüksek ses yapıldığında", "İzinsiz link paylaşıldığında"],
+        correct: 0
+      },
+      {
+        question: "Cezalandırma işlemlerinde 'Kanıt' neden zorunludur?",
+        options: ["İşlemin adaleti, doğruluğu ve denetlenebilirliği için", "Sadece sunucuda yer kaplaması için", "Kullanıcının profilini görmek için", "Herhangi bir zorunluluğu yoktur"],
+        correct: 0
+      },
+      {
+        question: "Bir moderatörün uyguladığı cezaya haksız yere itiraz eden bir üye için ne yapılmalıdır?",
+        options: ["İtiraz kanalı veya destek bileti üzerinden kanıtlar gösterilerek açıklama yapılmalıdır", "Üye doğrudan sunucudan atılmalıdır", "İtirazı hemen silinmelidir", "Üyeye hakaret edilmelidir"],
+        correct: 0
+      },
+      {
+        question: "Spam/Flood yapan bir üyeye ilk olarak hangi süreyle susturma (timeout) uygulanmalıdır?",
+        options: ["İhlalin derecesine göre 5 veya 10 dakika", "Doğrudan 1 gün", "Süresiz susturma", "Sadece 5 saniye"],
+        correct: 0
+      },
+      {
+        question: "Ban Birimi üyesinin sunucudaki en temel görevi nedir?",
+        options: ["Sunucu güvenliği, kuralların korunması ve adaletin sağlanması", "Sadece oyun oynamak", "Ses kanallarında şarkı açmak", "Sürekli emoji atmak"],
+        correct: 0
+      },
+      {
+        question: "Karalisteye (Blacklist) alınan bir kişi sunucuya tekrar girmeye çalışırsa ne yapılmalıdır?",
+        options: ["Girişi engellenmeli ve yetkililere bildirilmelidir", "Sunucuya girmesine izin verilmelidir", "Sadece susturulmalıdır", "Kayıt edilmelidir"],
+        correct: 0
+      },
+      {
+        question: "Bir üyenin uygunsuz profil fotoğrafı veya kullanıcı adı varsa ne yapılmalıdır?",
+        options: ["Uygun bir isim/profil seçmesi için uyarılmalı, aksi halde cezalandırılmalıdır", "Doğrudan banlanmalıdır", "Görmezden gelinmelidir", "Sunucudaki herkes uyarılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Yetkililere veya üst yönetime karşı saygısızlık yapan bir üyeye hangi işlem uygulanır?",
+        options: ["Duruma göre uyarı, susturma veya uzaklaştırma işlemi uygulanır", "Ödül verilir", "Hiçbir işlem yapılmaz", "Rolleri yükseltilir"],
+        correct: 0
+      },
+      {
+        question: "Hatalı veya yanlışlıkla atılan bir ceza tespit edildiğinde ne yapılmalıdır?",
+        options: ["Derhal ceza kaldırılmalı, loglarda düzeltilmeli ve üyeden özür dilenmelidir", "Ceza aynen bırakılmalıdır", "Üye engellenmelidir", "Diğer yetkililerden gizlenmelidir"],
+        correct: 0
+      }
+    ]
+  },
+  SES_BIRIMI: {
+    tips: "Ses birimi sınavında başarılı olmak için sesli kanal aktiflik şartlarına, sesli odalar düzenine ve Earrape/trol ses müdahale yöntemlerine çalışın.",
+    questions: [
+      {
+        question: "Ses kanallarında mikrofonuyla rahatsız edici/trol sesler çıkaran bir üyeye ne yapılmalıdır?",
+        options: ["Uyarılmalı, devam ederse ses kanallarından susturulmalı/taşınmalıdır", "Doğrudan banlanmalıdır", "Ses seviyesi yükseltilmelidir", "Şarkı açılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Ses Birimi üyesi günlük olarak ses kanallarında ne kadar aktif kalmalıdır?",
+        options: ["En az 45 dakika", "Sadece 5 dakika", "Hiç aktif olmasa da olur", "24 saat kesintisiz"],
+        correct: 0
+      },
+      {
+        question: "Sesli kanallarda telif hakkı ihlali veya uygunsuz müzik yayını yapıldığında ne yapılmalıdır?",
+        options: ["Yayını yapan kişi uyarılmalı ve müzik botu/yayını kapatılmalıdır", "Keyifle dinlenmelidir", "Ses sonuna kadar açılmalıdır", "Diğer kanallara da yansıtılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Geçici özel ses kanallarının (oda-olustur) limit aşımı veya suistimalinde ne yapılmalıdır?",
+        options: ["İlgili oda kurallara uygun hale getirilmeli veya kapatılmalıdır", "Görmezden gelinmelidir", "Oda sahibine ceza puanı verilmelidir", "Oda tamamen silinip sunucu kapatılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sesli kanalda diğer üyeleri provoke eden veya kavga çıkaran bir üye için ne yapılmalıdır?",
+        options: ["Kanaldan sağ tıklanarak susturulmalı (Mute) veya taşınmalı, gerekirse ceza verilmelidir", "Kavgaya dahil olunmalıdır", "Ses kaydı alınmalıdır", "Oda şifrelenmelidir"],
+        correct: 0
+      },
+      {
+        question: "Ses Biriminin temel amacı nedir?",
+        options: ["Sesli kanalların düzenini, aktifliğini ve topluluk kalitesini korumak", "Sadece kendi kendine konuşmak", "Kanalları kilitlemek", "Ses değiştirici programlar kullanmak"],
+        correct: 0
+      },
+      {
+        question: "Sesli bir odada sessizce bekleyen (AFK) ve odayı meşgul eden üyeler nereye taşınmalıdır?",
+        options: ["AFK kanalına veya boş bir kanala taşınmalıdır", "Sunucudan banlanmalıdır", "Özel mesajla uyarılmalıdır", "Sesleri kapatılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sesli odalarda siyaset, din veya ırkçılık gibi hassas konularda tartışma başladığında ne yapılmalıdır?",
+        options: ["Konu derhal kapatılmalı, uyarılara uymayanlar odadan uzaklaştırılmalıdır", "Tartışmaya katılınmalıdır", "Tartışma desteklenmelidir", "Odaya yeni kişiler davet edilmelidir"],
+        correct: 0
+      },
+      {
+        question: "Sesli kanalda yetkisiz bir şekilde yayın açıp sunucu düzenini bozan üyelere ne yapılır?",
+        options: ["Yayın kapatılması istenir, aksi halde yayın yetkisi elinden alınır veya susturulur", "Yayını izlenmelidir", "Yayına emoji atılmalıdır", "Sunucuya davet linki atılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sesli kanallarda kulak tırmalayıcı (Earrape) müzikler açılması durumunda ilk müdahale ne olmalıdır?",
+        options: ["Ses derhal kesilmeli, açan kişi uyarılmalı ve susturulmalıdır", "Sesi açıp dinlemeye devam edilmelidir", "Ses kanalı kilitlenmelidir", "Diğer üyelerin sesi kısılmalıdır"],
+        correct: 0
+      }
+    ]
+  },
+  SOHBET_BIRIMI: {
+    tips: "Sohbet birimi sınavında başarılı olmak için yazılı sohbet kurallarına, hoş karşılama üslubuna ve spam/gif engelleme limitlerine odaklanın.",
+    questions: [
+      {
+        question: "Sohbette sürekli büyük harfle (CAPS LOCK) yazarak düzeni bozan üyeye ne denmelidir?",
+        options: ["Büyük harf kullanımının yasak olduğu hatırlatılmalı ve uyarılmalıdır", "Kendisine aynı şekilde büyük harfle cevap verilmelidir", "Doğrudan susturulmalıdır", "Sunucudan atılmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sohbet Birimi üyesinin günlük asgari sohbet mesajı hedefi nedir?",
+        options: ["Sohbette en az 25 mesaj göndererek aktifliği korumak", "Sadece 1 mesaj göndermek", "Hiç mesaj göndermemek", "1000 mesaj sınırına ulaşmak"],
+        correct: 0
+      },
+      {
+        question: "Sohbete yeni katılan bir üyeye nasıl yaklaşılmalıdır?",
+        options: ["Hoş karşılama mesajı atılmalı, rehberlik edilmeli ve sıcak davranılmalıdır", "Görmezden gelinmelidir", "Neden katıldığı sorgulanmalıdır", "Doğrudan kurallar gönderilmelidir"],
+        correct: 0
+      },
+      {
+        question: "Metin kanallarında emoji, çıkartma (sticker) veya gif spamı yapıldığında ne yapılmalıdır?",
+        options: ["Mesajlar temizlenmeli, yapan üye uyarılmalı ve devamında susturulmalıdır", "Daha fazla gif atılmalıdır", "Sunucudaki herkes uyarılmalıdır", "Kanal kilitlenmelidir"],
+        correct: 0
+      },
+      {
+        question: "Yanlış kanalda sohbet eden (örneğin komut kanalında genel sohbet yapan) üyeye ne yapılmalıdır?",
+        options: ["Sohbetin yapılacağı doğru kanala (genel sohbet) yönlendirilmelidir", "Doğrudan susturulmalıdır", "Mesajları silinip uyarılmalıdır", "Sunucudan banlanmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sohbet Biriminin sunucudaki temel sorumluluğu nedir?",
+        options: ["Yazılı sohbet kanallarının aktifliğini, samimiyetini ve kurallara uygunluğunu sürdürmek", "Sadece bot komutları kullanmak", "Üyeleri şikayet etmek", "Sürekli resim paylaşmak"],
+        correct: 0
+      },
+      {
+        question: "Sohbette iki üye arasında hararetli bir kavga veya tartışma başladığında ne yapılmalıdır?",
+        options: ["Tartışma sakinleştirilmeli, taraflar uyarılmalı ve gerekirse özel kanallara yönlendirilmelidir", "Kavga izlenmeli ve taraf tutulmalıdır", "Mesajlar silinmeden kilitlenmelidir", "Diğer üyelerin yazması engellenmelidir"],
+        correct: 0
+      },
+      {
+        question: "Sohbette uygunsuz veya argo kelimeler kullanan bir üyeye ne yapılmalıdır?",
+        options: ["Uygun üslup kullanması hatırlatılmalı, kelime filtresine takılan mesajlar temizlenmelidir", "Kendisine argo ile karşılık verilmelidir", "Doğrudan banlanmalıdır", "Rolleri alınmalıdır"],
+        correct: 0
+      },
+      {
+        question: "Sohbet kanalını reklam amacıyla kullanan bir üyenin reklam mesajına ne yapılır?",
+        options: ["Reklam mesajı anında silinmeli, üye susturulmalı ve durum yetkililere iletilmelidir", "Reklamı yapılan site incelenmelidir", "Mesaj sabitlenmelidir", "Reklama emoji ile tepki verilmelidir"],
+        correct: 0
+      },
+      {
+        question: "Sohbet kanallarının aktifliğini artırmak için neler yapılabilir?",
+        options: ["Üyelere sorular sorulabilir, oyunlar veya sohbet konuları açılabilir", "Kanal kapatılabilir", "Üyeler sohbet etmeye zorlanabilir", "Sürekli bot komutları yazılabilir"],
+        correct: 0
+      }
+    ]
+  }
+};
+
 /**
  * Birimin ana ve rütbe rollerinin varlığından ve hiyerarşik yerinden emin olur.
  * @param {import('discord.js').Guild} guild 
@@ -51,43 +219,20 @@ async function ensureUnitRoles(guild, birimKey) {
   const config = UNIT_CONFIG[birimKey];
   if (!config) return null;
 
-  const upperRole = guild.roles.cache.get(UPPER_ROLE_ID);
-  const lowerRole = guild.roles.cache.get(LOWER_ROLE_ID);
-  const targetPosition = lowerRole ? lowerRole.position + 1 : 1;
-
-  // 1) Ana Birim Rolü
-  let mainRole = guild.roles.cache.find(r => r.name === config.label);
-  if (!mainRole) {
-    mainRole = await guild.roles.create({
-      name: config.label,
-      color: config.color,
-      reason: `${config.label} Ana Rolü oluşturuldu.`
-    });
-    if (lowerRole) {
-      await mainRole.setPosition(targetPosition).catch(() => {});
-    }
-  }
-
-  // 2) 15 Adet Rütbe Rolü
+  // Sadece sunucu rollerinden bul, asla otomatik yeni rol oluşturma
+  const mainRole = guild.roles.cache.find(r => r.name === config.label);
+  
   const rankRoleIds = [];
   for (let rank = 1; rank <= 15; rank++) {
     const roleName = `${config.label} - Rütbe ${rank}`;
-    let rankRole = guild.roles.cache.find(r => r.name === roleName);
-    if (!rankRole) {
-      rankRole = await guild.roles.create({
-        name: roleName,
-        color: '#95a5a6', // Gri renk
-        reason: `${roleName} rolü oluşturuldu.`
-      });
-      if (lowerRole) {
-        await rankRole.setPosition(targetPosition).catch(() => {});
-      }
+    const rankRole = guild.roles.cache.find(r => r.name === roleName);
+    if (rankRole) {
+      rankRoleIds[rank] = rankRole.id;
     }
-    rankRoleIds[rank] = rankRole.id;
   }
 
   return {
-    mainRoleId: mainRole.id,
+    mainRoleId: mainRole ? mainRole.id : null,
     rankRoleIds: rankRoleIds
   };
 }
@@ -177,8 +322,8 @@ Format: {"tips": "ipuçları...", "questions": [{"question": "...", "options": [
       }
     } catch (aiErr) {
       console.error('❌ AI Sınav Sorusu oluşturma hatası:', aiErr.message);
-      // Fallback soruları
-      parsedData = {
+      // Fallback zengin birim soruları
+      parsedData = DEFAULT_EXAM_DATA[birimKey] || {
         tips: "Sınavda sakin kalın, soruları dikkatli okuyun ve birimin sorumluluk alanlarına odaklanın.",
         questions: Array.from({ length: 10 }, (_, i) => ({
           question: `${config.label} bünyesinde ${i + 1}. sorumluluk kuralı nedir?`,
@@ -407,7 +552,9 @@ async function handleAnswerClick(interaction, qIndex, optIndex) {
           const member = await guild.members.fetch(userId).catch(() => null);
           if (member && rolesData) {
             // Ana rolü ekle
-            await member.roles.add(rolesData.mainRoleId).catch(() => {});
+            if (rolesData.mainRoleId) {
+              await member.roles.add(rolesData.mainRoleId).catch(() => {});
+            }
             // Rütbe rolünü ekle
             const targetRankRole = rolesData.rankRoleIds[startingRank];
             if (targetRankRole) {
