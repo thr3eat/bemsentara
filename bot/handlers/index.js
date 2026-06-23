@@ -301,6 +301,21 @@ function initializeDiscordHandlers(client) {
     } catch (err) {
       console.error("guildMemberRemove hatası:", err);
     }
+  client.on("guildMemberAdd", async (member) => {
+    try {
+      const { GUILD2_ID } = require("../../config");
+      if (member.guild.id === GUILD2_ID) {
+        // Sunucuya yeni giren herkese Yavru Dinazor rolünü ver (Zorunlu ilk rol)
+        const level0Role = '1518692402884378825';
+        if (!member.roles.cache.has(level0Role)) {
+          await member.roles.add(level0Role, "Zorunlu Yavru Dinazor İlk Rolü").catch(err => {
+            console.error("[guildMemberAdd] Yavru Dinazor rolü verilirken hata:", err.message);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("guildMemberAdd hatası:", err);
+    }
   });
 
   client.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -312,6 +327,24 @@ function initializeDiscordHandlers(client) {
       } else if (newMember.guild.id === GUILD2_ID) {
         const { logEkoMemberUpdate } = require("../services/ekoLogger");
         logEkoMemberUpdate(oldMember, newMember);
+
+        // Boost detection to reward server boosters
+        const startedBoosting = !oldMember.premiumSince && newMember.premiumSince;
+        if (startedBoosting) {
+          const { handleBoosterReward } = require("../services/frogLevel");
+          await handleBoosterReward(newMember).catch(err => {
+            console.error("[guildMemberUpdate] handleBoosterReward error:", err.message);
+          });
+        }
+
+        // Roles changed detection to enforce level/family rules
+        const rolesChanged = !oldMember.roles.cache.equals(newMember.roles.cache);
+        if (rolesChanged) {
+          const { enforceFrogRoles } = require("../services/frogLevel");
+          await enforceFrogRoles(newMember).catch(err => {
+            console.error("[guildMemberUpdate] enforceFrogRoles error:", err.message);
+          });
+        }
       }
     } catch (err) {
       console.error("guildMemberUpdate hatası:", err);

@@ -41,6 +41,13 @@ async function autoRestoreRoles(client) {
 
       let updated = false;
 
+      // 0. Yavru Dinazor Rolü (Herkeste olması zorunlu)
+      const level0RoleId = '1518692402884378825';
+      if (!member.roles.cache.has(level0RoleId)) {
+        await member.roles.add(level0RoleId, "Otomatik: Yavru Dinazor Rolü (Zorunlu)").catch(() => {});
+        updated = true;
+      }
+
       // 1. Staff System Sync
       const progress = await StaffProgress.findOne({ userId: memberId });
       if (progress && progress.level) {
@@ -60,7 +67,25 @@ async function autoRestoreRoles(client) {
       const frog = await FrogLevel.findOne({ userId: memberId, guildId: guild.id });
       if (frog && frog.level !== undefined) {
         const targetRole = frogLevel.FROG_ROLES[frog.level];
+        const level0Role = frogLevel.FROG_ROLES[0];
+        const DINASOUR_FAMILY_ROLE = '1518706437730078941';
+        const PENGUIN_FAMILY_ROLE  = '1518706437327556638';
+
+        let needsSync = false;
         if (targetRole && !member.roles.cache.has(targetRole.id)) {
+          needsSync = true;
+        }
+        if (frog.level > 0 && level0Role && !member.roles.cache.has(level0Role.id)) {
+          needsSync = true;
+        }
+        if (frog.level >= 0 && frog.level <= 11 && !member.roles.cache.has(DINASOUR_FAMILY_ROLE)) {
+          needsSync = true;
+        }
+        if (frog.level >= 12 && frog.level <= 16 && !member.roles.cache.has(PENGUIN_FAMILY_ROLE)) {
+          needsSync = true;
+        }
+
+        if (needsSync) {
           await frogLevel.syncRolesFromLevel(member, frog.level, client).catch(() => {});
           levelCount++;
           updated = true;

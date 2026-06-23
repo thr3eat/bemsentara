@@ -398,16 +398,16 @@ async function syncMainGuildRoles(client, discordUserId) {
 
     // Condition 2
     if (currentRoles.includes('1518692393660973186') || currentRoles.includes('1518692392415395971')) {
-      targetRoles.push('1518708137920823327');
+      targetRoles.push('1518707673846251691');
     } else {
-      rolesToRemove.push('1518708137920823327');
+      rolesToRemove.push('1518707673846251691');
     }
 
     // Condition 3
     if (currentRoles.includes('1518709348506013706') || currentRoles.includes('1518692391312298045')) {
-      targetRoles.push('1518707673846251691');
+      targetRoles.push('1518708137920823327');
     } else {
-      rolesToRemove.push('1518707673846251691');
+      rolesToRemove.push('1518708137920823327');
     }
 
     // Apply removals

@@ -145,6 +145,11 @@ async function addMessageXP(member, client) {
     xpGain *= 2;
   }
 
+  // Server booster multiplier (1.5x XP)
+  if (member.premiumSince) {
+    xpGain = Math.ceil(xpGain * 1.5);
+  }
+
   p.xp            += xpGain;
   p.totalMessages  = (p.totalMessages || 0) + 1;
   p.lastMessageAt   = new Date();
@@ -166,21 +171,8 @@ async function addVoiceXP(userId, minutes, client) {
       return null;
     });
     if (!p) return;
-    
-    // Double XP check
-    let xpGain = minutes * XP_PER_VOICE_MIN;
-    if (p.doubleXpUntil && new Date(p.doubleXpUntil) > new Date()) {
-      xpGain *= 2;
-    }
 
-    p.xp                += xpGain;
-    p.totalVoiceMinutes  = (p.totalVoiceMinutes || 0) + minutes;
-    await p.save().catch(err => {
-      console.error('[frogLevel] Save failed during addVoiceXP:', err.message);
-      throw err;
-    });
-
-    // Guild'den member fetch et
+    // Guild'den member fetch et (XP çarpanını kontrol etmek için önceden fetch ediyoruz)
     const guild = await client.guilds.fetch(FROG_GUILD_ID).catch(err => {
       console.warn(`[frogLevel] Guild ${FROG_GUILD_ID} not found:`, err.code);
       return null;
@@ -191,6 +183,25 @@ async function addVoiceXP(userId, minutes, client) {
       console.warn(`[frogLevel] Member ${userId} not found:`, err.code);
       return null;
     });
+    
+    // Double XP check
+    let xpGain = minutes * XP_PER_VOICE_MIN;
+    if (p.doubleXpUntil && new Date(p.doubleXpUntil) > new Date()) {
+      xpGain *= 2;
+    }
+
+    // Server booster multiplier (1.5x XP)
+    if (member && member.premiumSince) {
+      xpGain = Math.ceil(xpGain * 1.5);
+    }
+
+    p.xp                += xpGain;
+    p.totalVoiceMinutes  = (p.totalVoiceMinutes || 0) + minutes;
+    await p.save().catch(err => {
+      console.error('[frogLevel] Save failed during addVoiceXP:', err.message);
+      throw err;
+    });
+
     if (!member) return;
     
     await checkLevelUp(p, member, client).catch(err => {
@@ -220,11 +231,25 @@ async function syncRolesFromLevel(member, level, client) {
     const currentRoles = member.roles.cache.map(r => r.id);
     const targetRole = FROG_ROLES[level];
     
+    const DINASOUR_FAMILY_ROLE = '1518706437730078941';
+    const PENGUIN_FAMILY_ROLE  = '1518706437327556638';
+
     // Temizlenecek diğer tüm seviye rollerini bul (yavru dinazor hariç)
     const rolesToRemove = [];
     for (const fr of FROG_ROLES) {
       if (fr.level !== level && fr.level !== 0 && currentRoles.includes(fr.id)) {
         rolesToRemove.push(fr.id);
+      }
+    }
+
+    // Family roles removal
+    if (level >= 0 && level <= 11) {
+      if (currentRoles.includes(PENGUIN_FAMILY_ROLE)) {
+        rolesToRemove.push(PENGUIN_FAMILY_ROLE);
+      }
+    } else if (level >= 12 && level <= 16) {
+      if (currentRoles.includes(DINASOUR_FAMILY_ROLE)) {
+        rolesToRemove.push(DINASOUR_FAMILY_ROLE);
       }
     }
 
@@ -241,6 +266,17 @@ async function syncRolesFromLevel(member, level, client) {
     const level0Role = FROG_ROLES[0];
     if (level0Role && level !== 0 && !currentRoles.includes(level0Role.id)) {
       rolesToAdd.push(level0Role.id);
+    }
+
+    // Family roles addition
+    if (level >= 0 && level <= 11) {
+      if (!currentRoles.includes(DINASOUR_FAMILY_ROLE)) {
+        rolesToAdd.push(DINASOUR_FAMILY_ROLE);
+      }
+    } else if (level >= 12 && level <= 16) {
+      if (!currentRoles.includes(PENGUIN_FAMILY_ROLE)) {
+        rolesToAdd.push(PENGUIN_FAMILY_ROLE);
+      }
     }
 
     if (rolesToAdd.length > 0) {
@@ -271,6 +307,119 @@ async function syncRolesFromLevel(member, level, client) {
     }
   } catch (err) {
     console.error('[frogLevel] syncRolesFromLevel error:', err.message);
+  }
+}
+
+// ── Kurbağa seviye ve aile rolleri koruma/senkronize etme ───────────────────
+async function enforceFrogRoles(member) {
+  try {
+    const currentRoles = member.roles.cache.map(r => r.id);
+    const level0RoleId = '1518692402884378825';
+
+    // Yavru Dinazor rolünü herkeste zorunlu kıl
+    if (!currentRoles.includes(level0RoleId)) {
+      await member.roles.add(level0RoleId, 'Zorunlu Yavru Dinazor Rolü').catch(() => {});
+      currentRoles.push(level0RoleId);
+    }
+    
+    // Üyenin sahip olduğu en yüksek kurbağa seviyesini belirle
+    let currentLevel = -1;
+    for (const fr of FROG_ROLES) {
+      if (currentRoles.includes(fr.id)) {
+        if (fr.level > currentLevel) currentLevel = fr.level;
+      }
+    }
+    
+    // Eğer üyenin hiç seviye rolü yoksa (veya sadece level 0 varsa) işlem yapma
+    if (currentLevel <= 0) return;
+    
+    // Eğer seviye bulunmuşsa syncRolesFromLevel ile eşle
+    await syncRolesFromLevel(member, currentLevel, member.client);
+  } catch (err) {
+    console.error('[frogLevel] enforceFrogRoles error:', err.message);
+  }
+}
+
+// ── Sunucu Boost Ödüllendirme ve Duyuru Sistemi ───────────────────────────
+async function handleBoosterReward(member) {
+  try {
+    const userId = member.id;
+    const client = member.client;
+    
+    // 1. FrogLevel verisini al/oluştur ve 500 XP ödülü ver
+    const p = await getOrCreate(userId);
+    p.xp = (p.xp || 0) + 500;
+    await p.save();
+    
+    // Seviye atlayıp atlamadığını kontrol et
+    await checkLevelUp(p, member, client).catch(() => {});
+    
+    // 2. Eğer yetkili (staff) ise 1500 EkoCoin ver
+    let staffRewarded = false;
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const staff = await StaffProgress.findOne({ userId });
+      if (staff) {
+        if (!staff.gamification) {
+          staff.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
+        }
+        staff.gamification.ecoCoins = (staff.gamification.ecoCoins || 0) + 1500;
+        await staff.save();
+        staffRewarded = true;
+      }
+    } catch (staffErr) {
+      console.error('[frogLevel] Booster staff reward error:', staffErr.message);
+    }
+    
+    // 3. EkoYıldız sohbet kanalını bul ve boost duyurusunu gönder
+    const guild = member.guild;
+    const channel = guild.channels.cache.find(c =>
+      c.isTextBased?.() &&
+      (c.name.includes('genel') || c.name.includes('sohbet') || c.name.includes('general'))
+    ) || guild.systemChannel;
+    
+    if (channel) {
+      const { EmbedBuilder } = require('discord.js');
+      const boostEmbed = new EmbedBuilder()
+        .setColor(0xf47fff) // Boost pembe rengi
+        .setTitle('⚡ SUNUCUYA DESTEK VERİLDİ! ⚡')
+        .setDescription(
+          `**Kocaman Teşekkürler!** <@${userId}> sunucumuza boost basarak destekte bulundu! 💖✨\n\n` +
+          `**Kazandığı Ayrıcalıklar & Ödüller:**\n` +
+          `• 📈 **Kalıcı 1.5x XP Boostu** (Sohbet ve ses kanallarında geçerli!)\n` +
+          `• 🎁 **+500 FrogLevel XP** ödülü profilinize eklendi!\n` +
+          (staffRewarded ? `• 🪙 **+1500 EkoCoin (E.C.)** yetkili hesabınıza eklendi!\n` : '') +
+          `• 👑 Sunucudaki özel **Booster** ayrıcalıkları aktif edildi!`
+        )
+        .setThumbnail(member.user.displayAvatarURL())
+        .setFooter({ text: 'Eko Yıldız • Server Booster Sistemi' })
+        .setTimestamp();
+        
+      await channel.send({ content: `🎉 **TEBRİKLER!** <@${userId}>`, embeds: [boostEmbed] }).catch(() => {});
+    }
+    
+    // 4. Kullanıcıya DM ile teşekkür ve bilgi mesajı gönder
+    try {
+      const { EmbedBuilder } = require('discord.js');
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0xf47fff)
+        .setTitle('💖 Sunucumuzu Boostladığın İçin Teşekkürler! 💖')
+        .setDescription(
+          `Merhaba **${member.user.username}**,\n\n` +
+          `EkoYıldız sunucusuna yaptığın boost desteği için çok teşekkür ederiz! Sunucuya verdiğin destek bizim için çok değerli. ✨\n\n` +
+          `**Senin İçin Tanımlanan Booster Hediyeleri:**\n` +
+          `• ⚡ **Kalıcı 1.5x XP Çarpanı** (Artık sohbette ve seste daha hızlı seviye atlayacaksın!)\n` +
+          `• 📊 **+500 Seviye XP'si** profilinize eklendi.\n` +
+          (staffRewarded ? `• 💰 **+1500 EkoCoin (E.C.)** hesabınıza eklendi.\n` : '') +
+          `• 🎨 Sunucudaki tüm özel booster kanalları ve rol ayrıcalıkları kullanımına hazır!`
+        )
+        .setFooter({ text: 'Eko Yıldız • Teşekkür Ederiz!' })
+        .setTimestamp();
+        
+      await member.user.send({ embeds: [dmEmbed] }).catch(() => {});
+    } catch (_) {}
+  } catch (err) {
+    console.error('[frogLevel] handleBoosterReward error:', err.message);
   }
 }
 
@@ -465,5 +614,7 @@ module.exports = {
   totalXpForLevel,
   getFrogLeaderboard,
   syncRolesFromLevel,
+  enforceFrogRoles,
+  handleBoosterReward,
 };
 
