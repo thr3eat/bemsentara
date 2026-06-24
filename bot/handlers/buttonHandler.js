@@ -92,6 +92,14 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  // ── Koç Mesaj Filtre Butonları ──────────────────────────────────────────
+  if (customId.startsWith("coach_msg_level_")) {
+    const level = customId.replace("coach_msg_level_", "");
+    const levelMap = { "all": 0, "important": 1, "silent": 2 };
+    const { handleCoachMessageLevelButton } = require("../services/coachMessageService");
+    return handleCoachMessageLevelButton(interaction, levelMap[level]);
+  }
+
   // ── Panel butonu ────────────────────────────────────────────────────────
   if (customId.startsWith("panel_")) {
     const { handlePanelButton } = require("../services/mainPanelService");

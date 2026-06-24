@@ -132,6 +132,14 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Birim Rol Doğrulama (Bot restart'ta bir kere çalış)
+    try {
+      const { verifyAllUnitRoles } = require("../services/unitStartupVerifier");
+      await verifyAllUnitRoles(client);
+    } catch (err) {
+      console.error("[unitStartupVerifier] Rol doğrulama hatası:", err.message);
+    }
+
     // Birim Aylık Terfi Döngüsü Planlayıcısı
     try {
       const { startMonthlyPromotionScheduler } = require("../services/unitMonthlyPromotionService");

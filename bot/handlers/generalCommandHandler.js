@@ -73,7 +73,8 @@ const GENERAL_COMMANDS = new Set([
   "system-grupcekeko",
   "system-grupcekekogerial",
   // Coach management
-  "coach-welcome-reset"
+  "coach-welcome-reset",
+  "coach-mesaj-ayarlari"
 ]);
 
 async function handleGeneralCommand(interaction) {

@@ -465,6 +465,11 @@ const generalCommands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("coach-mesaj-ayarlari")
+    .setDescription("⚙️ Birim Koçu Mesaj Bildirim Ayarları")
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
     .setName("ekobang")
     .setDescription("🔒 EkoBang Uygula (Rütbeleri Düşür)")
     .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))

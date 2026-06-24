@@ -4,6 +4,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { chatWithAI } = require('./aiService');
 const StaffUnit = require('../../models/StaffUnit');
 const Coach = require('../../models/Coach');
+const { shouldCoachReceiveMessage, sendMessageToCoach } = require('./coachMessageService');
 
 const MAIN_GUILD_ID = '1367646464804655104';
 
@@ -144,6 +145,25 @@ Türkçe, 200-300 kelime arası cevap ver.`;
     await user.send({ embeds: [embed] }).catch(err => {
       console.warn(`[monthlyPromotion] DM gönderme hatası (${user.tag}):`, err.message);
     });
+
+    // Koça da motivasyon gönderildiğini bildir (EĞER AYAR AÇIKSA)
+    if (coach) {
+      const coachNotificationEmbed = new EmbedBuilder()
+        .setColor(0x3498DB)
+        .setTitle('📢 Birim Üyesi Motivasyon Mesajı Gönderildi')
+        .setDescription(
+          `**${user.username}** adlı üyeye motivasyon ve aylık sınav hazırlık mesajını gönderdim.\n\n` +
+          `Mevcut rütbesi: ${currentRank.label}`
+        )
+        .setFooter({ text: 'EkoYıldız Birim Sistemi' })
+        .setTimestamp();
+
+      // Koça mesaj gönder (günlük tür - yalnızca "ALL" seviyesinde)
+      await sendMessageToCoach(client, coach.discordId, {
+        embed: coachNotificationEmbed,
+        messageType: 'daily'
+      }).catch(() => {});
+    }
 
     return true;
   } catch (err) {
@@ -302,6 +322,31 @@ async function notifyPromotionResult(userId, birimKey, score, promotion, client)
       await user.send({ embeds: [embed] }).catch(err => {
         console.warn(`[notifyPromotionResult] DM gönderme hatası:`, err.message);
       });
+
+      // Koça da sonucu bildir (IMPORTANT - Filtreli)
+      const coach = await getCoachForUnit(birimKey);
+      if (coach) {
+        const messageTypeEmoji = promotion.promoted ? '🎉' : '⚠️';
+        const messageType = promotion.promoted ? 'promotion' : 'demotion';
+
+        const coachEmbed = new EmbedBuilder()
+          .setColor(promotion.promoted ? 0x2ECC71 : 0xE74C3C)
+          .setTitle(`${messageTypeEmoji} Birim Üyesi ${promotion.promoted ? 'Terfi' : 'Tenzilat'}`)
+          .setDescription(
+            `**${user.username}** adlı üyeniz aylık sınavda ${score}/10 puan aldı.\n\n` +
+            `${promotion.promoted ? 
+              `✅ **Terfi Aldı:** ${oldRankInfo.label} → ${newRankInfo.label}` :
+              `⚠️ **Tenzilat Oldu:** ${oldRankInfo.label} → ${newRankInfo.label}`
+            }`
+          )
+          .setFooter({ text: 'EkoYıldız Birim Sistemi' })
+          .setTimestamp();
+
+        await sendMessageToCoach(client, coach.discordId, {
+          embed: coachEmbed,
+          messageType: messageType // "promotion" veya "demotion" - IMPORTANT seviyesinde gider
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error('[notifyPromotionResult] Hata:', err.message);
