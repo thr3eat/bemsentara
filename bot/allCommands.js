@@ -243,7 +243,7 @@ const generalCommands = [
     .setName("mute")
     .setDescription("🔇 Kullanıcı Sustur (Timeout)")
     .addUserOption(o => o.setName("kullanici").setDescription("Susturulacak kişi").setRequired(true))
-    .addStringOption(o => o.setName("sure").setDescription("Süre (10m, 1h, 1d vb)").setValue("10m").setRequired(true))
+    .addStringOption(o => o.setName("sure").setDescription("Süre (10m, 1h, 1d vb)").setRequired(true))
     .addStringOption(o => o.setName("sebep").setDescription("Susturma sebebi").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
@@ -271,7 +271,7 @@ const generalCommands = [
     .setName("ban")
     .setDescription("🔨 Tam Ban Uygula (Global)")
     .addUserOption(o => o.setName("kullanici").setDescription("Banlanacak kişi").setRequired(true))
-    .addStringOption(o => o.setName("seviye").setDescription("Ban seviyesi").setValue("high").setRequired(true)
+    .addStringOption(o => o.setName("seviye").setDescription("Ban seviyesi").setRequired(true)
       .addChoices(
         { name: "Çok Yüksek", value: "very_high" },
         { name: "Yüksek", value: "high" },
@@ -406,7 +406,7 @@ const generalCommands = [
     .setName("xp-cekilis")
     .setDescription("🎉 XP Çekilişi Başlat")
     .addIntegerOption(o => o.setName("xp").setDescription("Dağıtılacak toplam XP").setRequired(true))
-    .addIntegerOption(o => o.setName("kazanan").setDescription("Kazanan sayısı").setValue(1).setRequired(true))
+    .addIntegerOption(o => o.setName("kazanan").setDescription("Kazanan sayısı").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
