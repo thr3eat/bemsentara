@@ -72,6 +72,11 @@ const actionTracker = new Map();
 const lastAlertSent = new Map();
 const ALERT_COOLDOWN_MS = 25_000;
 
+// ─── Moderatör DM Dismiss Sistemi ─────────────────────────────────────────────
+// Moderatörlerin "BİLDİRİMİ KAPAT" butonuna tıklaması durumunda, o kişi için tekrar DM atılmaması
+// `${guildId}_${executorId}` → true (dismissed)
+const dismissedNotifications = new Map();
+
 // ─── Sliding window tracker ───────────────────────────────────────────────────
 /**
  * Bir eylemi kaydeder. Eşik aşılmışsa true döner.
@@ -227,6 +232,69 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
   });
 
   console.log(`[DiscordAbuseDetector] 🚨 ${gName} — ${executor.tag} (${executor.id}) — ${cfg.label}`);
+
+  // ─── MODERATÖRLERİ DM'DE UYAR ──────────────────────────────────────────────
+  if (alertMsg) {
+    const NIGHT_ADMIN_IDS = ["1031620522406072350"]; // Sistem yöneticisini (Sentara owner) DM'de uyar
+    
+    for (const adminId of NIGHT_ADMIN_IDS) {
+      try {
+        const dismissKey = `${guild.id}_${executor.id}`;
+        
+        // Eğer bu kişi için zaten dismiss edilmişse, DM gönderme
+        if (dismissedNotifications.has(dismissKey)) {
+          console.log(`[AbuseAlert-DM] ⏭️ ${dismissKey} için DM gönderilmedi (dismiss edilmiş)`);
+          continue;
+        }
+        
+        const owner = await client.users.fetch(adminId);
+        if (!owner) continue;
+
+        // DM'de gönderilecek embed ve butonlar
+        const dmEmbed = new EmbedBuilder()
+          .setTitle("🚨 ABUSE ŞÜPHESİ UYARISI")
+          .setDescription(
+            `**${gName}** sunucusunda şüpheli bir aktivite tespit edildi!\n\n` +
+            `> **${cfg.label}**\n` +
+            (count > 1 ? `> ⚡ Son 20 saniyede **${count} kez** gerçekleşti\n` : "")
+          )
+          .setColor(cfg.color)
+          .addFields(
+            { name: "👤 Şüpheli Kullanıcı", value: `${executor.tag}\n\`${executor.id}\``, inline: true },
+            { name: "🏠 Sunucu", value: `${gName}\n\`${guild.id}\``, inline: true },
+            { name: "⚠️ Tespit Türü", value: cfg.label, inline: false },
+            { name: "🕐 Zaman", value: `<t:${unix}:F>`, inline: false }
+          )
+          .setThumbnail(executor.displayAvatarURL({ dynamic: true }))
+          .setTimestamp()
+          .setFooter({ text: "Sentara Abuse Detection" });
+
+        // DM butonları
+        const dmRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("📋 Uyarı Kanalına Git")
+            .setStyle(ButtonStyle.Link)
+            .setURL(alertMsg.url),
+          new ButtonBuilder()
+            .setCustomId(`abuse_dismiss_${guild.id}_${executor.id}`)
+            .setLabel("🚫 BİLDİRİMİ KAPAT")
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji("🚫")
+        );
+
+        const dmMsg = await owner.send({ embeds: [dmEmbed], components: [dmRow] }).catch(err => {
+          console.error(`[AbuseAlert-DM] DM gönderilemedi (${adminId}):`, err.message);
+          return null;
+        });
+
+        if (dmMsg) {
+          console.log(`[AbuseAlert-DM] ✅ ${owner.tag}'e DM gönderildi (${guild.name})`);
+        }
+      } catch (dmErr) {
+        console.error(`[AbuseAlert-DM] Hata (${adminId}):`, dmErr.message);
+      }
+    }
+  }
 
   if (alertMsg) {
     // ─── AI Analizi Entegrasyonu ─────────────────────────────────────────────
@@ -764,10 +832,50 @@ async function handleNightUnbanButton(interaction) {
   return true;
 }
 
+// ─── Moderatör Dismiss Notification Handler ───────────────────────────────────
+/**
+ * "BİLDİRİMİ KAPAT" butonuna tıklandığında çağrılır.
+ * O kişi/sunucu kombinasyonu için tekrar DM atılmasını engeller.
+ */
+async function handleAbuseDismissButton(interaction) {
+  try {
+    const parts = interaction.customId.split("_");
+    const guildId = parts[2];
+    const executorId = parts[3];
+    const dismissKey = `${guildId}_${executorId}`;
+
+    // Mark as dismissed
+    dismissedNotifications.set(dismissKey, true);
+    
+    // 24 saat sonra reset et (tekrar DM gönderilme başlamadan)
+    setTimeout(() => {
+      dismissedNotifications.delete(dismissKey);
+      console.log(`[AbuseDismiss] 🔄 ${dismissKey} dismiss'i 24 saat sonra reset edildi`);
+    }, 24 * 60 * 60 * 1000); // 24 saat
+
+    // Moderatöre bildir
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    await interaction.editReply({
+      content: "✅ **BİLDİRİM KAPATILDI**\n\nBu kişi için bir daha DM almayacaksınız (24 saat boyunca).",
+      ephemeral: true
+    }).catch(() => {});
+
+    console.log(`[AbuseDismiss] 🚫 ${dismissKey} dismiss edildi (${interaction.user.tag})`);
+  } catch (err) {
+    console.error("[handleAbuseDismissButton] Hata:", err.message);
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    await interaction.editReply({
+      content: `❌ Hata: ${err.message}`,
+      ephemeral: true
+    }).catch(() => {});
+  }
+}
+
 module.exports = { 
   startDiscordAbuseDetector, 
   MONITORED_GUILDS,
   handleNightUnbanButton,
+  handleAbuseDismissButton,
   cancelPendingNightBan,
   cancelPendingAIBan,
   nightModePendingBans

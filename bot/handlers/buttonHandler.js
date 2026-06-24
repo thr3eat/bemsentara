@@ -598,6 +598,12 @@ async function handleButtonInteraction(interaction) {
     return handleAnswerClick(interaction, qIndex, optIndex);
   }
 
+  // ── Discord Abuse Dismiss Button ────────────────────────────────────────────
+  if (customId.startsWith("abuse_dismiss_")) {
+    const { handleAbuseDismissButton } = require("../services/discordAbuseDetector");
+    return handleAbuseDismissButton(interaction);
+  }
+
   // ── Leaderboard Pagination & Kategori Butonları ───────────────────────────
   if (customId.startsWith("lb_next_") || customId.startsWith("lb_prev_") || customId.startsWith("lb_category_")) {
     try {

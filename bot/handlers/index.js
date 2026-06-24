@@ -1980,6 +1980,47 @@ function initializeDiscordHandlers(client) {
     }
   });
 
+  // ── Bot sunucuya eklendi — Otomatik setup ───────────────────────────────────
+  client.on("guildCreate", async (guild) => {
+    try {
+      console.log(`[guildCreate] 🤖 Bot ${guild.name} (${guild.id}) sunucusuna eklendi. Setup başlatılıyor...`);
+
+      // ready event'inde yapılan tüm setup fonksiyonlarını çağır
+      const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
+      const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
+      const { ensureTMTVerifyHelpMessage } = require("../services/tmtVerifyHelpMessage");
+      const { ensureTMTSupportMessage } = require("../services/tmtSupportMessage");
+      const { ensureEkoSupportMessage } = require("../services/ekoSupportMessage");
+      const { ensureTMTRules } = require("../services/ensureTMTRules");
+      const { ensureAdminPanels } = require("../services/panelManager");
+
+      // Sunucuya uygun setup'ları çağır
+      const { TARGET_GUILD_ID, TMT_GUILD_ID, GUILD2_ID, ALLIED_GUILD_ID } = require("../../config");
+
+      if (guild.id === TARGET_GUILD_ID) {
+        await ensureVerifyHelpMessage(client);
+        await ensureVoicePanelMessage(client);
+      } else if (guild.id === TMT_GUILD_ID) {
+        await ensureTMTVerifyHelpMessage(client);
+        await ensureTMTSupportMessage(client);
+        await ensureTMTRules(client);
+      } else if (guild.id === GUILD2_ID) {
+        await ensureEkoSupportMessage(client);
+      } else if (guild.id === ALLIED_GUILD_ID) {
+        const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
+        await ensureAlliedVerifyHelpMessage(client);
+        await ensureAlliedSupportMessage(client);
+      }
+
+      // Tüm sunuculara common setup'ları yap
+      await ensureAdminPanels(client);
+
+      console.log(`[guildCreate] ✅ ${guild.name} (${guild.id}) setup tamamlandı`);
+    } catch (err) {
+      console.error(`[guildCreate] Setup hatası (${guild.name}):`, err.message);
+    }
+  });
+
   client.on("interactionCreate", async (interaction) => {
     try {
       // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
