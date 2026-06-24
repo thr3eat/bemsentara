@@ -236,6 +236,214 @@ const generalCommands = [
     .setName("personel-dogrula")
     .setDescription("Roblox hesabınızı doğrulamak için kullanılır.")
     .setDMPermission(true),
+
+  // ── MODERASYON KOMUTLARI ──────────────────────────────────────────────────
+
+  new SlashCommandBuilder()
+    .setName("mute")
+    .setDescription("🔇 Kullanıcı Sustur (Timeout)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Susturulacak kişi").setRequired(true))
+    .addStringOption(o => o.setName("sure").setDescription("Süre (10m, 1h, 1d vb)").setValue("10m").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("Susturma sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("unmute")
+    .setDescription("🔊 Susturma Kaldır")
+    .addUserOption(o => o.setName("kullanici").setDescription("Susturma kaldırılacak kişi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("modaction")
+    .setDescription("🚷 Ceza İşlem (Modİşlem)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Ceza verilecek kişi").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("İhlal kodu (KUFUR, SPAM, REKLAM vb)").setRequired(true))
+    .addStringOption(o => o.setName("kanit").setDescription("Kanıt linki (opsiyonel)").setRequired(false))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("bulk-delete")
+    .setDescription("🗑️ Toplu Mesaj Sil")
+    .addIntegerOption(o => o.setName("miktar").setDescription("Silinecek mesaj sayısı (1-100)").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("🔨 Tam Ban Uygula (Global)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Banlanacak kişi").setRequired(true))
+    .addStringOption(o => o.setName("seviye").setDescription("Ban seviyesi").setValue("high").setRequired(true)
+      .addChoices(
+        { name: "Çok Yüksek", value: "very_high" },
+        { name: "Yüksek", value: "high" },
+        { name: "Orta", value: "medium" },
+        { name: "Düşük", value: "low" }
+      ))
+    .addStringOption(o => o.setName("sebep").setDescription("Ban sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("unban")
+    .setDescription("🔓 Ban Kaldır")
+    .addUserOption(o => o.setName("kullanici").setDescription("Banı kaldırılacak kişi").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("Kaldırma sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("karaliste")
+    .setDescription("🚫 Karaliste Yönetimi")
+    .addSubcommand(s => s.setName("ekle-kisi").setDescription("Karalisteye kişi ekle")
+      .addStringOption(o => o.setName("isim").setDescription("Kişi adı/ID").setRequired(true))
+      .addStringOption(o => o.setName("sebep").setDescription("Engelleme sebebi").setRequired(true)))
+    .addSubcommand(s => s.setName("ekle-grup").setDescription("Karalisteye grup ekle")
+      .addStringOption(o => o.setName("grup").setDescription("Grup adı").setRequired(true))
+      .addStringOption(o => o.setName("sebep").setDescription("Engelleme sebebi").setRequired(true)))
+    .addSubcommand(s => s.setName("kaldir").setDescription("Karalisteden kaldır")
+      .addStringOption(o => o.setName("isim").setDescription("Kaldırılacak isim").setRequired(true)))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  // ── PERSONEL KOMUTLARI ──────────────────────────────────────────────────
+
+  new SlashCommandBuilder()
+    .setName("staff-report")
+    .setDescription("📊 Personel İlerleme Raporu")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+
+  new SlashCommandBuilder()
+    .setName("staff-setstats")
+    .setDescription("⚙️ Personel İstatistik Ayarla")
+    .addUserOption(o => o.setName("kullanici").setDescription("Kişi").setRequired(true))
+    .addStringOption(o => o.setName("parametre").setDescription("tickets/messages/voice/level/warnings").setRequired(true))
+    .addIntegerOption(o => o.setName("deger").setDescription("Yeni değer").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("fire")
+    .setDescription("🚪 Personeli Kovuş")
+    .addUserOption(o => o.setName("kullanici").setDescription("Kovulacak kişi").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("Kovulma sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("promote")
+    .setDescription("🎖️ Personeli Terfi Et")
+    .addUserOption(o => o.setName("kullanici").setDescription("Terfi edilecek kişi").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("Terfi sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("demote")
+    .setDescription("📉 Personeli Tenzil Et")
+    .addUserOption(o => o.setName("kullanici").setDescription("Tenzil edilecek kişi").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("Tenzil sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("reward")
+    .setDescription("🎁 Ödül Ver/Al")
+    .addUserOption(o => o.setName("kullanici").setDescription("Kişi").setRequired(true))
+    .addStringOption(o => o.setName("islem").setDescription("ver veya al").setRequired(true)
+      .addChoices({ name: "Ödül Ver", value: "ver" }, { name: "Ödül Al", value: "al" }))
+    .addStringOption(o => o.setName("odul").setDescription("Ödül açıklaması").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("giveleave")
+    .setDescription("🏖️ İzin Günü Tanımla")
+    .addUserOption(o => o.setName("kullanici").setDescription("İzin verilecek kişi").setRequired(true))
+    .addStringOption(o => o.setName("tarih").setDescription("İzin tarihi (YYYY-MM-DD)").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("İzin sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("attendance-start")
+    .setDescription("🟢 Personel Sayımı (Yoklama) Başlat")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("attendance-stop")
+    .setDescription("🔴 Personel Sayımını Bitir")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  // ── SİSTEM KOMUTLARI ────────────────────────────────────────────────────
+
+  new SlashCommandBuilder()
+    .setName("toggle")
+    .setDescription("⚙️ Sistem Modüllerini Aç/Kapat")
+    .addStringOption(o => o.setName("modul").setDescription("economy/moderation/fun").setRequired(true)
+      .addChoices(
+        { name: "Ekonomi Sistemi", value: "economy" },
+        { name: "Moderasyon Sistemi", value: "moderation" },
+        { name: "Eğlence Oyunları", value: "fun" }
+      ))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("channel-perms")
+    .setDescription("🔒 Kanal İzinlerini Yönet")
+    .addChannelOption(o => o.setName("kanal").setDescription("Hedef kanal").setRequired(true))
+    .addStringOption(o => o.setName("islem").setDescription("izin_ekle / izin_kaldir").setRequired(true))
+    .addStringOption(o => o.setName("izin").setDescription("commands/economy/fun").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("otomod")
+    .setDescription("🛡️ Discord Otomod Yönetimi")
+    .addStringOption(o => o.setName("islem").setDescription("ayarla / kapat").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("birim-alimi")
+    .setDescription("📢 Birim Alımı Duyurusu Gönder")
+    .addStringOption(o => o.setName("birim").setDescription("BAN_BIRIMI / SES_BIRIMI").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("birim-tanitim")
+    .setDescription("📋 Birim Tanıtımını Gönder")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("xp-cekilis")
+    .setDescription("🎉 XP Çekilişi Başlat")
+    .addIntegerOption(o => o.setName("xp").setDescription("Dağıtılacak toplam XP").setRequired(true))
+    .addIntegerOption(o => o.setName("kazanan").setDescription("Kazanan sayısı").setValue(1).setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("ai-konusma")
+    .setDescription("💬 AI DM Konuşması Başlat")
+    .addUserOption(o => o.setName("kullanici").setDescription("Konuşulacak kişi").setRequired(true))
+    .addStringOption(o => o.setName("konu").setDescription("Konuşma konusu").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("abuse-test")
+    .setDescription("🧪 Abuse Test Embedi Gönder")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  new SlashCommandBuilder()
+    .setName("ekobang")
+    .setDescription("🔒 EkoBang Uygula (Rütbeleri Düşür)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("ekobangerial")
+    .setDescription("🔓 EkoBang İade (Rütbeleri Geri Al)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("grupcekeko")
+    .setDescription("⬇️ GrupÇekEko (Rütbeleri En Alta Çek)")
+    .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("grupcekekogerial")
+    .setDescription("⬆️ GrupÇekEko Geri Al (Rütbeleri İade)")
+    .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ];
 
 const economyCommands = [

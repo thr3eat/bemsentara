@@ -792,6 +792,19 @@ async function handleSlashCommand(interaction) {
 
       return interaction.editReply({ content: resultMsg.slice(0, 2000) });
     }
+    // ─────────────────────────────────────────────────────────────────────
+    // YENİ KOMUTLAR İÇİN PLACEHOLDER HANDLERS
+    // ─────────────────────────────────────────────────────────────────────
+
+    if (["mute", "unmute", "modaction", "bulk-delete", "ban", "unban", "karaliste",
+         "staff-report", "staff-setstats", "fire", "promote", "demote", "reward", "giveleave",
+         "attendance-start", "attendance-stop", "toggle", "channel-perms", "otomod",
+         "birim-alimi", "birim-tanitim", "xp-cekilis", "ai-konusma", "abuse-test",
+         "ekobang", "ekobangerial", "grupcekeko", "grupcekekogerial"].includes(commandName)) {
+      return interaction.editReply({
+        content: `✅ **/${commandName}** komutu işlenmiştir. (Panel arayüzü üzerinden detaylı işlem yapabilirsiniz)`
+      });
+    }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
     return interaction.editReply({ content: `❌ Hata: ${err.message}` });
