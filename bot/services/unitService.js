@@ -696,6 +696,14 @@ async function handleAnswerClick(interaction, qIndex, optIndex) {
           .setTimestamp();
 
         await interaction.user.send({ embeds: [embed] }).catch(() => {});
+
+        // Yeni üyeyi AI tarafından tanıtım ve günlük görevleri ver
+        const { onboardNewMember } = require('./unitOnboardingService');
+        setTimeout(() => {
+          onboardNewMember(interaction.client, userId, birimKey, score).catch(err => {
+            console.error('[unitService] Onboarding hatası:', err.message);
+          });
+        }, 2000);
       } else {
         await userUnit.save();
         const embed = new EmbedBuilder()
