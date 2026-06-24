@@ -992,14 +992,22 @@ async function handleGeneralCommand(interaction) {
         for (const p of pageItems) {
           const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
           const premium = p.isPremium ? '⭐ ' : '';
-          description += `${medal}${premium}<@${p.userId}> | Puan: ${p.points} | Lvl: ${p.xpLevel} | 🎫: ${p.tickets} | 🏆: ${p.badges}\n`;
+          // İsmi doğrudan göster (mention kullanmadan)
+          const userName = p.username || `Kullanıcı #${p.userId}`;
+          description += `${medal} ${premium}${userName.padEnd(20)} | Puan: ${p.points.toString().padStart(5)} | Lvl: ${p.xpLevel} | 🎫: ${p.tickets}\n`;
         }
         description += '```';
+
+        // Kışkançlık mesajı - eğer kullanıcı sıralamada değilse
+        let motivationMessage = '';
+        if (userRank && userRank.rank > 3) {
+          motivationMessage = `\n💪 *Sen #${userRank.rank}. sıraladasın! Top 3'e çıkmak için ${(lb[2]?.points || 0) - userRank.points} puan daha lazım...* 🏆`;
+        }
 
         const embed = new EmbedBuilder()
           .setColor(0xffd700)
           .setTitle('🏆 LEADERBOARD - Top 25 Personel')
-          .setDescription(description)
+          .setDescription(description + motivationMessage)
           .addFields(
             { name: '📊 KATEGORİLER', value: '**Mevcut:** Puan | XP • Level • Badge • Streak', inline: false },
             { name: '⭐ PREMIUM', value: '⭐ = Premium Üye', inline: true }
@@ -1009,9 +1017,10 @@ async function handleGeneralCommand(interaction) {
 
         // Kullanıcının kendi pozisyonunu göster
         if (userRank && !pageItems.some(p => p.userId === interaction.user.id)) {
+          const userNameDisplay = userRank.username || `Kullanıcı #${interaction.user.id}`;
           embed.addFields({
-            name: `📍 SENİN POZİSYONUN`,
-            value: `Sıra: **#${userRank.rank}** / ${userRank.total}\nPuan: **${userRank.points}** | XP Lvl: **${userRank.xpLevel}** | Ticket: **${userRank.tickets}** | Rozet: **${userRank.badges}**`,
+            name: `📍 SENİN POZİSYONUN (#${userRank.rank})`,
+            value: `**${userNameDisplay}**\nPuan: **${userRank.points}** | XP Lvl: **${userRank.xpLevel}** | Ticket: **${userRank.tickets}** | Rozet: **${userRank.badges}**`,
             inline: false
           });
         }
