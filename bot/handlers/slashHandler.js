@@ -793,6 +793,17 @@ async function handleSlashCommand(interaction) {
       return interaction.editReply({ content: resultMsg.slice(0, 2000) });
     }
     // ─────────────────────────────────────────────────────────────────────
+    // PERSONEL KOMUTLARI
+    if (commandName === "personel-sohbet") {
+      const { handleStaffChat } = require("../services/staffChat");
+      return handleStaffChat(interaction);
+    }
+
+    if (commandName === "günlük-rapor") {
+      const { handleDailyReport } = require("../services/dailyReportSystem");
+      return handleDailyReport(interaction);
+    }
+
     // YENİ KOMUTLAR İÇİN PLACEHOLDER HANDLERS
     // ─────────────────────────────────────────────────────────────────────
 

@@ -560,10 +560,33 @@ const funCommands = [
     ),
 ];
 
+// ── PERSONEL KOMUTLARı ────────────────────────────────────────────────────────
+const staffCommands = [
+  new SlashCommandBuilder()
+    .setName("personel-sohbet")
+    .setDescription("🗨️ Başka bir personelle DM üzerinden sohbet et")
+    .addUserOption((o) =>
+      o.setName("personel").setDescription("Sohbet etmek istediğin personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("mesaj").setDescription("Gönderecek mesaj").setRequired(true)
+    )
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("günlük-rapor")
+    .setDescription("📋 Bugünkü görevlerini hakkında rapor gir (AI değerlendirir)")
+    .addStringOption((o) =>
+      o.setName("rapor").setDescription("Kısa rapor (ör: Bugün uyandım selam verdim, sesle 2 saat aktif oldum)").setRequired(true)
+    )
+    .setDMPermission(false),
+];
+
 const allCommands = [
   ...generalCommands,
   ...economyCommands,
   ...funCommands,
+  ...staffCommands,
 ].map((c) => c.toJSON());
 
 module.exports = {
@@ -571,5 +594,6 @@ module.exports = {
   generalCommands,
   economyCommands,
   funCommands,
+  staffCommands,
   moderationCommands: []
 };
