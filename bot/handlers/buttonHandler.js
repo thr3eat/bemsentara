@@ -1,4 +1,20 @@
-const { EmbedBuilder, PermissionFlagsBits, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+// handleButtonInteraction.js
+
+const {
+  EmbedBuilder,
+  PermissionFlagsBits,
+  MessageFlags,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ChannelType,
+} = require("discord.js");
+
 const Ticket = require("../../models/Ticket");
 const {
   getSupportMenuEmbed,
@@ -7,319 +23,313 @@ const {
   buildRatingModal,
   buildCloseButton,
 } = require("../embeds");
-const { BASE_URL } = require("../../config");
-const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+const { BASE_URL, TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID } = require("../../config");
 const { handleRollCallButton } = require("../services/rollCallService");
 
+// ─── Yardımcı: Modal oluşturucu ──────────────────────────────────────────────
+
+/**
+ * Tekil bir TextInput satırı içeren ActionRow döner.
+ */
+function textRow(customId, label, style, required = true) {
+  return new ActionRowBuilder().addComponents(
+    new TextInputBuilder()
+      .setCustomId(customId)
+      .setLabel(label)
+      .setStyle(style)
+      .setRequired(required)
+  );
+}
+
+/**
+ * Basit modal oluşturur. fields: [{ id, label, style }]
+ */
+function buildModal(customId, title, fields) {
+  const modal = new ModalBuilder().setCustomId(customId).setTitle(title);
+  modal.addComponents(
+    ...fields.map(({ id, label, style }) =>
+      textRow(id, label, style)
+    )
+  );
+  return modal;
+}
+
+// ─── Yardımcı: Güvenli hata yanıtı ──────────────────────────────────────────
+
+async function safeErrorReply(interaction, message) {
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({ content: message });
+    } else {
+      await interaction.reply({ content: message, ephemeral: true });
+    }
+  } catch (_) { }
+}
+
+// ─── Handler Map: Guild ID → Sync Servis ─────────────────────────────────────
+
+const GUILD_SYNC_MAP = {
+  [String(ALLIED_GUILD_ID).trim()]: async (client, userId, robloxId, guild) => {
+    const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+    return syncAlliedRoles(client, userId, parseInt(robloxId, 10), guild);
+  },
+  [String(GUILD2_ID).trim()]: async (client, userId, robloxId, guild) => {
+    const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+    return syncAlliedRoles(client, userId, parseInt(robloxId, 10), guild);
+  },
+  [String(TMT_GUILD_ID).trim()]: async (client, userId, robloxId) => {
+    const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+    return syncTMTRoles(client, userId, robloxId);
+  },
+  [String(TARGET_GUILD_ID).trim()]: async (client, userId, robloxId) => {
+    const { syncMemberRoles } = require("../services/roleSyncService");
+    return syncMemberRoles(client, userId, robloxId);
+  },
+};
+
+// ─── Ana Handler ──────────────────────────────────────────────────────────────
+
 async function handleButtonInteraction(interaction) {
-  if (interaction.customId.startsWith('panel_')) {
+  const { customId } = interaction;
+
+  // ── Panel butonu ────────────────────────────────────────────────────────
+  if (customId.startsWith("panel_")) {
     const { handlePanelButton } = require("../services/mainPanelService");
     return handlePanelButton(interaction);
   }
 
-  if (interaction.customId === 'talk_to_coach') {
-    const { startCoachSession } = require('../services/staffCoach');
+  // ── Koç oturumu ─────────────────────────────────────────────────────────
+  if (customId === "talk_to_coach") {
+    const { startCoachSession } = require("../services/staffCoach");
     return startCoachSession(interaction);
   }
 
-  if (interaction.customId === 'btn_rollcall_here') {
+  // ── Yoklama butonu ──────────────────────────────────────────────────────
+  if (customId === "btn_rollcall_here") {
     return handleRollCallButton(interaction);
   }
 
-  // ── XP Çekilişi Katılım ───────────────────────────────────────────────────
-  if (interaction.customId === 'xp_cekilis_katil') {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
-    const Giveaway = require('../../models/Giveaway');
+  // ── XP Çekilişi ─────────────────────────────────────────────────────────
+  if (customId === "xp_cekilis_katil") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    const Giveaway = require("../../models/Giveaway");
     const giveaway = await Giveaway.findOne({ messageId: interaction.message.id });
-    
-    if (!giveaway) {
-      return interaction.editReply('❌ Bu çekiliş artık aktif değil veya bulunamadı.');
-    }
-    if (!giveaway.isActive) {
-      return interaction.editReply('❌ Bu çekiliş sona ermiş.');
-    }
-    
-    if (giveaway.participants.includes(interaction.user.id)) {
-      return interaction.editReply('✅ Çekilişe zaten katılmışsınız! Bol şans!');
-    }
-    
+
+    if (!giveaway) return interaction.editReply("❌ Bu çekiliş artık aktif değil veya bulunamadı.");
+    if (!giveaway.isActive) return interaction.editReply("❌ Bu çekiliş sona ermiş.");
+    if (giveaway.participants.includes(interaction.user.id))
+      return interaction.editReply("✅ Çekilişe zaten katılmışsınız! Bol şans!");
+
     giveaway.participants.push(interaction.user.id);
     await giveaway.save();
-    return interaction.editReply('🎉 Çekilişe başarıyla katıldınız! Ertesi gün 12:00\'de sonuçlanacak.');
+    return interaction.editReply("🎉 Çekilişe başarıyla katıldınız! Ertesi gün 12:00'de sonuçlanacak.");
   }
 
-  // ── EkoCoin Mağazası ──────────────────────────────────────────────────────
-  if (interaction.customId === 'ekocoin_magaza') {
-    const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+  // ── EkoCoin Mağazası ─────────────────────────────────────────────────────
+  if (customId === "ekocoin_magaza") {
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
-    if (!p) return interaction.reply({ content: '❌ Sistemde kaydınız bulunamadı.', ephemeral: true });
+    if (!p) return interaction.reply({ content: "❌ Sistemde kaydınız bulunamadı.", ephemeral: true });
 
     const ecoCoins = p.gamification?.ecoCoins || 0;
-    
+
+    const SHOP_ITEMS = [
+      { label: "🎨 Yeşil Rol Rengi", description: "İsminizin yeşil görünmesini sağlar. (500 E.C.)", value: "renk_yesil" },
+      { label: "🎨 Kırmızı Rol Rengi", description: "İsminizin kırmızı görünmesini sağlar. (500 E.C.)", value: "renk_kirmizi" },
+      { label: "🎨 Mavi Rol Rengi", description: "İsminizin mavi görünmesini sağlar. (500 E.C.)", value: "renk_mavi" },
+      { label: "🎨 Sarı Rol Rengi", description: "İsminizin sarı görünmesini sağlar. (500 E.C.)", value: "renk_sari" },
+      { label: "🎨 Mor Rol Rengi", description: "İsminizin mor görünmesini sağlar. (500 E.C.)", value: "renk_mor" },
+      { label: "🎨 Pembe Rol Rengi", description: "İsminizin pembe görünmesini sağlar. (500 E.C.)", value: "renk_pembe" },
+      { label: "🎨 Turuncu Rol Rengi", description: "İsminizin turuncu görünmesini sağlar. (500 E.C.)", value: "renk_turuncu" },
+      { label: "🏖️ +1 Gün İzin Hakkı", description: "Devamsızlık izni bakiyenize +1 gün ekler. (1000 E.C.)", value: "ekstra_izin" },
+    ];
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle('🛒 EkoCoin Mağazası')
-      .setDescription(`Hoş geldin, **${interaction.user.username}**!\n\n💰 **Güncel Bakiyen:** ${ecoCoins} E.C.\n\nAşağıdaki menüden almak istediğin ürünü seçebilirsin.`)
-      .setFooter({ text: 'Eko Yıldız • Mağaza' });
+      .setTitle("🛒 EkoCoin Mağazası")
+      .setDescription(
+        `Hoş geldin, **${interaction.user.username}**!\n\n` +
+        `💰 **Güncel Bakiyen:** ${ecoCoins} E.C.\n\n` +
+        `Aşağıdaki menüden almak istediğin ürünü seçebilirsin.`
+      )
+      .setFooter({ text: "Eko Yıldız • Mağaza" });
 
     const select = new StringSelectMenuBuilder()
-      .setCustomId('ekocoin_satin_al')
-      .setPlaceholder('Almak istediğin ürünü seç...')
+      .setCustomId("ekocoin_satin_al")
+      .setPlaceholder("Almak istediğin ürünü seç...")
       .addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Yeşil Rol Rengi')
-          .setDescription('İsminizin yeşil görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_yesil'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Kırmızı Rol Rengi')
-          .setDescription('İsminizin kırmızı görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_kirmizi'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Mavi Rol Rengi')
-          .setDescription('İsminizin mavi görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_mavi'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Sarı Rol Rengi')
-          .setDescription('İsminizin sarı görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_sari'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Mor Rol Rengi')
-          .setDescription('İsminizin mor görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_mor'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Pembe Rol Rengi')
-          .setDescription('İsminizin pembe görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_pembe'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🎨 Turuncu Rol Rengi')
-          .setDescription('İsminizin turuncu görünmesini sağlar. (500 E.C.)')
-          .setValue('renk_turuncu'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('🏖️ +1 Gün İzin Hakkı')
-          .setDescription('Devamsızlık izni bakiyenize +1 gün ekler. (1000 E.C.)')
-          .setValue('ekstra_izin')
+        SHOP_ITEMS.map((item) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(item.label)
+            .setDescription(item.description)
+            .setValue(item.value)
+        )
       );
 
-    const row = new ActionRowBuilder().addComponents(select);
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    return interaction.reply({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(select)],
+      ephemeral: true,
+    });
   }
 
-  // ── Personel Doğrulama Paneli Butonu ─────────────────────────────────────
-  if (interaction.customId === 'btn_personel_check') {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  // ── Personel Doğrulama ───────────────────────────────────────────────────
+  if (customId === "btn_personel_check") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => { });
     try {
       const User = require("../../models/User");
       const user = await User.findOne({ discordId: interaction.user.id });
-      const { BASE_URL } = require("../../config");
-      
-      if (user?.robloxId) {
-        const { syncStaffRobloxRanks, ensureAdminGuildMembership, syncStaffDiscordRoles } = require("../services/staffAutomation");
-        const StaffProgress = require("../../models/StaffProgress");
-        const p = await StaffProgress.findOne({ userId: interaction.user.id });
 
-        
-        // İsteği kabul edip Roblox rütbelerini verecek fonksiyonu çağırıyoruz
-        await syncStaffRobloxRanks(interaction.client, interaction.user.id);
-        
-        // Sonra Roblox rütbesine bakarak Discord rollerini veriyoruz
-        const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
-        
-        if (roleSyncSuccess) {
-          const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
-
-          const successEmbed = new EmbedBuilder()
-            .setTitle("✅ Personel Doğrulaması Başarılı")
-            .setDescription(`Roblox ID: \`${user.robloxId}\`\nSunucudaki yetki rolleriniz Roblox grubundaki rütbenize göre **başarıyla** verildi. ${!inGuild ? "\n*(Ancak sunucuda bulunamadığınız için roller sadece katıldığınızda geçerli olacak)*" : ""}`)
-            .setColor(0x2ECC71);
-            
-          return interaction.editReply({ embeds: [successEmbed] });
-        } else {
-          return interaction.editReply({ content: `❌ **Doğrulama Başarısız!**\nRoblox grubunda (**EkoYıldız Moderatör Ekibi**) onaylı bir rütbeniz bulunamadı veya roller verilirken bir hata oluştu.\nLütfen önce gruba katılıp rütbe aldığınızdan emin olun.` });
-        }
-      } else {
-        return interaction.editReply({ content: "❌ Önce `/authorize` komutuyla Roblox hesabınızı bağlamanız gerekmektedir." });
+      if (!user?.robloxId) {
+        return interaction.editReply({
+          content: "❌ Önce `/authorize` komutuyla Roblox hesabınızı bağlamanız gerekmektedir.",
+        });
       }
 
-      const embed = new EmbedBuilder()
-        .setColor(0x4169E1)
-        .setTitle("🔐 Personel Roblox Doğrulaması")
-        .setDescription(
-          `EkoYıldız yönetim ekibinde bulunduğunuz tespit edildi. Sistemleri tam olarak kullanabilmek ve görev yetkilerinizi alabilmek için **Roblox** hesabınızı doğrulamanız gerekmektedir.\n\n` +
-          `Lütfen aşağıdaki web paneli linkine tıklayarak hesabınızı eşleştirin.\n\n` +
-          `🔗 **Doğrulama Linki:** [EkoYıldız Dashboard](${BASE_URL}/dashboard)`
-        )
-        .setFooter({ text: "EkoYıldız Yüksek Güvenlikli Otomasyon Sistemi" });
+      const {
+        syncStaffRobloxRanks,
+        ensureAdminGuildMembership,
+        syncStaffDiscordRoles,
+      } = require("../services/staffAutomation");
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setLabel("🌐 Dashboard'a Git ve Doğrula")
-          .setStyle(ButtonStyle.Link)
-          .setURL(`${BASE_URL}/dashboard`)
-      );
+      await syncStaffRobloxRanks(interaction.client, interaction.user.id);
+      const roleSyncSuccess = await syncStaffDiscordRoles(interaction.client, interaction.user.id);
 
-      return interaction.editReply({ embeds: [embed], components: [row] });
+      if (!roleSyncSuccess) {
+        return interaction.editReply({
+          content:
+            "❌ **Doğrulama Başarısız!**\n" +
+            "Roblox grubunda (**EkoYıldız Moderatör Ekibi**) onaylı bir rütbeniz bulunamadı " +
+            "veya roller verilirken bir hata oluştu.\n" +
+            "Lütfen önce gruba katılıp rütbe aldığınızdan emin olun.",
+        });
+      }
+
+      const inGuild = await ensureAdminGuildMembership(interaction.client, interaction.user.id);
+      const notInGuildNote = !inGuild
+        ? "\n*(Ancak sunucuda bulunamadığınız için roller sadece katıldığınızda geçerli olacak)*"
+        : "";
+
+      return interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Personel Doğrulaması Başarılı")
+            .setDescription(
+              `Roblox ID: \`${user.robloxId}\`\n` +
+              `Sunucudaki yetki rolleriniz Roblox grubundaki rütbenize göre **başarıyla** verildi.` +
+              notInGuildNote
+            )
+            .setColor(0x2ecc71),
+        ],
+      });
     } catch (err) {
-      console.error('[btn_personel_check] hata:', err.message);
-      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      console.error("[btn_personel_check] Hata:", err.message);
+      return safeErrorReply(interaction, `❌ Hata: ${err.message}`);
     }
   }
 
-  // ── TMT Yetkilendirme Butonu ─────────────────────────────────────────────
-  if (interaction.customId === "authorize_button") {
+  // ── TMT Yetkilendirme ────────────────────────────────────────────────────
+  if (customId === "authorize_button") {
     const User = require("../../models/User");
-    
     try {
       const user = await User.findOne({ discordId: interaction.user.id });
-      
+      const isLinked = !!user?.robloxId;
+
       const embed = new EmbedBuilder()
-        .setColor(0x4169E1)
+        .setColor(0x4169e1)
         .setTitle("🔐 Roblox Hesap Bağlama")
         .setDescription(
-          user?.robloxId
+          isLinked
             ? `✅ **Zaten Bağlı!**\n\nRoblox ID: \`${user.robloxId}\`\n\nRollerinizi güncellemek için aşağıdaki butona tıklayın.`
             : `🔗 **Roblox Hesabını Bağlamak İçin Yöntem Seçin:**\n\n` +
-              `**1. Yöntem (Web):** [Buraya Tıklayarak Yetkilendir](${BASE_URL}/auth/roblox) ve ardından \`/verify\` komutunu çalıştırın.\n\n` +
-              `**2. Yöntem (Arkadaş İsteği):** Aşağıdaki **Arkadaş İsteği ile Doğrula** butonuna tıklayarak Roblox kullanıcı adınızı girin. Bot size arkadaşlık isteği göndererek hesabınızı doğrular.`
+            `**1. Yöntem (Web):** [Buraya Tıklayarak Yetkilendir](${BASE_URL}/auth/roblox) ve ardından \`/verify\` komutunu çalıştırın.\n\n` +
+            `**2. Yöntem (Arkadaş İsteği):** Aşağıdaki **Arkadaş İsteği ile Doğrula** butonuna tıklayarak Roblox kullanıcı adınızı girin. Bot size arkadaşlık isteği göndererek hesabınızı doğrular.`
         )
         .setFooter({ text: "TMT Yetkilendirme Sistemi" })
         .setTimestamp();
-      
-      if (user?.robloxId) {
+
+      if (isLinked) {
         return interaction.reply({ embeds: [embed], ephemeral: true });
-      } else {
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel("🌐 Web ile Yetkilendir")
-            .setStyle(ButtonStyle.Link)
-            .setURL(`${BASE_URL}/auth/roblox`),
-          new ButtonBuilder()
-            .setCustomId("rbx_btn_verify_friend_start")
-            .setLabel("🤖 Arkadaş İsteği ile Doğrula")
-            .setStyle(ButtonStyle.Primary)
-        );
-        return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
       }
-    } catch (error) {
-      console.error("[authorize_button] Error:", error);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("🌐 Web ile Yetkilendir")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`${BASE_URL}/auth/roblox`),
+        new ButtonBuilder()
+          .setCustomId("rbx_btn_verify_friend_start")
+          .setLabel("🤖 Arkadaş İsteği ile Doğrula")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    } catch (err) {
+      console.error("[authorize_button] Hata:", err.message);
       return interaction.reply({ content: "❌ Bir hata oluştu.", ephemeral: true });
     }
   }
 
-  // ── TMT Rol Senkronizasyon Butonu ────────────────────────────────────────
-  if (interaction.customId === "verify_button") {
+  // ── TMT Rol Senkronizasyonu ──────────────────────────────────────────────
+  if (customId === "verify_button") {
     const User = require("../../models/User");
-    const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
-    
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
+
     try {
-      console.log(`[verify_button] User ${interaction.user.id} requesting role sync...`);
       const user = await User.findOne({ discordId: interaction.user.id });
-      
-      if (!user) {
-        console.log(`[verify_button] User ${interaction.user.id} not found in database`);
+      if (!user?.robloxId) {
         return interaction.editReply({
           content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
           flags: MessageFlags.Ephemeral,
         });
       }
 
-      if (!user.robloxId) {
-        console.log(`[verify_button] User ${interaction.user.id} has no robloxId`);
-        return interaction.editReply({
-          content: "❌ Roblox hesabınız bağlı değil! Önce yetkilendirme butonunu kullanın.",
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      console.log(`[verify_button] Found user: Discord=${interaction.user.id}, Roblox=${user.robloxId}`);
-      
-      // Sunucuya özel rol senkronizasyonu
-      let result;
       const normalizedGuildId = String(interaction.guild?.id || "").trim();
-      const normalizedTMT = String(TMT_GUILD_ID).trim();
-      const normalizedBEM = String(TARGET_GUILD_ID).trim();
-      const normalizedEKO = String(GUILD2_ID).trim();
-      const normalizedAllied = String(ALLIED_GUILD_ID).trim();
+      const syncFn = GUILD_SYNC_MAP[normalizedGuildId];
 
-      console.log(`[verify_button] Sunucu Kontrolü:`);
-      console.log(`  Mevcut Guild ID: "${normalizedGuildId}"`);
-      console.log(`  Allied ID: "${normalizedAllied}" ${normalizedGuildId === normalizedAllied ? '✓ EŞLEŞTI' : ''}`);
-      console.log(`  TMT ID: "${normalizedTMT}" ${normalizedGuildId === normalizedTMT ? '✓ EŞLEŞTI' : ''}`);
-      console.log(`  BEM ID: "${normalizedBEM}" ${normalizedGuildId === normalizedBEM ? '✓ EŞLEŞTI' : ''}`);
-      console.log(`  EKO ID: "${normalizedEKO}" ${normalizedGuildId === normalizedEKO ? '✓ EŞLEŞTI' : ''}`);
-      
-      if (normalizedGuildId === normalizedAllied) {
-        console.log(`[verify_button] ✓ Müttefik Orduları algılandı - Allied sync başlatılıyor`);
-        const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
-        result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
-        console.log(`[verify_button] Allied sync tamamlandı`);
-      } else if (normalizedGuildId === normalizedEKO) {
-        console.log(`[verify_button] ✓ EKOYILDIZ algılandı - Allied sync başlatılıyor`);
-        const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
-        result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(user.robloxId, 10), interaction.guild);
-        console.log(`[verify_button] EKOYILDIZ sync tamamlandı`);
-      } else if (normalizedGuildId === normalizedTMT) {
-        console.log(`[verify_button] ✓ TMT algılandı - TMT sync başlatılıyor`);
-        const { syncTMTRoles } = require("../services/tmtRoleSyncService");
-        result = await syncTMTRoles(interaction.client, interaction.user.id, user.robloxId);
-        console.log(`[verify_button] TMT sync tamamlandı`);
-      } else if (normalizedGuildId === normalizedBEM) {
-        console.log(`[verify_button] ✓ BEM algılandı - BEM sync başlatılıyor`);
-        const { syncMemberRoles } = require("../services/roleSyncService");
-        result = await syncMemberRoles(interaction.client, interaction.user.id, user.robloxId);
-        console.log(`[verify_button] BEM sync tamamlandı`);
-      } else {
-        console.error(`[verify_button] ✗ Sunucu tanınmadı! Guild ID: "${normalizedGuildId}"`);
+      if (!syncFn) {
+        console.error(`[verify_button] Tanınmayan sunucu: "${normalizedGuildId}"`);
         return interaction.editReply({
           content: `❌ Sunucu tanınmadı. Guild ID: ${normalizedGuildId}`,
           flags: MessageFlags.Ephemeral,
         });
       }
-      
-      if (result && result.success) {
-        const formatRoleList = (roles) => {
-          if (!roles || !roles.length) return "None";
-          return roles.map((r) => `<@&${r.id}>`).join("\n");
-        };
 
-        const embed = new EmbedBuilder()
-          .setColor(0x00AA00)
-          .setTitle("✅ Rolleri Senkronize Et")
-          .addFields(
-            { name: "👤 Kullanıcı", value: result.nickname || interaction.user.username, inline: false },
-            { name: "➕ Eklenen Roller", value: formatRoleList(result.added || []), inline: false },
-            { name: "➖ Kaldırılan Roller", value: formatRoleList(result.removed || []), inline: false }
-          )
-          .setFooter({ text: "Rol Senkronizasyonu Tamamlandı" })
-          .setTimestamp();
-        
-        if (result.tier) {
-          embed.addFields({
-            name: "🎖️ Seviye Rolü",
-            value: result.tier,
-            inline: true,
-          });
-        }
+      const result = await syncFn(interaction.client, interaction.user.id, user.robloxId, interaction.guild);
 
-        if (result.unresolved && result.unresolved.length > 0) {
-          embed.addFields({
-            name: "⚠️ Eşleşmeyen Roller",
-            value: result.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
-            inline: false,
-          });
-        }
-        
-        return interaction.editReply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-      } else {
+      if (!result?.success) {
         return interaction.editReply({
           content: "❌ Roller senkronize edilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
           flags: MessageFlags.Ephemeral,
         });
       }
-    } catch (error) {
-      console.error("[verify_button] Error:", error);
+
+      const formatRoleList = (roles) =>
+        roles?.length ? roles.map((r) => `<@&${r.id}>`).join("\n") : "None";
+
+      const embed = new EmbedBuilder()
+        .setColor(0x00aa00)
+        .setTitle("✅ Rolleri Senkronize Et")
+        .addFields(
+          { name: "👤 Kullanıcı", value: result.nickname || interaction.user.username, inline: false },
+          { name: "➕ Eklenen Roller", value: formatRoleList(result.added), inline: false },
+          { name: "➖ Kaldırılan Roller", value: formatRoleList(result.removed), inline: false }
+        )
+        .setFooter({ text: "Rol Senkronizasyonu Tamamlandı" })
+        .setTimestamp();
+
+      if (result.tier) embed.addFields({ name: "🎖️ Seviye Rolü", value: result.tier, inline: true });
+      if (result.unresolved?.length) {
+        embed.addFields({
+          name: "⚠️ Eşleşmeyen Roller",
+          value: result.unresolved.map((n) => `\`${n}\``).join(", ").slice(0, 1024),
+          inline: false,
+        });
+      }
+
+      return interaction.editReply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    } catch (err) {
+      console.error("[verify_button] Hata:", err.message);
       return interaction.editReply({
         content: "❌ Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
         flags: MessageFlags.Ephemeral,
@@ -328,144 +338,140 @@ async function handleButtonInteraction(interaction) {
   }
 
   // ── Doğrulama yardım butonu ──────────────────────────────────────────────
-  if (interaction.customId === "verify_help_refresh") {
-    const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle("📋 Komut Özeti")
-      .setDescription(
-        "**`/authorize`** — Roblox hesabını bağla\n" +
-          "**`/verify`** — İlk rol doğrulaması (gizli)\n" +
-          "**`/update`** — Rolleri yeniden senkronize et\n\n" +
-          `🌐 Web: [${BASE_URL}/dashboard](${BASE_URL}/dashboard)`
-      );
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+  if (customId === "verify_help_refresh") {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("📋 Komut Özeti")
+          .setDescription(
+            "**`/authorize`** — Roblox hesabını bağla\n" +
+            "**`/verify`** — İlk rol doğrulaması (gizli)\n" +
+            "**`/update`** — Rolleri yeniden senkronize et\n\n" +
+            `🌐 Web: [${BASE_URL}/dashboard](${BASE_URL}/dashboard)`
+          ),
+      ],
+      ephemeral: true,
+    });
   }
 
-  // ── Destek menüsü butonu ─────────────────────────────────────────────────
-  if (interaction.customId === "open_support_menu") {
-    const embed = getSupportMenuEmbed();
-    const selectMenu = getCategorySelectMenu();
-    return interaction.reply({ embeds: [embed], components: [selectMenu], ephemeral: true });
+  // ── Destek menüsü ────────────────────────────────────────────────────────
+  if (customId === "open_support_menu") {
+    return interaction.reply({
+      embeds: [getSupportMenuEmbed()],
+      components: [getCategorySelectMenu()],
+      ephemeral: true,
+    });
   }
 
-  // ── Ticket kapat butonu → sebep modal'ı aç ──────────────────────────────
-  if (interaction.customId.startsWith("close_ticket_")) {
-    const ticketId = interaction.customId.replace("close_ticket_", "");
-
-    // Fresh veri çek — cache'deki stale veriyi önle
+  // ── Ticket kapat ──────────────────────────────────────────────────────────
+  if (customId.startsWith("close_ticket_")) {
+    const ticketId = customId.replace("close_ticket_", "");
     const ticket = await Ticket.findOne({ ticketId });
 
-    if (!ticket) {
-      return interaction.reply({ content: "❌ Ticket bulunamadı.", ephemeral: true });
-    }
+    if (!ticket) return interaction.reply({ content: "❌ Ticket bulunamadı.", ephemeral: true });
 
-    if (
-      ticket.userId !== interaction.user.id &&
-      !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)
-    ) {
-      return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz.", ephemeral: true });
-    }
+    const canClose =
+      ticket.userId === interaction.user.id ||
+      interaction.member.permissions.has(PermissionFlagsBits.ManageMessages);
+
+    if (!canClose) return interaction.reply({ content: "❌ Bunu yapmaya yetkili değilsiniz.", ephemeral: true });
 
     if (ticket.status === "closed") {
       try {
-        if (interaction.channel) {
-          await interaction.reply({ content: "⏳ Bu ticket zaten kapatılmış. Kanal siliniyor...", ephemeral: true });
-          setTimeout(async () => {
-            try {
-              await interaction.channel.delete("Ticket zaten kapatılmış, kanal siliniyor.");
-            } catch (err) {
-              console.error("Delayed channel deletion error:", err);
-            }
-          }, 1000);
-        }
+        await interaction.reply({ content: "⏳ Bu ticket zaten kapatılmış. Kanal siliniyor...", ephemeral: true });
+        setTimeout(() => interaction.channel?.delete("Ticket zaten kapatılmış, kanal siliniyor.").catch(console.error), 1000);
       } catch (err) {
-        console.error("Already closed ticket channel deletion error:", err);
-        try {
-          return interaction.reply({ content: "❌ Kanal silinirken bir hata oluştu.", ephemeral: true });
-        } catch (_) {}
+        console.error("[close_ticket] Kanal silme hatası:", err.message);
       }
       return;
     }
 
-    // Kapatma sebebini soran modal'ı göster
-    const modal = buildCloseReasonModal(ticketId);
-    return interaction.showModal(modal);
+    return interaction.showModal(buildCloseReasonModal(ticketId));
   }
 
-  // ── Ticket tekrar aç butonu ──────────────────────────────────────────────
-  if (interaction.customId.startsWith("reopen_ticket_")) {
-    const ticketId = interaction.customId.replace("reopen_ticket_", "");
+  // ── Ticket tekrar aç ──────────────────────────────────────────────────────
+  if (customId.startsWith("reopen_ticket_")) {
+    const ticketId = customId.replace("reopen_ticket_", "");
     const ticket = await Ticket.findOne({ ticketId });
 
-    if (!ticket) {
-      return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
-    }
+    if (!ticket) return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
+    if (ticket.status === "open") return interaction.reply({ content: "❌ Bu ticket zaten açık", ephemeral: true });
+    if (ticket.userId !== interaction.user.id) return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
 
-    if (ticket.status === "open") {
-      return interaction.reply({ content: "❌ Bu ticket zaten açık", ephemeral: true });
-    }
-
-    if (ticket.userId !== interaction.user.id) {
-      return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
-    }
-
-    // Kanalı bul ve izinleri geri ver
     try {
-      const { TARGET_GUILD_ID, GUILD2_ID, GUILD2_TICKET_CATEGORY_ID, TARGET_CHANNEL_ID } = require("../../config");
-      const { ChannelType, PermissionFlagsBits: PF } = require("discord.js");
       const guildId = ticket.guildId || TARGET_GUILD_ID;
       const guild = await interaction.client.guilds.fetch(guildId);
-      let channel = ticket.channelId && !ticket.channelDeleted
+      const existingChannel = ticket.channelId && !ticket.channelDeleted
         ? await guild.channels.fetch(ticket.channelId).catch(() => null)
         : null;
 
-      if (channel) {
-        // Kanal var — izinleri geri ver
-        await channel.permissionOverwrites.edit(ticket.userId, {
-          ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+      if (existingChannel) {
+        await existingChannel.permissionOverwrites.edit(ticket.userId, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
         });
-        const reopenEmbed = new EmbedBuilder()
-          .setTitle("🔓 Ticket Yeniden Açıldı")
-          .setDescription(`<@${ticket.userId}> tarafından yeniden açıldı.`)
-          .setColor(0x4ade80)
-          .setTimestamp();
-        const closeButton = buildCloseButton(ticketId);
-        await channel.send({ embeds: [reopenEmbed], components: [closeButton] });
+        await existingChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("🔓 Ticket Yeniden Açıldı")
+              .setDescription(`<@${ticket.userId}> tarafından yeniden açıldı.`)
+              .setColor(0x4ade80)
+              .setTimestamp(),
+          ],
+          components: [buildCloseButton(ticketId)],
+        });
       } else {
-        // Kanal silinmiş — sadece GUILD2'de yeniden oluştur
-        const targets = [
-          { id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID },
-        ];
+        // Kanal silinmiş — yeniden oluştur
+        const targets = [{ id: GUILD2_ID, categoryId: GUILD2_TICKET_CATEGORY_ID }];
+
         for (const target of targets) {
           try {
             const tGuild = await interaction.client.guilds.fetch(target.id).catch(() => null);
             if (!tGuild) continue;
+
             const permissionOverwrites = [
-              { id: tGuild.id, deny: [PF.ViewChannel] },
-              { id: ticket.userId, allow: [PF.ViewChannel, PF.SendMessages, PF.ReadMessageHistory, PF.AttachFiles, PF.EmbedLinks] },
+              { id: tGuild.id, deny: [PermissionFlagsBits.ViewChannel] },
+              {
+                id: ticket.userId,
+                allow: [
+                  PermissionFlagsBits.ViewChannel,
+                  PermissionFlagsBits.SendMessages,
+                  PermissionFlagsBits.ReadMessageHistory,
+                  PermissionFlagsBits.AttachFiles,
+                  PermissionFlagsBits.EmbedLinks,
+                ],
+              },
             ];
+
             let parentId = null;
             if (target.categoryId) {
               const ch = await tGuild.channels.fetch(target.categoryId).catch(() => null);
-              if (ch?.type === ChannelType.GuildCategory) parentId = ch.id;
-              else if (ch?.type === ChannelType.GuildText) parentId = ch.parentId;
+              parentId = ch?.type === ChannelType.GuildCategory ? ch.id : ch?.parentId ?? null;
             }
             if (!parentId) {
-              let cat = tGuild.channels.cache.find(ch => ch.name.toLowerCase() === "destek talepleri" && ch.type === ChannelType.GuildCategory);
-              if (!cat) cat = await tGuild.channels.create({ name: "DESTEK TALEPLERİ", type: ChannelType.GuildCategory });
+              let cat = tGuild.channels.cache.find(
+                (ch) => ch.name.toLowerCase() === "destek talepleri" && ch.type === ChannelType.GuildCategory
+              );
+              if (!cat) {
+                cat = await tGuild.channels.create({ name: "DESTEK TALEPLERİ", type: ChannelType.GuildCategory });
+              }
               parentId = cat.id;
             }
+
             const newCh = await tGuild.channels.create({
               name: `ticket-${ticketId.toLowerCase()}`,
               type: ChannelType.GuildText,
               parent: parentId,
               permissionOverwrites,
             });
-            const closeButton = buildCloseButton(ticketId);
+
             await newCh.send({
               content: `<@${ticket.userId}> ticket'ın yeniden açıldı!`,
-              components: [closeButton],
+              components: [buildCloseButton(ticketId)],
             });
+
             if (!ticket.channelId || ticket.channelDeleted) {
               ticket.channelId = newCh.id;
               ticket.guildId = tGuild.id;
@@ -473,7 +479,7 @@ async function handleButtonInteraction(interaction) {
               ticket.channelDeletedAt = null;
             }
           } catch (chErr) {
-            console.warn(`[reopen_ticket] ${target.id} kanalı açılamadı:`, chErr.message);
+            console.warn(`[reopen_ticket] Kanal açılamadı (${target.id}):`, chErr.message);
           }
         }
       }
@@ -483,145 +489,112 @@ async function handleButtonInteraction(interaction) {
       ticket.closeReason = null;
       await ticket.save();
 
-      // Silme kuyruğunu iptal et
       const { cancelTicketDeletion } = require("../services/ticketCleanup");
       cancelTicketDeletion(ticketId);
 
-      return interaction.reply({
-        content: "✅ Ticket yeniden açıldı.",
-        ephemeral: true,
-      });
+      return interaction.reply({ content: "✅ Ticket yeniden açıldı.", ephemeral: true });
     } catch (err) {
-      console.error("[reopen_ticket] Hata:", err);
+      console.error("[reopen_ticket] Hata:", err.message);
       return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
     }
   }
 
-  // ── Değerlendirme butonu → rating modal'ı aç ────────────────────────────
-  if (interaction.customId.startsWith("rate_ticket_")) {
-    const ticketId = interaction.customId.replace("rate_ticket_", "");
+  // ── Ticket değerlendirme ──────────────────────────────────────────────────
+  if (customId.startsWith("rate_ticket_")) {
+    const ticketId = customId.replace("rate_ticket_", "");
     const ticket = await Ticket.findOne({ ticketId });
 
-    if (!ticket) {
-      return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
-    }
+    if (!ticket) return interaction.reply({ content: "❌ Ticket bulunamadı", ephemeral: true });
+    if (ticket.userId !== interaction.user.id) return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
+    if (ticket.rated) return interaction.reply({ content: "❌ Bu ticket'ı zaten değerlendirdiniz", ephemeral: true });
 
-    if (ticket.userId !== interaction.user.id) {
-      return interaction.reply({ content: "❌ Bu ticket size ait değil", ephemeral: true });
-    }
-
-    if (ticket.rated) {
-      return interaction.reply({ content: "❌ Bu ticket'ı zaten değerlendirdiniz", ephemeral: true });
-    }
-
-    const modal = buildRatingModal(ticketId);
-    return interaction.showModal(modal);
+    return interaction.showModal(buildRatingModal(ticketId));
   }
 
-  // ── Abone Doğrulama: Butonlar ──────────────────────────────────────────
-  if (interaction.customId.startsWith('abone_approve_') || interaction.customId.startsWith('abone_reject_') || interaction.customId.startsWith('abone_no_')) {
+  // ── Abone Doğrulama Butonları ─────────────────────────────────────────────
+  if (
+    customId.startsWith("abone_approve_") ||
+    customId.startsWith("abone_reject_") ||
+    customId.startsWith("abone_no_")
+  ) {
     try {
-      const { handleSubscriberButtons } = require('../services/photoVerification');
+      const { handleSubscriberButtons } = require("../services/photoVerification");
       await handleSubscriberButtons(interaction, interaction.client);
     } catch (err) {
-      console.error('[photoVerification] Button hata:', err.message);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
-        }
-      } catch (_) {}
+      console.error("[photoVerification] Hata:", err.message);
+      await safeErrorReply(interaction, `❌ Hata: ${err.message}`);
     }
+    return;
   }
 
-  // ── Admin Form Modals ──────────────────────────────────────────────────
-  if (interaction.customId === 'btn_leave_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_leave_form').setTitle('İzin Formu');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('leave_reason').setLabel('İzin Sebebi').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('leave_duration').setLabel('Kaç Gün').setStyle(TextInputStyle.Short).setRequired(true))
-    );
-    return interaction.showModal(modal);
+  // ── Form Modalleri ────────────────────────────────────────────────────────
+
+  const FORM_MODALS = {
+    btn_leave_form: () =>
+      buildModal("modal_leave_form", "İzin Formu", [
+        { id: "leave_reason", label: "İzin Sebebi", style: TextInputStyle.Paragraph },
+        { id: "leave_duration", label: "Kaç Gün", style: TextInputStyle.Short },
+      ]),
+
+    btn_suggestion_form: () =>
+      buildModal("modal_suggestion_form", "Tavsiye & Öneri Formu", [
+        { id: "suggestion_text", label: "Öneriniz", style: TextInputStyle.Paragraph },
+      ]),
+
+    btn_resign_form: () =>
+      buildModal("modal_resign_form", "İstifa Formu", [
+        { id: "resign_reason", label: "İstifa Sebebiniz", style: TextInputStyle.Paragraph },
+        { id: "resign_confirm", label: "Onaylıyorum (Evet yazın)", style: TextInputStyle.Short },
+      ]),
+
+    btn_modaction_form: () =>
+      buildModal("modal_modaction_form", "Moderatör İşlem Formu", [
+        { id: "mod_user", label: "İşlem Yapılan Kullanıcı (ID/İsim)", style: TextInputStyle.Short },
+        { id: "mod_action", label: "İşlem (Ban/Mute/Kick vb.)", style: TextInputStyle.Short },
+        { id: "mod_reason", label: "Sebep ve Kanıt Linki", style: TextInputStyle.Paragraph },
+      ]),
+
+    btn_ban_report_form: () =>
+      buildModal("modal_ban_report_form", "Ban Rapor Sistemi", [
+        { id: "ban_isim", label: "İsim (Kendi İsminiz)", style: TextInputStyle.Short },
+        { id: "ban_kisi", label: "Banlanacak kişi", style: TextInputStyle.Short },
+        { id: "ban_id", label: "Banlanacak Kişinin ID'si", style: TextInputStyle.Short },
+        { id: "ban_sebep", label: "Sebep", style: TextInputStyle.Paragraph },
+        { id: "ban_kanit", label: "Kanıt (Link)", style: TextInputStyle.Short },
+      ]),
+
+    btn_mute_report_form: () =>
+      buildModal("modal_mute_report_form", "Mute Rapor Sistemi", [
+        { id: "mute_isim", label: "İsim (Kendi İsminiz)", style: TextInputStyle.Short },
+        { id: "mute_rutbe", label: "Rütbe (Kendi Rütbeniz)", style: TextInputStyle.Short },
+        { id: "mute_kisi", label: "Mute atılan kişi", style: TextInputStyle.Short },
+        { id: "mute_ihlal", label: "Kaçıncı ihlali?", style: TextInputStyle.Short },
+      ]),
+
+    btn_mod_complain_form: () =>
+      buildModal("modal_mod_complain_form", "Mod Şikayet Sistemi", [
+        { id: "comp_mod", label: "Şikayet Edilen Mod", style: TextInputStyle.Short },
+        { id: "comp_sebep", label: "Sebep", style: TextInputStyle.Paragraph },
+        { id: "comp_kanit", label: "Kanıt", style: TextInputStyle.Paragraph },
+      ]),
+  };
+
+  if (FORM_MODALS[customId]) {
+    return interaction.showModal(FORM_MODALS[customId]());
   }
 
-  if (interaction.customId === 'btn_suggestion_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_suggestion_form').setTitle('Tavsiye & Öneri Formu');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('suggestion_text').setLabel('Öneriniz').setStyle(TextInputStyle.Paragraph).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.customId === 'btn_resign_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_resign_form').setTitle('İstifa Formu');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('resign_reason').setLabel('İstifa Sebebiniz').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('resign_confirm').setLabel('Onaylıyorum (Evet yazın)').setStyle(TextInputStyle.Short).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.customId === 'btn_modaction_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_modaction_form').setTitle('Moderatör İşlem Formu');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_user').setLabel('İşlem Yapılan Kullanıcı (ID/İsim)').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_action').setLabel('İşlem (Ban/Mute/Kick vb.)').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mod_reason').setLabel('Sebep ve Kanıt Linki').setStyle(TextInputStyle.Paragraph).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.customId === 'btn_ban_report_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_ban_report_form').setTitle('Ban Rapor Sistemi');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_isim').setLabel('İsim (Kendi İsminiz)').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_kisi').setLabel('Banlanacak kişi').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_id').setLabel('Banlanacak Kişinin ID si').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_sebep').setLabel('Sebep').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ban_kanit').setLabel('Kanıt (Link)').setStyle(TextInputStyle.Short).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.customId === 'btn_mute_report_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_mute_report_form').setTitle('Mute Rapor Sistemi');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_isim').setLabel('İsim (Kendi İsminiz)').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_rutbe').setLabel('Rütbe (Kendi Rütbeniz)').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_kisi').setLabel('Mute atılan kişi').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('mute_ihlal').setLabel('Kaçıncı ihlali?').setStyle(TextInputStyle.Short).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.customId === 'btn_mod_complain_form') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder().setCustomId('modal_mod_complain_form').setTitle('Mod Şikayet Sistemi');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_mod').setLabel('Şikayet Edilen Mod').setStyle(TextInputStyle.Short).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_sebep').setLabel('Sebep').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comp_kanit').setLabel('Kanıt').setStyle(TextInputStyle.Paragraph).setRequired(true))
-    );
-    return interaction.showModal(modal);
-  }
-  
-  // ── Birim Alımı / Sınav Butonları ──────────────────────────────────────────
-  if (interaction.customId.startsWith('apply_unit_')) {
-    const recruitmentId = interaction.customId.replace('apply_unit_', '');
-    const { handleApplyClick } = require('../services/unitService');
+  // ── Birim Alımı Butonları ─────────────────────────────────────────────────
+  if (customId.startsWith("apply_unit_")) {
+    const recruitmentId = customId.replace("apply_unit_", "");
+    const { handleApplyClick } = require("../services/unitService");
     return handleApplyClick(interaction, recruitmentId);
   }
 
-  if (interaction.customId.startsWith('unit_exam_ans_')) {
-    const parts = interaction.customId.split('_');
-    const qIndex = parseInt(parts[3]);
-    const optIndex = parseInt(parts[4]);
-    const { handleAnswerClick } = require('../services/unitService');
+  if (customId.startsWith("unit_exam_ans_")) {
+    const parts = customId.split("_");
+    const qIndex = parseInt(parts[3], 10);
+    const optIndex = parseInt(parts[4], 10);
+    const { handleAnswerClick } = require("../services/unitService");
     return handleAnswerClick(interaction, qIndex, optIndex);
   }
 
