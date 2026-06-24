@@ -749,6 +749,684 @@ router.post("/api/admin/users/:discordId/roles", async (req, res) => {
   });
 });
 
+router.post("/api/admin/action", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { category, actionType, payload } = req.body;
+  if (!category || !actionType) {
+    return res.status(400).json({ error: "Eksik parametreler (category ve actionType gerekli)." });
+  }
+
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const client = getDiscordClient();
+  if (!client || !client.isReady()) {
+    return res.status(503).json({ error: "Discord botu henüz aktif değil veya hazır değil." });
+  }
+
+  const { TARGET_GUILD_ID } = require("../../config");
+  const guild = client.guilds.cache.get(TARGET_GUILD_ID);
+  if (!guild) {
+    return res.status(500).json({ error: "Sunucu (TARGET_GUILD_ID) bulunamadı." });
+  }
+
+  let responseText = "";
+  const mockInteraction = {
+    client,
+    guild,
+    user: { id: req.user.discordId, username: req.user.discordUsername, tag: req.user.discordUsername },
+    member: {
+      user: { id: req.user.discordId, username: req.user.discordUsername, tag: req.user.discordUsername },
+      permissions: { has: () => true },
+      roles: { cache: { has: () => true } }
+    },
+    isReady: () => true,
+    isChatInputCommand: () => true,
+    deferReply: async () => {},
+    editReply: async (payloadData) => {
+      if (typeof payloadData === 'string') {
+        responseText = payloadData;
+      } else {
+        if (payloadData.content) responseText = payloadData.content;
+        if (payloadData.embeds) {
+          const embedTexts = payloadData.embeds.map(emb => {
+            let text = "";
+            const data = emb.data || emb;
+            if (data.title) text += `=== ${data.title} ===\n`;
+            if (data.description) text += `${data.description}\n`;
+            if (data.fields) {
+              data.fields.forEach(f => {
+                text += `**${f.name}**: ${f.value}\n`;
+              });
+            }
+            return text;
+          }).join('\n\n');
+          responseText = (responseText ? responseText + "\n\n" : "") + embedTexts;
+        }
+      }
+      return mockInteraction;
+    },
+    reply: async (payloadData) => {
+      return mockInteraction.editReply(payloadData);
+    },
+    followUp: async (payloadData) => {
+      return mockInteraction.editReply(payloadData);
+    }
+  };
+
+  try {
+    if (category === "moderation") {
+      if (actionType === "mute") {
+        const { kullanici, sure, sebep } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const member = await guild.members.fetch(targetUserId).catch(() => null);
+        if (!member) return res.status(404).json({ error: "Kullanıcı sunucuda bulunamadı." });
+
+        const parseDuration = (timeStr) => {
+          const unitMap = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
+          const matches = [...timeStr.matchAll(/(\d+)([smhd])/g)];
+          if (!matches.length) return 10 * 60 * 1000;
+          return matches.reduce((total, match) => total + parseInt(match[1]) * (unitMap[match[2]] || 1000), 0);
+        };
+        const durationMs = parseDuration(sure || "10m");
+        await member.timeout(durationMs, `Web Panel admin: ${req.user.discordUsername} - Sebep: ${sebep}`);
+        return res.json({ success: true, message: `✅ ${member.user.tag} kullanıcısı ${sure} süreyle susturuldu.` });
+      }
+
+      if (actionType === "unmute") {
+        const { kullanici } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const member = await guild.members.fetch(targetUserId).catch(() => null);
+        if (!member) return res.status(404).json({ error: "Kullanıcı sunucuda bulunamadı." });
+
+        await member.timeout(null, `Web Panel admin: ${req.user.discordUsername}`);
+        return res.json({ success: true, message: `✅ ${member.user.tag} kullanıcısının susturması kaldırıldı.` });
+      }
+
+      if (actionType === "modaction") {
+        const { kullanici, sebep, kanit } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUser) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+        const fakeAttachment = kanit ? { url: kanit } : null;
+        const { executeModAction } = require("../../bot/services/modActionService");
+        await executeModAction(mockInteraction, targetUser, sebep, fakeAttachment);
+        return res.json({ success: true, message: responseText || "Ceza işlemi uygulandı." });
+      }
+
+      if (actionType === "bulk_delete") {
+        const { miktar } = payload;
+        const count = parseInt(miktar, 10);
+        if (isNaN(count) || count < 1 || count > 100) {
+          return res.status(400).json({ error: "Silinecek mesaj sayısı 1-100 arasında olmalıdır." });
+        }
+
+        const { TARGET_CHANNEL_ID } = require("../../config");
+        const channel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
+        if (!channel || !channel.isTextBased()) {
+          return res.status(404).json({ error: "Mesaj silme kanalı bulunamadı." });
+        }
+
+        const deleted = await channel.bulkDelete(count, true);
+        return res.json({
+          success: true,
+          message: `✅ ${deleted.size} mesaj başarıyla silindi.` + 
+            (deleted.size < count ? ` (${count - deleted.size} mesaj 14 günden eski olduğu için atlandı.)` : "")
+        });
+      }
+
+      if (actionType === "blacklist") {
+        const { option, name, reason } = payload;
+        const Blacklist = require("../../models/Blacklist");
+        const { renderBlacklist } = require("../../bot/services/blacklistService");
+        const BLACKLIST_LOG_CHANNEL_ID = '1518920074264842380';
+        const logChannel = await client.channels.fetch(BLACKLIST_LOG_CHANNEL_ID).catch(() => null);
+
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const safePattern = new RegExp(`^${escapeRegex(name.trim())}$`, 'i');
+        let entry = await Blacklist.findOne({ name: { $regex: safePattern } });
+
+        if (option === "1" || option === "2") {
+          let type = option === "1" ? "person" : "group";
+          let finalName = name.trim();
+          if (type === "group" && !finalName.endsWith(" grubu")) {
+            finalName += " grubu";
+          }
+          let isNew = false;
+          if (entry) {
+            entry.reason = reason;
+            entry.type = type;
+            entry.status = "active";
+            entry.removedAt = null;
+            await entry.save();
+          } else {
+            entry = new Blacklist({ name: finalName, type, reason, status: "active" });
+            await entry.save();
+            isNew = true;
+          }
+          await renderBlacklist(client);
+          if (logChannel) {
+            await logChannel.send({
+              content: `📥 **[WEB KARALİSTE EKLEME]** Admin <@${req.user.discordId}> tarafından **${finalName}** listeye eklendi.\n📋 **Sebep:** ${reason}\n📂 **Tür:** ${type === 'person' ? 'Kişi' : 'Grup'} (${isNew ? 'Yeni Kayıt' : 'Güncellendi'})`
+            });
+          }
+          return res.json({ success: true, message: `✅ **${finalName}** başarıyla karalisteye eklendi.` });
+        }
+
+        if (option === "3") {
+          if (!entry) return res.status(404).json({ error: `**${name}** karalistede bulunamadı.` });
+          entry.status = "removed";
+          entry.removedAt = new Date();
+          await entry.save();
+          await renderBlacklist(client);
+          if (logChannel) {
+            await logChannel.send({
+              content: `📤 **[WEB KARALİSTE KALDIRMA]** Admin <@${req.user.discordId}> tarafından **${entry.name}** kaldırıldı. (15 gün sonra silinecektir.)`
+            });
+          }
+          return res.json({ success: true, message: `✅ **${entry.name}** karaliste yasağı kaldırıldı (strikethrough yapıldı).` });
+        }
+
+        if (option === "4") {
+          if (!entry) return res.status(404).json({ error: `**${name}** karalistede bulunamadı.` });
+          await Blacklist.deleteOne({ _id: entry._id });
+          await renderBlacklist(client);
+          if (logChannel) {
+            await logChannel.send({
+              content: `🗑️ **[WEB KARALİSTE TAMAMEN SİLİNDİ]** Admin <@${req.user.discordId}> tarafından **${entry.name}** tamamen silindi.`
+            });
+          }
+          return res.json({ success: true, message: `✅ **${entry.name}** listeden tamamen silindi.` });
+        }
+
+        if (option === "5") {
+          if (!entry) return res.status(404).json({ error: `**${name}** karalistede bulunamadı.` });
+          entry.status = "active";
+          entry.removedAt = null;
+          await entry.save();
+          await renderBlacklist(client);
+          if (logChannel) {
+            await logChannel.send({
+              content: `🔄 **[WEB KARALİSTE YENİDEN ETKİN]** Admin <@${req.user.discordId}> tarafından **${entry.name}** yasağı yeniden aktif edildi.`
+            });
+          }
+          return res.json({ success: true, message: `✅ **${entry.name}** karaliste kaydı yeniden açıldı.` });
+        }
+      }
+
+      if (actionType === "tamban" || actionType === "tamban_kaldir") {
+        const { kullanici_id, seviye, sebep } = payload;
+        const { handleModerationCommand } = require("../../bot/handlers/moderationCommandHandler");
+
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return actionType;
+            if (prop === "options") {
+              return {
+                getString: (name) => {
+                  if (name === "kullanici_id") return kullanici_id;
+                  if (name === "seviye") return seviye || "high";
+                  if (name === "sebep") return sebep;
+                  return null;
+                }
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+
+        await handleModerationCommand(proxy);
+        return res.json({ success: true, message: responseText || "Tam ban işlemi uygulandı." });
+      }
+    }
+
+    if (category === "staff") {
+      if (actionType === "report") {
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "personelrapor";
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, reportText: responseText || "Rapor verisi boş." });
+      }
+
+      if (actionType === "attendance_start" || actionType === "attendance_stop") {
+        const { startRollCall, endRollCall } = require("../../bot/services/rollCallService");
+        if (actionType === "attendance_start") {
+          await startRollCall(client, mockInteraction);
+        } else {
+          await endRollCall(client, mockInteraction);
+        }
+        return res.json({ success: true, message: responseText || "Yoklama işlemi tamamlandı." });
+      }
+
+      if (actionType === "setstats") {
+        const { kullanici, parametre, deger } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Personel bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "personelayarla";
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: () => parametre,
+                getInteger: () => parseInt(deger, 10) || 0
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "İstatistik ayarlandı." });
+      }
+
+      if (actionType === "fire") {
+        const { kullanici, sebep } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Personel bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "personelkov";
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: () => sebep
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Personel kovuldu." });
+      }
+
+      if (actionType === "promote_demote") {
+        const { kullanici, islem, sebep } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Personel bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const cmdName = islem === "terfi" ? "birimterfi" : "tenzilat";
+
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return cmdName;
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: () => sebep
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Rütbe işlemi uygulandı." });
+      }
+
+      if (actionType === "reward") {
+        const { kullanici, islem, odul } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Personel bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "odulver";
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: (name) => (name === "islem" ? islem : odul)
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Ödül işlemi uygulandı." });
+      }
+
+      if (actionType === "giveleave") {
+        const { kullanici, tarih, sebep } = payload;
+        const targetUserId = (kullanici || "").replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Personel bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "izin_ver";
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: (name) => (name === "tarih" ? tarih : sebep)
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "İzin tanımlandı." });
+      }
+    }
+
+    if (category === "system") {
+      if (actionType === "toggle_economy" || actionType === "toggle_moderation" || actionType === "toggle_fun") {
+        const ServerConfig = require("../../models/ServerConfig");
+        let cfg = await ServerConfig.findOne({ guildId: TARGET_GUILD_ID });
+        if (!cfg) {
+          cfg = new ServerConfig({ guildId: TARGET_GUILD_ID });
+        }
+
+        const modName = actionType.replace("toggle_", "");
+        const keyMap = { economy: "economyEnabled", moderation: "moderationEnabled", fun: "funEnabled" };
+        const key = keyMap[modName];
+
+        cfg[key] = !cfg[key];
+        await cfg.save();
+        return res.json({ success: true, message: `✅ ${modName.toUpperCase()} sistemi durumu güncellendi: ${cfg[key] ? "AKTİF" : "DEVRE DIŞI"}` });
+      }
+
+      if (actionType === "channel_perms") {
+        const { kanal, islem, izin } = payload;
+        const channelObj = await client.channels.fetch(kanal).catch(() => null);
+        if (!channelObj) return res.status(404).json({ error: "Belirtilen kanal bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "kanal";
+            if (prop === "options") {
+              return {
+                getSubcommand: () => islem,
+                getChannel: () => channelObj,
+                getString: () => izin
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Kanal izinleri güncellendi." });
+      }
+
+      if (actionType === "otomod") {
+        const { islem } = payload;
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "otomod";
+            if (prop === "options") {
+              return {
+                getSubcommand: () => islem
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Otomod güncellendi." });
+      }
+
+      if (actionType === "roblox_ranks") {
+        const { op, val } = payload;
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        
+        let cmdName = op;
+        let optionOverrides = {};
+
+        if (cmdName === "ekobang" || cmdName === "ekobangerial") {
+          const targetUserId = val.replace(/[<@!>]/g, "");
+          const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+          if (!targetUserObj) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+          optionOverrides = { getUser: () => targetUserObj };
+        } else {
+          optionOverrides = { getString: () => val };
+        }
+
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return cmdName;
+            if (prop === "options") return optionOverrides;
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Roblox işlemi tamamlandı." });
+      }
+
+      if (actionType === "birimalimi") {
+        const { birim } = payload;
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "birimalimi";
+            if (prop === "options") {
+              return {
+                getString: () => birim
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Birim alımı başlatıldı." });
+      }
+
+      if (actionType === "birimtanitim") {
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "birimtanitim";
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Birim tanıtım mesajı gönderildi." });
+      }
+
+      if (actionType === "xpcekilis") {
+        const { xp_miktari, kazanan_sayisi } = payload;
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "xpcekilis";
+            if (prop === "options") {
+              return {
+                getInteger: (name) => (name === "xp_miktari" ? parseInt(xp_miktari, 10) : parseInt(kazanan_sayisi, 10))
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Çekiliş başlatıldı." });
+      }
+
+      if (actionType === "konus") {
+        const { kullanici, konu } = payload;
+        const targetUserId = kullanici.replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "konus";
+            if (prop === "options") {
+              return {
+                getUser: () => targetUserObj,
+                getString: () => konu
+              };
+            }
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "AI DM konuşması başlatıldı." });
+      }
+
+      if (actionType === "abusetest") {
+        const { handleGeneralCommand } = require("../../bot/handlers/generalCommandHandler");
+        const proxy = new Proxy(mockInteraction, {
+          get(target, prop) {
+            if (prop === "commandName") return "abusetest";
+            return typeof target[prop] === 'function' ? target[prop].bind(target) : target[prop];
+          }
+        });
+        await handleGeneralCommand(proxy);
+        return res.json({ success: true, message: responseText || "Abuse embed testi gönderildi." });
+      }
+
+      if (actionType === "modalim_search") {
+        const { user } = payload;
+        const targetUserId = user.replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Aday bulunamadı." });
+        if (targetUserObj.bot) return res.status(400).json({ error: "Botlara mülakat gönderilemez." });
+
+        const { startModInterview } = require("../../bot/services/modInterview");
+        const sent = await startModInterview(targetUserObj, req.user.discordId, guild.id, client);
+        if (sent) {
+          return res.json({ success: true, message: `✅ **${targetUserObj.username}** kullanıcısına mülakat daveti DM'de gönderildi.` });
+        } else {
+          return res.status(400).json({ error: `❌ **${targetUserObj.username}** kullanıcısına DM gönderilemedi. DM kutusu kapalı olabilir.` });
+        }
+      }
+
+      if (actionType === "modalim_direct") {
+        const { user, robloxUsername } = payload;
+        const targetUserId = user.replace(/[<@!>]/g, "");
+        const targetUserObj = await client.users.fetch(targetUserId).catch(() => null);
+        if (!targetUserObj) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+        const MOD_ROLE_ID = process.env.MOD_ROLE_ID || '1518692389169135666';
+        const MOD_GUILD_ID = process.env.MOD_GUILD_ID || '1367646464804655104';
+
+        const modGuild = await client.guilds.fetch(MOD_GUILD_ID).catch(() => null);
+        if (modGuild) {
+          const member = await modGuild.members.fetch(targetUserId).catch(() => null);
+          if (member) {
+            await member.roles.add(MOD_ROLE_ID, `Direkt mod alımı - Admin: ${req.user.discordUsername}`);
+          }
+        }
+
+        const StaffProgress = require("../../models/StaffProgress");
+        let staffRecord = await StaffProgress.findOne({ userId: targetUserId });
+        if (!staffRecord) {
+          staffRecord = new StaffProgress({ userId: targetUserId, guildId: MOD_GUILD_ID, level: 1 });
+        } else if (staffRecord.level < 1) {
+          staffRecord.level = 1;
+        }
+        await staffRecord.save();
+
+        const { ensureAdminGuildMembership } = require("../../bot/services/staffAutomation");
+        await ensureAdminGuildMembership(client, targetUserId).catch(() => {});
+
+        const noblox = require("noblox.js");
+        const robloxId = await noblox.getIdFromUsername(robloxUsername.trim()).catch(() => null);
+        if (!robloxId) {
+          return res.status(400).json({ error: `Roblox kullanıcısı (${robloxUsername}) bulunamadı. Lütfen kontrol edip manuel doğrulayın.` });
+        }
+
+        const User = require("../../models/User");
+        const { saveStoreNow } = require("../../models/Store");
+        let dbUser = await User.findOne({ discordId: targetUserId });
+        if (!dbUser) {
+          dbUser = new User({ discordId: targetUserId, discordUsername: targetUserObj.username });
+        }
+        dbUser.robloxId = String(robloxId);
+        dbUser.robloxUsername = robloxUsername;
+        dbUser.isAuthorized = true;
+        await dbUser.save();
+        saveStoreNow();
+
+        const { syncStaffRobloxRanks, syncStaffDiscordRoles } = require("../../bot/services/staffAutomation");
+        await syncStaffRobloxRanks(client, targetUserId).catch(() => {});
+        await syncStaffDiscordRoles(client, targetUserId).catch(() => {});
+
+        const { syncMemberRoles } = require("../../bot/services/roleSyncService");
+        const { VERIFY_CHANNEL_ID } = require("../../config");
+        
+        const mainGuild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+        if (mainGuild) {
+          const mainMember = await mainGuild.members.fetch(targetUserId).catch(() => null);
+          if (mainMember) {
+            await syncMemberRoles(mainGuild, mainMember, robloxId, robloxUsername).catch(() => {});
+          }
+        }
+
+        const { EmbedBuilder } = require("discord.js");
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0x7c6af7)
+          .setTitle("🔗 Roblox Grup Doğrulaması Başarılı")
+          .setThumbnail(targetUserObj.avatarURL() || null)
+          .setDescription(
+            `Merhaba **${targetUserObj.username}**! 👋\n\n` +
+            `Roblox hesabınız başarıyla doğrulandı ve yetkili yetkileriniz tanımlandı.\n\n` +
+            `🎮 **Roblox Kullanıcı Adı:** \`${robloxUsername}\`\n` +
+            `🆔 **Roblox ID:** \`${robloxId}\`\n` +
+            `📈 **Personel Seviyesi:** \`Stajyer (Level 1)\`\n\n` +
+            `✓ Discord rolleri senkronize edildi\n` +
+            `✓ Roblox grup rütbeleri ayarlandı\n` +
+            `✓ Staff sistem kaydı aktif edildi`
+          )
+          .setFooter({ text: "Sentara Entegrasyon Sistemi" })
+          .setTimestamp();
+
+        await targetUserObj.send({ embeds: [dmEmbed] }).catch(() => {});
+
+        if (mainGuild && VERIFY_CHANNEL_ID) {
+          const verifyChannel = await mainGuild.channels.fetch(VERIFY_CHANNEL_ID).catch(() => null);
+          if (verifyChannel && verifyChannel.isTextBased()) {
+            const publicEmbed = new EmbedBuilder()
+              .setColor(0x4ade80)
+              .setTitle("🔗 Yeni Personel Roblox Doğrulaması")
+              .setDescription(
+                `**Kullanıcı:** <@${targetUserId}> (\`${targetUserId}\`)\n` +
+                `**Roblox Hesabı:** [${robloxUsername}](https://www.roblox.com/users/${robloxId}/profile) (\`${robloxId}\`)\n` +
+                `**Durum:** Yetkili doğrulandı ve roller sunucuda senkronize edildi.`
+              )
+              .setFooter({ text: "Sentara Roblox Doğrulama" })
+              .setTimestamp();
+            await verifyChannel.send({ embeds: [publicEmbed] }).catch(() => {});
+          }
+        }
+
+        return res.json({
+          success: true,
+          message: `✅ **${targetUserObj.username}** başarıyla stajyer mod olarak alındı ve Roblox hesabı **${robloxUsername}** olarak doğrulandı.`
+        });
+      }
+
+      if (actionType === "restart") {
+        res.json({ success: true, message: "🔄 Bot yeniden başlatılıyor..." });
+        setTimeout(() => {
+          process.exit(0);
+        }, 1500);
+        return;
+      }
+    }
+
+    return res.status(400).json({ error: "Bilinmeyen işlem veya kategori." });
+  } catch (err) {
+    console.error("[webAction] Hata:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/api/roles/sync", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
 
