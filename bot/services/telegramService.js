@@ -1,11 +1,85 @@
 'use strict';
 
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "8906443471:AAHWNkdq4kMrLsVD-GwySfOXEcLWpKDcUZU";
 let cachedChatId = process.env.TELEGRAM_CHAT_ID || "8683506546";
 
 const recentMessages = []; // Timestamps of recent messages
+
+// Instance lock management
+const LOCK_FILE = path.join(__dirname, "../../data/.telegram_polling.lock");
+const LOCK_TIMEOUT = 30000; // 30 seconds - if lock is older than this, assume process died
+
+function createLockFile() {
+  try {
+    if (!fs.existsSync(path.dirname(LOCK_FILE))) {
+      fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
+    }
+    fs.writeFileSync(LOCK_FILE, JSON.stringify({
+      pid: process.pid,
+      timestamp: Date.now(),
+      instance: process.env.INSTANCE_ID || "default"
+    }, null, 2));
+    console.log("[Telegram Polling] Lock dosyası oluşturuldu (PID: " + process.pid + ")");
+    return true;
+  } catch (err) {
+    console.error("[Telegram Polling] Lock dosyası oluşturulamadı:", err.message);
+    return false;
+  }
+}
+
+function updateLockFile() {
+  try {
+    fs.writeFileSync(LOCK_FILE, JSON.stringify({
+      pid: process.pid,
+      timestamp: Date.now(),
+      instance: process.env.INSTANCE_ID || "default"
+    }, null, 2));
+  } catch (err) {
+    console.error("[Telegram Polling] Lock dosyası güncellenemedi:", err.message);
+  }
+}
+
+function isLockValid() {
+  try {
+    if (!fs.existsSync(LOCK_FILE)) {
+      return false;
+    }
+    const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8"));
+    const age = Date.now() - lockData.timestamp;
+    
+    // If lock is older than timeout, consider it stale
+    if (age > LOCK_TIMEOUT) {
+      console.log("[Telegram Polling] Eski lock dosyası tespit edildi, üzerine yazılıyor...");
+      return false;
+    }
+    
+    // If lock is from same PID, it's still valid
+    if (lockData.pid === process.pid) {
+      return true;
+    }
+    
+    console.warn(`[Telegram Polling] ⚠️ BAŞKA BİR ÖRNEK ZATEN ÇOK GÜÇLÜDENİCİ! PID: ${lockData.pid}, Örnek: ${lockData.instance}`);
+    return true;
+  } catch (err) {
+    console.error("[Telegram Polling] Lock dosyası okunamadı:", err.message);
+    return false;
+  }
+}
+
+function removeLockFile() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      fs.unlinkSync(LOCK_FILE);
+      console.log("[Telegram Polling] Lock dosyası silindi");
+    }
+  } catch (err) {
+    console.error("[Telegram Polling] Lock dosyası silinemedi:", err.message);
+  }
+}
 
 function recordMessage() {
   recentMessages.push(Date.now());
@@ -176,6 +250,8 @@ Kurallar:
 }
 
 let consecutive409s = 0;
+let pollingTimeout = null;
+let isAttemptingRecovery = false;
 
 async function startTelegramPolling(client) {
   if (isPollingActive) return;
@@ -191,16 +267,41 @@ async function startTelegramPolling(client) {
     return;
   }
   
+  // Check if another instance is already polling
+  if (isLockValid() && process.pid.toString() !== (function() {
+    try {
+      const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8"));
+      return lockData.pid.toString();
+    } catch { return process.pid.toString(); }
+  })()) {
+    console.error("❌ [Telegram Polling] BAŞKA BİR ÖRNEK ZATEN POLLİNG YAPIYOR!");
+    console.error("❌ Telegram Polling DEVRE DIŞI BIRAKILDI.");
+    console.error("💡 İpucu: Eğer bu bot yerel geliştirmede çalışıyorsa ve üretim sunucusunda başka bir örnek varsa, .env dosyasına TELEGRAM_POLLING_ENABLED=false ekleyebilirsiniz.");
+    return;
+  }
+  
   isPollingActive = true;
-  console.log("[Telegram] Polling dinleyici başlatılıyor...");
+  
+  // Create lock file
+  if (!createLockFile()) {
+    console.error("❌ [Telegram Polling] Lock dosyası oluşturulamadı, polling başlatılmıyor.");
+    isPollingActive = false;
+    return;
+  }
+  
+  console.log("[Telegram Polling] ✅ Polling dinleyici başlatılıyor...");
 
   // Delete webhook first to avoid 409 Conflict errors
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`);
-    console.log("[Telegram] Webhook silindi (polling aktif).");
+    console.log("[Telegram Polling] ✅ Webhook silindi (polling aktif).");
   } catch (err) {
-    console.warn("[Telegram] Webhook silinirken hata:", err.message);
+    console.warn("[Telegram Polling] Webhook silinirken hata:", err.message);
   }
+
+  // Cleanup on process exit
+  process.on("SIGTERM", () => removeLockFile());
+  process.on("SIGINT", () => removeLockFile());
 
   async function poll() {
     try {
@@ -208,7 +309,11 @@ async function startTelegramPolling(client) {
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=15`,
         { timeout: 20000 }
       );
+      
       consecutive409s = 0; // Reset counter on successful update
+      isAttemptingRecovery = false;
+      updateLockFile(); // Keep lock fresh
+      
       const updates = response.data?.result || [];
       for (const update of updates) {
         lastUpdateId = update.update_id;
@@ -224,23 +329,29 @@ async function startTelegramPolling(client) {
           const description = err.response?.data?.description || "";
           
           if (description.toLowerCase().includes("webhook")) {
-            console.warn("[Telegram Polling] Webhook çakışması algılandı, webhook siliniyor...");
+            console.warn("[Telegram Polling] ⚠️ Webhook çakışması algılandı, webhook siliniyor...");
             await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true`).catch(() => {});
           } else {
-            console.warn(`[Telegram Polling] 409 Çakışma Hatası: ${description}`);
-            console.warn("⚠️ Telegram botunuz başka bir yerde (örneğin başka bir terminal, sunucu veya geliştirici bilgisayarı) çalışıyor olabilir!");
+            if (!isAttemptingRecovery) {
+              console.warn(`[Telegram Polling] ⚠️ 409 Çakışma Hatası: ${description}`);
+              console.warn("⚠️ Telegram botunuz başka bir yerde (örneğin başka bir terminal, sunucu veya geliştirici bilgisayarı) çalışıyor olabilir!");
+              isAttemptingRecovery = true;
+            }
           }
 
-          if (consecutive409s >= 5) {
-            console.error("❌ [Telegram Polling] Üst üste 5 kez çakışma (409) hatası alındı.");
+          if (consecutive409s >= 10) {
+            console.error("❌ [Telegram Polling] Üst üste 10 kez çakışma (409) hatası alındı.");
             console.error("❌ Çakışmaları ve log kirliliğini önlemek amacıyla Telegram Polling bu oturum için KAPATILDI.");
-            console.error("💡 İpucu: Botun başka bir yerde çalışıp çalışmadığını kontrol edin. İsterseniz yerel geliştirme ortamında devre dışı bırakmak için .env dosyasına TELEGRAM_POLLING_ENABLED=false ekleyebilirsiniz.");
+            console.error("💡 Botun başka bir yerde çalışıp çalışmadığını kontrol edin. .env'den TELEGRAM_POLLING_ENABLED=false ekleyebilirsiniz.");
+            removeLockFile();
             isPollingActive = false;
             return; // Exit polling loop entirely
           }
 
-          console.warn(`[Telegram Polling] Polling döngüsü askıya alınıyor... (Hata Sayısı: ${consecutive409s}/5)`);
-          setTimeout(poll, 15000); // Try again in 15 seconds
+          // Exponential backoff: 5s, 10s, 15s, 20s, 25s (max 25s)
+          const backoffDelay = Math.min(5000 + (consecutive409s * 2500), 25000);
+          console.warn(`[Telegram Polling] ⏱️ ${backoffDelay}ms içinde yeniden denenecek... (Çakışma Sayısı: ${consecutive409s}/10)`);
+          pollingTimeout = setTimeout(poll, backoffDelay);
           return;
         } else {
           console.error("[Telegram Polling] Hata:", err.message);
@@ -248,10 +359,20 @@ async function startTelegramPolling(client) {
       }
     }
     // Her 3 saniyede bir yeni mesajları sorgula
-    setTimeout(poll, 3000);
+    pollingTimeout = setTimeout(poll, 3000);
   }
 
   poll();
+}
+
+function stopTelegramPolling() {
+  if (pollingTimeout) {
+    clearTimeout(pollingTimeout);
+    pollingTimeout = null;
+  }
+  removeLockFile();
+  isPollingActive = false;
+  console.log("[Telegram Polling] Polling durduruldu");
 }
 
 /**
@@ -280,5 +401,6 @@ module.exports = {
   sendTelegramAlert,
   recordMessage,
   startTelegramPolling,
+  stopTelegramPolling,
   callTelegramUser
 };

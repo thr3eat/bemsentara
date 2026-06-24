@@ -35,10 +35,24 @@ async function start() {
     );
 
     process.on("SIGINT", () => {
+      console.log("\n[Telegram Polling] SIGINT alındı, Telegram Polling temizleniyor...");
+      try {
+        const { stopTelegramPolling } = require("./bot/services/telegramService");
+        stopTelegramPolling();
+      } catch (err) {
+        console.error("[Telegram Polling] Cleanup hatası:", err.message);
+      }
       saveStoreNow();
       process.exit(0);
     });
     process.on("SIGTERM", () => {
+      console.log("[Telegram Polling] SIGTERM alındı, Telegram Polling temizleniyor...");
+      try {
+        const { stopTelegramPolling } = require("./bot/services/telegramService");
+        stopTelegramPolling();
+      } catch (err) {
+        console.error("[Telegram Polling] Cleanup hatası:", err.message);
+      }
       saveStoreNow();
       process.exit(0);
     });
