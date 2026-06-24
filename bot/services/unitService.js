@@ -302,43 +302,15 @@ async function startBirimAlimi(interaction, client, birimKey) {
       return interaction.editReply({ content: '❌ Geçersiz birim seçimi yapıldı.' });
     }
 
-    // AI ile sınav soruları ve ipuçları üret
-    const systemPrompt = "Sen bir JSON üretecisin. Sadece geçerli JSON döndür, açıklama veya ek yazı yazma.";
-    const userPrompt = `Lütfen ${config.label} (Görevleri: ${config.tasks}) için 10 adet çoktan seçmeli sınav sorusu ve bir adet sınav hazırlık ipucu ("tips") oluştur.
-Sorular birimin alanıyla doğrudan ilişkili olmalıdır (Ban birimi için moderasyon kuralları ve adalet, Ses birimi için ses aktifliği ve ses odaları düzeni, Sohbet birimi sohbette üslup ve aktiflik).
-Her sorunun formatı: {"question": "soru", "options": ["A şıkkı", "B şıkkı", "C şıkkı", "D şıkkı"], "correct": 0}.
-Doğru şıkkın index'i 0-3 arası olmalıdır.
-Format: {"tips": "ipuçları...", "questions": [{"question": "...", "options": [...], "correct": 0}]}`;
-
-    let aiContent = "";
-    let parsedData = null;
-
-    try {
-      aiContent = await chatWithAI([{ role: 'user', content: userPrompt }], systemPrompt);
-      
-      // Clean up think tags if present
-      aiContent = aiContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-      const startIdx = aiContent.indexOf('{');
-      const endIdx = aiContent.lastIndexOf('}');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = aiContent.slice(startIdx, endIdx + 1);
-        parsedData = JSON.parse(jsonStr.trim());
-      } else {
-        throw new Error('Could not find JSON object bounds in AI response');
-      }
-    } catch (aiErr) {
-      console.error('❌ AI Sınav Sorusu oluşturma hatası:', aiErr.message);
-      // Fallback zengin birim soruları
-      parsedData = DEFAULT_EXAM_DATA[birimKey] || {
-        tips: "Sınavda sakin kalın, soruları dikkatli okuyun ve birimin sorumluluk alanlarına odaklanın.",
-        questions: Array.from({ length: 10 }, (_, i) => ({
-          question: `${config.label} bünyesinde ${i + 1}. sorumluluk kuralı nedir?`,
-          options: ["Doğru Seçenek A", "Yanlış Seçenek B", "Yanlış Seçenek C", "Yanlış Seçenek D"],
-          correct: 0
-        }))
-      };
-    }
+    // Varsayılan sınav sorularını kullan (AI gecikmesini önlemek için)
+    const parsedData = DEFAULT_EXAM_DATA[birimKey] || {
+      tips: "Sınavda sakin kalın, soruları dikkatli okuyun ve birimin sorumluluk alanlarına odaklanın.",
+      questions: Array.from({ length: 10 }, (_, i) => ({
+        question: `${config.label} bünyesinde ${i + 1}. sorumluluk kuralı nedir?`,
+        options: ["Doğru Seçenek A", "Yanlış Seçenek B", "Yanlış Seçenek C", "Yanlış Seçenek D"],
+        correct: 0
+      }))
+    };
 
     const today = new Date();
     const announcementDate = new Date(today);
