@@ -568,42 +568,41 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     components.push(row);
   }
 
-  else if (tabName === "mod_alim") {
+  else if (tabName === "units") {
     embed
-      .setTitle("🛡️ MOD-ALIM: Moderatör Mülakatı")
-      .setColor(0xE74C3C)
+      .setTitle("🏆 Birim Sistemi & Liderbordu")
+      .setColor(0x9B59B6)
       .setDescription(
-        "Yeni moderatör adaylarını işleme alın.\n\n" +
-        "**İki Seçenek:**\n" +
-        "1️⃣ **Mülakat ile Alım** — 7 soruluk AI mülakatı\n" +
-        "2️⃣ **Direkt Alım** — Hemen rol ver + grup doğrula"
+        "Birimlerin istatistiklerini görüntüleyin, birim rolleri yönetin ve liderbordu takip edin.\n\n" +
+        "**Kategoriler:**\n" +
+        "📊 **Liderbordu** — Birimleri XP'ye göre sıralı görüntüle\n" +
+        "👨‍🏫 **Birim Koçu** — Koç bilgisi ve ataması\n" +
+        "🎖️ **Birim Rolleri** — Sunucuya birim rollerini ekle"
       );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("panel_mod_alim_search")
-        .setLabel("🎯 Mülakat ile Alım")
-        .setStyle(ButtonStyle.Primary)
+        .setCustomId("panel_units_leaderboard")
+        .setLabel("📊 Liderbordu Görüntüle")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("panel_units_coach")
+        .setLabel("👨‍🏫 Birim Koçu")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isManager),
+      new ButtonBuilder()
+        .setCustomId("panel_units_roles")
+        .setLabel("🎖️ Rol Yönetimi")
+        .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
-        .setCustomId("panel_mod_alim_direct")
-        .setLabel("⚡ Direkt Alım (Rol + Doğrula)")
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(!auth.isAdmin),
-      new ButtonBuilder()
-        .setCustomId("panel_tab_system")
-        .setLabel("⬅️ Geri Dön")
+        .setCustomId("panel_tab_home")
+        .setLabel("⬅️ Ana Menü")
         .setStyle(ButtonStyle.Secondary)
     );
 
     components.push(row);
   }
-
-  await interaction.editReply({
-    embeds: [embed],
-    components
-  });
-}
 
 /**
  * Add units tab content to render panel
@@ -1603,6 +1602,80 @@ async function handlePanelButton(interaction) {
       if (!interaction.replied && !interaction.deferred) {
         return interaction.reply(`❌ Hata: ${err.message}`);
       }
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // ── UNITS: Leaderboard Görüntüle ────────────────────────────────────────────
+  if (customId === "panel_units_leaderboard") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
+    try {
+      const { createLeaderboardEmbed } = require("./unitLeaderboardService");
+      const embed = await createLeaderboardEmbed();
+
+      if (!embed) {
+        return interaction.editReply("❌ Liderbordu oluşturulamadı.");
+      }
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[panel_units_leaderboard]", err);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // ── UNITS: Birim Koçu Bilgisi ───────────────────────────────────────────────
+  if (customId === "panel_units_coach") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
+    try {
+      const { createCoachInfoEmbed } = require("./coachManagementService");
+      const embed = await createCoachInfoEmbed();
+
+      if (!embed) {
+        return interaction.editReply("❌ Koç bilgisi alınamadı.");
+      }
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[panel_units_coach]", err);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // ── UNITS: Birim Rolleri Yönetimi ───────────────────────────────────────────
+  if (customId === "panel_units_roles") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
+    try {
+      const { ensureUnitRolesExist } = require("./unitRoleSyncService");
+      const guild = await interaction.client.guilds.fetch('1466927911364726845').catch(() => null);
+
+      if (!guild) {
+        return interaction.editReply("❌ Sunucu bulunamadı.");
+      }
+
+      const result = await ensureUnitRolesExist(guild);
+
+      if (!result.success) {
+        return interaction.editReply(`❌ Roller oluşturulurken hata: ${result.error}`);
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle("✅ Birim Rolleri Yönetimi")
+        .setColor(0x2ecc71)
+        .setDescription("Tüm birim rolleri başarıyla sunucuya eklendi veya güncellendir.")
+        .addFields({
+          name: "📋 Oluşturulan Roller",
+          value: `**BAN BİRİMİ:** 4 Rol\n**SES BİRİMİ:** 4 Rol\n**SOHBET BİRİMİ:** 4 Rol\n\nToplam: 12 Rol`,
+          inline: false
+        })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error("[panel_units_roles]", err);
       return interaction.editReply(`❌ Hata: ${err.message}`);
     }
   }
