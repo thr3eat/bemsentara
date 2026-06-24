@@ -2848,15 +2848,15 @@ function renderAdminPage(user) {
         // Dinamik alanları çiz
         const fieldsHtml = form.fields.map(f => {
           if (f.type === 'textarea') {
-            return `<div style="margin-bottom: 1.2rem;">
-                      <label for="${f.id}" style="margin-bottom:0.4rem;display:block;color:var(--muted);">${f.label}:</label>
-                      <textarea id="${f.id}" placeholder="${f.placeholder}" rows="4" style="width:100%;margin-bottom:0;"></textarea>
-                    </div>`;
+            return '<div style="margin-bottom: 1.2rem;">' +
+                      '<label for="' + f.id + '" style="margin-bottom:0.4rem;display:block;color:var(--muted);">' + f.label + ':</label>' +
+                      '<textarea id="' + f.id + '" placeholder="' + f.placeholder + '" rows="4" style="width:100%;margin-bottom:0;"></textarea>' +
+                    '</div>';
           } else {
-            return `<div style="margin-bottom: 1.2rem;">
-                      <label for="${f.id}" style="margin-bottom:0.4rem;display:block;color:var(--muted);">${f.label}:</label>
-                      <input type="${f.type}" id="${f.id}" placeholder="${f.placeholder}" style="width:100%;margin-bottom:0;">
-                    </div>`;
+            return '<div style="margin-bottom: 1.2rem;">' +
+                      '<label for="' + f.id + '" style="margin-bottom:0.4rem;display:block;color:var(--muted);">' + f.label + ':</label>' +
+                      '<input type="' + f.type + '" id="' + f.id + '" placeholder="' + f.placeholder + '" style="width:100%;margin-bottom:0;">' +
+                    '</div>';
           }
         }).join('');
 
