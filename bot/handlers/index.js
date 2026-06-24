@@ -140,6 +140,22 @@ function initializeDiscordHandlers(client) {
       console.error("[monthlyPromotion] Planlayıcı başlatma hatası:", err.message);
     }
 
+    // Ban Birimi Rütbe Sistemi Başlatma
+    try {
+      const { ensureBanBirimRoles } = require("../services/banBirimRankManager");
+      const GUILD_ID = '1466927911364726845';
+      const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+      if (guild) {
+        // Sezon 1 rollerini oluştur
+        await ensureBanBirimRoles(guild, 1);
+        // Sezon 2 rollerini de oluştur (hazır olması için)
+        await ensureBanBirimRoles(guild, 2);
+        console.log('[banBirimRanks] ✅ Ban Birimi rütbe sistem rolleri başlatıldı');
+      }
+    } catch (err) {
+      console.error("[banBirimRanks] Başlatma hatası:", err.message);
+    }
+
     // Telegram AI Chat dinleyicisini başlat
     try {
       const { startTelegramPolling } = require("../services/telegramService");

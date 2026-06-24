@@ -666,6 +666,24 @@ async function handleAnswerClick(interaction, qIndex, optIndex) {
 
         await userUnit.save();
 
+        // Ban Birimi ise Discord rütbe rollerini ata
+        if (birimKey === 'BAN_BIRIMI') {
+          try {
+            const { assignBanRank } = require('./banBirimRankManager');
+            const MAIN_GUILD_ID = '1466927911364726845';
+            const guild = await interaction.client.guilds.fetch(MAIN_GUILD_ID).catch(() => null);
+            if (guild) {
+              const member = await guild.members.fetch(userId).catch(() => null);
+              if (member) {
+                // Sezon 1 rütbesini ata
+                await assignBanRank(guild, member, startingRank, 1);
+              }
+            }
+          } catch (err) {
+            console.error('[unitService] Ban birim rank atama hatası:', err.message);
+          }
+        }
+
         // Rolleri ver
         const guild = await interaction.client.guilds.fetch(MAIN_GUILD_ID).catch(() => null);
         if (guild) {
