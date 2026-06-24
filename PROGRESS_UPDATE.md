@@ -410,3 +410,189 @@ Created slash commands for all panel-only systems to ensure feature parity betwe
 - [ ] Implement batch operations for staff commands
 
 
+
+---
+
+## Update 4: AI-Powered Unit Member Onboarding ✅
+
+### Task Overview
+When a new member passes the unit recruitment exam, they are automatically onboarded with AI-generated introduction and daily tasks.
+
+### New Service Created: `unitOnboardingService.js`
+
+**Main Functions:**
+
+1. **`onboardNewMember(client, userId, birimKey, score)`**
+   - Entry point for new member onboarding
+   - Sends introduction message
+   - Triggers AI task generation
+   - Updates database with onboarding date
+   - Handles all DM communication
+
+2. **`sendIntroductionMessage(user, birimKey, birimLabel, birimEmoji, score)`**
+   - Sends welcome embed to new member
+   - Shows sınav (exam) score
+   - Displays assigned starting rank
+   - Includes unit info and responsibilities
+
+3. **`sendAIDailyTasks(user, birimKey, birimLabel, birimEmoji, score)`**
+   - Generates 3-5 concrete daily tasks using AI
+   - System prompt includes:
+     - Birim type and name
+     - Member's test score
+     - Starting rank
+     - Motivation and encouragement
+   - Fallback to predefined tasks if AI fails
+   - Includes tips and motivation message
+
+4. **`sendFallbackTasks(user, birimLabel, birimEmoji, startingRank)`**
+   - Provides hardcoded tasks when AI unavailable
+   - Tasks include:
+     - Birim kanallarını keşfet (Explore channels)
+     - Rehberlik al (Get guidance)
+     - Profil bilgilerini tamamla (Complete profile)
+     - Birim sunumu yap (Do introduction)
+     - Günlük görevleri takip et (Track daily tasks)
+
+5. **`sendWelcomeCard(user, birimKey, birimLabel, score)`**
+   - Visual welcome card with member stats
+   - Shows rank emoji and title
+   - Includes celebratory message
+
+6. **`getBirimInfo(birimKey)`**
+   - Returns description for each unit type:
+     - 🔴 Ban Birimi - Sunucuyu koruma
+     - 🔵 Ses Birimi - Sesli kanal yönetimi
+     - 💬 Sohbet Birimi - Text kanal yönetimi
+
+### Integration into unitService.js
+
+**When member passes exam (score ≥ 8):**
+1. Member is accepted to unit ✅
+2. Starting rank assigned based on score ✅
+3. Discord roles given ✅
+4. Success message sent ✅
+5. **NEW:** `onboardNewMember()` called after 2 second delay ⬅️
+
+**Flow:**
+```
+User passes exam (score ≥ 8)
+    ↓
+Confirm acceptance + assign rank + give roles
+    ↓
+Send success embed
+    ↓
+Wait 2 seconds
+    ↓
+onboardNewMember() called
+    ├─ Send welcome introduction
+    ├─ Generate AI daily tasks
+    ├─ Update database
+    └─ All via DM
+```
+
+### Messages Sent to New Member
+
+**1. Introduction Embed:**
+- Title: "HOŞ GELDİN [username]!"
+- Shows exam score
+- Shows assigned rank
+- Unit information
+- Responsibilities
+- Color: Purple (#9B59B6)
+
+**2. AI-Generated Daily Tasks:**
+- Title: "📋 Bugünkü Görevler"
+- 3-5 concrete tasks from AI
+- Tips for faster promotion
+- Completion timeline
+- Color: Blue (#3498DB)
+
+**3. Motivation Embed:**
+- Title: "💪 Senden Beklentilerimiz"
+- 4 main expectations (Disiplin, İşbirliği, Gelişim, Sorumluluk)
+- Promotion incentives
+- Color: Green (#2ECC71)
+
+### AI Prompt Structure
+
+```
+System Prompt to AI:
+- User's birim and rank
+- Test score (1-10)
+- Request for 3-5 daily tasks
+- Request for rules/expectations
+- Motivation tone
+- Turkish language
+```
+
+**AI Response:**
+- Concrete, actionable tasks
+- Numbered and emoji-marked (✅)
+- Achievable within one day
+- Related to birim responsibilities
+
+### Database Updates
+
+**StaffUnit model:**
+- `onboardedAt`: New Date() - Timestamp of onboarding
+- `tasksAssignedToday`: true - Mark tasks assigned for today
+
+### Error Handling
+
+- **AI Unavailable:** Falls back to predefined tasks
+- **DM Closed:** Silently continues (no exception thrown)
+- **User Not Found:** Logs error, returns false
+- **Network Issues:** Warnings logged, process continues
+
+### Testing & Validation
+
+✅ Syntax validation: `node -c bot/services/unitOnboardingService.js`
+✅ Syntax validation: `node -c bot/services/unitService.js`
+✅ No compilation errors
+✅ No diagnostic issues
+
+### Usage Example Flow
+
+**When user passes exam with 9/10:**
+1. User gets "TEBRİKLER! Sınavı Geçtiniz!" message
+2. 2 seconds later, receives:
+   - "HOŞ GELDİN [username]!" intro
+   - AI-generated 5 tasks for today
+   - Motivation message about expectations
+3. Member can see daily progress and complete tasks
+
+**Example AI-Generated Tasks:**
+```
+✅ Birim Kanallarını Gez ve Duyuruları Oku
+✅ Birim Başkanı ile Tanış ve Rehberlik Al
+✅ Roblox Hesabını Doğrula
+✅ Sesli Kanalda Kendini Tanıt
+✅ Günlük Rapor Gönder
+```
+
+### Files Modified/Created
+
+1. **bot/services/unitOnboardingService.js** (NEW - 250 lines)
+   - Complete onboarding system
+   - AI integration for task generation
+   - Multiple message templates
+   - Fallback systems
+
+2. **bot/services/unitService.js** (MODIFIED)
+   - Added onboarding call after exam pass
+   - 2-second delay for stability
+   - Error handling for onboarding
+
+### Status
+
+**✅ COMPLETE** - New members are now automatically onboarded with AI-generated introduction and daily tasks when they pass the unit recruitment exam.
+
+### Future Enhancements
+
+- [ ] Track daily task completion
+- [ ] Auto-award XP for completed tasks
+- [ ] Personalized task generation based on birim type
+- [ ] Weekly onboarding report for birim leaders
+- [ ] AI task reminders at end of day
+- [ ] Gamification: task completion badges

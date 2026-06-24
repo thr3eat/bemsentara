@@ -5,7 +5,13 @@ const { chatWithAI } = require('./aiService');
 const StaffUnit = require('../../models/StaffUnit');
 const StaffProgress = require('../../models/StaffProgress');
 const User = require('../../models/User');
-const { UNIT_CONFIG } = require('../config/unitConfig');
+
+// Birim konfigürasyonları
+const UNIT_CONFIG = {
+  BAN_BIRIMI: { label: 'BAN BİRİMİ', emoji: '🛡️' },
+  SES_BIRIMI: { label: 'SES BİRİMİ', emoji: '🎤' },
+  SOHBET_BIRIMI: { label: 'SOHBET BİRİMİ', emoji: '💬' }
+};
 
 /**
  * Birime yeni katılan kişiyi AI tarafından tanıtır ve günlük görevleri verir
