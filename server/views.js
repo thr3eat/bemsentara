@@ -396,14 +396,14 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
     </button>
     <nav class="nav-links" id="nav-links">
       ${navLink('/dashboard', 'Dashboard')}
-      ${navLink('/profile',   'Profil')}
-      ${navLink('/tickets',   "Ticket'lar")}
+      ${navLink('/profile', 'Profil')}
+      ${navLink('/tickets', "Ticket'lar")}
       ${navLink('/notifications', '🔔 Bildirimler')}
       ${navLink('/leaderboard', 'Sıralama')}
-      ${navLink('/shop',      'Mağaza')}
-      ${navLink('/wiki',      'Wiki')}
-      ${navLink('/webhook',   '🔗 Webhook')}
-      ${navLink('/settings',  'Ayarlar')}
+      ${navLink('/shop', 'Mağaza')}
+      ${navLink('/wiki', 'Wiki')}
+      ${navLink('/webhook', '🔗 Webhook')}
+      ${navLink('/settings', 'Ayarlar')}
       ${staffLinks}
       ${adminLink}
       ${user ? `<a href="/logout" class="nav-link logout-link">Çıkış</a>` : `<a href="/login" class="nav-link">Giriş</a>`}
@@ -1043,7 +1043,7 @@ function renderDashboard(user, staffProgress) {
   // Create category grid cards
   const categoryCards = Object.entries(SUPPORT_CATEGORIES).map(([key, cat]) => {
     let desc = "";
-    switch(key) {
+    switch (key) {
       case "ban": desc = "Yasaklama ve sunucudaki cezalarınız hakkında itirazda bulunmak için talep oluşturun."; break;
       case "reklam": desc = "Reklam sponsorlukları ve iş ortaklıkları hakkında bilgi almak için başvurun."; break;
       case "report": desc = "Kuralları ihlal eden kullanıcıları moderatör ekibimize bildirin."; break;
@@ -1079,7 +1079,7 @@ function renderDashboard(user, staffProgress) {
           <div style="font-weight:700;">${_esc(user.discordUsername)}</div>
           <div style="font-size:0.8rem;color:var(--muted);">
             ${user.isAdmin ? '<span style="color:var(--accent2);">👑 Admin</span>' :
-              user.isStaff ? '<span style="color:var(--accent);">🛡 Staff</span>' : 'Kullanıcı'}
+      user.isStaff ? '<span style="color:var(--accent);">🛡 Staff</span>' : 'Kullanıcı'}
           </div>
           <a href="/logout" style="color:var(--danger);font-size:0.8rem;text-decoration:none;">Çıkış Yap</a>
         </div>
@@ -1864,7 +1864,7 @@ function renderStaffPanel(user) {
 // ─────────────────────────────────────────────
 function renderDebugPage(user, stats = {}, logs = []) {
   const safeStats = stats || {};
-  const safeLogs  = Array.isArray(logs) ? logs : [];
+  const safeLogs = Array.isArray(logs) ? logs : [];
 
   const content = `
     <h1 style="font-size:2rem;font-weight:800;margin-bottom:1.5rem;color:var(--danger);">🔍 Debug Panel</h1>
@@ -1977,7 +1977,7 @@ function renderProfilePage(user, profileUser, isOwn = false, robloxGroups = []) 
     }
   }
 
-  const roleBadgesHtml = badgesList.map(r => 
+  const roleBadgesHtml = badgesList.map(r =>
     `<span class="p-badge" style="background:${r.bg};color:${r.color};border-color:${r.border};">${_esc(r.name)}</span>`
   ).join('');
 
@@ -2253,8 +2253,8 @@ function renderLegalPage(title, text, lang = 'tr') {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;">
         <h1 style="font-size:2rem;font-weight:800;color:var(--accent);">${_esc(title)}</h1>
         <div style="display:flex;gap:.5rem;">
-          <a href="?lang=tr" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang==='tr'?'var(--accent)':'rgba(255,255,255,.07)'};color:${lang==='tr'?'#fff':'var(--muted)'};border:1px solid ${lang==='tr'?'transparent':'var(--border)'};">🇹🇷 TR</a>
-          <a href="?lang=en" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang==='en'?'var(--accent)':'rgba(255,255,255,.07)'};color:${lang==='en'?'#fff':'var(--muted)'};border:1px solid ${lang==='en'?'transparent':'var(--border)'};">🇬🇧 EN</a>
+          <a href="?lang=tr" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang === 'tr' ? 'var(--accent)' : 'rgba(255,255,255,.07)'};color:${lang === 'tr' ? '#fff' : 'var(--muted)'};border:1px solid ${lang === 'tr' ? 'transparent' : 'var(--border)'};">🇹🇷 TR</a>
+          <a href="?lang=en" style="padding:.4rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700;text-decoration:none;background:${lang === 'en' ? 'var(--accent)' : 'rgba(255,255,255,.07)'};color:${lang === 'en' ? '#fff' : 'var(--muted)'};border:1px solid ${lang === 'en' ? 'transparent' : 'var(--border)'};">🇬🇧 EN</a>
         </div>
       </div>
       <div style="line-height:2;color:var(--muted);font-size:.97rem;">${text}</div>
@@ -2298,7 +2298,7 @@ function renderWikiListPage(user, articles = [], canManage = false) {
     const authorAvatar = a.authorAvatar
       ? `<img src="${_esc(a.authorAvatar)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;">`
       : '';
-    const ts = a.createdAt ? `<t:${Math.floor(new Date(a.createdAt).getTime()/1000)}:d>` : '';
+    const ts = a.createdAt ? `<t:${Math.floor(new Date(a.createdAt).getTime() / 1000)}:d>` : '';
     return `
       <a href="/wiki/${_esc(a._id)}" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;
               background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:16px;overflow:hidden;
@@ -2387,13 +2387,13 @@ function renderWikiArticlePage(user, article, canManage = false) {
           onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'">${_esc(article.authorName || '—')}</a>`
     : `<span style="color:var(--text);font-weight:600;">${_esc(article.authorName || '—')}</span>`;
   const createdTs = article.createdAt
-    ? `<time title="${new Date(article.createdAt).toLocaleString('tr-TR')}">${new Date(article.createdAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>`
+    ? `<time title="${new Date(article.createdAt).toLocaleString('tr-TR')}">${new Date(article.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</time>`
     : '';
   const editedLine = article.editedByName && article.editedAt
     ? `<span style="color:var(--muted);font-size:0.8rem;margin-left:0.75rem;">
          • Düzenleyen: <a href="/profile/${_esc(article.editedById || '')}" style="color:var(--muted);font-weight:700;text-decoration:none;"
              onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">${_esc(article.editedByName)}</a>
-         <time title="${new Date(article.editedAt).toLocaleString('tr-TR')}">${new Date(article.editedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}</time>
+         <time title="${new Date(article.editedAt).toLocaleString('tr-TR')}">${new Date(article.editedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
        </span>`
     : '';
 
@@ -2424,7 +2424,7 @@ function renderWikiArticlePage(user, article, canManage = false) {
       : '';
     const cAvatar = c.avatar
       ? `<img src="${_esc(c.avatar)}" style="width:36px;height:36px;border-radius:50%;flex-shrink:0;">`
-      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;">${_esc((c.username||'?')[0].toUpperCase())}</div>`;
+      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;">${_esc((c.username || '?')[0].toUpperCase())}</div>`;
     const cTime = c.createdAt
       ? `<span style="font-size:0.75rem;color:var(--muted);">${new Date(c.createdAt).toLocaleString('tr-TR')}</span>`
       : '';
@@ -2672,8 +2672,8 @@ function renderAdminPage(user) {
         <div style="font-size:.85rem;color:var(--muted);font-weight:700;margin-bottom:.5rem;">Hızlı Miktarlar:</div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
           ${[100, 500, 1000, 5000, 10000, 50000].map(n =>
-            `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('coin-amount').value=${n}">${n.toLocaleString('tr-TR')} 🪙</button>`
-          ).join('')}
+    `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('coin-amount').value=${n}">${n.toLocaleString('tr-TR')} 🪙</button>`
+  ).join('')}
         </div>
       </div>
     </div>
@@ -3054,7 +3054,7 @@ function renderAdminPage(user) {
               '<div style="font-weight:700;">' + adminEsc(b.discordUsername) + ' <small style="color:var(--muted);font-weight:normal;">(ID: ' + adminEsc(b.discordId) + ')</small></div>' +
               '<div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">Sebep: ' + adminEsc(b.banReason || 'Belirtilmedi') + '</div>' +
               '</div>' +
-              '<button class="btn btn-sm btn-success" onclick="quickUnban(\'' + adminEsc(b.discordId) + '\')">Banı Kaldır</button>' +
+              '<button class="btn btn-sm btn-success" onclick="quickUnban(\\\'' + adminEsc(b.discordId) + '\\\')">Banı Kaldır</button>' +
               '</div>';
           }).join('');
         } catch (err) {
@@ -3127,8 +3127,8 @@ function renderLeaderboardPage(user, topUsers = []) {
 
       <div style="display:flex;flex-direction:column;gap:0.75rem;">
         ${topUsers.map((u, i) => {
-          const borderColor = rankColors[i] || 'var(--border)';
-          return `
+    const borderColor = rankColors[i] || 'var(--border)';
+    return `
           <div style="display:flex;align-items:center;justify-content:space-between;
                       background:rgba(255,255,255,0.025);padding:1rem 1.5rem;border-radius:16px;
                       border:1px solid ${borderColor};transition:transform 0.3s,background 0.3s;backdrop-filter:blur(8px);"
@@ -3145,7 +3145,7 @@ function renderLeaderboardPage(user, topUsers = []) {
               💵 ${Number(u.balance).toLocaleString('tr-TR')}
             </div>
           </div>`;
-        }).join('') || '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz veri yok.</div>'}
+  }).join('') || '<div style="text-align:center;padding:3rem;color:var(--muted);">Henüz veri yok.</div>'}
       </div>
     </div>
   `;
@@ -3377,7 +3377,7 @@ function renderCreateTicketPage(user, categories = []) {
 // ─────────────────────────────────────────────
 function renderNotificationsPage(user, notifications = []) {
   const notifHtml = notifications.map(n => {
-    const icons = { ticket:'🎫', system:'⚙️', staff:'👨‍💼', mention:'💬', warning:'⚠️' };
+    const icons = { ticket: '🎫', system: '⚙️', staff: '👨‍💼', mention: '💬', warning: '⚠️' };
     const icon = n.icon || icons[n.type] || '🔔';
     const isRead = n.read;
     return `
@@ -3410,7 +3410,7 @@ function renderNotificationsPage(user, notifications = []) {
       </div>
 
       ${notifications.length > 0 ? notifHtml
-        : `<div style="text-align:center;padding:4rem;color:var(--muted);">
+      : `<div style="text-align:center;padding:4rem;color:var(--muted);">
              <div style="font-size:3rem;margin-bottom:1rem;">🔕</div>
              <div>Henüz bildiriminiz yok.</div>
            </div>`}
