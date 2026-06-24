@@ -961,39 +961,170 @@ async function handleGeneralCommand(interaction) {
     }
   }
 
-  // ── leaderboard: Top 10 göster ────────────────────────────────────────────
+  // ── leaderboard: Top 25 göster, kategoriler ve pagination ─────────────────
   if (commandName === "leaderboard") {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
-      const { getLeaderboard } = require('../services/staffSystem');
-      const lb = await getLeaderboard();
+      const { getLeaderboard, getUserLeaderboardRank } = require('../services/staffSystem');
+      
+      // Varsayılan kategori: points
+      const category = 'points';
+      const lb = await getLeaderboard(category);
+      const userRank = await getUserLeaderboardRank(interaction.user.id, category);
 
       if (lb.length === 0) {
         return interaction.editReply({ content: '❌ Henüz leaderboard verisi yok.' });
       }
 
-      let description = '```\n';
-      for (const p of lb) {
-        const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
-        description += `${medal} <@${p.userId}> | ${p.points}pts | Lvl.${p.xpLevel} | ${p.tickets} 🎫 | ${p.badges} 🏆\n`;
+      // İlk sayfa (top 25)
+      const itemsPerPage = 10;
+      const totalPages = Math.ceil(Math.min(lb.length, 25) / itemsPerPage);
+      let currentPage = 0;
+
+      const createLeaderboardEmbed = (page) => {
+        const startIdx = page * itemsPerPage;
+        const endIdx = Math.min(startIdx + itemsPerPage, Math.min(lb.length, 25));
+        const pageItems = lb.slice(startIdx, endIdx);
+
+        let description = '```\n';
+        for (const p of pageItems) {
+          const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
+          const premium = p.isPremium ? '⭐ ' : '';
+          description += `${medal}${premium}<@${p.userId}> | Puan: ${p.points} | Lvl: ${p.xpLevel} | 🎫: ${p.tickets} | 🏆: ${p.badges}\n`;
+        }
+        description += '```';
+
+        const embed = new EmbedBuilder()
+          .setColor(0xffd700)
+          .setTitle('🏆 LEADERBOARD - Top 25 Personel')
+          .setDescription(description)
+          .addFields(
+            { name: '📊 KATEGORİLER', value: '**Mevcut:** Puan | XP • Level • Badge • Streak', inline: false },
+            { name: '⭐ PREMIUM', value: '⭐ = Premium Üye', inline: true }
+          )
+          .setFooter({ text: `Sayfa ${page + 1}/${totalPages} | Eko Yıldız Gamification` })
+          .setTimestamp();
+
+        // Kullanıcının kendi pozisyonunu göster
+        if (userRank && !pageItems.some(p => p.userId === interaction.user.id)) {
+          embed.addFields({
+            name: `📍 SENİN POZİSYONUN`,
+            value: `Sıra: **#${userRank.rank}** / ${userRank.total}\nPuan: **${userRank.points}** | XP Lvl: **${userRank.xpLevel}** | Ticket: **${userRank.tickets}** | Rozet: **${userRank.badges}**`,
+            inline: false
+          });
+        }
+
+        return embed;
+      };
+
+      const embed = createLeaderboardEmbed(0);
+
+      // Pagination butonları
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`lb_prev_${category}`)
+          .setLabel('⬅️ Önceki')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(currentPage === 0),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_xp`)
+          .setLabel('⚡ XP')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_level`)
+          .setLabel('📊 Level')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_badges`)
+          .setLabel('🏅 Rozetler')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_next_${category}`)
+          .setLabel('Sonraki ➡️')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(currentPage === totalPages - 1)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      console.error('[leaderboard] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── personeldurum: Staff bilgilerini göster ──────────────────────────────────
+  if (commandName === "personeldurum") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
+    }
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const target = interaction.options.getUser('kullanici') || interaction.user;
+      
+      // Sadece staff görebilir
+      const requestorStaff = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!requestorStaff || requestorStaff.status !== 'active') {
+        return interaction.editReply({ content: '❌ Sadece aktif personel bu komutu kullanabilir.' });
       }
-      description += '```';
+
+      const targetStaff = await StaffProgress.findOne({ userId: target.id });
+      if (!targetStaff) {
+        return interaction.editReply({ content: `❌ **${target.username}** personel verisi bulunamadı.` });
+      }
+
+      // Rozetleri hazırla
+      const BADGES = {
+        firstTicket: { name: '🎫 İlk Ticket', desc: 'İlk ticket\'ı çöz' },
+        weekWarrior: { name: '⚔️ Hafta Savaşçısı', desc: '7 gün ardışık' },
+        monthMaster: { name: '👑 Ay Ustası', desc: '30 gün ardışık' },
+        ticketHero: { name: '🦸 Ticket Kahramanı', desc: '50 ticket çöz' },
+        supportStar: { name: '⭐ Destek Yıldızı', desc: '100 ticket çöz' },
+        legendaryHelper: { name: '💎 Efsanevi Yardımcı', desc: '250 ticket çöz' },
+        perfectWeek: { name: '✅ Mükemmel Hafta', desc: '7 gün %100 başarı' },
+        chatterbox: { name: '💬 Sohbetçi', desc: '500 mesaj yaz' },
+        moderator: { name: '🛡️ Moderatör', desc: '30 mod işlem' },
+        speedRunner: { name: '⚡ Hız Koşucusu', desc: 'Aynı gün 5 ticket' },
+        noMissWeek: { name: '🌟 Kusursuz Hafta', desc: '7 gün uyarısız' }
+      };
+
+      let badgeDisplay = '';
+      let badgeCount = 0;
+      for (const [key, unlocked] of Object.entries(targetStaff.gamification?.badges || {})) {
+        if (unlocked) {
+          badgeCount++;
+          badgeDisplay += `${BADGES[key]?.name || '🏆 Bilinmeyen'} `;
+        }
+      }
+
+      // Başarımları (Achievements) hazırla
+      let achievements = '✅ ';
+      if (targetStaff.stats?.ticketsSolved > 0) achievements += `${targetStaff.stats.ticketsSolved} 🎫 | `;
+      if (targetStaff.stats?.chatMessages > 0) achievements += `${targetStaff.stats.chatMessages} 💬 | `;
+      if (targetStaff.stats?.totalVoiceMinutes > 0) achievements += `${targetStaff.stats.totalVoiceMinutes}m 🎤 | `;
+      if (targetStaff.stats?.moderationActions > 0) achievements += `${targetStaff.stats.moderationActions} 🛡️`;
+      
+      achievements = achievements.replace(/ \| $/, '');
 
       const embed = new EmbedBuilder()
-        .setColor(0xffd700)
-        .setTitle('🏆 LEADERBOARD - Top 10 Personel')
-        .setDescription(description)
+        .setTitle(`👤 ${target.username} - Personel Durumu`)
+        .setColor(0x7c6af7)
+        .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '📊 Nasıl İşliyor?', value: 'Ticket = +10 puan • Seviye = +XP • Rozet = +Prestij', inline: false }
+          { name: '📊 SEVIYE & XP', value: `**Level:** ${targetStaff.level}\n**XP Seviyesi:** ${targetStaff.gamification?.level || 1}\n**Mevcut XP:** ${targetStaff.gamification?.currentXP || 0}`, inline: true },
+          { name: '🏆 PUAN & STREAK', value: `**Toplam Puan:** ${targetStaff.gamification?.totalPoints || 0}\n**Mevcut Streak:** ${targetStaff.gamification?.streak?.current || 0}\n**Rekord Streak:** ${targetStaff.gamification?.streak?.longest || 0}`, inline: true },
+          { name: '📅 TARİHLER', value: `**Katılış:** <t:${Math.floor(new Date(targetStaff.joinedAt).getTime() / 1000)}:R>\n**Terfi Tarihi:** ${targetStaff.promotedAt ? `<t:${Math.floor(new Date(targetStaff.promotedAt).getTime() / 1000)}:R>` : 'Henüz terfi yok'}`, inline: true },
+          { name: '⚠️ UYARILAR', value: `**Toplam:** ${targetStaff.warnings?.count || 0}\n**Son Uyarı:** ${targetStaff.warnings?.lastWarned ? `<t:${Math.floor(new Date(targetStaff.warnings.lastWarned).getTime() / 1000)}:R>` : 'Uyarı yok'}`, inline: true },
+          { name: `🏅 ROZETLER (${badgeCount})`, value: badgeDisplay || 'Henüz rozet yok', inline: false },
+          { name: '⭐ BAŞARIMLAR', value: achievements, inline: false }
         )
-        .setFooter({ text: 'Eko Yıldız • Gamification' })
+        .setFooter({ text: 'Sentara Personel Yönetim Sistemi' })
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error('[leaderboard] hata:', err.message);
+      console.error('[personeldurum] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

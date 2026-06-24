@@ -598,6 +598,129 @@ async function handleButtonInteraction(interaction) {
     return handleAnswerClick(interaction, qIndex, optIndex);
   }
 
+  // ── Leaderboard Pagination & Kategori Butonları ───────────────────────────
+  if (customId.startsWith("lb_next_") || customId.startsWith("lb_prev_") || customId.startsWith("lb_category_")) {
+    try {
+      await interaction.deferUpdate().catch(() => { });
+      const { getLeaderboard, getUserLeaderboardRank } = require('../services/staffSystem');
+
+      let category = 'points';
+      let page = 0;
+
+      // Kategori butonları
+      if (customId.startsWith("lb_category_")) {
+        category = customId.replace("lb_category_", "");
+        page = 0;
+      } else {
+        // Pagination butonları - önceki kategoriyı bul
+        const parts = customId.split("_");
+        category = parts[2] || 'points';
+        
+        if (customId.startsWith("lb_next_")) {
+          page = parseInt(interaction.message.embeds[0]?.footer?.text?.split(" ")[1] || 0) || 0;
+          page++;
+        } else if (customId.startsWith("lb_prev_")) {
+          page = parseInt(interaction.message.embeds[0]?.footer?.text?.split(" ")[1] || 1) - 1 || 0;
+          page = Math.max(0, page - 1);
+        }
+      }
+
+      const lb = await getLeaderboard(category);
+      const userRank = await getUserLeaderboardRank(interaction.user.id, category);
+
+      if (lb.length === 0) {
+        return interaction.editReply({ content: '❌ Leaderboard verisi yok.' });
+      }
+
+      const itemsPerPage = 10;
+      const totalPages = Math.ceil(Math.min(lb.length, 25) / itemsPerPage);
+      page = Math.max(0, Math.min(page, totalPages - 1));
+
+      const startIdx = page * itemsPerPage;
+      const endIdx = Math.min(startIdx + itemsPerPage, Math.min(lb.length, 25));
+      const pageItems = lb.slice(startIdx, endIdx);
+
+      let description = '```\n';
+      for (const p of pageItems) {
+        const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
+        const premium = p.isPremium ? '⭐ ' : '';
+        
+        let stat = '';
+        if (category === 'xp') {
+          stat = `XP: ${p.xp}`;
+        } else if (category === 'level') {
+          stat = `Lvl: ${p.level}`;
+        } else if (category === 'badges') {
+          stat = `🏆: ${p.badges}`;
+        } else if (category === 'streak') {
+          stat = `Streak: ${p.streak}`;
+        } else {
+          stat = `Puan: ${p.points}`;
+        }
+
+        description += `${medal}${premium}<@${p.userId}> | ${stat} | 🎫: ${p.tickets}\n`;
+      }
+      description += '```';
+
+      const categoryNames = {
+        points: '💰 Puan',
+        xp: '⚡ XP',
+        level: '📊 Level',
+        badges: '🏅 Rozetler',
+        streak: '🔥 Streak'
+      };
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle(`🏆 LEADERBOARD - ${categoryNames[category]}`)
+        .setDescription(description)
+        .addFields(
+          { name: '📊 KATEGORİLER', value: '**Aktif:** ' + categoryNames[category], inline: false }
+        )
+        .setFooter({ text: `Sayfa ${page + 1}/${totalPages} | Eko Yıldız Gamification` })
+        .setTimestamp();
+
+      // Kullanıcının kendi pozisyonunu göster
+      if (userRank && !pageItems.some(p => p.userId === interaction.user.id)) {
+        embed.addFields({
+          name: `📍 SENİN POZİSYONUN`,
+          value: `Sıra: **#${userRank.rank}** / ${userRank.total}`,
+          inline: false
+        });
+      }
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`lb_prev_${category}`)
+          .setLabel('⬅️ Önceki')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === 0),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_xp`)
+          .setLabel('⚡ XP')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_level`)
+          .setLabel('📊 Level')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_category_badges`)
+          .setLabel('🏅 Rozetler')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`lb_next_${category}`)
+          .setLabel('Sonraki ➡️')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === totalPages - 1)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      console.error('[leaderboard buttons] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   return null;
 }
 

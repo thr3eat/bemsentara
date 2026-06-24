@@ -166,54 +166,53 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       .setColor(0x34495E)
       .setDescription(
         "Sunucu düzenini korumak için moderasyon komutlarını buradan butonlarla kullanabilirsiniz.\n\n" +
-        "**İşlemler:**\n" +
-        "• **Sustur:** Kullanıcıya geçici susturma uygular.\n" +
-        "• **Susturma Aç:** Kullanıcının susturmasını kaldırır.\n" +
-        "• **Ceza (Modİşlem):** Otomatik ceza puanlı kural ihlali uygular.\n" +
-        "• **Toplu Sil:** Kanaldaki mesajları toplu temizler.\n" +
-        "• **Tam Ban:** Sunuculardan yasaklar ve Roblox rütbesini en alta indirir.\n" +
-        "• **Tam Ban Aç:** Sunucu yasaklarını kaldırır ve Roblox rütbesini iade eder."
+        "**Kategoriler:**\n" +
+        "🔇 **Susturma İşlemleri** — Sustur, Susturma Aç\n" +
+        "📋 **Ceza İşlemleri** — Modİşlem, Toplu Sil\n" +
+        "🔨 **Global Ban** — Tam Ban, Tam Ban Aç, Karaliste"
       );
 
+    // ROW 1: Susturma İşlemleri (Mute/Unmute)
     const row1 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_mod_mute")
-        .setLabel("🔇 Sustur (Mute)")
+        .setLabel("🔇 Sustur")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_unmute")
-        .setLabel("🔊 Susturma Aç")
+        .setLabel("🔊 Aç")
         .setStyle(ButtonStyle.Primary)
         .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_modaction")
-        .setLabel("🚷 Ceza İşlem (Modİşlem)")
+        .setLabel("🚷 Ceza")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_mod_bulk_delete")
-        .setLabel("🗑️ Toplu Sil")
+        .setLabel("🗑️ Sil")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isMod)
     );
 
+    // ROW 2: Global Ban İşlemleri
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("panel_mod_blacklist")
-        .setLabel("🚫 Karaliste (Blacklist)")
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(!auth.isMod),
-      new ButtonBuilder()
         .setCustomId("panel_mod_tamban")
-        .setLabel("🔨 Tam Ban (Global)")
+        .setLabel("� Tam Ban")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_mod_tamban_kaldir")
-        .setLabel("🔓 Tam Ban Aç")
+        .setLabel("� Ban Aç")
         .setStyle(ButtonStyle.Success)
         .setDisabled(!auth.isManager),
+      new ButtonBuilder()
+        .setCustomId("panel_mod_blacklist")
+        .setLabel("� Karaliste")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isMod),
       new ButtonBuilder()
         .setCustomId("panel_tab_home")
         .setLabel("⬅️ Ana Menü")
@@ -270,45 +269,52 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       .setTitle("👥 Yetkili & Personel Yönetimi")
       .setColor(0x2ECC71)
       .setDescription(
-        "Personel istatistikleri, rütbe, izin ve yoklama işlemlerini buradan yönetin."
+        "Personel istatistikleri, rütbe, izin ve yoklama işlemlerini buradan yönetin.\n\n" +
+        "**Ana Kategoriler:**\n" +
+        "📊 **Raporlar** — İlerleme raporu ve istatistik görüntüle\n" +
+        "🎖️ **Rütbe İşlemleri** — Terfi, tenzilat, ödül yönetimi\n" +
+        "🏖️ **İzin & Sayım** — İzin günü tanımla, yoklama işlemleri"
       );
 
+    // ROW 1: Rapor ve İstatistikler
     const row1 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_staff_report")
-        .setLabel("📊 Personel İlerleme Raporu")
+        .setLabel("📊 İlerleme Raporu")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("panel_staff_setstats")
-        .setLabel("⚙️ İstatistik/Seviye Ayarla")
+        .setLabel("⚙️ İstatistik Ayarla")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_fire")
-        .setLabel("🚪 Personel Kov (Sil)")
+        .setLabel("🚪 Personeli Kov")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isManager)
     );
 
+    // ROW 2: Rütbe İşlemleri
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_staff_promote_demote")
-        .setLabel("🎖️ Terfi / Tenzilat")
+        .setLabel("🎖️ Terfi/Tenzilat")
         .setStyle(ButtonStyle.Primary)
         .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_reward")
         .setLabel("🎁 Ödül Yönetimi")
         .setStyle(ButtonStyle.Success)
-        .setDisabled(!auth.isManager),
+        .setDisabled(!auth.isManager)
+    );
+
+    // ROW 3: İzin ve Sayım
+    const row3 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_staff_giveleave")
         .setLabel("🏖️ İzin Günü Tanımla")
         .setStyle(ButtonStyle.Success)
-        .setDisabled(!auth.isManager)
-    );
-
-    const row3 = new ActionRowBuilder().addComponents(
+        .setDisabled(!auth.isManager),
       new ButtonBuilder()
         .setCustomId("panel_staff_attendance")
         .setLabel("📋 Yoklama & Sayım")
@@ -355,13 +361,18 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       .setTitle("⚙️ Sistem & Sunucu Otomasyonu")
       .setColor(0xE74C3C)
       .setDescription(
-        "Botun genel çalışma modüllerini, Roblox grup izinlerini ve sunucu otomod ayarlarını yönetin."
+        "Botun genel çalışma modüllerini, Roblox grup izinlerini ve sunucu otomod ayarlarını yönetin.\n\n" +
+        "**Kategoriler:**\n" +
+        "⚙️ **Sistem** — Toggler, Kanallar, Otomod\n" +
+        "🎮 **Roblox** — Rütbe yönetimi, Birim\n" +
+        "🎲 **Özel** — Çekiliş, AI, MOD-ALIM"
       );
 
+    // ROW 1: Sistem Modülleri
     const row1 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_sys_toggles")
-        .setLabel("⚙️ Sistem Aktif/Pasif Toggles")
+        .setLabel("⚙️ Toggler")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("panel_sys_channel_perms")
@@ -370,35 +381,37 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_sys_otomod")
-        .setLabel("🛡️ Otomod Ayarları")
+        .setLabel("🛡️ Otomod")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isAdmin)
     );
 
+    // ROW 2: Roblox ve Birim
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_sys_roblox_ranks")
-        .setLabel("🎮 Roblox Rütbeleri (Bang/ÇekEko)")
+        .setLabel("🎮 Roblox")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("panel_sys_birim")
-        .setLabel("📣 Birim Duyuruları")
+        .setLabel("📣 Birim")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId("panel_sys_giveaway_ai")
-        .setLabel("🎲 Çekiliş & AI Koç")
+        .setLabel("🎲 Çekiliş & AI")
         .setStyle(ButtonStyle.Success)
     );
 
-    const row2b = new ActionRowBuilder().addComponents(
+    // ROW 3: MOD-ALIM ve Restart
+    const row3 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_mod_alim")
-        .setLabel("🛡️ MOD-ALIM Sistemi")
+        .setLabel("🛡️ MOD-ALIM")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
         .setCustomId("panel_sys_restart")
-        .setLabel("🔄 Botu Yeniden Başlat")
+        .setLabel("🔄 Restart")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isAdmin),
       new ButtonBuilder()
@@ -407,7 +420,7 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Secondary)
     );
 
-    components.push(row1, row2, row2b);
+    components.push(row1, row2, row3);
   }
 
   else if (tabName === "toggles") {

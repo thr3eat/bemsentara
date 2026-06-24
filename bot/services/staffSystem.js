@@ -2538,13 +2538,31 @@ async function sendBadgeUnlockedDM(progress, badgeId, client) {
 }
 
 /**
- * Leaderboard al (Top 10)
+ * Leaderboard al (Top 25) - Geliştirilmiş versiyon
  */
-async function getLeaderboard() {
+async function getLeaderboard(category = 'points') {
   try {
+    let sortField;
+    switch (category) {
+      case 'xp':
+        sortField = { 'gamification.currentXP': -1 };
+        break;
+      case 'level':
+        sortField = { 'level': -1 };
+        break;
+      case 'badges':
+        sortField = { 'gamification.badges': -1 };
+        break;
+      case 'streak':
+        sortField = { 'gamification.streak.current': -1 };
+        break;
+      default: // points
+        sortField = { 'gamification.totalPoints': -1 };
+    }
+
     const allProgress = await StaffProgress.find({ status: 'active' })
-      .sort({ 'gamification.totalPoints': -1 })
-      .limit(10)
+      .sort(sortField)
+      .limit(25)
       .select('userId gamification stats level ROLE_NAMES');
 
     return allProgress.map((p, idx) => ({
@@ -2553,12 +2571,65 @@ async function getLeaderboard() {
       points: p.gamification?.totalPoints || 0,
       level: p.level,
       xpLevel: p.gamification?.level || 1,
+      xp: p.gamification?.currentXP || 0,
       tickets: p.stats?.ticketsSolved || 0,
       badges: Object.values(p.gamification?.badges || {}).filter(Boolean).length,
+      streak: p.gamification?.streak?.current || 0,
+      isPremium: false // İhtiyaç duyarsa premium badge
     }));
   } catch (err) {
     console.error('[staffSystem] Leaderboard hatası:', err.message);
     return [];
+  }
+}
+
+/**
+ * Kullanıcının leaderboard sırasını bul
+ */
+async function getUserLeaderboardRank(userId, category = 'points') {
+  try {
+    let sortField;
+    switch (category) {
+      case 'xp':
+        sortField = { 'gamification.currentXP': -1 };
+        break;
+      case 'level':
+        sortField = { 'level': -1 };
+        break;
+      case 'badges':
+        sortField = { 'gamification.badges': -1 };
+        break;
+      case 'streak':
+        sortField = { 'gamification.streak.current': -1 };
+        break;
+      default:
+        sortField = { 'gamification.totalPoints': -1 };
+    }
+
+    const allProgress = await StaffProgress.find({ status: 'active' })
+      .sort(sortField)
+      .select('userId gamification stats level');
+
+    const userRank = allProgress.findIndex(p => p.userId === userId) + 1;
+    const userData = allProgress.find(p => p.userId === userId);
+
+    if (!userData) return null;
+
+    return {
+      rank: userRank,
+      total: allProgress.length,
+      userId: userData.userId,
+      points: userData.gamification?.totalPoints || 0,
+      level: userData.level,
+      xpLevel: userData.gamification?.level || 1,
+      xp: userData.gamification?.currentXP || 0,
+      tickets: userData.stats?.ticketsSolved || 0,
+      badges: Object.values(userData.gamification?.badges || {}).filter(Boolean).length,
+      streak: userData.gamification?.streak?.current || 0,
+    };
+  } catch (err) {
+    console.error('[staffSystem] getUserLeaderboardRank hatası:', err.message);
+    return null;
   }
 }
 
@@ -2697,6 +2768,7 @@ module.exports = {
   checkAndUnlockBadges,
   sendBadgeUnlockedDM,
   getLeaderboard,
+  getUserLeaderboardRank,
   getWeeklyChallenge,
   sendFunMessage,
   BADGES,

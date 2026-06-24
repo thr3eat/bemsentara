@@ -139,6 +139,13 @@ const generalCommands = [
     .setDescription("🏆 Top 10 personeli göster - XP, Puan, Rozetler!"),
 
   new SlashCommandBuilder()
+    .setName("personeldurum")
+    .setDescription("👤 Personelin staff bilgilerini göster - Level, XP, Rozet, Başarımlar")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Bakılacak kişi (boş = kendin)").setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName("profil")
     .setDescription("🎮 Senin gamification profilini göster - XP, Rozetler, Streak")
     .addUserOption(o =>
