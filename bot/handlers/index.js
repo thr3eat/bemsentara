@@ -1944,6 +1944,40 @@ function initializeDiscordHandlers(client) {
         await statusMsg.edit(`❌ Tarama ve kanal oluşturma sırasında bir hata oluştu: ${err.message}`);
       }
     }
+
+    if (message.content === "!muttefikkurulum" || message.content === "!müttefikkurulum" || message.content === "!alliedsetup") {
+      const { PermissionFlagsBits } = require('discord.js');
+      const { ALLIED_GUILD_ID } = require("../../config");
+
+      if (message.guild?.id !== ALLIED_GUILD_ID) {
+        return message.reply("❌ Bu komut sadece **Müttefik Orduları** sunucusunda kullanılabilir.");
+      }
+
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const statusMsg = await message.reply("🔄 Müttefik Orduları sunucusunun butonları ve menüleri kuruluyor/yenileniyor, lütfen bekleyin...");
+
+      try {
+        const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
+        const { ensureAlliedRobloxMenu } = require("../services/robloxGroupManager");
+
+        const verifyResult = await ensureAlliedVerifyHelpMessage(client, true);
+        const supportResult = await ensureAlliedSupportMessage(client, true);
+        const robloxResult = await ensureAlliedRobloxMenu(client, true);
+
+        let responseText = "✅ **Müttefik Orduları Kurulumu Tamamlandı!**\n\n";
+        responseText += `${verifyResult ? "✅" : "❌"} **Doğrulama Yardım Mesajı:** ${verifyResult ? "Başarılı" : "Başarısız"}\n`;
+        responseText += `${supportResult ? "✅" : "❌"} **Destek Menüsü Mesajı:** ${supportResult ? "Başarılı" : "Başarısız"}\n`;
+        responseText += `${robloxResult ? "✅" : "❌"} **Roblox Grup Yönetim Menüsü:** ${robloxResult ? "Başarılı" : "Başarısız"}\n`;
+
+        await statusMsg.edit(responseText);
+      } catch (err) {
+        console.error("Müttefik kurulum hatası:", err);
+        await statusMsg.edit(`❌ Kurulum sırasında bir hata oluştu: ${err.message}`);
+      }
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {

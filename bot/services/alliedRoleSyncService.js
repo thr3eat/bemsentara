@@ -203,16 +203,24 @@ async function verifyAllAlliedRoles(client, specificUserIds = []) {
   }
 }
 
-async function ensureAlliedVerifyHelpMessage(client) {
+async function ensureAlliedVerifyHelpMessage(client, force = false) {
   try {
     const guild = await client.guilds.fetch(ALLIED_GUILD_ID).catch(() => null);
-    if (!guild) return;
+    if (!guild) return false;
 
     const channel = await guild.channels.fetch(ALLIED_VERIFY_HELP_CHANNEL_ID).catch(() => null);
-    if (!channel || !channel.isTextBased()) return;
+    if (!channel || !channel.isTextBased()) return false;
 
     const messages = await channel.messages.fetch({ limit: 10 }).catch(() => []);
-    const existing = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+    const botMessages = messages.filter(m => m.author.id === client.user.id);
+
+    if (force && botMessages.size > 0) {
+      for (const m of botMessages.values()) {
+        await m.delete().catch(() => {});
+      }
+    }
+
+    const existing = force ? null : botMessages.find(m => m.embeds.length > 0);
 
     if (!existing) {
       const embed = new EmbedBuilder()
@@ -252,21 +260,31 @@ async function ensureAlliedVerifyHelpMessage(client) {
       await channel.send({ embeds: [embed], components: [authorizeButton] });
       console.log("✅ Müttefik sunucusu doğrulama yardım mesajı gönderildi");
     }
+    return true;
   } catch (error) {
     console.error("❌ Müttefik sunucusu doğrulama yardım mesajı hatası:", error);
+    return false;
   }
 }
 
-async function ensureAlliedSupportMessage(client) {
+async function ensureAlliedSupportMessage(client, force = false) {
   try {
     const guild = await client.guilds.fetch(ALLIED_GUILD_ID).catch(() => null);
-    if (!guild) return;
+    if (!guild) return false;
 
     const channel = await guild.channels.fetch("1483483309454524518").catch(() => null);
-    if (!channel || !channel.isTextBased()) return;
+    if (!channel || !channel.isTextBased()) return false;
 
     const messages = await channel.messages.fetch({ limit: 10 }).catch(() => []);
-    const existing = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+    const botMessages = messages.filter(m => m.author.id === client.user.id);
+
+    if (force && botMessages.size > 0) {
+      for (const m of botMessages.values()) {
+        await m.delete().catch(() => {});
+      }
+    }
+
+    const existing = force ? null : botMessages.find(m => m.embeds.length > 0);
 
     if (!existing) {
       const embed = new EmbedBuilder()
@@ -303,8 +321,10 @@ async function ensureAlliedSupportMessage(client) {
       await channel.send({ embeds: [embed], components: [menu] });
       console.log("✅ Müttefik sunucusu destek sistemi mesajı gönderildi");
     }
+    return true;
   } catch (error) {
     console.error("❌ Müttefik sunucusu destek sistemi hatası:", error);
+    return false;
   }
 }
 

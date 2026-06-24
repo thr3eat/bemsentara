@@ -290,17 +290,25 @@ async function ensureEkoYildizRobloxMenu(client) {
  * Posts or ensures the Allied Guild Roblox Group Management menu exists in the target channel
  * @param {import('discord.js').Client} client 
  */
-async function ensureAlliedRobloxMenu(client) {
+async function ensureAlliedRobloxMenu(client, force = false) {
   try {
     const channel = await client.channels.fetch(ALLIED_MENU_CHANNEL_ID).catch(() => null);
     if (!channel || !channel.isTextBased()) {
       console.warn("⚠️ [RobloxGroupManager] Müttefik Roblox yönetim kanalı bulunamadı:", ALLIED_MENU_CHANNEL_ID);
-      return;
+      return false;
     }
 
-    // Look for existing message
-    const messages = await channel.messages.fetch({ limit: 10 });
-    const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === "🛡️ Müttefik Orduları Roblox Grup Yönetimi");
+    // Look for existing messages
+    const messages = await channel.messages.fetch({ limit: 10 }).catch(() => []);
+    const botMessages = messages.filter(m => m.author.id === client.user.id);
+
+    if (force && botMessages.size > 0) {
+      for (const m of botMessages.values()) {
+        await m.delete().catch(() => {});
+      }
+    }
+
+    const existingMessage = force ? null : botMessages.find(m => m.embeds.length > 0 && m.embeds[0].title === "🛡️ Müttefik Orduları Roblox Grup Yönetimi");
 
     if (!existingMessage) {
       const embed = new EmbedBuilder()
@@ -338,8 +346,10 @@ async function ensureAlliedRobloxMenu(client) {
       await channel.send({ embeds: [embed], components: [row] });
       console.log("✅ [RobloxGroupManager] Müttefik Roblox Grup Yönetim menüsü gönderildi.");
     }
+    return true;
   } catch (error) {
     console.error("❌ [RobloxGroupManager] Müttefik menüsü oluşturulurken hata:", error.message);
+    return false;
   }
 }
 
