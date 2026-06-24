@@ -132,6 +132,14 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Birim Aylık Terfi Döngüsü Planlayıcısı
+    try {
+      const { startMonthlyPromotionScheduler } = require("../services/unitMonthlyPromotionService");
+      startMonthlyPromotionScheduler(client);
+    } catch (err) {
+      console.error("[monthlyPromotion] Planlayıcı başlatma hatası:", err.message);
+    }
+
     // Telegram AI Chat dinleyicisini başlat
     try {
       const { startTelegramPolling } = require("../services/telegramService");

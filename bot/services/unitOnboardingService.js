@@ -58,6 +58,10 @@ async function onboardNewMember(client, userId, birimKey, score) {
  */
 async function sendIntroductionMessage(user, birimKey, birimLabel, birimEmoji, score) {
   try {
+    const { getCoachForUnit } = require('./unitMonthlyPromotionService');
+    const coach = await getCoachForUnit(birimKey);
+    const coachInfo = coach ? `👨‍🏫 **Birim Koçunuz:** ${coach.name}` : '👨‍🏫 **Birim Koçunuz:** Rehberiniz atanmıştır';
+
     const startingRank = score === 10 ? 3 : (score === 9 ? 2 : 1);
     const rankTitles = {
       1: '🟢 Birim Personeli',
@@ -78,7 +82,8 @@ async function sendIntroductionMessage(user, birimKey, birimLabel, birimEmoji, s
       )
       .addFields(
         { name: '📖 Birim Hakkında', value: getBirimInfo(birimKey), inline: false },
-        { name: '✅ Sizin Görevleriniz', value: 'Aşağıda günlük görevlerinizi bulabilirsiniz. ⬇️', inline: false }
+        { name: '✅ Sizin Görevleriniz', value: 'Aşağıda günlük görevlerinizi bulabilirsiniz. ⬇️', inline: false },
+        { name: coachInfo.split(':')[0], value: coachInfo.split(':')[1], inline: false }
       )
       .setThumbnail(user.displayAvatarURL({ dynamic: true }))
       .setFooter({ text: 'EkoYıldız Birim Sistemi • Hoş Geldin', iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' })
@@ -97,6 +102,10 @@ async function sendIntroductionMessage(user, birimKey, birimLabel, birimEmoji, s
  */
 async function sendAIDailyTasks(user, birimKey, birimLabel, birimEmoji, score) {
   try {
+    const { getCoachForUnit } = require('./unitMonthlyPromotionService');
+    const coach = await getCoachForUnit(birimKey);
+    const coachName = coach?.name || 'Birim Koçunuz';
+
     const startingRank = score === 10 ? 3 : (score === 9 ? 2 : 1);
     const rankNames = { 1: 'Personel', 2: 'Yardımcı', 3: 'Başkan' };
 
@@ -127,7 +136,8 @@ Format: Her görev başında ✅ koy ve numalandır.`;
       .setDescription(tasksResponse)
       .addFields(
         { name: '💡 İpucu', value: 'Bu görevleri tamamlamak seni birime daha yakınlaştıracak ve seni hızlı terfi ettirebilir! 🚀', inline: false },
-        { name: '⏰ Tamamlama Süresi', value: 'Bugün içinde tamamlamaya çalış. Görevleri yapıp bot tarafından takip edilecek.', inline: false }
+        { name: '⏰ Tamamlama Süresi', value: 'Bugün içinde tamamlamaya çalış. Görevleri yapıp bot tarafından takip edilecek.', inline: false },
+        { name: `👨‍🏫 BİRİM KOÇUNA DANIŞ: ${coachName}`, value: 'Sorularınız veya yardıma ihtiyacınız olursa koçunuza ulaşabilirsiniz.', inline: false }
       )
       .setFooter({ text: 'EkoYıldız Birim Sistemi • Günlük Görev Listesi' })
       .setTimestamp();
@@ -146,7 +156,8 @@ Format: Her görev başında ✅ koy ve numalandır.`;
         `2️⃣ **İşbirliği** - Ekip üyeleriyle çalış\n` +
         `3️⃣ **Gelişim** - Kendini geliştirmeye devam et\n` +
         `4️⃣ **Sorumluluk** - Verilen işleri ciddiye al\n\n` +
-        `Başarılı olursan hızlı bir şekilde rütbe atlayabilirsin! 🏆`
+        `Başarılı olursan hızlı bir şekilde rütbe atlayabilirsin! 🏆\n\n` +
+        `👨‍🏫 **BİRİM KOÇUNA DANIŞ:** ${coachName}`
       )
       .setFooter({ text: 'Bizimle başarılı bir yolculuğun olsun!' })
       .setTimestamp();

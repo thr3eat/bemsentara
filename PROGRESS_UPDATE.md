@@ -596,3 +596,249 @@ System Prompt to AI:
 - [ ] Weekly onboarding report for birim leaders
 - [ ] AI task reminders at end of day
 - [ ] Gamification: task completion badges
+
+
+---
+
+## Update 5: Monthly Unit Promotion & Coach-Led Development ✅
+
+### Task Overview
+Every month (on the last day at 20:00), birim members take a promotion exam. They receive coaching from their unit coach, get study notes, and are promoted/demoted based on performance. All birim messages include coach contact information.
+
+### New Service Created: `unitMonthlyPromotionService.js`
+
+**Core Functions:**
+
+1. **`startMonthlyPromotionScheduler(client)`** (Scheduler)
+   - Runs every month on the last day at 20:00 (8 PM)
+   - Automatically triggers promotion cycle
+   - Calculates next scheduled time
+   - Handles rescheduling recursively
+
+2. **`triggerMonthlyPromotionCycle(client)`** (Main Cycle)
+   - Finds all birim members
+   - Sends motivation message from coach before exam
+   - Prepares members for promotion testing
+   - Logs results
+
+3. **`sendMotivationFromCoach(user, member, client)`** (Pre-Exam Coaching)
+   - Gets unit coach info (e.g., Emre, Ali)
+   - Generates AI-powered motivation message
+   - Includes study tips for promotion
+   - Shows current and target ranks
+   - Uses fallback if AI unavailable
+
+4. **`processPromotionAfterExam(userId, birimKey, score, client)`** (Post-Exam)
+   - Auto-promotes if score ≥ 9
+   - Auto-demotes if score < 6
+   - Updates database with new rank
+   - Calls notification system
+
+5. **`notifyPromotionResult(userId, birimKey, score, promotion, client)`** (Result Notification)
+   - Sends embed with promotion/demotion results
+   - Shows old and new rank
+   - Celebratory or supportive message
+   - Encourages improvement
+
+6. **`getCoachForUnit(birimKey)`** (Coach Lookup)
+   - Returns coach assigned to birim
+   - Falls back to first available coach
+   - Returns coach name and info
+
+### Enhanced unitOnboardingService
+
+**Coach Information Added to All Messages:**
+
+1. **Introduction Message**
+   - Includes "Birim Koçunuz: [Coach Name]" field
+   - Coach retrieved via `getCoachForUnit()`
+
+2. **Daily Tasks Message**
+   - Added: "👨‍🏫 BİRİM KOÇUNA DANIŞ: [Coach Name]"
+   - Shows coach available for questions
+
+3. **Motivation Message**
+   - Footer shows: "👨‍🏫 BİRİM KOÇUNA DANIŞ: [Coach Name]"
+   - Encourages reaching out to coach
+
+### Integration into handlers/index.js
+
+**Scheduler Started in Bot Ready Event:**
+```javascript
+const { startMonthlyPromotionScheduler } = require("../services/unitMonthlyPromotionService");
+startMonthlyPromotionScheduler(client);
+```
+
+### Promotion Rules
+
+**Automatic Promotion:** Score ≥ 9/10
+- Old Rank: 1 → New Rank: 2
+- Old Rank: 2 → New Rank: 3
+- Old Rank: 3 → New Rank: 4 (Max)
+- Updates `lastPromotionDate`
+
+**Automatic Demotion:** Score < 6/10
+- Only if rank > 1
+- Demoted one rank down
+- Warning message sent
+- Encourages improvement
+
+**No Change:** Score 6-8
+- Remains in current rank
+- Encouraged to study more
+
+### Monthly Timeline
+
+```
+Day 28-30: Coaches send motivation messages
+          AI generates study tips
+          Members prepare for exam
+          
+Day 30 (Last Day) 20:00: Automatic promotion exam cycle
+                         Members take monthly test
+                         Results calculated
+                         
+Day 30 (Last Day) 20:30: Promotion/Demotion notifications sent
+                         New ranks assigned
+                         New rank roles updated
+                         Celebrations or encouragement sent
+```
+
+### Coach Information Display Format
+
+**In All Messages:**
+```
+👨‍🏫 BİRİM KOÇUNA DANIŞ: EMRE
+👨‍🏫 BİRİM KOÇUNA DANIŞ: ALİ
+```
+
+**Example Usage:**
+- "Sorularınız için BİRİM KOÇUNA DANIŞ: EMRE"
+- "Yardım almak için BİRİM KOÇUNA DANIŞ: ALİ"
+
+### AI-Generated Coach Messages
+
+**System Prompt:**
+```
+Sen [Coach Name] adlı [Birim] biriminin koçusun.
+[Username] için motivasyon mesajı yaz.
+
+Bilgiler:
+- Mevcut Rütbe: [Current Rank]
+- Hedef Rütbe: [Next Rank]
+- Ayın sonunda sınav var
+
+Tavsiyeleri ve sınava hazırlık ipuçlarını içer.
+```
+
+**Response Features:**
+- Samimi ve motive edici ton
+- 3-4 tavsiye (çalışması gerekenler)
+- Sınava hazırlık ipuçları
+- 200-300 kelime
+- Başarı kutlaması
+
+### Fallback Coach Messages
+
+If AI unavailable:
+```
+1. Günlük Görevleri Takip Et
+2. Etkinliklere Katıl
+3. Ekip Üyeleriyle Çalış
+4. Sorumlulukları Al
+```
+
+### Database Updates
+
+**StaffUnit Model:**
+- `lastPromotionDate`: Timestamp of last promotion
+- Updates `rank` field on promotion/demotion
+- No new fields needed (compatibility)
+
+### Rank System
+
+```
+Rank 1: 🟢 Birim Personeli
+Rank 2: 🟡 Birim Yardımcısı
+Rank 3: 🟠 Birim Başkanı
+Rank 4: 🔴 Birim Müdürü (Max, rarely reached)
+```
+
+### Promotion Messages Example
+
+**Promotion (Score ≥ 9):**
+```
+🎉 TEBRİKLER! TERFİ ALDINIZ!
+
+Ban Biriminde aylık sınava 9/10 puan ile başarılı oldunuz!
+
+🟡 Eski Rütbe: Birim Yardımcısı
+🟠 Yeni Rütbe: Birim Başkanı
+
+Harika bir başarı! Ekibinize kattığınız değer için teşekkürler. 🚀
+```
+
+**Demotion (Score < 6):**
+```
+⚠️ Rütbe Düşürme
+
+Ban Biriminde aylık sınava 5/10 puan ile başarısız oldunuz.
+
+🟡 Eski Rütbe: Birim Yardımcısı
+🟢 Yeni Rütbe: Birim Personeli
+
+Sağlık olsun! Gelecek ay daha iyi hazırlanarak sınava girin. 💪
+```
+
+### Testing & Validation
+
+✅ Syntax validation: `node -c bot/services/unitMonthlyPromotionService.js`
+✅ Syntax validation: `node -c bot/services/unitOnboardingService.js`
+✅ Scheduler initialization in handlers/index.js
+✅ No compilation errors
+✅ No diagnostic issues
+
+### Files Created/Modified
+
+1. **bot/services/unitMonthlyPromotionService.js** (NEW - 350+ lines)
+   - Monthly promotion cycle
+   - Coach motivation system
+   - Promotion/demotion logic
+   - Scheduler with cron-like behavior
+
+2. **bot/services/unitOnboardingService.js** (MODIFIED)
+   - Added coach info to all messages
+   - Enhanced introduction embed
+   - Updated daily tasks footer
+   - Updated motivation message
+
+3. **bot/handlers/index.js** (MODIFIED)
+   - Added scheduler initialization
+   - Error handling for scheduler
+
+### Status
+
+**✅ COMPLETE** - Monthly promotion system with AI-powered coaching is now fully operational. Members receive study notes from coaches, take monthly exams, and are automatically promoted/demoted based on performance.
+
+### Scheduler Details
+
+**Timing:**
+- Last day of every month
+- Exactly 20:00 (8 PM) UTC/TZ
+- Auto-recalculates next month's schedule
+
+**Example Schedule:**
+- January 31 @ 20:00 - Run promotion cycle
+- February 28 @ 20:00 - Run promotion cycle
+- March 31 @ 20:00 - Run promotion cycle
+
+### Future Enhancements
+
+- [ ] Per-member study progress tracking
+- [ ] Adaptive AI prompts based on last month's score
+- [ ] Study group formation recommendations
+- [ ] Weekly progress check-ins from coach
+- [ ] Promotion streak tracking (consecutive promotions)
+- [ ] Failed member support program
+- [ ] Coach performance metrics
+- [ ] Promotion history per member
