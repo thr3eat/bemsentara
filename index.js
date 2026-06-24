@@ -43,9 +43,14 @@ async function start() {
       process.exit(0);
     });
 
+    // Login and wait for ready
     await discordBot.login(TOKEN);
     logger.success("Discord bot başlatıldı");
 
+    // Small delay to ensure bot is fully initialized
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Then register commands
     await registerAllCommands();
 
     app.listen(PORT, () => {

@@ -515,6 +515,45 @@ async function handleSlashCommand(interaction) {
       });
     }
 
+    if (commandName === "mod-alim") {
+      // Admin/Manager yetki kontrolü
+      const isModerator = interaction.member?.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                          interaction.member?.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+                          interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+      
+      if (!isModerator) {
+        return interaction.editReply({
+          content: "❌ Bu komutu kullanmaya yetkiniz bulunmamaktadır. Sadece yöneticiler ve moderatörler kullanabilir!"
+        });
+      }
+
+      const targetUser = interaction.options.getUser("kullanici");
+      if (!targetUser) {
+        return interaction.editReply({ content: "❌ Lütfen geçerli bir kullanıcı belirtin." });
+      }
+
+      try {
+        const { startModInterview } = require("../services/modInterview");
+        const adminId = interaction.user.id;
+        const success = await startModInterview(targetUser, adminId, interaction.guildId, interaction.client);
+        
+        if (success) {
+          return interaction.editReply({
+            content: `✅ **${targetUser.username}** kullanıcısına MOD-ALIM mülakat daveti başarıyla gönderildi!`
+          });
+        } else {
+          return interaction.editReply({
+            content: `❌ **${targetUser.username}** kullanıcısına DM gönderilemedi. DM'ler kapalı olabilir.`
+          });
+        }
+      } catch (err) {
+        console.error('[mod-alim command] Hata:', err.message);
+        return interaction.editReply({
+          content: `❌ Mülakat daveti gönderilemedi: ${err.message}`
+        });
+      }
+    }
+
     if (commandName === "ekobangerial") {
       if (interaction.user.id !== "1031620522406072350") {
         return interaction.editReply({ content: "❌ Bu komutu kullanmaya yetkiniz yok!" });

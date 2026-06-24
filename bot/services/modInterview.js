@@ -259,6 +259,43 @@ async function askNextQuestion(userId, previousAnswer, client) {
     info.answeredCount++;
   }
 
+  // 7 cevap alındı mı? Kontrol et
+  if (info.answeredCount >= 7) {
+    // Typing göstergesi
+    const dmCh = await user.createDM().catch(() => null);
+    if (dmCh) await dmCh.sendTyping().catch(() => { });
+
+    // Sonuçlandırma AI'ına gönder
+    const finalPrompt = `${info.answeredCount}. cevabı değerlendir ve [SONUÇ: KABUL] veya [SONUÇ: RET] ver. Genel özet yaz.`;
+    const historyWithPrompt = [...info.history, { role: 'user', content: finalPrompt }];
+    const reply = await chatWithAI(historyWithPrompt, INTERVIEW_SYSTEM);
+
+    // AI yanıtını history'ye ekle (kalıcı)
+    info.history.push({ role: 'user', content: finalPrompt });
+    info.history.push({ role: 'assistant', content: reply });
+
+    // Puan parse et
+    const scoreMatch = reply.match(/\[PUAN:\s*(\d+(?:\.\d+)?)\/10\]/i);
+    if (scoreMatch) {
+      info.totalScore += parseFloat(scoreMatch[1]);
+    }
+
+    // Sonucu kontrol et
+    if (/\[SONUÇ:\s*KABUL\]/i.test(reply)) {
+      await finalizeInterview(userId, true, reply, client);
+      return;
+    }
+    if (/\[SONUÇ:\s*RET\]/i.test(reply)) {
+      await finalizeInterview(userId, false, reply, client);
+      return;
+    }
+
+    // Eğer sonuç parçası yoksa hata
+    console.error(`[modInterview] ${userId} için sonuç parçası bulunamadı. Reply:`, reply.slice(0, 200));
+    await finalizeInterview(userId, false, reply, client);
+    return;
+  }
+
   // Typing göstergesi
   const dmCh = await user.createDM().catch(() => null);
   if (dmCh) await dmCh.sendTyping().catch(() => { });
@@ -268,20 +305,16 @@ async function askNextQuestion(userId, previousAnswer, client) {
   if (info.answeredCount === 0) {
     // Henüz cevap yok — ilk soruyu sor
     userPrompt = 'Mülakatı başlat ve 1. soruyu sor. Değerlendirme yapma.';
-  } else if (info.answeredCount >= 7) {
-    // 7 cevap alındı — sonucu değerlendir
-    userPrompt = `${info.answeredCount}. cevabı değerlendir ve [SONUÇ: KABUL] veya [SONUÇ: RET] ver. Genel özet yaz.`;
   } else {
     // Ara soru
     userPrompt = `${info.answeredCount}. cevabı değerlendir, ardından ${info.answeredCount + 1}. soruyu sor.`;
   }
 
-  // Geçici prompt mesajını history'ye ekle, AI yanıtladıktan sonra temizle
+  // Geçici prompt mesajını history'ye ekle, AI yanıtladıktan sonra tutut kalıcı
   const historyWithPrompt = [...info.history, { role: 'user', content: userPrompt }];
   const reply = await chatWithAI(historyWithPrompt, INTERVIEW_SYSTEM);
 
   // AI yanıtını kalıcı history'ye ekle
-  // (userPrompt geçici olduğu için history'ye eklemiyoruz — sadece assistant yanıtı)
   info.history.push({ role: 'user', content: userPrompt });
   info.history.push({ role: 'assistant', content: reply });
 
@@ -289,16 +322,6 @@ async function askNextQuestion(userId, previousAnswer, client) {
   const scoreMatch = reply.match(/\[PUAN:\s*(\d+(?:\.\d+)?)\/10\]/i);
   if (scoreMatch) {
     info.totalScore += parseFloat(scoreMatch[1]);
-  }
-
-  // Sonuç kontrolü
-  if (/\[SONUÇ:\s*KABUL\]/i.test(reply)) {
-    await finalizeInterview(userId, true, reply, client);
-    return;
-  }
-  if (/\[SONUÇ:\s*RET\]/i.test(reply)) {
-    await finalizeInterview(userId, false, reply, client);
-    return;
   }
 
   // Soru numarası: answeredCount + 1 = gösterilen soru no

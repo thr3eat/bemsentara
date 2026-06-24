@@ -663,29 +663,36 @@ async function handlePanelButton(interaction) {
   // Direkt Mod Alım - Grup Doğrulama Modalı Göster
   if (customId.startsWith("panel_direct_mod_show_verify_")) {
     const targetUserId = customId.replace("panel_direct_mod_show_verify_", "");
-    const verifyModal = new ModalBuilder()
-      .setCustomId(`panel_modal_mod_verify_groups_${targetUserId}`)
-      .setTitle("🔗 Roblox Grup Doğrulama");
-    
-    verifyModal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("roblox_username")
-          .setLabel("Roblox Kullanıcı Adı")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setPlaceholder("Örn: ahmetUser123")
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("group_ids")
-          .setLabel("Grup ID'leri (virgülle ayrılmış, opsiyonel)")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(false)
-          .setPlaceholder("Örn: 12345,67890,11111")
-      )
-    );
-    return interaction.showModal(verifyModal);
+    try {
+      const verifyModal = new ModalBuilder()
+        .setCustomId(`panel_modal_mod_verify_groups_${targetUserId}`)
+        .setTitle("🔗 Roblox Grup Doğrulama");
+      
+      verifyModal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("roblox_username")
+            .setLabel("Roblox Kullanıcı Adı")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder("Örn: ahmetUser123")
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("group_ids")
+            .setLabel("Grup ID'leri (virgülle ayrılmış, opsiyonel)")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+            .setPlaceholder("Örn: 12345,67890,11111")
+        )
+      );
+      return interaction.showModal(verifyModal);
+    } catch (err) {
+      console.error('[panel_direct_mod_show_verify] Modal hatası:', err.message);
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Modal gösterilirken hata: ${err.message}`, ephemeral: true });
+      }
+    }
   }
 
   // Tab navigation
@@ -714,19 +721,26 @@ async function handlePanelButton(interaction) {
   // ── MODERATION MODALS ──────────────────────────────────────────────────────
 
   if (customId === "panel_mod_bulk_delete") {
-    const modal = new ModalBuilder()
-      .setCustomId("panel_modal_bulk_delete")
-      .setTitle("🗑️ Toplu Mesaj Sil");
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("miktar")
-          .setLabel("Silinecek Mesaj Sayısı (1-100)")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      )
-    );
-    return interaction.showModal(modal);
+    try {
+      const modal = new ModalBuilder()
+        .setCustomId("panel_modal_bulk_delete")
+        .setTitle("🗑️ Toplu Mesaj Sil");
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("miktar")
+            .setLabel("Silinecek Mesaj Sayısı (1-100)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
+      );
+      return interaction.showModal(modal);
+    } catch (err) {
+      console.error('[panel_mod_bulk_delete] Modal hatası:', err.message);
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Modal: ${err.message}`, ephemeral: true });
+      }
+    }
   }
 
   if (customId === "panel_mod_mute") {
