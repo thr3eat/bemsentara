@@ -307,27 +307,51 @@ async function startBirimAlimi(interaction, client, birimKey) {
       }
     }
 
-    // Varsayılan sınav sorularını kullan (AI gecikmesini önlemek için)
-    const parsedData = DEFAULT_EXAM_DATA[birimKey] || {
-      tips: "Sınavda sakin kalın, soruları dikkatli okuyun ve birimin sorumluluk alanlarına odaklanın.",
-      questions: Array.from({ length: 10 }, (_, i) => ({
-        question: `${config.label} bünyesinde ${i + 1}. sorumluluk kuralı nedir?`,
-        options: ["Doğru Seçenek A", "Yanlış Seçenek B", "Yanlış Seçenek C", "Yanlış Seçenek D"],
-        correct: 0
-      }))
-    };
+    // Show immediate response that exam is starting
+    if (interaction.editReply) {
+      await interaction.editReply({ content: `⏳ **Sınav hazırlanıyor...** Lütfen DM kutunuzu açın.` });
+    } else {
+      await interaction.reply(`⏳ **Sınav hazırlanıyor...** Lütfen DM kutunuzu açın.`);
+    }
+
+    // AI kontrol: Sınav hazır mı?
+    const { chatWithAI } = require('./aiService');
+    const systemPrompt = `Sen bir sınav yöneticisisin. Aşağıda ${config.label} için sınav sorularını ve cevaplarını hazırla. 
+Kesinlikle 10 tane zorluk seviyesi orta olan, gerçekçi sorular ver.
+JSON formatında cevap ver: {"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct": 0}]}`;
+
+    let parsedData = null;
+    try {
+      const aiResponse = await chatWithAI(systemPrompt, { timeout: 10000 });
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedData = JSON.parse(jsonMatch[0]);
+      }
+    } catch (aiErr) {
+      console.warn('[unitService] AI sınav hazırlama başarısız, varsayılan veri kullanılıyor:', aiErr.message);
+    }
+
+    // Fallback to default if AI fails
+    if (!parsedData || !parsedData.questions || parsedData.questions.length === 0) {
+      parsedData = DEFAULT_EXAM_DATA[birimKey] || {
+        tips: "Sınavda sakin kalın, soruları dikkatli okuyun ve birimin sorumluluk alanlarına odaklanın.",
+        questions: Array.from({ length: 10 }, (_, i) => ({
+          question: `${config.label} bünyesinde ${i + 1}. sorumluluk kuralı nedir?`,
+          options: ["Doğru Seçenek A", "Yanlış Seçenek B", "Yanlış Seçenek C", "Yanlış Seçenek D"],
+          correct: 0
+        }))
+      };
+    }
 
     const today = new Date();
     const announcementDate = new Date(today);
     
-    // Alım yarın sabah 09:00'da başlayıp, akşam 21:00'da sonlanacak.
+    // HEMEN BAŞLA (sabah 9:00 yerine direkt)
     const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() + 1);
-    startDate.setHours(9, 0, 0, 0);
+    startDate.setMinutes(today.getMinutes() + 1); // 1 dakika sonra başla (yeterli zaman)
 
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 1);
-    endDate.setHours(21, 0, 0, 0);
+    endDate.setHours(today.getHours() + 6); // 6 saat sonra bitir
 
     // Veritabanına kaydet
     const recruitment = new UnitRecruitment({
@@ -353,21 +377,24 @@ async function startBirimAlimi(interaction, client, birimKey) {
     const channel = await client.channels.fetch('1466939999571279994').catch(() => null);
     if (channel && channel.isTextBased()) {
       const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-      const dateStr = `${startDate.getDate()} ${months[startDate.getMonth()]}`;
-
+      
       const embed = new EmbedBuilder()
         .setColor(config.color)
-        .setTitle(`📢 ÖNEMLİ DUYURU: ${config.label} Alımları Başlıyor!`)
+        .setTitle(`📢 HEMEN BAŞLIYORUZ: ${config.label} Alımları!`)
         .setDescription(
           `Değerli EkoYıldız Üyeleri,\n\n` +
-          `**${config.label}** kadrolarımızı güçlendirmek amacıyla alım süreci başlatılmıştır! Sınavı başarıyla geçenler birime katılabilecektir.\n\n` +
-          `📅 **Alım Takvimi:**\n` +
-          `- **Başlangıç:** ${dateStr} Sabahı 09:00\n` +
-          `- **Son Katılım:** ${dateStr} Akşamı 21:00\n` +
-          `- **Sonuçların Açıklanması:** ${dateStr} Akşamı (Değerlendirme bitiminde)\n\n` +
-          `🎯 **Yapay Zeka Sınav İpuçları (Tavsiye):**\n` +
-          `*"${parsedData.tips}"*\n\n` +
-          `Aşağıdaki **Başvur** butonuna tıklayarak sınavınızı DM kutunuz üzerinden hemen başlatabilirsiniz. Sınavdan en az **8 doğru** yapmanız gerekmektedir. Başarılar dileriz! 🚀`
+          `**${config.label}** kadrolarımızı güçlendirmek amacıyla alım süreci **HEMEN** başlatılmıştır!\n\n` +
+          `🎯 **Sınav Detayları:**\n` +
+          `- **Başlangıç:** Şu anda (Hemen)\n` +
+          `- **Sınavı Başlat:** Aşağıdaki butonuna tıkla\n` +
+          `- **Geçiş Notu:** Minimum 8/10 doğru\n` +
+          `- **Toplam Soru:** 10 adet\n\n` +
+          `🎓 **Başvuru Süreci:**\n` +
+          `1. "📥 Başvur" butonuna tıkla\n` +
+          `2. AI sınav gözetmeni yanına gelecek\n` +
+          `3. DM'de soruları cevapla\n` +
+          `4. Sonuçları öğren\n\n` +
+          `⏰ **Zamanı Boşa Harcama!** Alım süreleri sınırlıdır. Başarılar dileriz! 🚀`
         )
         .setFooter({ text: 'EkoYıldız Yapay Zeka Sınav ve Birim Alım Sistemi' })
         .setTimestamp();
@@ -375,7 +402,7 @@ async function startBirimAlimi(interaction, client, birimKey) {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`apply_unit_${recruitment._id}`)
-          .setLabel('📥 Başvur')
+          .setLabel('📥 Şimdi Başla')
           .setStyle(ButtonStyle.Success)
       );
 
@@ -383,9 +410,9 @@ async function startBirimAlimi(interaction, client, birimKey) {
       
       // Handle both Message and Interaction
       if (interaction.editReply) {
-        await interaction.editReply({ content: `✅ **Birim alım duyurusu başarıyla oluşturuldu!** Duyuru kanalına gönderildi.` });
+        await interaction.editReply({ content: `✅ **Birim alım süreci HEMEN başladı!** Duyuru kanalına gönderildi.` });
       } else {
-        await interaction.reply(`✅ **Birim alım duyurusu başarıyla oluşturuldu!** Duyuru kanalına gönderildi.`);
+        await interaction.reply(`✅ **Birim alım süreci HEMEN başladı!** Duyuru kanalına gönderildi.`);
       }
     } else {
       // Handle both Message and Interaction
@@ -512,11 +539,71 @@ async function sendExamQuestion(client, userId, userUnit) {
 
     if (!question) return;
 
+    // İlk sorunun başında gerçekçi ortam oluştur
+    if (qIndex === 0) {
+      // Sınav başlamadan sistem mesajları gönder
+      await user.send("📝 **Sınav sistemi yükleniyor...**").catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+      
+      await user.send("🔐 **Kimlik doğrulama yapılıyor...**").catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+      
+      await user.send("⚙️ **Sınav ortamı hazırlanıyor...**").catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 saniye bekle
+      
+      // Realistic environment message
+      await user.send({
+        content: "🎯 **SINAV BAŞLIYOR...**",
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xFF6B6B)
+            .setTitle("⚠️ Sınav Gözetmeni Yanına Geldi")
+            .setDescription(
+              `Merhaba ${user.username}!\n\n` +
+              `Sınav gözetmeni olarak yanınızda bulunacağım. ` +
+              `Aşağıdaki kuralları lütfen dikkate alınız:\n\n` +
+              `✅ **Yapabilecekleriniz:**\n` +
+              `• Soruları dikkatlice okumak\n` +
+              `• Şıklardan birini seçmek\n` +
+              `• Uygun zaman içerisinde cevaplamak\n\n` +
+              `❌ **Yasak İşlemler:**\n` +
+              `• Dış kaynaktan yardım almak\n` +
+              `• Sorulardan screenshot almak\n` +
+              `• Başka kişilerle görüşmek\n\n` +
+              `⏱️ **Süre:** Sınırısız (Ancak yakında sorular göreceğiniz)\n` +
+              `📊 **Başarı Notu:** 8/10 ve üzeri\n\n` +
+              `Hazır mısınız? Başlayalım! 🚀`
+            )
+            .setFooter({ text: "Sınav Yönetim Sistemi v2.0 - AI Powered" })
+            .setTimestamp()
+        ]
+      }).catch(() => {});
+
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
+
+      // Exam starts message
+      await user.send({
+        content: "🎓 **SINAV BAŞLADI!**\n\nİlk soru aşağıda. Başarılar! 💪",
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x2ECC71)
+            .setTitle("✅ Sınav Başlandı")
+            .setDescription(`Toplamda **10 soru** sorulacaktır.\nHer soru için aşağıdaki butonlardan birini tıklayın.`)
+        ]
+      }).catch(() => {});
+
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+    }
+
     const embed = new EmbedBuilder()
       .setColor(UNIT_CONFIG[exam.unit]?.color || '#f39c12')
-      .setTitle(`🎓 ${UNIT_CONFIG[exam.unit]?.label} Giriş Sınavı (Soru: ${qIndex + 1}/10)`)
-      .setDescription(`**Soru:**\n${question.question}`)
-      .setFooter({ text: 'Şıklardan birini seçmek için aşağıdaki butonları kullanın.' })
+      .setTitle(`🎓 ${UNIT_CONFIG[exam.unit]?.label} Giriş Sınavı`)
+      .setDescription(
+        `**[Soru ${qIndex + 1}/10]**\n\n` +
+        `${question.question}\n\n` +
+        `_Aşağıdaki seçeneklerden doğru olanı seçin._`
+      )
+      .setFooter({ text: 'Sınav Gözetmeni - Lütfen dikkatlice okuyun ve cevaplandırın.' })
       .setTimestamp();
 
     const row = new ActionRowBuilder();
