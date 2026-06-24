@@ -71,7 +71,9 @@ const GENERAL_COMMANDS = new Set([
   "system-ekobang",
   "system-ekobangerial",
   "system-grupcekeko",
-  "system-grupcekekogerial"
+  "system-grupcekekogerial",
+  // Coach management
+  "coach-welcome-reset"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -2815,6 +2817,33 @@ async function handlePanelCommand(interaction) {
       });
     } catch (err) {
       console.error('[system-grupcekekogerial]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // Coach welcome reset command
+  if (commandName === "coach-welcome-reset") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const { resetCoachWelcomeFlag } = require("../services/coachWelcomeService");
+      const result = resetCoachWelcomeFlag();
+
+      if (result.success) {
+        return interaction.editReply({
+          content: `✅ **Koç Hoşgeldin Mesajı Sıfırlandı!**\n\nSonraki bot başlatılmasında tüm aktif koçlara hoşgeldin mesajı gönderilecektir.`
+        });
+      } else {
+        return interaction.editReply({
+          content: `⚠️ ${result.message || result.error}`
+        });
+      }
+    } catch (err) {
+      console.error('[coach-welcome-reset]', err);
       return interaction.editReply({
         content: `❌ Hata: ${err.message}`
       });

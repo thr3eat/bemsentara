@@ -460,6 +460,11 @@ const generalCommands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   new SlashCommandBuilder()
+    .setName("coach-welcome-reset")
+    .setDescription("🔄 Koç Hoşgeldin Mesajı Sıfırla (Admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("ekobang")
     .setDescription("🔒 EkoBang Uygula (Rütbeleri Düşür)")
     .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))

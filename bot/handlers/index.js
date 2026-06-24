@@ -156,6 +156,20 @@ function initializeDiscordHandlers(client) {
       console.error("[banBirimRanks] Başlatma hatası:", err.message);
     }
 
+    // Koçlara Hoşgeldin Mesajı (Bot Başlatıldığında)
+    try {
+      const { sendCoachWelcomeOnStartup } = require("../services/coachWelcomeService");
+      sendCoachWelcomeOnStartup(client).then(result => {
+        if (result.success) {
+          console.log(`[coachWelcome] ✅ ${result.sentCount} koça hoşgeldin mesajı gönderildi`);
+        }
+      }).catch(err => {
+        console.error("[coachWelcome] Hata:", err.message);
+      });
+    } catch (err) {
+      console.error("[coachWelcome] Başlatma hatası:", err.message);
+    }
+
     // Telegram AI Chat dinleyicisini başlat
     try {
       const { startTelegramPolling } = require("../services/telegramService");

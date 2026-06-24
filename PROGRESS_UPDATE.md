@@ -1142,3 +1142,234 @@ permissions: [
 - [ ] Seasonal achievements and badges
 - [ ] Rank-specific Discord channels
 - [ ] Custom rank abilities and perks
+
+
+---
+
+## Update 7: Coach Welcome on Bot Startup ✅
+
+### Task Overview
+When the bot restarts, it sends a one-time welcome message to all active unit coaches (Emre, Ali, etc.) informing them that the system is up and running. This message only sends once per startup sequence using a flag file.
+
+### New Service Created: `coachWelcomeService.js`
+
+**Core Functions:**
+
+1. **`sendCoachWelcomeOnStartup(client)`** (Main Function)
+   - Called when bot starts up in client.ready event
+   - Finds all active coaches from Coach model
+   - Sends personalized welcome embed to each coach via DM
+   - Creates a flag file to prevent duplicate sends
+   - Returns: { success, sentCount, totalCoaches }
+
+2. **`createStartupFlag()`** (Flag Management)
+   - Creates `.coach_welcome_sent` flag file in `/data` directory
+   - Stores timestamp of when message was sent
+   - Prevents message from being sent multiple times in same session
+
+3. **`resetCoachWelcomeFlag()`** (Admin Reset)
+   - Deletes the flag file
+   - Allows coaches to receive welcome message again on next restart
+   - Used via slash command: `/coach-welcome-reset`
+
+### Welcome Message Content
+
+**Title:** 👋 BİRİM SİSTEMİ - HOŞ GELDİN!
+
+**Message Includes:**
+- Personalized greeting with coach name
+- System status confirmation
+- List of coach responsibilities
+- Instructions for panel access
+- Assigned birim(s)
+- System information (start time, status, version)
+- Timestamp footer
+
+**Example Embed:**
+```
+👋 BİRİM SİSTEMİ - HOŞ GELDİN!
+
+Merhaba Emre! 🎯
+
+Bot başarıyla başlatıldı ve birim sistemi aktif hale geldi...
+
+✅ Birim üyelerinize rehberlik sağlamak
+✅ Aylık sınav dönemlerinde motivasyon vermek
+✅ Performans değerlendirmelerini yapmak
+✅ Terfi/tenzilat kararlarında destek olmak
+
+🔗 Kontrol paneli: /panel komutu
+📊 Liderbordu: Paneldeki "🏆 Birim Sistemi" sekmesi
+👥 Ekip Yönetimi: Birim üyelerinizi takip edin
+
+🎖️ Atanmış Birimler: BAN_BIRIMI, SES_BIRIMI
+⏰ Sistem Bilgileri:
+  Bot Başlatılması: 25.06.2026 14:30
+  Durum: 🟢 Aktif
+  Sürüm: Sezon 1/2
+```
+
+### Integration into Bot Startup
+
+**Location:** `bot/handlers/index.js` (client.once("ready", ...))
+
+**Code:**
+```javascript
+// Koçlara Hoşgeldin Mesajı (Bot Başlatıldığında)
+const { sendCoachWelcomeOnStartup } = require("../services/coachWelcomeService");
+sendCoachWelcomeOnStartup(client).then(result => {
+  if (result.success) {
+    console.log(`[coachWelcome] ✅ ${result.sentCount} koça hoşgeldin mesajı gönderildi`);
+  }
+}).catch(err => {
+  console.error("[coachWelcome] Hata:", err.message);
+});
+```
+
+### Flag File Management
+
+**Flag File:** `data/.coach_welcome_sent`
+
+**Structure:**
+```
+Bot started at: 2026-06-25T14:30:00.000Z
+```
+
+**Location:** Automatically created in project's `/data` directory
+- Directory is created if it doesn't exist
+- File persists between bot sessions
+- Prevents duplicate sends
+
+### New Slash Command: `/coach-welcome-reset`
+
+**Command Details:**
+- **Name:** `/coach-welcome-reset`
+- **Description:** "🔄 Koç Hoşgeldin Mesajı Sıfırla (Admin)"
+- **Permissions:** Administrator only
+- **Response:** Confirmation that flag was reset
+- **Effect:** Next bot restart will send welcome messages again
+
+**Usage Example:**
+```
+/coach-welcome-reset
+→ ✅ Koç Hoşgeldin Mesajı Sıfırlandı!
+  Sonraki bot başlatılmasında tüm aktif koçlara hoşgeldin mesajı gönderilecektir.
+```
+
+### Behavior Flow
+
+**First Bot Start:**
+```
+Bot.ready() triggered
+  ↓
+sendCoachWelcomeOnStartup(client) called
+  ↓
+Coach.find({ isActive: true }) executed
+  ↓
+For each coach:
+  - Fetch Discord user
+  - Create welcome embed
+  - Send DM
+  - Wait 500ms (rate limit)
+  ↓
+createStartupFlag() called
+  ↓
+.coach_welcome_sent file created
+  ↓
+Console: "✅ X koça hoşgeldin mesajı gönderildi"
+```
+
+**Second Bot Start (Same Session):**
+```
+Bot.ready() triggered
+  ↓
+sendCoachWelcomeOnStartup(client) called
+  ↓
+fs.existsSync(STARTUP_FLAG_FILE) → true
+  ↓
+Return early - no messages sent
+  ↓
+Console: "ℹ️ Koç hoşgeldin mesajı bu sefer zaten gönderilmiş"
+```
+
+**After Admin Runs `/coach-welcome-reset`:**
+```
+/coach-welcome-reset executed
+  ↓
+resetCoachWelcomeFlag() called
+  ↓
+.coach_welcome_sent file deleted
+  ↓
+Next bot restart will send welcome messages again
+```
+
+### Error Handling
+
+- **No coaches found:** Flag still created, no DMs sent
+- **User not found:** Coach skipped with warning
+- **DM failed:** Silent failure (user might have DMs disabled)
+- **Rate limiting:** 500ms delay between each coach DM
+- **Directory doesn't exist:** Auto-created
+
+### Rate Limiting
+
+- **Delay:** 500ms between each coach message
+- **Reason:** Prevent Discord API rate limits
+- **For 3 coaches:** ~1.5 seconds total
+
+### Files Created/Modified
+
+1. **bot/services/coachWelcomeService.js** (NEW - 150+ lines)
+   - One-time welcome system
+   - Flag file management
+   - Rate limiting
+
+2. **bot/handlers/index.js** (MODIFIED)
+   - Added coachWelcomeService call in client.ready
+   - Error handling for startup
+
+3. **bot/allCommands.js** (MODIFIED)
+   - Added `/coach-welcome-reset` command definition
+
+4. **bot/handlers/generalCommandHandler.js** (MODIFIED)
+   - Added handler for `/coach-welcome-reset`
+   - Added command to GENERAL_COMMANDS set
+
+### Testing & Validation
+
+✅ Syntax validation: `node -c bot/services/coachWelcomeService.js`
+✅ Syntax validation: `node -c bot/handlers/index.js`
+✅ Syntax validation: `node -c bot/allCommands.js`
+✅ Syntax validation: `node -c bot/handlers/generalCommandHandler.js`
+✅ No compilation errors
+✅ No diagnostic issues
+
+### Data Persistence
+
+**Flag File Location:** `project_root/data/.coach_welcome_sent`
+
+**Lifecycle:**
+- Created: After coaches receive welcome message on first startup
+- Persists: Until `/coach-welcome-reset` is called
+- Deleted: When admin runs reset command
+- Prevents: Duplicate messages during same server uptime
+
+### Status
+
+**✅ COMPLETE** - Coaches now receive a personalized welcome message when the bot starts, with one-time delivery ensured by a flag file system. Admins can reset this with a slash command to send messages again.
+
+### Use Cases
+
+1. **System Restart:** Coaches know bot is back online and system is ready
+2. **New Coach Assignment:** Admin resets flag before assigning new coach
+3. **System Update:** Message confirms version and status
+4. **Status Check:** Coaches see assignment info and instructions
+
+### Future Enhancements
+
+- [ ] Different messages for new vs returning coaches
+- [ ] Personalized achievement summary in message
+- [ ] Weekly status updates (not just startup)
+- [ ] Coach-specific statistics in welcome
+- [ ] Motivational quotes in message
+- [ ] System maintenance alerts
