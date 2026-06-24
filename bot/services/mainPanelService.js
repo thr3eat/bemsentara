@@ -101,7 +101,8 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         "**📁 Mevcut Kategoriler:**\n" +
         "🛡️ **Moderasyon:** Ban, susturma, ceza işlemleri ve karaliste.\n" +
         "👥 **Personel Yönetimi:** Terfi, izin, sayım, bakiye ve ilerleme.\n" +
-        "⚙️ **Sistem & Otomasyon:** Otomod, Roblox, alımlar ve sistem modülleri."
+        "⚙️ **Sistem & Otomasyon:** Otomod, Roblox, alımlar ve sistem modülleri.\n" +
+        "🏆 **Birim Sistemi:** Birim liderbordu, koç bilgisi ve birim yönetimi."
       )
       .addFields(
         { name: "Yetkili", value: `${interaction.user.tag}`, inline: true },
@@ -117,6 +118,15 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
           inline: true
         }
       );
+
+    // Add coach info
+    const { getCoachDisplayInfo } = require("./coachManagementService");
+    const coachInfo = await getCoachDisplayInfo();
+    embed.addFields({
+      name: "👨‍🏫 Birim Koçu",
+      value: `**${coachInfo.name}** ${coachInfo.isActive ? "🟢" : "🔴"}`,
+      inline: true
+    });
 
     const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
     if (allowedSpecial.includes(interaction.user.id)) {
@@ -140,7 +150,11 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_tab_system")
         .setLabel("⚙️ Sistem & Otomasyon")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("panel_tab_units")
+        .setLabel("🏆 Birim Sistemi")
+        .setStyle(ButtonStyle.Blurple)
     );
 
     if (allowedSpecial.includes(interaction.user.id)) {
@@ -592,11 +606,80 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
 }
 
 /**
+ * Add units tab content to render panel
+ * This is called within renderPanel when tabName === "units"
+ */
+function addUnitsTabContent(embed, components, auth) {
+  if (!embed) return;
+
+  embed
+    .setTitle("🏆 Birim Sistemi & Liderbordu")
+    .setColor(0x9B59B6)
+    .setDescription(
+      "Birimlerin istatistiklerini görüntüleyin, birim rolleri yönetin ve liderbordu takip edin.\n\n" +
+      "**Kategoriler:**\n" +
+      "📊 **Liderbordu** — Birimleri XP'ye göre sıralı görüntüle\n" +
+      "👨‍🏫 **Birim Koçu** — Koç bilgisi ve ataması\n" +
+      "🎖️ **Birim Rolleri** — Sunucuya birim rollerini ekle"
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("panel_units_leaderboard")
+      .setLabel("📊 Liderbordu Görüntüle")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId("panel_units_coach")
+      .setLabel("👨‍🏫 Birim Koçu")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(!auth.isManager),
+    new ButtonBuilder()
+      .setCustomId("panel_units_roles")
+      .setLabel("🎖️ Rol Yönetimi")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!auth.isAdmin),
+    new ButtonBuilder()
+      .setCustomId("panel_tab_home")
+      .setLabel("⬅️ Ana Menü")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  components.push(row);
+}
+
+/**
  * Catches button interactions prefixed with panel_
  */
 async function handlePanelButton(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
+
+  // Tab navigation
+  if (customId === "panel_tab_moderation") {
+    return renderPanel(interaction, "moderation");
+  }
+  if (customId === "panel_tab_staff") {
+    return renderPanel(interaction, "staff");
+  }
+  if (customId === "panel_tab_system") {
+    return renderPanel(interaction, "system");
+  }
+  if (customId === "panel_tab_units") {
+    return renderPanel(interaction, "units");
+  }
+  if (customId === "panel_tab_home") {
+    return renderPanel(interaction, "home");
+  }
+
+  if (customId === "panel_close") {
+    return interaction.update({ embeds: [], components: [], content: "❌ Panel kapatıldı." });
+  }
+
+  await interaction.editReply({
+    embeds: [embed],
+    components
+  });
+}
 
   // Modal güvenliği: eğer deferReply veya reply yapıldıysa, direkt modal gösterme
   // Bu durumda editReply kullan
