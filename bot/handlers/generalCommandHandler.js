@@ -1266,7 +1266,8 @@ async function handleGeneralCommand(interaction) {
       }
 
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const nextReq = PROMOTION_REQUIREMENTS[p.level];
+      const nextLevel = p.level + 1;
+      const nextReq = PROMOTION_REQUIREMENTS[nextLevel];
       const today = new Date().toISOString().split('T')[0];
       const isToday = p.daily?.date === today;
       const greetDone = isToday && p.daily?.greeted;
@@ -1288,12 +1289,13 @@ async function handleGeneralCommand(interaction) {
             inline: false,
           },
           {
-            name: '📈 Terfi İlerlemesi',
+            name: '📈 Terfi Gereksinimler',
             value: nextReq
-              ? `Ticketlar: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
-              `Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
-              `Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
-              : '🏆 En üst seviyeye ulaştın!',
+              ? `⬆️ **Sonraki Seviye:** ${ROLE_NAMES[nextLevel] || 'Bilinmiyor'}\n\n` +
+              `🎫 Çözülen Ticket: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
+              `💬 Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
+              `📅 Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
+              : '🏆 **En Üst Seviye!** Tebrikler, daha fazla terfi yok!',
             inline: false,
           }
         )
