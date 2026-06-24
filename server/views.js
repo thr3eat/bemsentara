@@ -2946,8 +2946,8 @@ function renderAdminPage(user) {
           if (!d.users || !d.users.length) { box.innerHTML = '<p style="color:var(--muted);">Kullanıcı bulunamadı.</p>'; return; }
           box.innerHTML = d.users.map(function(u) {
             const banBtn = u.isBanned
-              ? '<button type="button" class="btn btn-sm btn-success" onclick="quickUnban(\''+adminEsc(u.discordId)+'\')">✅ Banı Kaldır</button>'
-              : '<button type="button" class="btn btn-sm btn-danger" onclick="quickBan(\''+adminEsc(u.discordId)+'\',\''+adminEsc(u.discordUsername)+'\')">🚫 Yasakla</button>';
+              ? '<button type="button" class="btn btn-sm btn-success" onclick="quickUnban(\\\''+adminEsc(u.discordId)+'\\\')">✅ Banı Kaldır</button>'
+              : '<button type="button" class="btn btn-sm btn-danger" onclick="quickBan(\\\''+adminEsc(u.discordId)+'\\\',\\\''+adminEsc(u.discordUsername)+'\\\')">🚫 Yasakla</button>';
             return '<div class="admin-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid '+(u.isBanned?'rgba(248,113,113,.4)':'var(--border)')+';border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
               '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">' +
               (u.discordAvatar ? '<img src="'+adminEsc(u.discordAvatar)+'" style="width:36px;height:36px;border-radius:50%;">' : '') +
