@@ -597,6 +597,31 @@ async function handlePanelButton(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
 
+  // Modal güvenliği: eğer deferReply veya reply yapıldıysa, direkt modal gösterme
+  // Bu durumda editReply kullan
+  const showModalSafely = async (modal) => {
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        return await interaction.showModal(modal);
+      } else {
+        // Eğer deferReply yapıldıysa, modal gösteremeyiz
+        // Bu durumda kullanıcıya uyarı ver
+        return await interaction.editReply({
+          content: "❌ Modal gösterilirken bir hata oluştu. Lütfen tekrar deneyin.",
+          ephemeral: true
+        });
+      }
+    } catch (err) {
+      console.error('[handlePanelButton] Modal göstermek hatası:', err.message);
+      if (!interaction.replied && !interaction.deferred) {
+        return await interaction.reply({
+          content: `❌ Modal: ${err.message}`,
+          ephemeral: true
+        });
+      }
+    }
+  };
+
   if (customId === "panel_sys_restart") {
     const auth = await getAuth(interaction.member);
     if (!auth.isAdmin) {
@@ -686,7 +711,7 @@ async function handlePanelButton(interaction) {
             .setPlaceholder("Örn: 12345,67890,11111")
         )
       );
-      return interaction.showModal(verifyModal);
+      return showModalSafely(verifyModal);
     } catch (err) {
       console.error('[panel_direct_mod_show_verify] Modal hatası:', err.message);
       if (!interaction.replied && !interaction.deferred) {
@@ -734,7 +759,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     } catch (err) {
       console.error('[panel_mod_bulk_delete] Modal hatası:', err.message);
       if (!interaction.replied && !interaction.deferred) {
@@ -771,7 +796,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_mod_unmute") {
@@ -787,7 +812,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_mod_modaction") {
@@ -817,7 +842,7 @@ async function handlePanelButton(interaction) {
           .setRequired(false)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_mod_tamban") {
@@ -848,7 +873,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_mod_tamban_kaldir") {
@@ -871,7 +896,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   // ── BLACKLIST MODAL OPEN ───────────────────────────────────────────────────
@@ -899,7 +924,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     }
 
     if (option === "2") {
@@ -922,7 +947,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     }
 
     if (option === "3") {
@@ -938,7 +963,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     }
 
     if (option === "4") {
@@ -954,7 +979,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     }
 
     if (option === "5") {
@@ -970,7 +995,7 @@ async function handlePanelButton(interaction) {
             .setRequired(true)
         )
       );
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     }
   }
 
@@ -1014,7 +1039,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_staff_fire") {
@@ -1037,7 +1062,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_staff_promote_demote") {
@@ -1067,7 +1092,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_staff_reward") {
@@ -1097,7 +1122,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_staff_giveleave") {
@@ -1128,7 +1153,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   // ── ATTENDANCE ─────────────────────────────────────────────────────────────
@@ -1226,7 +1251,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_otomod") {
@@ -1242,7 +1267,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_birimalimi") {
@@ -1258,7 +1283,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_birimtanitim") {
@@ -1295,7 +1320,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_ekobangerial") {
@@ -1311,7 +1336,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_grupcekeko") {
@@ -1327,7 +1352,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_grupcekekogerial") {
@@ -1343,7 +1368,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   // ── AI & GIVEAWAY MODALS ───────────────────────────────────────────────────
@@ -1369,7 +1394,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_konus") {
@@ -1392,7 +1417,7 @@ async function handlePanelButton(interaction) {
           .setRequired(true)
       )
     );
-    return interaction.showModal(modal);
+    return showModalSafely(modal);
   }
 
   if (customId === "panel_sys_abusetest") {
@@ -1452,7 +1477,7 @@ async function handlePanelButton(interaction) {
         )
       );
       
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     } catch (err) {
       console.error("[panel_mod_alim_search]", err);
       if (!interaction.replied && !interaction.deferred) {
@@ -1480,7 +1505,7 @@ async function handlePanelButton(interaction) {
         )
       );
       
-      return interaction.showModal(modal);
+      return showModalSafely(modal);
     } catch (err) {
       console.error("[panel_mod_alim_direct]", err);
       if (!interaction.replied && !interaction.deferred) {
