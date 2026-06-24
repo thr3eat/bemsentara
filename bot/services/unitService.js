@@ -299,7 +299,12 @@ async function startBirimAlimi(interaction, client, birimKey) {
   try {
     const config = UNIT_CONFIG[birimKey];
     if (!config) {
-      return interaction.editReply({ content: '❌ Geçersiz birim seçimi yapıldı.' });
+      // Handle both Message and Interaction
+      if (interaction.editReply) {
+        return interaction.editReply({ content: '❌ Geçersiz birim seçimi yapıldı.' });
+      } else {
+        return interaction.reply('❌ Geçersiz birim seçimi yapıldı.');
+      }
     }
 
     // Varsayılan sınav sorularını kullan (AI gecikmesini önlemek için)
@@ -375,16 +380,31 @@ async function startBirimAlimi(interaction, client, birimKey) {
       );
 
       await channel.send({ content: '@everyone', embeds: [embed], components: [row] });
-      await interaction.editReply({ content: `✅ **Birim alım duyurusu başarıyla oluşturuldu!** Duyuru kanalına gönderildi.` });
+      
+      // Handle both Message and Interaction
+      if (interaction.editReply) {
+        await interaction.editReply({ content: `✅ **Birim alım duyurusu başarıyla oluşturuldu!** Duyuru kanalına gönderildi.` });
+      } else {
+        await interaction.reply(`✅ **Birim alım duyurusu başarıyla oluşturuldu!** Duyuru kanalına gönderildi.`);
+      }
     } else {
-      await interaction.editReply({ content: `❌ Duyuru kanalı bulunamadı veya metin kanalı değil.` });
+      // Handle both Message and Interaction
+      if (interaction.editReply) {
+        await interaction.editReply({ content: `❌ Duyuru kanalı bulunamadı veya metin kanalı değil.` });
+      } else {
+        await interaction.reply(`❌ Duyuru kanalı bulunamadı veya metin kanalı değil.`);
+      }
     }
   } catch (err) {
     console.error('[unitService] startBirimAlimi hatası:', err.message);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: `❌ Duyuru gönderilirken bir hata oluştu: ${err.message}`, ephemeral: true });
-    } else {
+    
+    // Handle both Message and Interaction
+    if (interaction.editReply && interaction.deferred) {
       await interaction.editReply({ content: `❌ Duyuru gönderilirken bir hata oluştu: ${err.message}` });
+    } else if (interaction.editReply) {
+      await interaction.editReply({ content: `❌ Duyuru gönderilirken bir hata oluştu: ${err.message}`, ephemeral: true });
+    } else {
+      await interaction.reply(`❌ Duyuru gönderilirken bir hata oluştu: ${err.message}`);
     }
   }
 }

@@ -1630,6 +1630,57 @@ function initializeDiscordHandlers(client) {
       }
     }
 
+    // ── !birimalimi komut: Birim alımı başlat (admin only) ──────────────────
+    if (message.content.toLowerCase().startsWith("!birimalimi")) {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && 
+          !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      // Parse the command: !birimalimi [birim]
+      const args = message.content.toLowerCase().split(/\s+/).slice(1);
+      const birimArg = args[0]?.toUpperCase();
+
+      // Validate birim
+      const validBirims = ['BAN_BIRIMI', 'SES_BIRIMI', 'SOHBET_BIRIMI', 'BAN', 'SES', 'SOHBET'];
+      
+      if (!birimArg || !validBirims.includes(birimArg)) {
+        const helpText = `ℹ️ **!birimalimi Kullanım**\n\n` +
+          `**Format:** \`!birimalimi [birim]\`\n\n` +
+          `**Geçerli Birimler:**\n` +
+          `\`!birimalimi ban\` - Ban Birimi alımı\n` +
+          `\`!birimalimi ses\` - Ses Birimi alımı\n` +
+          `\`!birimalimi sohbet\` - Sohbet Birimi alımı\n\n` +
+          `Birim alım duyurusu belirtilen kanala gönderilecektir.`;
+        return message.reply(helpText);
+      }
+
+      // Map short names to full names
+      const birimMap = {
+        'BAN': 'BAN_BIRIMI',
+        'SES': 'SES_BIRIMI',
+        'SOHBET': 'SOHBET_BIRIMI'
+      };
+
+      const birimKey = birimArg.length === 3 ? birimMap[birimArg] : birimArg;
+
+      try {
+        message.react('⏳'); // Loading reaction
+
+        // Use the existing startBirimAlimi function
+        const { startBirimAlimi } = require('../services/unitService');
+        await startBirimAlimi(message, message.client, birimKey);
+
+        message.reactions.removeAll();
+      } catch (err) {
+        console.error('[!birimalimi] Error:', err.message);
+        message.reply(`❌ Birim alımı başlatılırken hata oluştu: ${err.message}`);
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+
     if (message.content.startsWith("!rollerveizinleri")) {
       const { PermissionFlagsBits } = require('discord.js');
       if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
