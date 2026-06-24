@@ -1830,6 +1830,9 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Belirtilen personel bulunamadı.");
 
     try {
+      // Defer the reply immediately to prevent "thinking..." timeout
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
       const proxy = buildProxy(interaction, "personelayarla", {
         getUser: () => targetUser,
@@ -1838,6 +1841,9 @@ async function handlePanelModal(interaction) {
       });
       await handleGeneralCommand(proxy);
     } catch (e) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ İstatistik güncellenemedi: ${e.message}`, ephemeral: true });
+      }
       return interaction.editReply(`❌ İstatistik güncellenemedi: ${e.message}`);
     }
     return;
@@ -1853,6 +1859,9 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
+      // Defer the reply immediately to prevent "thinking..." timeout
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
       const proxy = buildProxy(interaction, "personelkov", {
         getUser: () => targetUser,
@@ -1860,6 +1869,9 @@ async function handlePanelModal(interaction) {
       });
       await handleGeneralCommand(proxy);
     } catch (e) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Personel silinemedi: ${e.message}`, ephemeral: true });
+      }
       return interaction.editReply(`❌ Personel silinemedi: ${e.message}`);
     }
     return;
@@ -1876,6 +1888,9 @@ async function handlePanelModal(interaction) {
     if (!targetUser) return interaction.editReply("❌ Personel bulunamadı.");
 
     try {
+      // Defer the reply immediately to prevent "thinking..." timeout
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
 
       if (operation === "terfi") {
@@ -1891,6 +1906,9 @@ async function handlePanelModal(interaction) {
         return interaction.editReply("❌ Geçersiz işlem tipi. 'terfi' veya 'tenzilat' girin.");
       }
     } catch (e) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Rütbe işlemi başarısız: ${e.message}`, ephemeral: true });
+      }
       return interaction.editReply(`❌ Rütbe işlemi başarısız: ${e.message}`);
     }
     return;
@@ -1994,12 +2012,18 @@ async function handlePanelModal(interaction) {
     const unitName = interaction.fields.getTextInputValue("birim").trim();
 
     try {
+      // Defer the reply immediately to prevent "thinking..." timeout
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      
       const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
       const proxy = buildProxy(interaction, "birimalimi", {
         getString: () => unitName
       });
       await handleGeneralCommand(proxy);
     } catch (e) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Birim alımı başlatılamadı: ${e.message}`, ephemeral: true });
+      }
       return interaction.editReply(`❌ Birim alımı başlatılamadı: ${e.message}`);
     }
     return;
