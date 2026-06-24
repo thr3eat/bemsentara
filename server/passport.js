@@ -1,10 +1,70 @@
+// passport.js
+
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const RobloxStrategy = require("passport-roblox");
 const axios = require("axios");
 const User = require("../models/User");
+const { saveStoreNow } = require("../models/Store"); // ✅ Döngüsel require kaldırıldı
 const { BASE_URL } = require("../config");
 const { isEnvAdmin } = require("../utils/adminCheck");
+
+// ─── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
+
+/**
+ * Discord avatar URL'si oluşturur.
+ */
+function buildDiscordAvatarUrl(profile) {
+  if (profile.avatar) {
+    return `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`;
+  }
+  const discriminator = parseInt(profile.discriminator || "0", 10);
+  return `https://cdn.discordapp.com/embed/avatars/${discriminator % 5}.png`;
+}
+
+/**
+ * Discord banner URL'si oluşturur.
+ */
+function buildDiscordBannerUrl(profile) {
+  if (!profile.banner) return null;
+  return `https://cdn.discordapp.com/banners/${profile.id}/${profile.banner}.png?size=512`;
+}
+
+/**
+ * Roblox API'den kullanıcı adı çeker.
+ * @param {string} robloxId
+ * @returns {Promise<string>}
+ */
+async function fetchRobloxUsername(robloxId) {
+  try {
+    const { data } = await axios.get(
+      `https://users.roblox.com/v1/users/${robloxId}`,
+      { timeout: 5000 }
+    );
+    return data.name || data.username || null;
+  } catch (err) {
+    console.warn(`[passport] Roblox API'den kullanıcı adı alınamadı (ID: ${robloxId}):`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Roblox profil nesnesinden ham kullanıcı ID'sini çıkarır.
+ * @param {object} profile
+ * @returns {string|null}
+ */
+function extractRobloxId(profile) {
+  const raw =
+    profile.id ??
+    profile.sub ??
+    profile._json?.sub ??
+    profile._json?.id ??
+    null;
+
+  return raw != null ? String(raw) : null;
+}
+
+// ─── Discord Strategy ─────────────────────────────────────────────────────────
 
 passport.use(
   new DiscordStrategy(
@@ -16,12 +76,12 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        let user = await User.findOne({ discordId: String(profile.id) });
-        const avatarUrl = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(profile.discriminator || '0') % 5}.png`;
-        const bannerUrl = profile.banner ? `https://cdn.discordapp.com/banners/${profile.id}/${profile.banner}.png?size=512` : null;
-
         const discordId = String(profile.id);
         const envAdmin = isEnvAdmin(discordId);
+        const avatarUrl = buildDiscordAvatarUrl(profile);
+        const bannerUrl = buildDiscordBannerUrl(profile);
+
+        let user = await User.findOne({ discordId });
 
         if (!user) {
           user = new User({
@@ -33,34 +93,53 @@ passport.use(
             isAdmin: envAdmin,
             isStaff: envAdmin,
           });
-          await user.save();
         } else {
           user.discordUsername = profile.username;
           user.discordEmail = profile.email;
           user.discordAvatar = avatarUrl;
-          user.discordBanner = bannerUrl || user.discordBanner;
+          if (bannerUrl) user.discordBanner = bannerUrl;
           if (envAdmin) {
             user.isAdmin = true;
             user.isStaff = true;
           }
-          await user.save();
         }
-        const { saveStoreNow } = require("../models/Store");
+
+        await user.save();
         saveStoreNow();
 
-        done(null, user);
+        return done(null, user);
       } catch (err) {
-        done(err);
+        console.error("[passport] Discord auth hatası:", err);
+        return done(err);
       }
     }
   )
 );
 
+// ─── Roblox Strategy ──────────────────────────────────────────────────────────
+
+// ⚠️ UYARI: Client ID ve Secret'ı environment variable olarak tanımlayın!
+// Bu değerleri asla kod içine yazmayın.
+const ROBLOX_CLIENT_ID =
+  process.env.ROBLOX_OAUTH_CLIENT_ID ||
+  process.env.ROBLOX_CLIENT_ID;
+
+const ROBLOX_CLIENT_SECRET =
+  process.env.ROBLOX_OAUTH_CLIENT_SECRET ||
+  process.env.ROBLOX_CLIENT_SECRET;
+
+if (!ROBLOX_CLIENT_ID || !ROBLOX_CLIENT_SECRET) {
+  console.error(
+    "[passport] HATA: ROBLOX_OAUTH_CLIENT_ID ve ROBLOX_OAUTH_CLIENT_SECRET " +
+    "environment variable olarak tanımlanmalıdır!"
+  );
+}
+
 passport.use(
   new RobloxStrategy(
     {
-      clientID: process.env.ROBLOX_OAUTH_CLIENT_ID || process.env.ROBLOX_CLIENT_ID || "8037156514842682566",
-      clientSecret: process.env.ROBLOX_OAUTH_CLIENT_SECRET || process.env.ROBLOX_CLIENT_SECRET || "RBX-aXNByRp2qUS0Gye9tF_UvgkHUIKBmxdjzctYD8X8ywCLZ9iuBSgAW8guan36CZHW",
+      clientID: ROBLOX_CLIENT_ID,
+      clientSecret: ROBLOX_CLIENT_SECRET,
       callbackURL: `${BASE_URL}/auth/roblox/callback`,
       scope: ["openid", "profile"],
       pkce: true,
@@ -69,100 +148,84 @@ passport.use(
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
-        console.log("=== ROBLOX AUTH CALLBACK ===");
-        console.log("Roblox Profile Received:", JSON.stringify(profile, null, 2));
-        console.log("Request User Before:", req.user ? { _id: req.user._id, discordId: req.user.discordId, discordUsername: req.user.discordUsername } : "NO USER");
-        
+        // 1. Discord ile giriş yapılmış olmalı
         if (!req.user) {
-            console.error("Error: No user in request - must login with Discord first");
-            return done(new Error("Lütfen önce Discord ile giriş yapın."));
+          return done(new Error("Lütfen önce Discord ile giriş yapın."));
         }
-        
-        let user = await User.findById(req.user._id);
-        if (!user && req.user.discordId) {
-          user = await User.findOne({ discordId: String(req.user.discordId) });
-        }
+
+        // 2. Kullanıcıyı veritabanında bul
+        const user =
+          (await User.findById(req.user._id)) ||
+          (req.user.discordId
+            ? await User.findOne({ discordId: String(req.user.discordId) })
+            : null);
 
         if (!user) {
-            console.error("Error: User not found in database with ID:", req.user._id);
-            return done(new Error("Kullanıcı veritabanında bulunamadı."));
+          return done(new Error("Kullanıcı veritabanında bulunamadı."));
         }
-        
-        console.log("User found, updating with Roblox data...");
-        console.log("Before update:", { 
-          robloxId: user.robloxId, 
-          robloxUsername: user.robloxUsername, 
-          isAuthorized: user.isAuthorized 
-        });
-        
-        const rawRobloxId =
-          profile.id ??
-          profile.sub ??
-          (profile._json && (profile._json.sub || profile._json.id));
 
-        const rbxIdStr = rawRobloxId != null ? String(rawRobloxId) : null;
+        // 3. Roblox ID'sini çıkar
+        const rbxIdStr = extractRobloxId(profile);
         if (!rbxIdStr) {
           return done(new Error("Roblox hesap ID alınamadı. Tekrar deneyin."));
         }
 
-        // Check if this Roblox ID is already linked to another Discord user who is banned
-        const bannedUser = await User.findOne({ robloxId: rbxIdStr, isBanned: true });
+        // 4. Yasaklı hesap kontrolü
+        const bannedUser = await User.findOne({
+          robloxId: rbxIdStr,
+          isBanned: true,
+        });
         if (bannedUser && String(bannedUser._id) !== String(user._id)) {
-          console.warn(`[passport] Roblox link blocked: Roblox ID ${rbxIdStr} is already associated with banned Discord user ${bannedUser.discordId}`);
-          return done(new Error("Bu Roblox hesabı yasaklı bir Discord hesabına bağlıdır. Giriş engellendi!"));
+          console.warn(
+            `[passport] Engellendi: Roblox ID ${rbxIdStr}, yasaklı Discord hesabına (${bannedUser.discordId}) bağlı.`
+          );
+          return done(
+            new Error(
+              "Bu Roblox hesabı yasaklı bir Discord hesabına bağlıdır. Giriş engellendi!"
+            )
+          );
         }
 
-        user.robloxId = rbxIdStr;
+        // 5. Kullanıcı adını belirle
+        const usernameFromProfile =
+          profile.preferredUsername ||
+          profile.displayName ||
+          profile.nickname ||
+          profile.name ||
+          null;
 
-        if (req.user.discordId && String(user.discordId) !== String(req.user.discordId)) {
+        const robloxUsername =
+          usernameFromProfile ||
+          (await fetchRobloxUsername(rbxIdStr)) ||
+          `User_${rbxIdStr}`;
+
+        // 6. Kullanıcıyı güncelle
+        user.robloxId = rbxIdStr;
+        user.robloxUsername = robloxUsername;
+        user.isAuthorized = true;
+
+        if (
+          req.user.discordId &&
+          String(user.discordId) !== String(req.user.discordId)
+        ) {
           user.discordId = String(req.user.discordId);
         }
 
-        // Try to get actual username from Roblox API
-        let robloxUsername = profile.preferredUsername || profile.displayName || profile.nickname || profile.name;
-        
-        if (!robloxUsername && user.robloxId) {
-          try {
-            // Fetch username from Roblox API
-            const userResponse = await axios.get(`https://users.roblox.com/v1/users/${user.robloxId}`);
-            const userData = userResponse.data;
-            robloxUsername = userData.name || userData.username || `User_${user.robloxId}`;
-            console.log("Fetched username from Roblox API:", robloxUsername);
-          } catch (apiErr) {
-            console.warn("Could not fetch Roblox username from API:", apiErr.message);
-            robloxUsername = `User_${user.robloxId}`;
-          }
-        }
-        
-        user.robloxUsername = robloxUsername || "RobloxUser";
-        user.isAuthorized = true;
-        
-        console.log("Saving user...");
         await user.save();
-        const { saveStoreNow } = require("../models/Store");
         saveStoreNow();
 
-        console.log("After save:", { 
-          robloxId: user.robloxId, 
-          robloxUsername: user.robloxUsername, 
-          isAuthorized: user.isAuthorized,
-          _id: user._id
-        });
-        
-        // Update session with new user data
         req.user = user;
-        console.log("Session updated with user data");
-        console.log("=== ROBLOX AUTH COMPLETE ===");
-        
-        done(null, user);
+
+        return done(null, user);
       } catch (err) {
-        console.error("=== ROBLOX AUTH ERROR ===");
-        console.error(err);
-        done(err);
+        console.error("[passport] Roblox auth hatası:", err);
+        return done(err);
       }
     }
   )
 );
+
+// ─── Serialize / Deserialize ──────────────────────────────────────────────────
 
 passport.serializeUser((user, done) => {
   done(null, user._id);
@@ -171,13 +234,15 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await User.findById(id);
-    if (!user) {
-      return done(null, false);
-    }
+    if (!user) return done(null, false);
+
+    // ID'leri string olarak normalize et
     if (user.discordId) user.discordId = String(user.discordId);
     if (user.robloxId) user.robloxId = String(user.robloxId);
+
     done(null, user);
   } catch (err) {
+    console.error("[passport] Deserialize hatası:", err);
     done(err);
   }
 });
