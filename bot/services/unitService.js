@@ -394,6 +394,11 @@ async function startBirimAlimi(interaction, client, birimKey) {
  */
 async function handleApplyClick(interaction, target) {
   try {
+    // IMMEDIATELY defer the reply to prevent 3-second timeout
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+
     let birimKey = target;
     let examQuestions = null;
     let examTips = "";
@@ -416,7 +421,7 @@ async function handleApplyClick(interaction, target) {
             examTips = defaultData.tips;
           }
         } else {
-          return interaction.reply({ content: '❌ Alım süreci kaydı bulunamadı.', ephemeral: true });
+          return interaction.editReply({ content: '❌ Alım süreci kaydı bulunamadı.' });
         }
       } else {
         birimKey = recruitment.birim;
@@ -425,22 +430,22 @@ async function handleApplyClick(interaction, target) {
 
         const now = new Date();
         if (now < recruitment.startDate) {
-          return interaction.reply({ content: '⚠️ Alımlar henüz başlamadı! Başvuru süreci yarın sabah 09:00\'da başlayacaktır.', ephemeral: true });
+          return interaction.editReply({ content: '⚠️ Alımlar henüz başlamadı! Başvuru süreci yarın sabah 09:00\'da başlayacaktır.' });
         }
         if (now > recruitment.endDate) {
-          return interaction.reply({ content: '❌ Bu alım süreci sona ermiştir.', ephemeral: true });
+          return interaction.editReply({ content: '❌ Bu alım süreci sona ermiştir.' });
         }
       }
     }
 
     if (!examQuestions || examQuestions.length === 0) {
-      return interaction.reply({ content: '❌ Sınav soruları yüklenemedi.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Sınav soruları yüklenemedi.' });
     }
 
     // Kullanıcının halihazırda bir birimde olup olmadığını kontrol et
     let userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
     if (userUnit && userUnit.unitName) {
-      return interaction.reply({ content: '❌ Zaten aktif bir birime üyesiniz! Başka bir birime katılamazsınız.', ephemeral: true });
+      return interaction.editReply({ content: '❌ Zaten aktif bir birime üyesiniz! Başka bir birime katılamazsınız.' });
     }
 
     if (!userUnit) {
@@ -460,14 +465,18 @@ async function handleApplyClick(interaction, target) {
 
     await userUnit.save();
 
-    await interaction.reply({ content: '📬 Sınavınız DM kutunuza gönderildi! Lütfen DM kutunuzu kontrol edin.', ephemeral: true });
+    await interaction.editReply({ content: '📬 Sınavınız DM kutunuza gönderildi! Lütfen DM kutunuzu kontrol edin.' });
     
     // DM'den ilk soruyu gönder
     const client = interaction.client;
     await sendExamQuestion(client, interaction.user.id, userUnit);
   } catch (err) {
     console.error('[unitService] handleApplyClick hatası:', err.message);
-    await interaction.reply({ content: '❌ Başvuru işlemi başlatılırken hata oluştu.', ephemeral: true });
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ Başvuru işlemi başlatılırken hata oluştu: ${err.message}`, ephemeral: true });
+    } else {
+      await interaction.editReply({ content: `❌ Başvuru işlemi başlatılırken hata oluştu: ${err.message}` });
+    }
   }
 }
 
