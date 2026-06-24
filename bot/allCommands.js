@@ -347,6 +347,33 @@ const generalCommands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("staff-reward")
+    .setDescription("🎁 Personele Ödül Ver/Al")
+    .addUserOption(o => o.setName("kullanici").setDescription("Personel").setRequired(true))
+    .addStringOption(o => o.setName("islem").setDescription("ver veya al").setRequired(true)
+      .addChoices({ name: "Ödül Ver", value: "ver" }, { name: "Ödül Al", value: "al" }))
+    .addStringOption(o => o.setName("odul").setDescription("Ödül açıklaması").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("staff-giveleave")
+    .setDescription("🏖️ Personele İzin Günü Tanımla")
+    .addUserOption(o => o.setName("kullanici").setDescription("Personel").setRequired(true))
+    .addStringOption(o => o.setName("tarih").setDescription("İzin tarihi (YYYY-MM-DD)").setRequired(true))
+    .addStringOption(o => o.setName("sebep").setDescription("İzin sebebi").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("staff-attendance-start")
+    .setDescription("🟢 Personel Sayımı (Yoklama) Başlat")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("staff-attendance-stop")
+    .setDescription("🔴 Personel Sayımını Bitir")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("giveleave")
     .setDescription("🏖️ İzin Günü Tanımla")
     .addUserOption(o => o.setName("kullanici").setDescription("İzin verilecek kişi").setRequired(true))
@@ -369,6 +396,17 @@ const generalCommands = [
   new SlashCommandBuilder()
     .setName("toggle")
     .setDescription("⚙️ Sistem Modüllerini Aç/Kapat")
+    .addStringOption(o => o.setName("modul").setDescription("economy/moderation/fun").setRequired(true)
+      .addChoices(
+        { name: "Ekonomi Sistemi", value: "economy" },
+        { name: "Moderasyon Sistemi", value: "moderation" },
+        { name: "Eğlence Oyunları", value: "fun" }
+      ))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("system-toggle")
+    .setDescription("⚙️ Sistem Modüllerini Aç/Kapat (Panel)")
     .addStringOption(o => o.setName("modul").setDescription("economy/moderation/fun").setRequired(true)
       .addChoices(
         { name: "Ekonomi Sistemi", value: "economy" },
@@ -428,8 +466,20 @@ const generalCommands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("system-ekobang")
+    .setDescription("🔒 EkoBang Uygula - Panel")
+    .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("ekobangerial")
     .setDescription("🔓 EkoBang İade (Rütbeleri Geri Al)")
+    .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("system-ekobangerial")
+    .setDescription("🔓 EkoBang İade - Panel")
     .addUserOption(o => o.setName("kullanici").setDescription("Hedef kullanıcı").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -440,8 +490,20 @@ const generalCommands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("system-grupcekeko")
+    .setDescription("⬇️ GrupÇekEko - Panel")
+    .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("grupcekekogerial")
     .setDescription("⬆️ GrupÇekEko Geri Al (Rütbeleri İade)")
+    .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("system-grupcekekogerial")
+    .setDescription("⬆️ GrupÇekEko Geri Al - Panel")
     .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ];

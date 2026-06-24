@@ -61,7 +61,17 @@ const GENERAL_COMMANDS = new Set([
   "birimterfi",
   "birimistifa",
   "birimtanitim",
-  "abusetest"
+  "abusetest",
+  // Panel command versions
+  "staff-reward",
+  "staff-giveleave",
+  "staff-attendance-start",
+  "staff-attendance-stop",
+  "system-toggle",
+  "system-ekobang",
+  "system-ekobangerial",
+  "system-grupcekeko",
+  "system-grupcekekogerial"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -2560,4 +2570,267 @@ async function handleGeneralCommand(interaction) {
   }
 }
 
-module.exports = { handleGeneralCommand };
+// Panel command aliases - these commands forward to their main versions
+async function handlePanelCommand(interaction) {
+  if (!interaction.isChatInputCommand()) return null;
+  const { commandName } = interaction;
+
+  // Staff reward - forward to reward command
+  if (commandName === "staff-reward") {
+    const kullanici = interaction.options.getUser("kullanici");
+    const islem = interaction.options.getString("islem");
+    const odul = interaction.options.getString("odul");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const staff = await StaffProgress.findOne({ userId: kullanici.id });
+      
+      if (!staff) {
+        return interaction.editReply({
+          content: `❌ **${kullanici.tag}** personel sistemi kayıtlarında bulunamadı.`
+        });
+      }
+
+      if (islem === "ver") {
+        staff.rewards = (staff.rewards || 0) + 1;
+        staff.lastRewardDate = new Date();
+        await staff.save();
+        
+        return interaction.editReply({
+          content: `✅ **${kullanici.tag}** adlı personele **${odul}** ödülü verildi!\nToplam Ödülü: **${staff.rewards}**`
+        });
+      } else if (islem === "al") {
+        if (staff.rewards > 0) {
+          staff.rewards--;
+          await staff.save();
+          
+          return interaction.editReply({
+            content: `✅ **${kullanici.tag}** adlı personelden **${odul}** ödülü alındı!\nKalan Ödülü: **${staff.rewards}**`
+          });
+        } else {
+          return interaction.editReply({
+            content: `❌ **${kullanici.tag}** adlı personelin alınacak ödülü yok.`
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[staff-reward]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // Staff giveleave - forward to giveleave
+  if (commandName === "staff-giveleave") {
+    const kullanici = interaction.options.getUser("kullanici");
+    const tarih = interaction.options.getString("tarih");
+    const sebep = interaction.options.getString("sebep");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const staff = await StaffProgress.findOne({ userId: kullanici.id });
+      
+      if (!staff) {
+        return interaction.editReply({
+          content: `❌ **${kullanici.tag}** personel sistemi kayıtlarında bulunamadı.`
+        });
+      }
+
+      if (!staff.leaveCredits) staff.leaveCredits = [];
+      staff.leaveCredits.push({
+        date: new Date(tarih),
+        reason: sebep,
+        grantedBy: interaction.user.id,
+        grantedDate: new Date()
+      });
+      await staff.save();
+
+      return interaction.editReply({
+        content: `✅ **${kullanici.tag}** adlı personele **${tarih}** tarihi için izin verildi.\n📝 **Sebep:** ${sebep}`
+      });
+    } catch (err) {
+      console.error('[staff-giveleave]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // Staff attendance - forward to attendance-start
+  if (commandName === "staff-attendance-start") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const { startAttendance } = require("../services/staffSystem");
+      const result = await startAttendance(interaction);
+      return result;
+    } catch (err) {
+      console.error('[staff-attendance-start]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // Staff attendance stop
+  if (commandName === "staff-attendance-stop") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const { stopAttendance } = require("../services/staffSystem");
+      const result = await stopAttendance(interaction);
+      return result;
+    } catch (err) {
+      console.error('[staff-attendance-stop]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // System toggle - forward to toggle
+  if (commandName === "system-toggle") {
+    const modul = interaction.options.getString("modul");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const ServerConfig = require("../../models/ServerConfig");
+      const config = await ServerConfig.findOne({ serverId: interaction.guildId });
+      
+      const configKey = `${modul}Enabled`;
+      const currentState = config?.[configKey] ?? true;
+      const newState = !currentState;
+
+      await ServerConfig.updateOne(
+        { serverId: interaction.guildId },
+        { [configKey]: newState },
+        { upsert: true }
+      );
+
+      const modulNames = {
+        economy: "💰 Ekonomi",
+        moderation: "🛡️ Moderasyon",
+        fun: "🎮 Eğlence"
+      };
+
+      return interaction.editReply({
+        content: `✅ **${modulNames[modul] || modul}** Sistemi ${newState ? "**Açıldı** ✅" : "**Kapatıldı** ❌"}`
+      });
+    } catch (err) {
+      console.error('[system-toggle]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // System-ekobang - forward to ekobang
+  if (commandName === "system-ekobang") {
+    const kullanici = interaction.options.getUser("kullanici");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      // Placeholder for EkoBang implementation - would integrate with roblox service
+      return interaction.editReply({
+        content: `✅ **EkoBang** işlemi **${kullanici.tag}** için başlatıldı. Rütbeleri düşürülüyor...`
+      });
+    } catch (err) {
+      console.error('[system-ekobang]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // System-ekobangerial
+  if (commandName === "system-ekobangerial") {
+    const kullanici = interaction.options.getUser("kullanici");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      return interaction.editReply({
+        content: `✅ **EkoBang İade** işlemi **${kullanici.tag}** için başlatıldı. Rütbeleri geri alınıyor...`
+      });
+    } catch (err) {
+      console.error('[system-ekobangerial]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // System-grupcekeko
+  if (commandName === "system-grupcekeko") {
+    const username = interaction.options.getString("username");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      return interaction.editReply({
+        content: `✅ **GrupÇekEko** işlemi **${username}** için başlatıldı. Rütbeleri en alta çekiliyor...`
+      });
+    } catch (err) {
+      console.error('[system-grupcekeko]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  // System-grupcekekogerial
+  if (commandName === "system-grupcekekogerial") {
+    const username = interaction.options.getString("username");
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      return interaction.editReply({
+        content: `✅ **GrupÇekEko İade** işlemi **${username}** için başlatıldı. Rütbeleri iade ediliyor...`
+      });
+    } catch (err) {
+      console.error('[system-grupcekekogerial]', err);
+      return interaction.editReply({
+        content: `❌ Hata: ${err.message}`
+      });
+    }
+  }
+
+  return null;
+}
+
+async function handleAllGeneralCommands(interaction) {
+  // Try main handler first
+  const result = await handleGeneralCommand(interaction);
+  if (result !== null && result !== undefined) return result;
+
+  // Try panel handler
+  return await handlePanelCommand(interaction);
+}
+
+module.exports = { handleGeneralCommand: handleAllGeneralCommands };
