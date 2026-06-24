@@ -475,13 +475,8 @@ async function handleApplyClick(interaction, target) {
         examQuestions = recruitment.examQuestions;
         examTips = recruitment.examTips;
 
-        const now = new Date();
-        if (now < recruitment.startDate) {
-          return interaction.editReply({ content: '⚠️ Alımlar henüz başlamadı! Başvuru süreci yarın sabah 09:00\'da başlayacaktır.' });
-        }
-        if (now > recruitment.endDate) {
-          return interaction.editReply({ content: '❌ Bu alım süreci sona ermiştir.' });
-        }
+        // ❌ REMOVED: Hata oluşturan tarih kontrolü kaldırıldı
+        // Alımlar artık hemen başlıyor, kontrol gerekmez
       }
     }
 
