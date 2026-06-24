@@ -6,6 +6,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -1271,19 +1272,27 @@ async function handlePanelButton(interaction) {
   }
 
   if (customId === "panel_sys_birimalimi") {
-    const modal = new ModalBuilder()
-      .setCustomId("panel_modal_sys_birimalimi")
-      .setTitle("📢 Branş Birim Alımı Başlat");
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("birim")
-          .setLabel("Birim (BAN_BIRIMI / SES_BIRIMI)")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      )
-    );
-    return showModalSafely(modal);
+    // Birim seçmek için select menu göster
+    const birimSelect = new StringSelectMenuBuilder()
+      .setCustomId("panel_birim_select_menu")
+      .setPlaceholder("📢 Birim seçin...")
+      .addOptions([
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🚫 BAN BİRİMİ")
+          .setValue("BAN_BIRIMI")
+          .setDescription("Banlamalar ve kara liste yönetimi"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("🎤 SES BİRİMİ")
+          .setValue("SES_BIRIMI")
+          .setDescription("Sesli kanal yönetimi"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("💬 SOHBET BİRİMİ")
+          .setValue("SOHBET_BIRIMI")
+          .setDescription("Metin kanalı yönetimi"),
+      ]);
+    
+    const row = new ActionRowBuilder().addComponents(birimSelect);
+    return interaction.reply({ content: "📢 Lütfen bir birim seçin:", components: [row], ephemeral: true });
   }
 
   if (customId === "panel_sys_birimtanitim") {
@@ -1524,6 +1533,26 @@ async function handlePanelSelect(interaction) {
     const option = interaction.values[0];
     await interaction.deferUpdate();
     return renderPanel(interaction, "blacklist", option);
+  }
+
+  // Birim alımı seçim menüsü
+  if (interaction.customId === "panel_birim_select_menu") {
+    const birimKey = interaction.values[0];
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
+    try {
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const proxy = buildProxy(interaction, "birimalimi", {
+        getString: () => birimKey
+      });
+      await handleGeneralCommand(proxy);
+    } catch (e) {
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Birim alımı başlatılamadı: ${e.message}`, ephemeral: true });
+      }
+      return interaction.editReply(`❌ Birim alımı başlatılamadı: ${e.message}`);
+    }
+    return;
   }
 }
 

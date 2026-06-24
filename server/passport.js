@@ -3,6 +3,7 @@
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const RobloxStrategy = require("passport-roblox");
+const LocalStrategy = require("passport-local").Strategy;
 const axios = require("axios");
 const User = require("../models/User");
 const { saveStoreNow } = require("../models/Store"); // ✅ Döngüsel require kaldırıldı
@@ -110,6 +111,37 @@ passport.use(
         return done(null, user);
       } catch (err) {
         console.error("[passport] Discord auth hatası:", err);
+        return done(err);
+      }
+    }
+  )
+);
+
+// ─── Local Strategy (Password-based login) ────────────────────────────────────
+
+passport.use(
+  new LocalStrategy(
+    {
+      usernameField: 'password',
+      passwordField: 'password',
+      passReqToCallback: true
+    },
+    async (req, password, passReqCallback, done) => {
+      try {
+        // 6-digit password login
+        const user = await User.findOne({ loginPassword: password });
+        
+        if (!user) {
+          return done(null, false, { message: 'Geçersiz şifre.' });
+        }
+
+        if (user.isBanned) {
+          return done(null, false, { message: 'Hesabınız yasaklandı.' });
+        }
+
+        return done(null, user);
+      } catch (err) {
+        console.error("[passport] Local auth hatası:", err);
         return done(err);
       }
     }

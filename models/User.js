@@ -49,6 +49,8 @@ function UserConstructor(data) {
     canManageTickets: false,
     profileBio: null,
     profileColor: "#7c6af7",
+    loginPassword: null, // 6-digit PIN for password-based login
+    passwordCreatedAt: null,
     joinedAt: new Date(),
   };
   const merged = { ...defaults, ...data };

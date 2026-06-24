@@ -2,6 +2,7 @@ const express = require("express");
 const passport = require("../passport");
 const User = require("../../models/User");
 const { renderLoginPage, renderAuthorizePage } = require("../views");
+const { saveStoreNow } = require("../../models/Store");
 
 const router = express.Router();
 
@@ -17,8 +18,78 @@ async function tryAutoSyncRoles(user) {
   await syncMemberRoles(guild, member, parseInt(user.robloxId, 10), user.robloxUsername);
 }
 
+/**
+ * Generate a random 6-digit password
+ */
+function generatePassword() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 router.get("/login", (req, res) => {
   res.send(renderLoginPage());
+});
+
+// Password-based login endpoint
+router.post("/auth/login-password", async (req, res) => {
+  const { password } = req.body;
+
+  if (!password || password.length !== 6 || !/^\d+$/.test(password)) {
+    return res.status(400).json({ error: "Geçersiz şifre formatı (6 haneli olmalı)" });
+  }
+
+  try {
+    const user = await User.findOne({ loginPassword: password });
+
+    if (!user) {
+      return res.status(401).json({ error: "Geçersiz şifre" });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: "Hesabınız yasaklandı" });
+    }
+
+    // Manüel session kurma
+    req.login(user, (err) => {
+      if (err) {
+        return res.status(500).json({ error: "Oturum açma hatası" });
+      }
+      res.json({ success: true, message: "Giriş başarılı", user });
+    });
+  } catch (err) {
+    console.error("[auth] Login password error:", err);
+    res.status(500).json({ error: "Sunucu hatası" });
+  }
+});
+
+// Generate or reset password for authenticated user
+router.post("/auth/generate-password", async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Oturum açmanız gerekir" });
+  }
+
+  try {
+    const password = generatePassword();
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+    }
+
+    user.loginPassword = password;
+    user.passwordCreatedAt = new Date();
+    await user.save();
+    saveStoreNow();
+
+    res.json({
+      success: true,
+      message: "Şifre başarıyla oluşturuldu",
+      password: password,
+      createdAt: new Date()
+    });
+  } catch (err) {
+    console.error("[auth] Generate password error:", err);
+    res.status(500).json({ error: "Sunucu hatası" });
+  }
 });
 
 router.get("/auth/authorize", (req, res) => {
