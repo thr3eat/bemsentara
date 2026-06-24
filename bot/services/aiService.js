@@ -158,11 +158,15 @@ function requestModel(model, messages, systemContent) {
  */
 async function chatWithAI(messages, customSystemPrompt) {
   const systemContent = customSystemPrompt || SYSTEM_PROMPT;
+  let msgArray = messages;
+  if (typeof messages === 'string') {
+    msgArray = [{ role: 'user', content: messages }];
+  }
   let lastErr;
   for (const model of MODELS) {
     try {
       console.log(`[aiService] Deneniyor: ${model}`);
-      const result = await requestModel(model, messages, systemContent);
+      const result = await requestModel(model, msgArray, systemContent);
       console.log(`[aiService] Başarılı: ${model}`);
       return result;
     } catch (err) {

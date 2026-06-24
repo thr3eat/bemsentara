@@ -1061,6 +1061,241 @@ router.get("/api/admin/bans", async (req, res) => {
   }
 });
 
+// ── Admin: panel form gönder ────────────────────────────────────────────────
+router.post("/api/admin/submit-form", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { formType, formData } = req.body;
+  if (!formType || !formData) {
+    return res.status(400).json({ error: "Form tipi ve form verileri gerekli." });
+  }
+
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const client = getDiscordClient();
+  if (!client?.isReady()) {
+    return res.status(503).json({ error: "Discord botu hazır değil, lütfen daha sonra tekrar deneyin." });
+  }
+
+  const { EmbedBuilder } = require("discord.js");
+  const { chatWithAI } = require("../../bot/services/aiService");
+  const { sendAdminLog } = require("../../bot/services/staffAutomation");
+  const { logToModChannel } = require("../../bot/services/modChannelService");
+
+  try {
+    const userId = req.user.discordId;
+    const username = req.user.discordUsername;
+    const avatar = req.user.discordAvatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+
+    if (formType === "leave") {
+      const { reason, duration } = formData;
+      if (!reason || !duration) {
+        return res.status(400).json({ error: "İzin sebebi ve izin süresi gerekli." });
+      }
+
+      const aiPrompt = `Bir moderatör izin talebinde bulundu.\nSebep: ${reason}\nSüre: ${duration} gün.\nBu talebi onayla veya reddet. Eğer kabul ediyorsan sadece "KABUL" yaz, reddediyorsan "RED" yaz ve yanına kısa bir sebep ekle.`;
+      const aiResponse = await chatWithAI(aiPrompt, "Sen yetkili bir IK yöneticisisin.");
+      
+      const embed = new EmbedBuilder()
+        .setTitle('📝 İzin Talebi')
+        .addFields(
+          { name: 'Kullanıcı', value: `<@${userId}>` },
+          { name: 'Sebep', value: reason },
+          { name: 'Süre', value: `${duration} Gün` },
+          { name: 'Yapay Zeka Kararı', value: aiResponse }
+        )
+        .setTimestamp();
+        
+      const approved = aiResponse.toUpperCase().includes('KABUL');
+      if (approved) {
+        embed.setColor(0x2ECC71);
+      } else {
+        embed.setColor(0xE74C3C);
+      }
+      
+      await sendAdminLog(client, 'ANA_SUNUCU', embed);
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+
+      return res.json({
+        success: true,
+        approved,
+        message: approved ? "İzin talebiniz onaylandı." : `İzin talebiniz reddedildi. Sebep: ${aiResponse}`,
+        aiResponse
+      });
+    }
+
+    else if (formType === "suggestion") {
+      const { suggestion } = formData;
+      if (!suggestion) {
+        return res.status(400).json({ error: "Öneri metni boş olamaz." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('💡 Yeni Bir Öneri Var')
+        .setDescription(suggestion)
+        .setAuthor({ name: username, iconURL: avatar })
+        .setColor(0x3498DB)
+        .setTimestamp();
+        
+      await sendAdminLog(client, 'SUGGESTION_LOG', embed);
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+
+      return res.json({ success: true, message: "Öneriniz başarıyla iletildi." });
+    }
+
+    else if (formType === "resign") {
+      const { reason, confirm } = formData;
+      if (!reason || !confirm) {
+        return res.status(400).json({ error: "İstifa sebebi ve onay kelimesi gerekli." });
+      }
+      if (confirm.toLowerCase() !== 'evet') {
+        return res.status(400).json({ error: "İşlemi onaylamak için 'Evet' yazmalısınız." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('🚪 İstifa Bildirimi')
+        .addFields(
+          { name: 'Kullanıcı', value: `<@${userId}>` },
+          { name: 'Sebep', value: reason }
+        )
+        .setColor(0x992D22)
+        .setTimestamp();
+        
+      await sendAdminLog(client, 'ANA_SUNUCU', embed);
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+      
+      try {
+        const { ADMIN_GUILD_ID } = require('../../bot/services/staffAutomation');
+        const guild = client.guilds.cache.get(ADMIN_GUILD_ID);
+        if (guild) {
+          const member = await guild.members.fetch(userId).catch(() => null);
+          if (member) await member.kick('Kendi isteğiyle istifa etti.');
+        }
+      } catch (e) {
+        console.error('Kick failed:', e.message);
+      }
+
+      return res.json({ success: true, message: "İstifanız başarıyla raporlandı." });
+    }
+
+    else if (formType === "modaction") {
+      const { user, action, reason } = formData;
+      if (!user || !action || !reason) {
+        return res.status(400).json({ error: "Kullanıcı, işlem ve sebep alanları zorunludur." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('⚖️ Moderatör İşlemi Raporlandı')
+        .addFields(
+          { name: 'Yetkili', value: `<@${userId}>`, inline: true },
+          { name: 'İşlem Gören', value: user, inline: true },
+          { name: 'İşlem Tipi', value: action, inline: true },
+          { name: 'Sebep / Kanıt', value: reason }
+        )
+        .setColor(0x9B59B6)
+        .setTimestamp();
+        
+      await sendAdminLog(client, 'CEZA_LOG', embed);
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+
+      return res.json({ success: true, message: "Moderatör işlemi başarıyla raporlandı." });
+    }
+
+    else if (formType === "ban_report") {
+      const { isim, kisi, kisiId, sebep, kanit } = formData;
+      if (!isim || !kisi || !kisiId || !sebep || !kanit) {
+        return res.status(400).json({ error: "Tüm alanların doldurulması zorunludur." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('🔨 Yeni Ban Raporu')
+        .addFields(
+          { name: 'Raporlayan İsim', value: isim, inline: true },
+          { name: 'Raporlayan (Discord)', value: `<@${userId}>`, inline: true },
+          { name: 'Banlanacak Kişi', value: kisi, inline: true },
+          { name: 'Banlanacak Kişinin ID', value: kisiId, inline: true },
+          { name: 'Sebep', value: sebep },
+          { name: 'Kanıt', value: kanit }
+        )
+        .setColor(0xE74C3C)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946902154018967').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+
+      return res.json({ success: true, message: "Ban raporu başarıyla gönderildi." });
+    }
+
+    else if (formType === "mute_report") {
+      const { isim, rutbe, kisi, ihlal } = formData;
+      if (!isim || !rutbe || !kisi || !ihlal) {
+        return res.status(400).json({ error: "Tüm alanların doldurulması zorunludur." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('🔇 Yeni Mute Raporu')
+        .addFields(
+          { name: 'Raporlayan İsim', value: isim, inline: true },
+          { name: 'Rütbe', value: rutbe, inline: true },
+          { name: 'Raporlayan (Discord)', value: `<@${userId}>`, inline: true },
+          { name: 'Mute Atılan Kişi', value: kisi, inline: true },
+          { name: 'Kaçıncı İhlali', value: ihlal, inline: true }
+        )
+        .setColor(0xF39C12)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946762190229589').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+      try {
+        await logToModChannel(client, userId, embed).catch(() => {});
+      } catch (_) {}
+
+      return res.json({ success: true, message: "Mute raporu başarıyla gönderildi." });
+    }
+
+    else if (formType === "mod_complain") {
+      const { mod, sebep, kanit } = formData;
+      if (!mod || !sebep || !kanit) {
+        return res.status(400).json({ error: "Tüm alanların doldurulması zorunludur." });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('⚠️ Yeni Mod Şikayeti')
+        .addFields(
+          { name: 'Şikayet Eden (Discord)', value: `<@${userId}>`, inline: true },
+          { name: 'Şikayet Edilen Mod', value: mod, inline: true },
+          { name: 'Sebep', value: sebep },
+          { name: 'Kanıt', value: kanit }
+        )
+        .setColor(0x992D22)
+        .setTimestamp();
+      
+      const channel = await client.channels.fetch('1466946497206816973').catch(() => null);
+      if (channel) await channel.send({ embeds: [embed] });
+
+      return res.json({ success: true, message: "Şikayetiniz gizlilik içinde yönetime iletildi." });
+    }
+
+    else {
+      return res.status(400).json({ error: "Geçersiz form tipi." });
+    }
+
+  } catch (err) {
+    console.error("[SubmitForm API Error]:", err);
+    res.status(500).json({ error: "Form gönderilirken sunucuda bir hata oluştu: " + err.message });
+  }
+});
+
 // ── Moderatör puan sıralaması ────────────────────────────────────────────────
 router.get("/api/staff/ratings", async (req, res) => {  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
 

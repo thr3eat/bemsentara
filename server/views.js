@@ -2628,6 +2628,10 @@ function renderAdminPage(user) {
         style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
         🚫 Banlar
       </button>
+      <button class="adm-tab" onclick="admTab('forms',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        📋 Panel Formları
+      </button>
     </div>
 
     <!-- Kullanıcı yönetimi -->
@@ -2707,12 +2711,41 @@ function renderAdminPage(user) {
       <div id="ban-list"><div style="color:var(--muted);text-align:center;padding:2rem;">Yükleniyor...</div></div>
     </div>
 
+    <!-- Panel Formları -->
+    <div id="adm-forms" class="card" style="display:none;">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">📋 Panel Formları</h1>
+      <p class="text-muted mb-3">Discord yetkili panelinde yer alan formları doğrudan web üzerinden doldurup gönderin.</p>
+      
+      <!-- Form seçme butonları -->
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('leave', this)" style="border-color:#f1c40f;color:#f1c40f;">🏖️ İzin Formu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('suggestion', this)" style="border-color:#2ecc71;color:#2ecc71;">💡 Tavsiye Formu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('resign', this)" style="border-color:#e74c3c;color:#e74c3c;">🚪 İstifa Formu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('modaction', this)" style="border-color:#9b59b6;color:#9b59b6;">⚖️ Mod İşlem Formu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('ban_report', this)" style="border-color:#e74c3c;color:#e74c3c;">🔨 Ban Raporu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('mute_report', this)" style="border-color:#f39c12;color:#f39c12;">🔇 Mute Raporu</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSubForm('mod_complain', this)" style="border-color:#d946ef;color:#d946ef;">⚠️ Mod Şikayeti</button>
+      </div>
+
+      <!-- Form alanları (Dinamik) -->
+      <div id="form-container" style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:16px;padding:1.5rem;display:none;">
+        <h3 id="form-title" style="font-size:1.2rem;font-weight:800;margin-bottom:1.5rem;"></h3>
+        
+        <div id="form-fields"></div>
+        
+        <div style="display:flex;justify-content:flex-end;margin-top:1.5rem;">
+          <button type="button" class="btn" id="form-submit-btn" onclick="submitAdminForm()">Gönder</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       // ── Sekme geçişi ──────────────────────────────────────────────────────
       function admTab(name, btn) {
         document.getElementById('adm-users').style.display  = name === 'users'  ? '' : 'none';
         document.getElementById('adm-coins').style.display  = name === 'coins'  ? '' : 'none';
         document.getElementById('adm-bans').style.display   = name === 'bans'   ? '' : 'none';
+        document.getElementById('adm-forms').style.display  = name === 'forms'  ? '' : 'none';
         document.querySelectorAll('.adm-tab').forEach(t => {
           t.style.borderBottomColor = 'transparent';
           t.style.color = 'var(--muted)';
@@ -2720,6 +2753,179 @@ function renderAdminPage(user) {
         btn.style.borderBottomColor = 'var(--accent)';
         btn.style.color = 'var(--text)';
         if (name === 'bans') loadBans();
+      }
+
+      // ── Panel Formları Mantığı ───────────────────────────────────────────
+      let currentFormType = '';
+      
+      const formDefinitions = {
+        leave: {
+          title: "🏖️ İzin Talebi Formu",
+          fields: [
+            { id: "leave_reason", apiKey: "reason", label: "İzin Sebebi", type: "textarea", placeholder: "İzin alma sebebinizi detaylıca açıklayın...", required: true },
+            { id: "leave_duration", apiKey: "duration", label: "Kaç Gün İzin", type: "number", placeholder: "Örn: 5", required: true }
+          ],
+          submitText: "🏖️ Talebi Gönder (AI Değerlendirir)"
+        },
+        suggestion: {
+          title: "💡 Tavsiye & Öneri Formu",
+          fields: [
+            { id: "suggestion_text", apiKey: "suggestion", label: "Öneriniz", type: "textarea", placeholder: "Sunucu veya ekip için önerinizi yazın...", required: true }
+          ],
+          submitText: "💡 Öneriyi İlet"
+        },
+        resign: {
+          title: "🚪 İstifa Bildirim Formu",
+          fields: [
+            { id: "resign_reason", apiKey: "reason", label: "İstifa Sebebi", type: "textarea", placeholder: "Ayrılma gerekçenizi yazın...", required: true },
+            { id: "resign_confirm", apiKey: "confirm", label: "Onaylıyorum (Devam etmek için 'Evet' yazın)", type: "text", placeholder: "Evet", required: true }
+          ],
+          submitText: "🚪 İstifayı Bildir"
+        },
+        modaction: {
+          title: "⚖️ Moderatör İşlem Rapor Formu",
+          fields: [
+            { id: "mod_user", apiKey: "user", label: "İşlem Yapılan Kullanıcı (Kullanıcı Adı veya ID)", type: "text", placeholder: "Örn: Ahmet / 123456789...", required: true },
+            { id: "mod_action", apiKey: "action", label: "Cezai İşlem Tipi (Ban, Mute, Kick vb.)", type: "text", placeholder: "Örn: Ban", required: true },
+            { id: "mod_reason", apiKey: "reason", label: "Sebep ve Kanıt Linki", type: "textarea", placeholder: "Açıklama ve kanıt ekran görüntüsü linkleri...", required: true }
+          ],
+          submitText: "⚖️ İşlemi Raporla"
+        },
+        ban_report: {
+          title: "🔨 Ban Rapor Formu",
+          fields: [
+            { id: "ban_isim", apiKey: "isim", label: "İsminiz (Kendi Adınız)", type: "text", placeholder: "Adınız", required: true },
+            { id: "ban_kisi", apiKey: "kisi", label: "Banlanan/Banlanacak Kullanıcı", type: "text", placeholder: "Kullanıcı adı", required: true },
+            { id: "ban_id", apiKey: "kisiId", label: "Banlanacak Kişinin ID'si", type: "text", placeholder: "18 haneli Discord ID'si", required: true },
+            { id: "ban_sebep", apiKey: "sebep", label: "Sebep", type: "textarea", placeholder: "Yasaklanma nedeni...", required: true },
+            { id: "ban_kanit", apiKey: "kanit", label: "Kanıt (Görsel/Video Linki)", type: "text", placeholder: "https://...", required: true }
+          ],
+          submitText: "🔨 Banı Rapor Et"
+        },
+        mute_report: {
+          title: "🔇 Mute Rapor Formu",
+          fields: [
+            { id: "mute_isim", apiKey: "isim", label: "İsminiz (Kendi Adınız)", type: "text", placeholder: "Adınız", required: true },
+            { id: "mute_rutbe", apiKey: "rutbe", label: "Rütbeniz", type: "text", placeholder: "Örn: Kıdemli Moderatör", required: true },
+            { id: "mute_kisi", apiKey: "kisi", label: "Mute Atılan Kişi", type: "text", placeholder: "Kullanıcı adı", required: true },
+            { id: "mute_ihlal", apiKey: "ihlal", label: "Kaçıncı İhlali?", type: "text", placeholder: "Örn: 2. ihlali", required: true }
+          ],
+          submitText: "🔇 Susturmayı Rapor Et"
+        },
+        mod_complain: {
+          title: "⚠️ Mod Şikayet Formu",
+          fields: [
+            { id: "comp_mod", apiKey: "mod", label: "Şikayet Edilen Yetkili (Ad veya ID)", type: "text", placeholder: "Yetkili ismi veya ID'si", required: true },
+            { id: "comp_sebep", apiKey: "sebep", label: "Şikayet Nedeni", type: "textarea", placeholder: "Durumu açıklayın...", required: true },
+            { id: "comp_kanit", apiKey: "kanit", label: "Kanıt (Görsel veya Açıklama)", type: "textarea", placeholder: "Ekran görüntüsü linkleri, mesaj içerikleri vb...", required: true }
+          ],
+          submitText: "⚠️ Şikayeti Gizlice Gönder"
+        }
+      };
+
+      function showSubForm(type, btn) {
+        currentFormType = type;
+        const form = formDefinitions[type];
+        if (!form) return;
+
+        // Butonların aktiflik durumunu sıfırla
+        const buttons = btn.parentElement.querySelectorAll('button');
+        buttons.forEach(b => {
+          b.classList.add('btn-ghost');
+          b.style.background = 'transparent';
+          b.style.color = b.style.borderColor;
+        });
+        
+        // Aktif buton stilini ver
+        btn.classList.remove('btn-ghost');
+        btn.style.background = btn.style.borderColor;
+        btn.style.color = '#06060e';
+
+        document.getElementById('form-container').style.display = 'block';
+        document.getElementById('form-title').innerText = form.title;
+        document.getElementById('form-submit-btn').innerText = form.submitText;
+        
+        // Dinamik alanları çiz
+        const fieldsHtml = form.fields.map(f => {
+          if (f.type === 'textarea') {
+            return `<div style="margin-bottom: 1.2rem;">
+                      <label for="${f.id}" style="margin-bottom:0.4rem;display:block;color:var(--muted);">${f.label}:</label>
+                      <textarea id="${f.id}" placeholder="${f.placeholder}" rows="4" style="width:100%;margin-bottom:0;"></textarea>
+                    </div>`;
+          } else {
+            return `<div style="margin-bottom: 1.2rem;">
+                      <label for="${f.id}" style="margin-bottom:0.4rem;display:block;color:var(--muted);">${f.label}:</label>
+                      <input type="${f.type}" id="${f.id}" placeholder="${f.placeholder}" style="width:100%;margin-bottom:0;">
+                    </div>`;
+          }
+        }).join('');
+
+        document.getElementById('form-fields').innerHTML = fieldsHtml;
+      }
+
+      async function submitAdminForm() {
+        if (!currentFormType) return;
+        const form = formDefinitions[currentFormType];
+        const data = {};
+        
+        for (const f of form.fields) {
+          const inputEl = document.getElementById(f.id);
+          const val = inputEl ? inputEl.value.trim() : '';
+          if (f.required && !val) {
+            showToast(\`\${f.label} alanı doldurulmalıdır!\`, 'warning');
+            return;
+          }
+          data[f.apiKey] = val;
+        }
+
+        if (currentFormType === 'resign') {
+          if (data.confirm.toLowerCase() !== 'evet') {
+            showToast("İşlemi onaylamak için kutuya tam olarak 'Evet' yazmalısınız.", 'warning');
+            return;
+          }
+          const check = await confirmAction("İstifa etmek istediğinize emin misiniz? Bu işlem geri alınamaz ve sunucu rolleriniz temizlenecektir!");
+          if (!check) return;
+        }
+
+        const submitBtn = document.getElementById('form-submit-btn');
+        const oldText = submitBtn.innerText;
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Gönderiliyor...';
+
+        try {
+          const res = await fetch('/api/admin/submit-form', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ formType: currentFormType, formData: data })
+          });
+
+          const d = await res.json().catch(() => ({}));
+          
+          if (res.ok) {
+            showToast(d.message || 'Form başarıyla gönderildi.', 'success');
+            
+            // Eğer izin formuysa ve AI kararı varsa alert ile göster
+            if (currentFormType === 'leave' && d.aiResponse) {
+              const approvedText = d.approved ? '✅ ONAYLANDI' : '❌ REDDEDİLDİ';
+              setTimeout(() => {
+                alert(\`[Yapay Zeka IK Kararı] \${approvedText}\\n\\n\${d.aiResponse}\`);
+              }, 400);
+            }
+            
+            // Alanları temizle
+            form.fields.forEach(f => {
+              const inputEl = document.getElementById(f.id);
+              if (inputEl) inputEl.value = '';
+            });
+          } else {
+            showToast(d.error || 'Gönderim başarısız oldu.', 'error');
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası oluştu.', 'error');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerText = oldText;
+        }
       }
 
       // ── Kullanıcı arama ───────────────────────────────────────────────────
