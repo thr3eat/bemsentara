@@ -2026,9 +2026,13 @@ async function runDailyCheck(client) {
       // 🔧 BUG FIX: Bugünün görevleri tamamlandı mı kontrol et (dün değil)
       const completedToday = p.stats.lastCompleteDay === today;
       const activeDays = p.stats?.activeDays || 0;
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
 
-      if (!completedToday) {
-        // Bugün görev yapılmadı — uyarı ver
+      if (isOnLeave) {
+        // İzinli gün — uyarı veya ceza verilmez, streak sıfırlanmaz.
+        await p.save();
+      } else if (!completedToday) {
+        // Bugün görev yapılmadı ve izinli değil — uyarı ver
         p.stats.consecutiveDays = 0;
         p.warnings.count = (p.warnings.count || 0) + 1;
         p.warnings.lowActivityNotified = false; // Aktif gün < 2 kontrolü için sıfırla
@@ -2050,7 +2054,7 @@ async function runDailyCheck(client) {
       }
 
       // ⚠️ Aktif gün < 2 uyarısı
-      if (activeDays < 2) {
+      if (activeDays < 2 && !isOnLeave) {
         await checkLowActivityWarning(p, client);
       }
     }
@@ -2083,8 +2087,11 @@ function startStaffScheduler(client) {
   // 09:00 — Sabah brifing (tüm personele)
   scheduleAt(9, 0, async () => {
     console.log('[staffSystem] 09:00 sabah brifing gönderiliyor...');
+    const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       await sendMorningBriefing(p, client).catch(() => { });
     }
   });
@@ -2095,6 +2102,8 @@ function startStaffScheduler(client) {
     const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= getDailyRequirements(p.level, p.stats?.consecutiveDays || 0).voiceMinutes;
       if (!isComplete) {
         await sendMidDayReminder(p, client).catch(() => { });
@@ -2108,6 +2117,8 @@ function startStaffScheduler(client) {
     const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
       if (!isComplete) {
@@ -2119,8 +2130,11 @@ function startStaffScheduler(client) {
   // 15:00 — Öğleden sonra motivasyon mesajı (aktif olan personele)
   scheduleAt(15, 0, async () => {
     console.log('[staffSystem] 15:00 motivasyon mesajları gönderiliyor...');
+    const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       // %50 şansla motivasyon gönder (tüm gruba yazarsak spam olur)
       if (Math.random() > 0.5) {
         await sendRandomMotivationDM(p, client).catch(() => { });
@@ -2131,8 +2145,11 @@ function startStaffScheduler(client) {
   // 18:00 — Akşam eğlenceleri (gamification fun message'ları)
   scheduleAt(18, 0, async () => {
     console.log('[staffSystem] 18:00 eğlenceli mesajları gönderiliyor...');
+    const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       // %60 şansla eğlenceli mesaj gönder
       if (Math.random() > 0.4) {
         await sendFunMessage(p.userId, client).catch(() => { });
@@ -2146,6 +2163,8 @@ function startStaffScheduler(client) {
     const today = todayStr();
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     for (const p of allProgress) {
+      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
