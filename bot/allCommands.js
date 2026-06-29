@@ -652,6 +652,21 @@ const staffCommands = [
       o.setName("rapor").setDescription("Kısa rapor (ör: Bugün uyandım selam verdim, sesle 2 saat aktif oldum)").setRequired(true)
     )
     .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("briefing")
+    .setDescription("Günlük, haftalık veya aylık brifinginizi görüntüleyin ve ödüllerinizi alın.")
+    .addStringOption((o) =>
+      o.setName("tip")
+        .setDescription("Brifing tipi")
+        .setRequired(true)
+        .addChoices(
+          { name: "Günlük Brifing", value: "gunluk" },
+          { name: "Haftalık Brifing & Ödül", value: "haftalik" },
+          { name: "Aylık Brifing & Ödül", value: "aylik" }
+        )
+    )
+    .setDMPermission(true),
 ];
 
 const allCommands = [

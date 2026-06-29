@@ -735,6 +735,69 @@ async function handleButtonInteraction(interaction) {
     }
   }
 
+  // ── Versiyon Ödülü ──────────────────────────────────────────────────────
+  if (customId === "claim_version_reward") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const { getXpForLevel } = require("../services/staffSystem");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || p.status !== 'active') {
+        return interaction.editReply("❌ Sadece aktif personel bu güncelleme ödülünü alabilir.");
+      }
+
+      if (p.gamification?.versionRewardClaimedV4) {
+        return interaction.editReply("⚠️ Bu güncelleme ödülünü zaten aldınız!");
+      }
+
+      p.gamification = p.gamification || {};
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 200;
+      p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 50;
+      
+      // XP & Level up handle
+      p.gamification.currentXP = (p.gamification.currentXP || 0) + 500;
+      let levelUp = false;
+      while (true) {
+        const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+        if (p.gamification.currentXP >= nextLevelXp) {
+          p.gamification.level = (p.gamification.level || 1) + 1;
+          p.gamification.currentXP -= nextLevelXp;
+          levelUp = true;
+        } else {
+          break;
+        }
+      }
+
+      p.gamification.versionRewardClaimedV4 = true;
+      await p.save();
+
+      return interaction.editReply(
+        `🎉 **Güncelleme Ödülü Alındı!**\n💰 **+200 E.C.** (EkoCoin)\n⚡ **+500 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+        `Teşekkür eder, iyi çalışmalar dileriz! 💚`
+      );
+    } catch (err) {
+      console.error('[claim_version_reward] hata:', err.message);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // ── Özellikleri Test Et ──────────────────────────────────────────────────
+  if (customId === "test_features") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+    try {
+      return interaction.editReply(
+        `🚀 Yeni özellikleri test etmek için sunucuda veya DM üzerinden \`/briefing tip:gunluk\` komutunu kullanabilirsiniz. Ayrıca günlük görevlerinizi tamamlamaya başlayabilirsiniz!`
+      );
+    } catch (err) {
+      console.error('[test_features] hata:', err.message);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
   return null;
 }
 

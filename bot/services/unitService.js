@@ -17,21 +17,21 @@ const UNIT_CONFIG = {
     color: '#e74c3c', // Kırmızı
     icon: '🛡️',
     description: 'Sunucu güvenliği, ceza işlemlerinin denetlenmesi ve ticket destek süreçlerinin yönetilmesinden sorumludur.',
-    tasks: 'Bugün en az 2 ticket çöz ve 2 moderasyon işlemi gerçekleştir.'
+    tasks: 'Bugün en az 1 ticket çöz ve 1 moderasyon işlemi gerçekleştir.'
   },
   SES_BIRIMI: {
     label: 'SES BİRİMİ',
     color: '#3498db', // Mavi
     icon: '🎤',
     description: 'Sesli kanallardaki aktifliğin izlenmesi, sesli moderasyon kurallarının uygulanması ve sesli etkinliklerden sorumludur.',
-    tasks: 'Bugün en az 45 dakika sesli kanallarda aktif kal.'
+    tasks: 'Bugün en az 20 dakika sesli kanallarda aktif kal.'
   },
   SOHBET_BIRIMI: {
     label: 'SOHBET BİRİMİ',
     color: '#2ecc71', // Yeşil
     icon: '💬',
     description: 'Yazılı sohbet kanallarının canlı tutulması, yeni gelen üyelere rehberlik edilmesi ve sohbet düzeninden sorumludur.',
-    tasks: 'Bugün sohbete en az 25 mesaj gönder.'
+    tasks: 'Bugün sohbete en az 10 mesaj gönder.'
   }
 };
 

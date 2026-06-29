@@ -80,6 +80,10 @@ const staffProgressSchema = new mongoose.Schema({
     challengesCompleted: { type: Number, default: 0 },   // Tamamlanan haftalk zorluklar
     lastChallengeWeek: { type: Number, default: 0 },   // Son challenge haftası
     lastDailyClaim: { type: String, default: '' },   // Son günlük ödül alma tarihi YYYY-MM-DD
+    lastWeeklyBriefingClaim: { type: String, default: '' }, // Son haftalık brifing ödül tarihi (YYYY-Www)
+    lastMonthlyBriefingClaim: { type: String, default: '' }, // Son aylık brifing ödül tarihi (YYYY-MM)
+    systemIntroducedV4: { type: Boolean, default: false },   // V4.0 tanıtımı yapıldı mı?
+    versionRewardClaimedV4: { type: Boolean, default: false }, // V4.0 ödülü alındı mı?
   },
 
   // Moderasyon Rapor Takip Sistemi

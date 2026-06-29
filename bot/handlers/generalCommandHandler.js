@@ -1234,90 +1234,268 @@ async function handleGeneralCommand(interaction) {
     }
   }
 
-  // ── personeldurum ──────────────────────────────────────────────────────────
-  if (commandName === "personeldurum") {
+  // ── briefing ──────────────────────────────────────────────────────────────
+  if (commandName === "briefing") {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
-      const { EmbedBuilder: EB } = require('discord.js');
-      const target = interaction.options.getUser('kullanici') || interaction.user;
+      const tip = interaction.options.getString('tip');
       const {
-        getOrCreate, getDailyRequirements,
-        ROLE_NAMES, PROMOTION_REQUIREMENTS, GUILD_ID, ROLES,
+        getOrCreate, getDailyRequirements, getXpForLevel,
+        ROLE_NAMES, PROMOTION_REQUIREMENTS, GUILD_ID, ROLES, CHOSEN_TASKS
       } = require('../services/staffSystem');
       const StaffProgress = require('../../models/StaffProgress');
+      const StaffUnit = require('../../models/StaffUnit');
+      const { UNIT_CONFIG } = require('../services/unitService');
+      const { chatWithAI } = require('../services/aiService');
 
-      let p = await StaffProgress.findOne({ userId: target.id });
-
-      // Kayıtlı değilse Discord rolünden senkronize ederek oluştur
-      if (!p) {
-        try {
-          const guild = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
-          const member = guild ? await guild.members.fetch(target.id).catch(() => null) : null;
-          if (member) {
-            let level = 0;
-            for (let lvl = 6; lvl >= 1; lvl--) {
-              const roleId = ROLES[lvl];
-              if (roleId && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(roleId) && member.roles.cache.has(roleId)) {
-                level = lvl; break;
-              }
-            }
-            // Stajyer rolü veya üstü varsa kayıt et
-            const stajyerId = ROLES[1];
-            const hasStaffRole = level > 0 || (stajyerId && !['PERSONEL_ROLE_ID'].includes(stajyerId) && member.roles.cache.has(stajyerId));
-            if (hasStaffRole) {
-              p = await getOrCreate(target.id, GUILD_ID);
-              if (level > 0 && p.level < level) { p.level = level; await p.save(); }
-            }
-          }
-        } catch (_) { }
+      let p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || p.status !== 'active') {
+        return interaction.editReply({ content: '❌ Sadece aktif personel brifing sistemine erişebilir.' });
       }
 
-      if (!p) {
-        return interaction.editReply({ content: `❌ **${target.username}** personel sisteminde kayıtlı değil. Stajyer Personel rolü olan birini sorgulayın.` });
-      }
-
-      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const nextLevel = p.level + 1;
-      const nextReq = PROMOTION_REQUIREMENTS[nextLevel];
       const today = new Date().toISOString().split('T')[0];
-      const isToday = p.daily?.date === today;
-      const greetDone = isToday && p.daily?.greeted;
-      const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
-      const embed = new EB()
-        .setColor(0x7c6af7)
-        .setTitle(`📊 Personel Durumu — ${target.username}`)
-        .setThumbnail(target.displayAvatarURL())
-        .addFields(
-          { name: '🎖️ Seviye', value: ROLE_NAMES[p.level] || 'Stajyer Personel', inline: true },
-          { name: '📅 Arka Arkaya Aktif', value: `${p.stats?.consecutiveDays || 0} gün`, inline: true },
-          { name: '⚠️ Uyarı', value: `${p.warnings?.count || 0}/5`, inline: true },
+      if (tip === 'gunluk') {
+        const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+        
+        // AI Koç mesajı
+        let aiMessage = '';
+        try {
+          const prompt = `Sen Eko Yıldız Discord sunucusunun AI Personel Koçusun.
+          Bu personelin günlük durumunu değerlendirerek çok kısa (max 100 karakter), neşeli, Türkçe motive edici bir brifing mesajı yaz.
+          Personel: ${interaction.user.username}
+          Seviye: ${ROLE_NAMES[p.level]}
+          Mevcut aktiflik streak'i: ${p.stats?.consecutiveDays || 0} gün.`;
+          aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+          aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+        } catch (_) {}
+
+        const isToday = p.daily?.date === today;
+        const greetDone = isToday && p.daily?.greeted;
+        const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+
+        const embed = new EmbedBuilder()
+          .setColor(0x7c6af7)
+          .setTitle(`☀️ Günlük Brifing — ${ROLE_NAMES[p.level]}`)
+          .setThumbnail(interaction.user.displayAvatarURL())
+          .setDescription(
+            (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
+            `Bugündeki performans durumunuz ve görevleriniz aşağıdadır. Harika bir gün dileriz! 🌟`
+          )
+          .addFields(
+            {
+              name: '⚡ Günlük Zorunlu Görevler',
+              value: `${greetDone ? '✅' : '❌'} **Selamlaşma:** ${isToday && p.daily?.greeted ? 1 : 0}/${req.greets} selam\n` +
+                     `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk`,
+              inline: false
+            }
+          );
+
+        // Birim görevi kontrolü
+        const userUnit = await StaffUnit.findOne({ userId: p.userId });
+        if (userUnit && userUnit.unitName) {
+          const unitConf = UNIT_CONFIG[userUnit.unitName];
+          if (unitConf) {
+            embed.addFields({
+              name: `🛡️ ${unitConf.label} Günlük Görevi`,
+              value: `⚠️ **Göreviniz:** ${unitConf.tasks}\n*Birim Rütbeniz: Rütbe ${userUnit.rank || 1}*`,
+              inline: false
+            });
+          }
+        }
+
+        // Seçimli görev kontrolü
+        if (p.daily?.chosenTask) {
+          const taskDesc = CHOSEN_TASKS[p.daily.chosenTask] || 'Rastgele Görev';
+          embed.addFields({
+            name: '🎯 Bugünün Seçimli Görevi',
+            value: `${taskDesc}\nDurum: ${p.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam ediyor...*'}`,
+            inline: false
+          });
+        }
+
+        // Streak & İpuçları
+        embed.addFields(
           {
-            name: '📋 Bugünkü Görevler',
-            value:
-              `${greetDone ? '✅' : '❌'} Selam (${isToday ? 1 : 0}/${req.greets})\n` +
-              `${voiceDone ? '✅' : '❌'} Ses: ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk`,
-            inline: false,
+            name: '🔥 Aktiflik & Puan Durumu',
+            value: `• **Arka Arkaya Aktif:** ${p.stats?.consecutiveDays || 0} gün\n• **Toplam Puan:** ${p.gamification?.totalPoints || 0}\n• **EkoCoin Bakiyesi:** ${p.gamification?.ecoCoins || 0} E.C.`,
+            inline: true
           },
           {
-            name: '📈 Terfi Gereksinimler',
-            value: nextReq
-              ? `⬆️ **Sonraki Seviye:** ${ROLE_NAMES[nextLevel] || 'Bilinmiyor'}\n\n` +
-              `🎫 Çözülen Ticket: ${p.stats?.ticketsSolved || 0}/${nextReq.ticketsSolved}\n` +
-              `💬 Sohbet Mesajı: ${p.stats?.chatMessages || 0}/${nextReq.chatMessages}\n` +
-              `📅 Aktif Günler: ${p.stats?.activeDays || 0}/${nextReq.activeDays}`
-              : '🏆 **En Üst Seviye!** Tebrikler, daha fazla terfi yok!',
-            inline: false,
+            name: '⚠️ Uyarı Sayacı',
+            value: `• **Güncel Uyarılar:** ${p.warnings?.count || 0}/3`,
+            inline: true
           }
-        )
-        .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
-        .setTimestamp();
+        );
 
-      return interaction.editReply({ embeds: [embed] });
+        embed.setFooter({ text: 'Eko Yıldız • Günlük Brifing | Başarılar! 🚀' }).setTimestamp();
+
+        // Butonlar ve Seçim Menüsü
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+        const rowButtons = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('talk_to_coach')
+            .setLabel('💬 Koçla Konuş')
+            .setStyle(ButtonStyle.Primary)
+        );
+
+        let allowedTasks = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+        if (userUnit && userUnit.unitName) {
+          if (userUnit.unitName === 'BAN_BIRIMI') {
+            allowedTasks = ['task_ticket', 'task_mod'];
+          } else if (userUnit.unitName === 'SES_BIRIMI') {
+            allowedTasks = ['task_voice'];
+          } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
+            allowedTasks = ['task_chat'];
+          }
+        }
+
+        const allOptions = [
+          { label: '💬 Aktif Sohbetçi', description: 'Sohbette en az 15 mesaj gönder', value: 'task_chat' },
+          { label: '🎤 Ses Meraklısı', description: 'Ses kanallarında fazladan 15 dakika geçir', value: 'task_voice' },
+          { label: '🎫 Destekçi', description: 'Bugün en az 1 ticket çöz', value: 'task_ticket' },
+          { label: '🛡️ Koruyucu', description: 'Bugün en az 1 moderasyon işlemi gerçekleştir', value: 'task_mod' }
+        ];
+
+        const options = allOptions.filter(o => allowedTasks.includes(o.value));
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId('select_daily_task')
+          .setPlaceholder('🎯 Seçimli Görevi Değiştir')
+          .addOptions(options);
+
+        const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+
+        return interaction.editReply({ embeds: [embed], components: [rowButtons, rowSelect] });
+      }
+
+      if (tip === 'haftalik') {
+        // ISO week calculation
+        const now = new Date();
+        const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        const currentYearWeek = `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+
+        const isClaimed = p.gamification?.lastWeeklyBriefingClaim === currentYearWeek;
+        let rewardStatusText = '';
+
+        if (!isClaimed) {
+          p.gamification = p.gamification || {};
+          p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 150;
+          p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 50;
+          
+          // XP & Level up handle
+          p.gamification.currentXP = (p.gamification.currentXP || 0) + 300;
+          let levelUp = false;
+          while (true) {
+            const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+            if (p.gamification.currentXP >= nextLevelXp) {
+              p.gamification.level = (p.gamification.level || 1) + 1;
+              p.gamification.currentXP -= nextLevelXp;
+              levelUp = true;
+            } else {
+              break;
+            }
+          }
+          
+          p.gamification.lastWeeklyBriefingClaim = currentYearWeek;
+          await p.save();
+
+          rewardStatusText = `🎉 **Bu Haftanın Brifing Ödülü Başarıyla Alındı!**\n` +
+                             `💰 **+150 E.C.** (EkoCoin)\n` +
+                             `⚡ **+300 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+                             `⭐ **+50 Puan**`;
+        } else {
+          rewardStatusText = `⚠️ **Bu haftaki brifing ödülünüzü zaten aldınız.** Haftaya tekrar gelin!`;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0xfbbf24)
+          .setTitle(`📅 Haftalık Brifing & Ödül Kartı`)
+          .setThumbnail(interaction.user.displayAvatarURL())
+          .setDescription(
+            `Haftalık performans değerlendirmeniz ve hak ettiğiniz ödüller aşağıdadır:\n\n` +
+            `📊 **Genel İstatistikleriniz:**\n` +
+            `• **Çözülen Ticket:** ${p.stats?.ticketsSolved || 0}\n` +
+            `• **Gönderilen Mesaj:** ${p.stats?.chatMessages || 0}\n` +
+            `• **Ses Aktifliği:** ${p.stats?.totalVoiceMinutes || 0} dk\n` +
+            `• **Yapılan Moderasyon:** ${p.stats?.moderationActions || 0}\n` +
+            `• **Teslim Edilen Haftalık Rapor:** ${p.stats?.weeklyReports || 0}\n\n` +
+            `---\n` +
+            `${rewardStatusText}`
+          )
+          .setFooter({ text: 'Eko Yıldız • Haftalık Performans Sistemi' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      if (tip === 'aylik') {
+        const now = new Date();
+        const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        const isClaimed = p.gamification?.lastMonthlyBriefingClaim === currentYearMonth;
+        let rewardStatusText = '';
+
+        if (!isClaimed) {
+          p.gamification = p.gamification || {};
+          p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 500;
+          p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 200;
+          p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+          
+          // XP & Level up handle
+          p.gamification.currentXP = (p.gamification.currentXP || 0) + 1000;
+          let levelUp = false;
+          while (true) {
+            const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+            if (p.gamification.currentXP >= nextLevelXp) {
+              p.gamification.level = (p.gamification.level || 1) + 1;
+              p.gamification.currentXP -= nextLevelXp;
+              levelUp = true;
+            } else {
+              break;
+            }
+          }
+          
+          p.gamification.lastMonthlyBriefingClaim = currentYearMonth;
+          await p.save();
+
+          rewardStatusText = `🎉 **Bu Ayın Brifing Ödülü Başarıyla Alındı!**\n` +
+                             `💰 **+500 E.C.** (EkoCoin)\n` +
+                             `⚡ **+1000 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+                             `⭐ **+200 Puan**\n` +
+                             `📅 **+1 İzin Kredisi** (Çok çalışmanın ödülü!)`;
+        } else {
+          rewardStatusText = `⚠️ **Bu ayki brifing ödülünüzü zaten aldınız.** Gelecek ay tekrar gelin!`;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x06b6d4)
+          .setTitle(`👑 Aylık Performans Brifingi & Büyük Ödül`)
+          .setThumbnail(interaction.user.displayAvatarURL())
+          .setDescription(
+            `Aylık performans değerlendirmeniz ve hak ettiğiniz büyük ödüller aşağıdadır:\n\n` +
+            `📊 **Genel İstatistikleriniz:**\n` +
+            `• **Toplam Aktif Gün:** ${p.stats?.activeDays || 0} gün\n` +
+            `• **Çözülen Ticket:** ${p.stats?.ticketsSolved || 0}\n` +
+            `• **Gönderilen Mesaj:** ${p.stats?.chatMessages || 0}\n` +
+            `• **Ses Aktifliği:** ${p.stats?.totalVoiceMinutes || 0} dk\n` +
+            `• **Güncel İzin Kredisi:** ${p.stats?.breakCredits || 0}\n\n` +
+            `---\n` +
+            `${rewardStatusText}`
+          )
+          .setFooter({ text: 'Eko Yıldız • Aylık Performans Sistemi' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
     } catch (err) {
-      console.error('[personeldurum] hata:', err.message);
+      console.error('[briefing] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

@@ -1342,6 +1342,19 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     aiWarn = aiWarn?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
+  const today = todayStr();
+  const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
+  const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+
+  let taskStatusText = '';
+  if (isGreetDone && !voiceDone) {
+    taskStatusText = `✅ **Selamlaşma Görevi:** Başarıyla tamamlandı!\n❌ **Ses Aktifliği Görevi:** Eksik (Kalan: **${Math.max(0, req.voiceMinutes - (progress.daily?.voiceMinutes || 0))} dk**)`;
+  } else if (!isGreetDone && voiceDone) {
+    taskStatusText = `❌ **Selamlaşma Görevi:** Eksik (Gereken: **${req.greets}x** selam)\n✅ **Ses Aktifliği Görevi:** Başarıyla tamamlandı!`;
+  } else {
+    taskStatusText = `❌ **Selamlaşma Görevi:** Eksik (Gereken: **${req.greets}x** selam)\n❌ **Ses Aktifliği Görevi:** Eksik (Gereken: **${req.voiceMinutes} dk**)`;
+  }
+
   const embed = new EmbedBuilder()
     .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
     .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/${MAX_WARNINGS}`)
@@ -1349,9 +1362,8 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
       `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n` +
       `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
-      `📋 **Bugün yapman gerekenler:**\n` +
-      `• Sohbete **${req.greets}x** selam\n` +
-      `• Ses kanalında **${req.voiceMinutes} dk** kal\n\n` +
+      `📋 **Görevlerinin Durumu:**\n` +
+      `${taskStatusText}\n\n` +
       `💡 **Meşgulsen, yöneticilere yazabilirsin!** İzin isteyebilirsin. 😊\n` +
       `Bugün yaparsan uyarı sayacın sıfırlanır! İçin rahat olsun. 💚`
     )
@@ -2024,7 +2036,11 @@ async function runDailyCheck(client) {
       }
 
       // 🔧 BUG FIX: Bugünün görevleri tamamlandı mı kontrol et (dün değil)
-      const completedToday = p.stats.lastCompleteDay === today;
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const greetDone = p.daily?.date === today && p.daily?.greeted;
+      const voiceDone = p.daily?.date === today && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      const completedToday = (p.stats.lastCompleteDay === today) || (greetDone && voiceDone);
+
       const activeDays = p.stats?.activeDays || 0;
       const isOnLeave = p.leaves?.usedDays?.includes(today);
 
@@ -2049,12 +2065,12 @@ async function runDailyCheck(client) {
         if (p.stats.consecutiveDays > 0 && p.stats.consecutiveDays % 30 === 0) {
           await sendRequirementIncreaseDM(p, client);
         }
-        // ✅ Sabah brifing — görevi yapanlara da gönder (motive et)
-        await sendMorningBriefing(p, client);
+        // ✅ BUGFIX: Gece 23:30'da morning briefing atmayı engelle, verileri kaydet
+        await p.save().catch(() => {});
       }
 
-      // ⚠️ Aktif gün < 2 uyarısı
-      if (activeDays < 2 && !isOnLeave) {
+      // ⚠️ Aktif gün < 2 uyarısı (Bugün görevler yapıldıysa gönderme!)
+      if (activeDays < 2 && !isOnLeave && !completedToday) {
         await checkLowActivityWarning(p, client);
       }
     }
@@ -2340,60 +2356,67 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
 // Başlangıçta çalışacak - tüm personele sistem yükseltmesi hakkında bildir
 async function sendSystemUpdateNotification(client) {
   try {
-    // Sadece systemIntroduced: false veya undefined olanları bul
+    // Sadece systemIntroducedV4: false veya undefined olanları bul
     const allProgress = await StaffProgress.find({
       level: { $gte: 1, $lte: 5 },
       status: 'active',
       $or: [
-        { 'gamification.systemIntroduced': false },
-        { 'gamification.systemIntroduced': { $exists: false } }
+        { 'gamification.systemIntroducedV4': false },
+        { 'gamification.systemIntroducedV4': { $exists: false } }
       ]
     });
 
     if (allProgress.length === 0) return;
 
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
     const embed = new EmbedBuilder()
-      .setColor(0xff006e)
-      .setTitle('✨ Personel Sistemi 3.0 - DEV GÜNCELLEME!')
-      .setDescription('Personel sistemimize büyük ödüller ve oyunlaştırma (Gamification) eklendi! 🎉')
-      .addFields(
-        {
-          name: '🎁 EkoCoin Mağazası Geldi!',
-          value:
-            '• Bilet çözerek (5 E.C.), Moderasyon yaparak (10 E.C.) ve Seste kalarak (saatte 15 E.C.) coin kazanırsın.\n' +
-            '• Kazandığında gelen "🛒 MAĞAZAYI İNCELE" butonuyla Profil Renkleri veya İzin satın alabilirsin!',
-          inline: false,
-        },
-        {
-          name: '🏆 Gizli Başarımlar ve XP Çekilişleri',
-          value:
-            '• Hızlı ve çok çalışanlara efsanevi bonus rozetleri ve ekstra coinler gizli hediye olarak verilir.\n' +
-            '• Yöneticiler tarafından sık sık `/xpcekilis` düzenlenecek. Kaçırmamak için Mod kanalını takipte kal!',
-          inline: false,
-        },
-        {
-          name: '📈 Yeni Rütbe Görevleri (Sekreter ve Yönetici)',
-          value: '• Sekreter ve Sekreterin Babası (Yönetici) rütbelerinin terfi şartları ve aylık kotaları da güncellendi. Artık ses aktifliği zorunlu görev!',
-          inline: false,
-        }
+      .setColor(0x00b4d8)
+      .setTitle('🚀 EKOYILDIZ Moderasyon Personel Sistemi V4.0')
+      .setDescription(
+        'Hoşgeldiniz moderatörler.. Ben Sentara, yani EkoYıldız\'ın moderatör sistemi botunuz. İşte bu versiyonla birlikte gelen yeni özellikler:\n\n' +
+        '**📋 Yenilenmiş & Sadeleştirilmiş Brifing Sistemi:**\n' +
+        '• Artık sunucuda veya DM üzerinden `/briefing tip:gunluk` yazarak o gün yapmanız gerekenleri görebilirsiniz.\n' +
+        '• Günlük, haftalık ve aylık brifinglerinize tek bir yerden kolayca erişebilirsiniz.\n\n' +
+        '**🎁 Haftalık & Aylık Brifing Ödülleri:**\n' +
+        '• Haftalık brifinginize bakıp ödülünüzü alarak **150 EkoCoin + 300 XP + 50 Puan** kazanabilirsiniz.\n' +
+        '• Aylık brifinginize bakarak **500 EkoCoin + 1000 XP + 200 Puan + 1 İzin Kredisi** kazanabilirsiniz!\n\n' +
+        '**🛡️ Kolaylaştırılmış Birim Görevleri:**\n' +
+        '• Tüm birimlerin (Ban, Ses, Sohbet) günlük hedefleri (mesaj sayısı, sesli kalma süresi, mod sayıları) azaltılarak hafifletildi!\n\n' +
+        '**⏰ Akıllı Görev ve Uyarı Takibi:**\n' +
+        '• Hatalı gece brifingi bildirimleri ve uyarısızlık bugları tamamen çözüldü.\n' +
+        '• Görevlerin birini tamamlayıp diğerini tamamlamadığınızda uyarı size eksik kalan görevi söyleyecek!\n\n' +
+        '**🎁 Versiyon Güncelleme Ödülünüz:**\n' +
+        '• Yeni sisteme hoş geldiniz hediyesi olarak **200 EkoCoin** ve **500 XP** sizi bekliyor! Aşağıdaki **ÖDÜLÜ AL** butonuna basarak anında claim edebilirsiniz.'
       )
-      .setFooter({ text: 'Eko Yıldız • Gamification Sistemi' })
+      .setFooter({ text: 'Eko Yıldız • Personel Yönetim Sistemi V4.0' })
       .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('claim_version_reward')
+        .setLabel('🎁 ÖDÜLÜ AL')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('test_features')
+        .setLabel('🚀 ÖZELLİKLERİ TEST ET')
+        .setStyle(ButtonStyle.Primary)
+    );
 
     for (const p of allProgress) {
       try {
         const user = await client.users.fetch(p.userId);
         if (user) {
-          await user.send({ embeds: [embed] }).catch(() => { });
+          await user.send({ embeds: [embed], components: [row] }).catch(() => { });
 
           p.gamification = p.gamification || {};
-          p.gamification.systemIntroduced = true;
+          p.gamification.systemIntroducedV4 = true;
           await p.save().catch(() => { });
         }
       } catch (_) { }
     }
 
-    console.log(`[staffSystem] ${allProgress.length} personele Gamification 3.0 bildirimi gönderildi`);
+    console.log(`[staffSystem] ${allProgress.length} personele V4.0 güncelleme bildirimi gönderildi`);
   } catch (err) {
     console.error('[staffSystem] Sistem bildirimi hatası:', err.message);
   }
