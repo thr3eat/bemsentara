@@ -1081,7 +1081,14 @@ async function handleButtonInteraction(interaction) {
       const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
       let mappedText = "";
       for (const r of rbxRoles) {
-        const matchedVal = setupDoc.roleMappings.get(r.rank.toString());
+        let matchedVal = null;
+        if (setupDoc.roleMappings) {
+          if (typeof setupDoc.roleMappings.get === "function") {
+            matchedVal = setupDoc.roleMappings.get(r.rank.toString());
+          } else {
+            matchedVal = setupDoc.roleMappings[r.rank.toString()];
+          }
+        }
         let roleDisplay = "❌ *Eşleştirilemedi*";
         if (Array.isArray(matchedVal) && matchedVal.length > 0) {
           roleDisplay = matchedVal.map(id => interaction.guild.roles.cache.get(id)?.toString() || `\`${id}\``).join(", ");
@@ -1329,6 +1336,31 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
   const noblox = require("noblox.js");
   const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
   
+  if (!rbxRoles || rbxRoles.length === 0) {
+    const embed = new EmbedBuilder()
+      .setTitle("⚠️ Hata: Rütbeler Alınamadı")
+      .setColor(0xe74c3c)
+      .setDescription(
+        `Roblox grubundan (${setupDoc.robloxGroupName || "Bilinmeyen"}) rütbe bilgileri alınamadı.\n` +
+        `Roblox API hatası veya geçici bir kesinti olabilir. Lütfen daha sonra tekrar deneyin.`
+      )
+      .setTimestamp();
+      
+    const retryRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`setup_incorrect_${setupDoc.guildId}`)
+        .setLabel("YENİDEN DENE")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`setup_edit_save_${setupDoc.guildId}`)
+        .setLabel("GERİ DÖN")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    
+    await interaction.editReply({ embeds: [embed], components: [retryRow] }).catch(() => {});
+    return;
+  }
+
   const embed = new EmbedBuilder()
     .setTitle("🔧 Rol Eşleştirme Düzenleme Paneli")
     .setColor(0xe74c3c)
@@ -1340,11 +1372,18 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
     .setTimestamp();
 
   const menuOptions = rbxRoles.map(r => {
-    const val = setupDoc.roleMappings.get(r.rank.toString());
+    let val = null;
+    if (setupDoc.roleMappings) {
+      if (typeof setupDoc.roleMappings.get === "function") {
+        val = setupDoc.roleMappings.get(r.rank.toString());
+      } else {
+        val = setupDoc.roleMappings[r.rank.toString()];
+      }
+    }
     const displayVal = Array.isArray(val) ? val.join(",") : (val || "Yok");
     return {
-      label: `Rank ${r.rank}: ${r.name}`,
-      description: `Mevcut Rol ID: ${displayVal.slice(0, 100)}`,
+      label: `Rank ${r.rank}: ${r.name}`.slice(0, 100),
+      description: `Mevcut Rol ID: ${displayVal}`.slice(0, 100),
       value: r.rank.toString()
     };
   }).slice(0, 25);
