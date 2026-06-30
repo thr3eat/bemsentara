@@ -562,6 +562,9 @@ async function logRoleDelete(role) {
 async function logRoleUpdate(oldRole, newRole) {
   if (!oldRole?.guild) return;
 
+  // Bot yönetim rollerini loglama (entegrasyon rolleri)
+  if (newRole.managed) return;
+
   const changes = [];
 
   if (oldRole.name !== newRole.name) {
@@ -570,9 +573,8 @@ async function logRoleUpdate(oldRole, newRole) {
   if (oldRole.hexColor !== newRole.hexColor) {
     changes.push(`**Renk**: \`${oldRole.hexColor}\` ➜ \`${newRole.hexColor}\``);
   }
-  if (oldRole.position !== newRole.position) {
-    changes.push(`**Pozisyon**: ${oldRole.position} ➜ ${newRole.position}`);
-  }
+  // Sadece pozisyon değişimi olan olaylar Discord'un iç sıralama mekanizmasından kaynaklanır —
+  // bunları loglamak audit log kirliliğine yol açar, bu yüzden tamamen atlanır.
   if (oldRole.mentionable !== newRole.mentionable) {
     changes.push(`**Bahsedilebilir**: ${oldRole.mentionable ? "✅" : "❌"} ➜ ${newRole.mentionable ? "✅" : "❌"}`);
   }
