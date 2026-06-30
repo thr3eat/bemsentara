@@ -483,6 +483,7 @@ async function runStoryGame(message) {
  * EkoYıldız Oyunları için ana handler
  */
 async function handleEkoGames(message, client) {
+  if (!message.guild || !message.author) return false;
   if (message.guild.id !== GUILD2_ID) return false;
   if (message.author.bot) return false;
 

@@ -1456,7 +1456,7 @@ function initializeDiscordHandlers(client) {
       const { handleEkoGames } = require('../services/ekoGames');
       const handled = await handleEkoGames(message, client);
       if (handled) return;
-    } catch (_) { }
+    } catch (ekoErr) { console.error('[ekoGames] Hata:', ekoErr.message); }
 
     // ── Abone fotoğraf doğrulama (Eko Yıldız) ──────────────────────────────
     try {

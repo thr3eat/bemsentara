@@ -429,13 +429,15 @@ async function logMessageDelete(message) {
  * @param {import("discord.js").Message} newMessage
  */
 async function logMessageUpdate(oldMessage, newMessage) {
-  if (!oldMessage?.guild || oldMessage.author?.bot) return;
+  // Discord önbelleğinde olmayan mesajlarda author null olabilir — güvenli çıkış
+  if (!oldMessage?.guild) return;
+  if (!oldMessage?.author || !newMessage?.author) return;
+  if (oldMessage.author.bot) return;
   if (oldMessage.content === newMessage.content) return;
 
-  const oldContent = oldMessage.content?.slice(0, 300) || "_(boş)_";
-  const newContent = newMessage.content?.slice(0, 300) || "_(boş)_";
+  const oldContent = oldMessage.content?.slice(0, 300) || '_(boş)_';
+  const newContent = newMessage.content?.slice(0, 300) || '_(boş)_';
 
-  // BUG FIX: MessageUpdate kullan, MessageDelete değil
   const executor = await getExecutor(
     oldMessage.guild,
     oldMessage.author.id,
@@ -444,17 +446,17 @@ async function logMessageUpdate(oldMessage, newMessage) {
 
   const embed = createDetailedEmbed(
     oldMessage.guild.id,
-    "✏️ MESAJ DÜZENLENDİ",
+    '✏️ MESAJ DÜZENLENDİ',
     `<@${oldMessage.author.id}> mesajını düzenledi\n[Mesaja Git](${newMessage.url})`,
     {
-      "Kanal": `<#${oldMessage.channelId}>`,
-      "Yazar": `${oldMessage.author.tag}\n\`${oldMessage.author.id}\``,
-      "Mesaj ID": `\`${oldMessage.id}\``,
-      "Eski İçerik": oldContent,
-      "Yeni İçerik": newContent,
-      "Düzenleme Zamanı": toRelative(Date.now())
+      'Kanal': `<#${oldMessage.channelId}>`,
+      'Yazar': `${oldMessage.author.tag}\n\`${oldMessage.author.id}\``,
+      'Mesaj ID': `\`${oldMessage.id}\``,
+      'Eski İçerik': oldContent,
+      'Yeni İçerik': newContent,
+      'Düzenleme Zamanı': toRelative(Date.now())
     },
-    "message",
+    'message',
     executor
   );
 
