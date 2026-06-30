@@ -1266,12 +1266,18 @@ function initializeDiscordHandlers(client) {
     // ── Profanity & Swear & NSFW Check ──
     if (message.guild && !message.author.bot) {
       try {
-        const swearWords = [
+        const swearWords = new Set([
           "siktir", "sikis", "sikem", "sikim", "sikti", "orospu", "pic", "amk", "yarrak",
           "got", "amina", "amini", "kaltak", "yavsak", "kahpe", "meme", "tassak", "tasak",
           "amcik", "gavat", "godos", "porno", "hentai", "nsfw", "sikiş", "piç", "göt",
-          "amına", "amını", "yavşak", "taşşak", "taşak", "amcık", "godoş"
-        ];
+          "amına", "amını", "yavşak", "taşşak", "taşak", "amcık", "godoş", "yarak", "oç",
+          "ibne", "gays", "lez", "xxx", "sex", "yasak", "ifsa", "türbanlı", "azgin", "sikişmek", "sikismek", "bacak", "meme",
+          "dildo", "anal", "oral", "masturbasyon", "bosalma", "yalamak", "emmek", "bayan",
+          "sokmak", "cinsel", "orgazm", "fantezi", "bacaklar", "kalca", "göğüs", "yatak",
+          "sevisme", "tecavuz", "pedofili", "sapik", "mal", "aptal", "gerizekali", "salak",
+          "ezik", "yavsak", "kaltak", "fahişe", "orospu", "pezevenk", "gotveren", "yavşak",
+          "döl", "döllenme", "çük", "kuku", "sürtük", "piç",
+        ]);
 
         const cleanedContent = message.content
           .toLowerCase()

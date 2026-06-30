@@ -3338,8 +3338,11 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
                          
     const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
     if (aiResponse) {
-      const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
-      aiMappings = JSON.parse(cleanJson);
+      // AI bazen JSON öncesine açıklama metni ekleyebilir — sadece { } bloğunu çıkar
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        aiMappings = JSON.parse(jsonMatch[0]);
+      }
     }
   } catch (err) {
     console.error("[SunucuKurma] AI match error:", err.message);
