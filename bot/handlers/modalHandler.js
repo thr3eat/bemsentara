@@ -16,6 +16,48 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  if (interaction.customId === 'ekocoin_convert_xp_modal') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    
+    const amountStr = interaction.fields.getTextInputValue('convert_amount');
+    const amount = parseInt(amountStr, 10);
+    
+    if (isNaN(amount) || amount <= 0) {
+      return interaction.editReply({ content: '❌ Geçersiz miktar! Lütfen pozitif bir sayı girin.' });
+    }
+    
+    const StaffProgress = require('../../models/StaffProgress');
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) {
+      return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+    }
+    
+    const currentCoins = p.gamification?.ecoCoins || 0;
+    if (currentCoins < amount) {
+      return interaction.editReply({ content: `❌ Yetersiz EkoCoin! Mevcut bakiyeniz: \`${currentCoins} E.C.\`` });
+    }
+    
+    const xpReward = Math.floor(amount * 0.25);
+    if (xpReward <= 0) {
+      return interaction.editReply({ content: `❌ Bu miktardaki EkoCoin sıfır XP ediyor. Lütfen en az 4 EkoCoin girin (1 EkoCoin = 0.25 XP).` });
+    }
+    
+    // Deduct EkoCoins
+    p.gamification.ecoCoins -= amount;
+    await p.save();
+    
+    // Add XP
+    const { addXPDirectly } = require('../services/frogLevel');
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (member) {
+      await addXPDirectly(member, xpReward, interaction.client);
+    }
+    
+    return interaction.editReply({
+      content: `✅ **Başarı!** \`${amount} E.C.\` bozdurularak **${xpReward} XP** elde edildi!\nGüncel Bakiyeniz: \`${p.gamification.ecoCoins} E.C.\``
+    });
+  }
+
   if (interaction.customId.startsWith('panel_modal_')) {
     const { handlePanelModal } = require("../services/mainPanelService");
     return handlePanelModal(interaction);

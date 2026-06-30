@@ -58,9 +58,10 @@ async function jailUser(client, guild, userId, reason, durationMinutes, moderato
 
     if (!hapisRole) return false;
 
-    // Save current roles (excluding managed/everyone/hapis role) and strip them
+    // Save current roles (excluding managed/everyone/hapis role and roles higher than bot) and strip them
+    const botHighestRole = guild.members.me.roles.highest;
     const currentRoles = member.roles.cache
-      .filter(r => r.id !== guild.id && !r.managed && r.id !== hapisRole.id)
+      .filter(r => r.id !== guild.id && !r.managed && r.id !== hapisRole.id && botHighestRole.comparePositionTo(r) > 0)
       .map(r => r.id);
 
     dbUser.isJailed = true;

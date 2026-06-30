@@ -1238,15 +1238,15 @@ function initializeDiscordHandlers(client) {
 
             const row = new ActionRowBuilder().addComponents(
               new ButtonBuilder()
-                .setCustomId(`jail_warn_${message.guild.id}_${message.author.id}_${message.id}`)
+                .setCustomId(`jail_warn_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
                 .setLabel("⚠️ UYAR")
                 .setStyle(ButtonStyle.Primary),
               new ButtonBuilder()
-                .setCustomId(`jail_immed_${message.guild.id}_${message.author.id}_${message.id}_${suggestedDuration}`)
+                .setCustomId(`jail_immed_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}_${suggestedDuration}`)
                 .setLabel("🔒 HAPİSE AT")
                 .setStyle(ButtonStyle.Danger),
               new ButtonBuilder()
-                .setCustomId(`jail_ignore_${message.guild.id}_${message.author.id}_${message.id}`)
+                .setCustomId(`jail_ignore_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
                 .setLabel("✅ YOKSAY")
                 .setStyle(ButtonStyle.Secondary)
             );
@@ -2403,7 +2403,6 @@ function initializeDiscordHandlers(client) {
         else if (item === 'color_pink') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
         else if (item === 'color_orange') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
         else if (item === 'item_leave_1day' || item === 'ekstra_izin') { price = 800; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
-        else if (item === 'item_xp_50') { price = 150; successMessage = '⚡ 50 XP başarıyla satın alındı!'; }
 
         if ((p.gamification?.ecoCoins || 0) < price) {
           return interaction.reply({ content: `❌ Yetersiz E.C.! (Gereken: ${price} E.C. - Sizin: ${p.gamification?.ecoCoins || 0} E.C.)`, ephemeral: true });
@@ -2444,12 +2443,6 @@ function initializeDiscordHandlers(client) {
           }
         } else if (item === 'item_leave_1day' || item === 'ekstra_izin') {
           p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
-        } else if (item === 'item_xp_50') {
-          const { addXPDirectly } = require('../services/frogLevel');
-          const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-          if (member) {
-            await addXPDirectly(member, 50, interaction.client);
-          }
         }
 
         await p.save();

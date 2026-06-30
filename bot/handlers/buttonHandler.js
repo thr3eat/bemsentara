@@ -894,8 +894,9 @@ async function handleButtonInteraction(interaction) {
     const action = parts[1]; // warn | immed | ignore
     const guildId = parts[2];
     const targetUserId = parts[3];
-    const targetMsgId = parts[4];
-    const duration = parts[5] ? parseInt(parts[5], 10) : 10; // Default 10 mins
+    const targetChannelId = parts[4];
+    const targetMsgId = parts[5];
+    const duration = parts[6] ? parseInt(parts[6], 10) : 10; // Default 10 mins
 
     await interaction.deferUpdate().catch(() => {});
 
@@ -954,6 +955,21 @@ async function handleButtonInteraction(interaction) {
       isJailAction = true;
     }
 
+    // Delete the swear/NSFW message from the chat channel
+    if (action === "warn" || action === "immed") {
+      try {
+        const channel = await targetGuild.channels.fetch(targetChannelId).catch(() => null);
+        if (channel && channel.isTextBased()) {
+          const msgToDelete = await channel.messages.fetch(targetMsgId).catch(() => null);
+          if (msgToDelete && msgToDelete.deletable) {
+            await msgToDelete.delete().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn("[jail] Swear message deletion error:", err.message);
+      }
+    }
+
     if (isJailAction) {
       const { jailUser } = require("../services/jailService");
       const success = await jailUser(
@@ -1000,6 +1016,27 @@ async function handleButtonInteraction(interaction) {
     );
 
     await interaction.editReply({ embeds: [updatedEmbed], components: [disabledRow] }).catch(() => {});
+    return;
+  }
+
+  // ── EkoCoin -> XP Dönüştürme Butonu ──────────────────────────────────────
+  if (customId === "ekocoin_convert_xp_btn") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
+    const modal = new ModalBuilder()
+      .setCustomId("ekocoin_convert_xp_modal")
+      .setTitle("⚡ EkoCoin -> XP Dönüştür");
+
+    const amountInput = new TextInputBuilder()
+      .setCustomId("convert_amount")
+      .setLabel("Dönüştürülecek EkoCoin Miktarı")
+      .setPlaceholder("Örn: 200 (1 E.C. = 0.25 XP)")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(amountInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal).catch(() => {});
     return;
   }
 

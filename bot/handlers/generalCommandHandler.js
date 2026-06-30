@@ -2302,8 +2302,16 @@ async function handleGeneralCommand(interaction) {
 
       if (sub === "bakiye") {
         if (!p) return interaction.editReply({ content: `Personel sisteminde kaydın bulunamadı.` });
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+        const convertBtnRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("ekocoin_convert_xp_btn")
+            .setLabel("⚡ EKOCOİNLERİNİ XPYE DÖNÜŞTÜR!")
+            .setStyle(ButtonStyle.Success)
+        );
         return interaction.editReply({
-          content: `💳 **Mevcut EkoCoin Bakiyeniz:** \`${p.gamification?.ecoCoins || 0} E.C.\``
+          content: `💳 **Mevcut EkoCoin Bakiyeniz:** \`${p.gamification?.ecoCoins || 0} E.C.\``,
+          components: [convertBtnRow]
         });
       }
 
@@ -2417,7 +2425,15 @@ async function handleGeneralCommand(interaction) {
           ])
       );
 
-      return interaction.editReply({ embeds: [embed], components: [storeMenu] });
+      const { ButtonBuilder, ButtonStyle } = require('discord.js');
+      const convertBtnRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("ekocoin_convert_xp_btn")
+          .setLabel("⚡ EKOCOİNLERİNİ XPYE DÖNÜŞTÜR!")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.editReply({ embeds: [embed], components: [storeMenu, convertBtnRow] });
     }
 
     if (commandName === "gunluk-odul") {
