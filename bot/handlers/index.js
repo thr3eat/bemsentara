@@ -1266,7 +1266,7 @@ function initializeDiscordHandlers(client) {
     // ── Profanity & Swear & NSFW Check ──
     if (message.guild && !message.author.bot) {
       try {
-        const swearWords = new Set([
+        const swearWords = [
           "siktir", "sikis", "sikem", "sikim", "sikti", "orospu", "pic", "amk", "yarrak",
           "got", "amina", "amini", "kaltak", "yavsak", "kahpe", "meme", "tassak", "tasak",
           "amcik", "gavat", "godos", "porno", "hentai", "nsfw", "sikiş", "piç", "göt",
@@ -1277,7 +1277,7 @@ function initializeDiscordHandlers(client) {
           "sevisme", "tecavuz", "pedofili", "sapik", "mal", "aptal", "gerizekali", "salak",
           "ezik", "yavsak", "kaltak", "fahişe", "orospu", "pezevenk", "gotveren", "yavşak",
           "döl", "döllenme", "çük", "kuku", "sürtük", "piç",
-        ]);
+        ];
 
         const cleanedContent = message.content
           .toLowerCase()
@@ -1289,7 +1289,12 @@ function initializeDiscordHandlers(client) {
           .replace(/ö/g, "o")
           .replace(/ç/g, "c");
 
-        const hasSwear = swearWords.some(word => cleanedContent.includes(word));
+        // Substring check (can also use RegExp to prevent false positives if needed, but keeping user's .includes for now, or using word-boundary check)
+        const hasSwear = swearWords.some(word => {
+          const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const regex = new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "i");
+          return regex.test(cleanedContent);
+        });
         if (hasSwear) {
           // Notify Moderator
           const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
