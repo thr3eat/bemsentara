@@ -2075,6 +2075,10 @@ async function retireFromStaff(userId, client) {
   return { success: true, totalDays, levelName };
 }
 async function runDailyCheck(client) {
+  if (global.SPAM_STOPPED) {
+    console.log('[staffSystem] runDailyCheck skipped (global.SPAM_STOPPED is true)');
+    return;
+  }
   const checkDate = getTargetCheckDate();
   console.log(`[staffSystem] Günlük kontrol başladı (Hedef Tarih: ${checkDate})...`);
 
@@ -2172,6 +2176,10 @@ function startStaffScheduler(client) {
   // Belirli saatte çalışacak görev planla
   function scheduleAt(hour, minute, callback) {
     function run() {
+      if (global.SPAM_STOPPED) {
+        console.log(`[staffSystem] scheduleAt skipped for ${hour}:${minute} (global.SPAM_STOPPED is true)`);
+        return;
+      }
       const now = new Date();
       const next = new Date();
       // Bugün o saat geçtiyse yarın planla
@@ -2179,6 +2187,7 @@ function startStaffScheduler(client) {
       if (next <= now) next.setDate(next.getDate() + 1);
       const delay = next - now;
       setTimeout(async () => {
+        if (global.SPAM_STOPPED) return;
         try { await callback(); } catch (err) { console.error('[staffSystem] Scheduler hata:', err.message); }
         run(); // Ertesi gün için tekrar planla
       }, delay);

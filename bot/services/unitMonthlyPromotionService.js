@@ -389,6 +389,10 @@ function startMonthlyPromotionScheduler(client) {
 
   const cron = require('node-cron');
   cron.schedule('0 20 * * *', async () => {
+    if (global.SPAM_STOPPED) {
+      console.log('[monthlyPromotion] Cron execution skipped (global.SPAM_STOPPED is true)');
+      return;
+    }
     try {
       const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
       const today = tzDate.getDate();

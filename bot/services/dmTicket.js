@@ -14,10 +14,32 @@ const {
 
 // userId → [{role, content}]
 const dmConversations = new Map();
+// userId → 'normal' | 'ai' | 'emergency_ai'
+const dmModes = new Map();
 // userId → { ticketId, channelId, guildId }
 const activeDMTickets = new Map();
 // Onay bekleyen kullanıcılar: userId → true
 const pendingConfirmation = new Map();
+
+const EMERGENCY_SYSTEM_PROMPT = `Sen Sentara/EkoYıldız Discord sunucusunun Baş Emniyet ve Güvenlik Yapay Zekasısın.
+Görevin sunucuda istila (raid), yetki suistimali (abuse), saldırganlık yapanları tespit etmek ve eğer botta bir spam/hata durumu varsa müdahale etmektir.
+
+KULLANICI TALEP AKIŞLARI:
+
+1. İstilacı/Abuseci Bildirme:
+- Kullanıcıdan şüpheli kişinin Discord ID'sini veya tam kullanıcı adını iste.
+- Kullanıcıdan KANIT iste (kanıt olarak mesaj eki, ekran görüntüsü yüklemesi ZORUNLUDUR).
+- Kullanıcı kanıt yüklediğinde (resim/dosya) ve ID/username paylaştığında, güvenliği sağlamak için hemen [BAN_EMERGENCY] <kullanıcı_id> komutunu tetikle.
+- Örnek yanıt: "Kanıt alındı ve analiz edildi. Sunucu emniyeti için kullanıcı yasaklanıyor. [BAN_EMERGENCY] 123456789012345678"
+
+2. Botun Spam Yapmasını Durdurma:
+- Eğer kullanıcı botun bildirim/DM spamladığını söylerse ("bot spam atıyor", "bildirimleri durdur", "spamı engelle" vb.), hemen bu duruma müdahale et.
+- Sistemi durdurmak için [STOP_SPAM] komutunu tetikle.
+- Örnek yanıt: "Anlaşıldı! Botun spam yaptığı tespit edildi. Güvenlik protokolü gereği tüm bildirim planlayıcıları durduruluyor. [STOP_SPAM]"
+
+Kurallar:
+- Türkçe konuş. Son derece ciddi, otoriter, resmi ve emniyet gücü gibi davran.
+- Köşeli parantez [ ] karakterlerini yalnızca yukarıdaki komutlar ([BAN_EMERGENCY] veya [STOP_SPAM]) için kullan.`;
 
 const DM_SYSTEM_PROMPT = `Sen Sentara/EkoYıldız Discord sunucusunun resmi destek yapay zeka asistanısın. 
 Adın EkoBot. Kullanıcıyla doğal, samimi ama profesyonel bir dille konuş. 
@@ -180,28 +202,34 @@ async function handleDMMessage(message, client) {
     return;
   }
 
-  // İlk kez yazıyor → Evet/Hayır sor
+  // İlk kez yazıyor → Üç butonlu akıllı menüyü göster
   if (!dmConversations.has(userId)) {
     pendingConfirmation.set(userId, true);
 
     const embed = new EmbedBuilder()
       .setColor(0x7c6af7)
-      .setTitle('👋 Merhaba!')
+      .setTitle('🛡️ Sentara Akıllı Destek & Emniyet Sistemi')
       .setDescription(
-        'Sentara Destek sistemine hoş geldiniz.\n\n' +
-        '**Destek talebi açmak istiyor musunuz?**'
+        'Hoş geldiniz! Yapmak istediğiniz işlemi aşağıdaki butonları kullanarak seçebilirsiniz:\n\n' +
+        '🟢 **Normal Destek Aç:** Yetkililere doğrudan ulaşmak için bilet oluşturun.\n' +
+        '🤖 **Yapay Zeka Destek:** Sorularınızı sormak için EkoBot AI ile doğrudan sohbete başlayın.\n' +
+        '🚨 **ACİL YAPAY ZEKAYA BAĞLAN:** Sunucudaki istilacı/abusecileri raporlayıp banlatın veya bot spamlarını durdurun.'
       )
-      .setFooter({ text: 'Sentara Destek' });
+      .setFooter({ text: 'Sentara Güvenlik & Destek' });
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`dm_confirm_yes_${userId}`)
-        .setLabel('✅ Evet, destek istiyorum')
+        .setLabel('🟢 Normal Destek Aç')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`dm_confirm_no_${userId}`)
-        .setLabel('❌ Hayır')
-        .setStyle(ButtonStyle.Secondary)
+        .setCustomId(`dm_confirm_ai_${userId}`)
+        .setLabel('🤖 Yapay Zeka Destek')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`dm_confirm_emergency_${userId}`)
+        .setLabel('🚨 ACİL AI BAĞLAN')
+        .setStyle(ButtonStyle.Danger)
     );
 
     await message.author.send({ embeds: [embed], components: [row] }).catch((err) => {
@@ -218,13 +246,21 @@ async function handleDMMessage(message, client) {
 async function continueAIConversation(message, client) {
   const userId = message.author.id;
   const history = dmConversations.get(userId);
+  const mode = dmModes.get(userId) || 'normal';
 
-  if (history.length >= 14) {
+  // Normal ticket akışı limiti
+  if (mode === 'normal' && history.length >= 14) {
     await createDMTicket(message.author, 'Kullanıcı destek talep etti.', history, client);
     return;
   }
 
-  history.push({ role: 'user', content: message.content });
+  // Eğer ek yüklenmişse AI'a bunu bildir
+  let userText = message.content || '';
+  if (message.attachments.size > 0) {
+    userText += `\n[SİSTEM UYARISI: Kullanıcı bir kanıt/dosya eki yükledi. Dosya sayısı: ${message.attachments.size}]`;
+  }
+
+  history.push({ role: 'user', content: userText });
 
   try {
     const dmCh = await message.author.createDM().catch(() => null);
@@ -233,7 +269,8 @@ async function continueAIConversation(message, client) {
 
   let aiReply;
   try {
-    aiReply = await chatWithAI(history, DM_SYSTEM_PROMPT);
+    const prompt = mode === 'emergency_ai' ? EMERGENCY_SYSTEM_PROMPT : DM_SYSTEM_PROMPT;
+    aiReply = await chatWithAI(history, prompt);
     history.push({ role: 'assistant', content: aiReply });
   } catch (err) {
     console.error('[dmTicket] AI hata:', err.message);
@@ -244,7 +281,34 @@ async function continueAIConversation(message, client) {
     return;
   }
 
-  if (isReady(aiReply)) {
+  // Acil komut kontrolleri
+  if (mode === 'emergency_ai') {
+    // 1. Acil Ban Komutu
+    if (aiReply.includes('[BAN_EMERGENCY]')) {
+      const match = aiReply.match(/\[BAN_EMERGENCY\]\s*(\d+)/);
+      const targetId = match ? match[1] : null;
+      if (targetId) {
+        try {
+          // TARGET_GUILD_ID'den banla
+          const guild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+          if (guild) {
+            await guild.members.ban(targetId, { reason: `Acil AI Emniyet Raporu: İstilacı/Abuseci (Raporlayan: ${message.author.username})` });
+            aiReply += `\n\n⚡ **[SİSTEM MESAJI]** <@${targetId}> (${targetId}) kullanıcısı sunucudan başarıyla yasaklandı.`;
+          }
+        } catch (err) {
+          aiReply += `\n\n❌ **[SİSTEM MESAJI]** Yasaklama işlemi başarısız: ${err.message}`;
+        }
+      }
+    }
+
+    // 2. Spam Durdurma Komutu
+    if (aiReply.includes('[STOP_SPAM]')) {
+      global.SPAM_STOPPED = true;
+      aiReply += `\n\n⚡ **[SİSTEM MESAJI]** Güvenlik Protokolü aktifleşti. Botun tüm bildirim planlayıcıları başarıyla durduruldu.`;
+    }
+  }
+
+  if (isReady(aiReply) && mode === 'normal') {
     const summary = cleanAI(aiReply);
     await createDMTicket(message.author, summary, history, client);
   } else {
@@ -257,7 +321,10 @@ async function continueAIConversation(message, client) {
 async function handleDMConfirmButton(interaction, client) {
   const customId = interaction.customId;
 
-  if (!customId.startsWith('dm_confirm_yes_') && !customId.startsWith('dm_confirm_no_')) {
+  if (!customId.startsWith('dm_confirm_yes_') && 
+      !customId.startsWith('dm_confirm_no_') &&
+      !customId.startsWith('dm_confirm_ai_') &&
+      !customId.startsWith('dm_confirm_emergency_')) {
     return false;
   }
 
@@ -273,11 +340,36 @@ async function handleDMConfirmButton(interaction, client) {
     return true;
   }
 
-  // Evet — AI konuşmasını başlat
+  if (customId.startsWith('dm_confirm_ai_')) {
+    dmConversations.set(userId, []);
+    dmModes.set(userId, 'ai');
+    await interaction.update({
+      content: '🤖 **EkoBot Yapay Zeka Asistanı Bağlandı!**\nSorularınızı yazabilirsiniz. Çözüm odaklı çalışıyorum. 😊',
+      embeds: [],
+      components: [],
+    }).catch(() => {});
+    return true;
+  }
+
+  if (customId.startsWith('dm_confirm_emergency_')) {
+    dmConversations.set(userId, []);
+    dmModes.set(userId, 'emergency_ai');
+    await interaction.update({
+      content: '🚨 **ACİL EMNİYET VE GÜVENLİK SİSTEMİ DEVREDE!**\n\n' +
+               'Sunucudaki istilacıları/abusecileri raporlayabilir (kanıt yükleyerek) veya bot spamlarını durdurabilirsiniz.\n' +
+               'Lütfen durumu ve varsa şüpheli ID\'lerini yazıp ekran görüntüsü (kanıt) yükleyin.',
+      embeds: [],
+      components: [],
+    }).catch(() => {});
+    return true;
+  }
+
+  // Evet — Normal ticket açılışı öncesi AI
   dmConversations.set(userId, []);
+  dmModes.set(userId, 'normal');
 
   await interaction.update({
-    content: '✅ Harika! Sorununuzu anlatın, size yardımcı olmaya çalışacağım.',
+    content: '✅ Harika! Sorununuzu anlatın, detayları alıp sizi yetkililere aktaracağım.',
     embeds: [],
     components: [],
   }).catch(() => {});
