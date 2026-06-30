@@ -1752,145 +1752,17 @@ async function handleGeneralCommand(interaction) {
     }
 
     if (commandName === "incele") {
-      const targetUser = interaction.options.getUser("kullanici");
-      const targetMember = interaction.options.getMember("kullanici");
-
-      // 1. Roblox ID Bul (RoWifi veya Yerel Veritabanı)
-      let robloxId = null;
-      let robloxUsername = null;
-      let linkSource = null;
-
-      // RoWifi API
-      const { ROWIFI_TOKEN } = require("../../config");
-      if (ROWIFI_TOKEN) {
-        try {
-          const axios = require("axios");
-          const url = `https://api.rowifi.xyz/v3/guilds/${interaction.guildId}/members/${targetUser.id}`;
-          const response = await axios.get(url, {
-            headers: {
-              'Authorization': `Bot ${ROWIFI_TOKEN}`
-            },
-            timeout: 5000
-          });
-          if (response.status === 200 && response.data && response.data.roblox_id) {
-            robloxId = String(response.data.roblox_id);
-            linkSource = "RoWifi API";
-          }
-        } catch (err) {
-          console.warn(`[RoWifi API] Hata (User: ${targetUser.id}):`, err.message);
-        }
-      }
-
-      // Local DB Fallback
-      if (!robloxId) {
-        const dbUser = await User.findOne({ discordId: targetUser.id });
-        if (dbUser && dbUser.robloxId) {
-          robloxId = String(dbUser.robloxId);
-          robloxUsername = dbUser.robloxUsername;
-          linkSource = "Sunucu Veritabanı";
-        }
-      }
-
-      // Embed nesnesini hazırlayalım
-      const embed = new EmbedBuilder()
-        .setTitle(`🔍 Kullanıcı İnceleme: ${targetUser.tag}`)
-        .setColor(0x7c6af7)
-        .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-        .setTimestamp();
-
-      // Discord Bölümü
-      let discordInfo = `**ID:** \`${targetUser.id}\`\n` +
-                        `**Hesap Açılış:** <t:${Math.floor(targetUser.createdTimestamp / 1000)}:R> (<t:${Math.floor(targetUser.createdTimestamp / 1000)}:F>)\n`;
-
-      if (targetMember) {
-        discordInfo += `**Sunucuya Katılım:** <t:${Math.floor(targetMember.joinedTimestamp / 1000)}:R>\n` +
-                       `**Takma Ad:** ${targetMember.nickname || "Yok"}\n`;
-        
-        const roles = targetMember.roles.cache
-          .filter(r => r.id !== interaction.guild.id)
-          .sort((a, b) => b.position - a.position)
-          .map(r => r.toString());
-        
-        if (roles.length > 0) {
-          discordInfo += `**Roller (${roles.length}):** ${roles.slice(0, 15).join(", ")}${roles.length > 15 ? "..." : ""}\n`;
-        } else {
-          discordInfo += `**Roller:** Yok\n`;
-        }
-      }
-      embed.addFields({ name: "📱 Discord Bilgileri", value: discordInfo, inline: false });
-
-      // Roblox Bölümü
-      if (robloxId) {
-        let rbxName = robloxUsername || "Bilinmiyor";
-        let rbxDisplayName = "Bilinmiyor";
-        let rbxCreated = "Bilinmiyor";
-        let rbxDesc = "Yok";
-        let rbxBanned = "Hayır";
-        let rbxFriends = "Bilinmiyor";
-        let rbxGroupsText = "Bulunamadı";
-
-        // Roblox APIs
-        try {
-          const axios = require("axios");
-          // 1. User profile
-          const userRes = await axios.get(`https://users.roblox.com/v1/users/${robloxId}`, { timeout: 5000 }).catch(() => null);
-          if (userRes && userRes.data) {
-            rbxName = userRes.data.name;
-            rbxDisplayName = userRes.data.displayName;
-            rbxDesc = userRes.data.description ? (userRes.data.description.length > 500 ? userRes.data.description.slice(0, 500) + "..." : userRes.data.description) : "Yok";
-            rbxBanned = userRes.data.isBanned ? "⚠️ Evet (Yasaklı)" : "Hayır";
-            
-            const createdDate = new Date(userRes.data.created);
-            rbxCreated = `<t:${Math.floor(createdDate.getTime() / 1000)}:R> (<t:${Math.floor(createdDate.getTime() / 1000)}:F>)`;
-          }
-
-          // 2. Avatar Thumbnail
-          const thumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${robloxId}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 }).catch(() => null);
-          if (thumbRes && thumbRes.data && thumbRes.data.data && thumbRes.data.data[0]) {
-            embed.setThumbnail(thumbRes.data.data[0].imageUrl);
-          }
-
-          // 3. Friends count
-          const friendsRes = await axios.get(`https://friends.roblox.com/v1/users/${robloxId}/friends/count`, { timeout: 5000 }).catch(() => null);
-          if (friendsRes && friendsRes.data) {
-            rbxFriends = `${friendsRes.data.count} arkadaş`;
-          }
-
-          // 4. Groups
-          const { fetchUserGroups } = require("../services/roleSyncService");
-          const groups = await fetchUserGroups(robloxId).catch(() => []);
-          if (groups.length > 0) {
-            rbxGroupsText = groups.slice(0, 5).map(g => `- **[${g.group.name}](https://www.roblox.com/groups/${g.group.id}):** ${g.role.name} (Rank: ${g.role.rank})`).join("\n");
-            if (groups.length > 5) {
-              rbxGroupsText += `\n*ve ${groups.length - 5} grup daha...*`;
-            }
-          }
-        } catch (err) {
-          console.error(`[incele] Roblox API hatası:`, err.message);
-        }
-
-        let robloxInfo = `**Kullanıcı Adı:** [${rbxName}](https://www.roblox.com/users/${robloxId}/profile)\n` +
-                         `**Görünen Ad (Display):** ${rbxDisplayName}\n` +
-                         `**ID:** \`${robloxId}\`\n` +
-                         `**Hesap Açılış:** ${rbxCreated}\n` +
-                         `**Arkadaş Sayısı:** ${rbxFriends}\n` +
-                         `**Yasaklı mı:** ${rbxBanned}\n` +
-                         `**Hakkında (Description):** *${rbxDesc}*\n` +
-                         `**Kaynak:** \`${linkSource}\` (Doğrulanmış)`;
-
-        embed.addFields(
-          { name: "🎮 Roblox Bilgileri", value: robloxInfo, inline: false },
-          { name: "👥 Katılınan Gruplar", value: rbxGroupsText, inline: false }
-        );
-      } else {
-        embed.addFields({
-          name: "🎮 Roblox Bilgileri",
-          value: "❌ Bu kullanıcının RoWifi veya sunucu veritabanında doğrulanmış bir Roblox hesabı bulunamadı.",
-          inline: false
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.editReply({
+          content: "❌ Bu komutu sadece **Yöneticiler** kullanabilir.",
         });
       }
 
-      return interaction.editReply({ embeds: [embed] });
+      const targetUser = interaction.options.getUser("kullanici");
+      const targetMember = interaction.options.getMember("kullanici");
+
+      const response = await generateInceleData(interaction.guild, targetUser, targetMember);
+      return interaction.editReply(response);
     }
 
     if (commandName === "robloxgrup") {
@@ -3175,6 +3047,161 @@ async function handlePanelCommand(interaction) {
   return null;
 }
 
+async function generateInceleData(guild, targetUser, targetMember) {
+  // 1. Roblox ID Bul (RoWifi veya Yerel Veritabanı)
+  let robloxId = null;
+  let robloxUsername = null;
+  let linkSource = null;
+
+  // RoWifi API
+  const { ROWIFI_TOKEN } = require("../../config");
+  if (ROWIFI_TOKEN) {
+    try {
+      const axios = require("axios");
+      const url = `https://api.rowifi.xyz/v3/guilds/${guild.id}/members/${targetUser.id}`;
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bot ${ROWIFI_TOKEN}`
+        },
+        timeout: 5000
+      });
+      if (response.status === 200 && response.data && response.data.roblox_id) {
+        robloxId = String(response.data.roblox_id);
+        linkSource = "RoWifi API";
+      }
+    } catch (err) {
+      console.warn(`[RoWifi API] Hata (User: ${targetUser.id}):`, err.message);
+    }
+  }
+
+  // Local DB Fallback
+  let dbUser = await User.findOne({ discordId: targetUser.id });
+  if (!robloxId && dbUser && dbUser.robloxId) {
+    robloxId = String(dbUser.robloxId);
+    robloxUsername = dbUser.robloxUsername;
+    linkSource = "Sunucu Veritabanı";
+  }
+
+  // Embed nesnesini hazırlayalım
+  const embed = new EmbedBuilder()
+    .setTitle(`🔍 Kullanıcı İnceleme: ${targetUser.tag}`)
+    .setColor(dbUser?.isBanned ? 0xed4245 : 0x7c6af7)
+    .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+    .setTimestamp();
+
+  // Discord Bölümü
+  let discordInfo = `**ID:** \`${targetUser.id}\`\n` +
+                    `**Hesap Açılış:** <t:${Math.floor(targetUser.createdTimestamp / 1000)}:R> (<t:${Math.floor(targetUser.createdTimestamp / 1000)}:F>)\n`;
+
+  if (targetMember) {
+    discordInfo += `**Sunucuya Katılım:** <t:${Math.floor(targetMember.joinedTimestamp / 1000)}:R>\n` +
+                   `**Takma Ad:** ${targetMember.nickname || "Yok"}\n`;
+    
+    const roles = targetMember.roles.cache
+      .filter(r => r.id !== guild.id)
+      .sort((a, b) => b.position - a.position)
+      .map(r => r.toString());
+    
+    if (roles.length > 0) {
+      discordInfo += `**Roller (${roles.length}):** ${roles.slice(0, 15).join(", ")}${roles.length > 15 ? "..." : ""}\n`;
+    } else {
+      discordInfo += `**Roller:** Yok\n`;
+    }
+  }
+  embed.addFields({ name: "📱 Discord Bilgileri", value: discordInfo, inline: false });
+
+  // Roblox Bölümü
+  if (robloxId) {
+    let rbxName = robloxUsername || "Bilinmiyor";
+    let rbxDisplayName = "Bilinmiyor";
+    let rbxCreated = "Bilinmiyor";
+    let rbxDesc = "Yok";
+    let rbxBanned = "Hayır";
+    let rbxFriends = "Bilinmiyor";
+    let rbxGroupsText = "Bulunamadı";
+
+    // Roblox APIs
+    try {
+      const axios = require("axios");
+      // 1. User profile
+      const userRes = await axios.get(`https://users.roblox.com/v1/users/${robloxId}`, { timeout: 5000 }).catch(() => null);
+      if (userRes && userRes.data) {
+        rbxName = userRes.data.name;
+        rbxDisplayName = userRes.data.displayName;
+        rbxDesc = userRes.data.description ? (userRes.data.description.length > 500 ? userRes.data.description.slice(0, 500) + "..." : userRes.data.description) : "Yok";
+        rbxBanned = userRes.data.isBanned ? "⚠️ Evet (Yasaklı)" : "Hayır";
+        
+        const createdDate = new Date(userRes.data.created);
+        rbxCreated = `<t:${Math.floor(createdDate.getTime() / 1000)}:R> (<t:${Math.floor(createdDate.getTime() / 1000)}:F>)`;
+      }
+
+      // 2. Avatar Thumbnail
+      const thumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${robloxId}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 }).catch(() => null);
+      if (thumbRes && thumbRes.data && thumbRes.data.data && thumbRes.data.data[0]) {
+        embed.setThumbnail(thumbRes.data.data[0].imageUrl);
+      }
+
+      // 3. Friends count
+      const friendsRes = await axios.get(`https://friends.roblox.com/v1/users/${robloxId}/friends/count`, { timeout: 5000 }).catch(() => null);
+      if (friendsRes && friendsRes.data) {
+        rbxFriends = `${friendsRes.data.count} arkadaş`;
+      }
+
+      // 4. Groups
+      const { fetchUserGroups } = require("../services/roleSyncService");
+      const groups = await fetchUserGroups(robloxId).catch(() => []);
+      if (groups.length > 0) {
+        rbxGroupsText = groups.slice(0, 5).map(g => `- **[${g.group.name}](https://www.roblox.com/groups/${g.group.id}):** ${g.role.name} (Rank: ${g.role.rank})`).join("\n");
+        if (groups.length > 5) {
+          rbxGroupsText += `\n*ve ${groups.length - 5} grup daha...*`;
+        }
+      }
+    } catch (err) {
+      console.error(`[incele] Roblox API hatası:`, err.message);
+    }
+
+    let robloxInfo = `**Kullanıcı Adı:** [${rbxName}](https://www.roblox.com/users/${robloxId}/profile)\n` +
+                     `**Görünen Ad (Display):** ${rbxDisplayName}\n` +
+                     `**ID:** \`${robloxId}\`\n` +
+                     `**Hesap Açılış:** ${rbxCreated}\n` +
+                     `**Arkadaş Sayısı:** ${rbxFriends}\n` +
+                     `**Yasaklı mı:** ${rbxBanned}\n` +
+                     `**Hakkında (Description):** *${rbxDesc}*\n` +
+                     `**Kaynak:** \`${linkSource}\` (Doğrulanmış)`;
+
+    embed.addFields(
+      { name: "🎮 Roblox Bilgileri", value: robloxInfo, inline: false },
+      { name: "👥 Katılınan Gruplar", value: rbxGroupsText, inline: false }
+    );
+  } else {
+    embed.addFields({
+      name: "🎮 Roblox Bilgileri",
+      value: "❌ Bu kullanıcının RoWifi veya sunucu veritabanında doğrulanmış bir Roblox hesabı bulunamadı.",
+      inline: false
+    });
+  }
+
+  // Ban Durumu Bilgisi (Eğer Yasaklıysa)
+  if (dbUser && dbUser.isBanned) {
+    embed.addFields({
+      name: "🚫 Ban Bilgisi (Veritabanı)",
+      value: `**Durum:** 🔴 Yasaklı\n**Sebep:** ${dbUser.banReason || "Belirtilmedi"}\n**Tarih:** ${dbUser.bannedAt ? `<t:${Math.floor(dbUser.bannedAt.getTime() / 1000)}:f>` : "Bilinmiyor"}\n**Yetkili:** <@${dbUser.bannedBy || "Bilinmiyor"}>`,
+      inline: false
+    });
+  }
+
+  // Butonları oluştur
+  const isCurrentlyBanned = dbUser ? dbUser.isBanned : false;
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(isCurrentlyBanned ? `incele_unban_${targetUser.id}` : `incele_ban_${targetUser.id}`)
+      .setLabel(isCurrentlyBanned ? "🔓 YASAK KALDIR" : "🚫 YASAKLA")
+      .setStyle(isCurrentlyBanned ? ButtonStyle.Success : ButtonStyle.Danger)
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
 async function handleAllGeneralCommands(interaction) {
   // Try main handler first
   const result = await handleGeneralCommand(interaction);
@@ -3184,4 +3211,7 @@ async function handleAllGeneralCommands(interaction) {
   return await handlePanelCommand(interaction);
 }
 
-module.exports = { handleGeneralCommand: handleAllGeneralCommands };
+module.exports = {
+  handleGeneralCommand: handleAllGeneralCommands,
+  generateInceleData
+};

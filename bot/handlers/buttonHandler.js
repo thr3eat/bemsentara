@@ -798,6 +798,96 @@ async function handleButtonInteraction(interaction) {
     }
   }
 
+  // ── İncele Yasakla / Yasak Kaldır Butonları ──────────────────────────────
+  if (customId.startsWith("incele_ban_") || customId.startsWith("incele_unban_")) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu işlemi gerçekleştirmek için **Yönetici** yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    const isBanAction = customId.startsWith("incele_ban_");
+    const targetUserId = customId.replace(isBanAction ? "incele_ban_" : "incele_unban_", "");
+
+    // Defer update so discord doesn't time out
+    await interaction.deferUpdate().catch(() => {});
+
+    const User = require("../../models/User");
+    let dbUser = await User.findOne({ discordId: targetUserId });
+    const targetUserObj = await interaction.client.users.fetch(targetUserId).catch(() => null);
+
+    if (isBanAction) {
+      // BANLAMA İŞLEMİ
+      const banReason = "Profil İnceleme Paneli Üzerinden Banlandı";
+      if (!dbUser) {
+        dbUser = new User({
+          discordId: targetUserId,
+          discordUsername: targetUserObj?.username || "Bilinmiyor",
+          isBanned: true,
+          banReason: banReason,
+          bannedAt: new Date(),
+          bannedBy: interaction.user.id,
+          banLevel: "high"
+        });
+      } else {
+        dbUser.isBanned = true;
+        dbUser.banReason = banReason;
+        dbUser.bannedAt = new Date();
+        dbUser.bannedBy = interaction.user.id;
+        dbUser.banLevel = "high";
+      }
+      await dbUser.save();
+
+      // DM Gönder
+      if (targetUserObj) {
+        await targetUserObj.send(
+          `🚫 **BEM Sentara & EkoYıldız Sunucularından Yasaklandınız!**\n\n` +
+          `**Gerekçe:** ${banReason}\n` +
+          `Erişiminiz tüm sunucularımızdan ve bot servislerimizden kesilmiştir.`
+        ).catch(() => console.log(`[incele_ban] DM gönderilemedi (User: ${targetUserId})`));
+      }
+
+      // Discord Sunucularından Banla (Botun bulunduğu tüm sunuculardan)
+      for (const guild of interaction.client.guilds.cache.values()) {
+        try {
+          await guild.bans.create(targetUserId, { reason: `Yasaklama (İnceleme Paneli): ${banReason}` }).catch(() => {});
+        } catch (err) {
+          console.warn(`[incele_ban] Guild ban error for ${guild.name}:`, err.message);
+        }
+      }
+    } else {
+      // YASAĞI KALDIRMA İŞLEMİ
+      if (dbUser) {
+        dbUser.isBanned = false;
+        dbUser.banReason = null;
+        dbUser.bannedAt = null;
+        dbUser.bannedBy = null;
+        dbUser.banLevel = null;
+        await dbUser.save();
+      }
+
+      // Discord Sunucularından Banı Kaldır
+      for (const guild of interaction.client.guilds.cache.values()) {
+        try {
+          const ban = await guild.bans.fetch(targetUserId).catch(() => null);
+          if (ban) {
+            await guild.bans.remove(targetUserId, "Yasaklama Kaldırıldı (İnceleme Paneli)").catch(() => {});
+          }
+        } catch (err) {
+          console.warn(`[incele_unban] Guild unban error for ${guild.name}:`, err.message);
+        }
+      }
+    }
+
+    // Embed'i güncelle
+    const targetMemberObj = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+    const { generateInceleData } = require("./generalCommandHandler");
+    
+    const dummyUser = targetUserObj || { id: targetUserId, tag: dbUser?.discordUsername || "Bilinmiyor", displayAvatarURL: () => "" };
+    const response = await generateInceleData(interaction.guild, dummyUser, targetMemberObj);
+    
+    await interaction.editReply(response).catch((err) => console.error("EditReply error:", err));
+    return;
+  }
+
   return null;
 }
 
