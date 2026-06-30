@@ -78,7 +78,9 @@ async function handleSelectInteraction(interaction) {
         const roleMenu = new ActionRowBuilder().addComponents(
           new RoleSelectMenuBuilder()
             .setCustomId(`setup_select_edit_role_${setupDoc.guildId}_${selectedRank}`)
-            .setPlaceholder("Discord Rolü Seçin...")
+            .setPlaceholder("Discord Rollerinden Bir veya Birden Fazla Seçin...")
+            .setMinValues(1)
+            .setMaxValues(10)
         );
         
         await interaction.editReply({ embeds: [embed], components: [roleMenu] }).catch(() => {});
@@ -87,12 +89,12 @@ async function handleSelectInteraction(interaction) {
 
       if (editType === "role") {
         const selectedRank = extraParam;
-        const selectedRoleId = interaction.values[0];
+        const selectedRoleIds = interaction.values; // Array of selected role IDs
         
         if (!setupDoc.roleMappings) {
           setupDoc.roleMappings = new Map();
         }
-        setupDoc.roleMappings.set(selectedRank, selectedRoleId);
+        setupDoc.roleMappings.set(selectedRank, selectedRoleIds);
         await setupDoc.save();
         
         const { renderRoleCustomizationPanel } = require("./buttonHandler");
