@@ -45,6 +45,14 @@ const generalCommands = [
     .setDMPermission(true),
 
   new SlashCommandBuilder()
+    .setName("incele")
+    .setDescription("Bir Discord kullanıcısının Discord ve Roblox bilgilerini inceler")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("İncelenecek Discord kullanıcısı").setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
     .setName("abonelik")
     .setDescription("Abonelik durumunu ve premium özelliklerini yönet")
     .addSubcommand((sub) =>
