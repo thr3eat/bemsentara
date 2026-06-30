@@ -362,29 +362,15 @@ async function runStoryGame(message) {
   }
 
   // 2. Giriş bekleniyorsa ama GİRİŞ ile başlamıyorsa
-  if (needsGiris) {
-    if (!isGiris) {
-      await message.delete().catch(() => {});
-      const reply = await message.channel.send(
-        `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
-        `• Hikaye bittiği veya yeni başladığı için mesajınız **GİRİŞ: <hikaye başlangıcı>** şeklinde başlamalıdır!\n` +
-        `• Örnek: \`GİRİŞ: Bir varmış bir yokmuş...\``
-      );
-      setTimeout(() => reply.delete().catch(() => {}), 6000);
-      return true;
-    }
-  } else {
-    // 3. Giriş beklenmiyorsa ama yine de GİRİŞ yazılmışsa
-    if (isGiris) {
-      await message.delete().catch(() => {});
-      const reply = await message.channel.send(
-        `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
-        `• Hikaye zaten devam ediyor! **GİRİŞ:** yazmadan normal şekilde devam ettirmelisiniz.\n` +
-        `• Hikayeyi bitirmek için mesajın sonuna **SON** yazabilirsiniz.`
-      );
-      setTimeout(() => reply.delete().catch(() => {}), 6000);
-      return true;
-    }
+  if (needsGiris && !isGiris) {
+    await message.delete().catch(() => {});
+    const reply = await message.channel.send(
+      `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
+      `• Hikaye bittiği veya yeni başladığı için mesajınız **GİRİŞ: <hikaye başlangıcı>** şeklinde başlamalıdır!\n` +
+      `• Örnek: \`GİRİŞ: Bir varmış bir yokmuş...\``
+    );
+    setTimeout(() => reply.delete().catch(() => {}), 6000);
+    return true;
   }
 
   // Kabul edildi - tik tepkisi koy
