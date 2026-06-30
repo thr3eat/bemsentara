@@ -55,6 +55,33 @@ let lastStoryUser = null;
 let needsGiris = true;
 let storySynced = false;
 
+// ─── Kullanıcı İstatistikleri (oyun türü bazlı) ───────────────────────────────
+// yapı: { doğru: number, yanlış: number }
+const userStats = new Map(); // key: `${userId}:${oyun}` → { dogru, yanlis }
+
+function getStats(userId, oyun) {
+  const key = `${userId}:${oyun}`;
+  if (!userStats.has(key)) userStats.set(key, { dogru: 0, yanlis: 0 });
+  return userStats.get(key);
+}
+
+async function showYanlisBildirim(message, oyunAdi, nedenMesaj) {
+  const stats = getStats(message.author.id, oyunAdi);
+  stats.yanlis++;
+  const { EmbedBuilder } = require('discord.js');
+  const embed = new EmbedBuilder()
+    .setTitle(`❌ Yanlış — ${oyunAdi}`)
+    .setColor(0xed4245)
+    .setDescription(`<@${message.author.id}>, ${nedenMesaj}`)
+    .addFields(
+      { name: '✅ Doğru', value: String(stats.dogru), inline: true },
+      { name: '❌ Yanlış', value: String(stats.yanlis), inline: true }
+    )
+    .setTimestamp();
+  const reply = await message.channel.send({ embeds: [embed] }).catch(() => null);
+  if (reply) setTimeout(() => reply.delete().catch(() => {}), 5000);
+}
+
 /**
  * Sayı saymacayı kanal geçmişinden senkronize et.
  */
@@ -202,20 +229,19 @@ async function runCountingGame(message) {
   // Aynı kişi üst üste yazamaz
   if (message.author.id === lastCountingUser && currentCountingNumber !== 1) {
     await message.delete().catch(() => {});
-    const reply = await message.channel.send(`<@${message.author.id}>, aynı kişi üst üste oynayamaz! Sıranı bekle.`);
-    setTimeout(() => reply.delete().catch(() => {}), 3000);
+    await showYanlisBildirim(message, 'Sayı Saymaca', 'aynı kişi üst üste oynayamaz! Sıranı bekle.');
     return true;
   }
 
   const num = parseInt(content, 10);
   if (!isNaN(num) && num > 0 && num === currentCountingNumber && num.toString() === content) {
-    await message.react("✅").catch(() => {});
+    await message.react('✅').catch(() => {});
     currentCountingNumber++;
     lastCountingUser = message.author.id;
+    getStats(message.author.id, 'Sayı Saymaca').dogru++;
   } else {
     await message.delete().catch(() => {});
-    const reply = await message.channel.send(`<@${message.author.id}>, hatalı giriş! **${currentCountingNumber}** demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
-    setTimeout(() => reply.delete().catch(() => {}), 4000);
+    await showYanlisBildirim(message, 'Sayı Saymaca', `hatalı giriş! **${currentCountingNumber}** demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
   }
   return true;
 }
@@ -230,8 +256,7 @@ async function runBomGame(message) {
 
   if (message.author.id === lastBomUser && currentBomNumber !== 1) {
     await message.delete().catch(() => {});
-    const reply = await message.channel.send(`<@${message.author.id}>, aynı kişi üst üste oynayamaz! Sıranı bekle.`);
-    setTimeout(() => reply.delete().catch(() => {}), 3000);
+    await showYanlisBildirim(message, 'Bom Oyunu', 'aynı kişi üst üste oynayamaz! Sıranı bekle.');
     return true;
   }
 
@@ -239,24 +264,20 @@ async function runBomGame(message) {
   let isCorrect = false;
 
   if (isMultipleOfFive) {
-    if (content.includes("bom")) {
-      isCorrect = true;
-    }
+    if (content.includes('bom')) isCorrect = true;
   } else {
-    if (content === currentBomNumber.toString()) {
-      isCorrect = true;
-    }
+    if (content === currentBomNumber.toString()) isCorrect = true;
   }
 
   if (isCorrect) {
-    await message.react("✅").catch(() => {});
+    await message.react('✅').catch(() => {});
     currentBomNumber++;
     lastBomUser = message.author.id;
+    getStats(message.author.id, 'Bom Oyunu').dogru++;
   } else {
     await message.delete().catch(() => {});
-    const expected = isMultipleOfFive ? "bom" : currentBomNumber;
-    const reply = await message.channel.send(`<@${message.author.id}>, hatalı giriş! **${expected}** demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
-    setTimeout(() => reply.delete().catch(() => {}), 4000);
+    const expected = isMultipleOfFive ? '**bom**' : `**${currentBomNumber}**`;
+    await showYanlisBildirim(message, 'Bom Oyunu', `hatalı giriş! ${expected} demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
   }
   return true;
 }
@@ -269,12 +290,11 @@ async function runWordGame(message) {
 
   if (message.author.id === lastWordUser && lastWordLetter !== null) {
     await message.delete().catch(() => {});
-    const reply = await message.channel.send(`<@${message.author.id}>, aynı kişi üst üste oynayamaz! Sıranı bekle.`);
-    setTimeout(() => reply.delete().catch(() => {}), 3000);
+    await showYanlisBildirim(message, 'Kelime Oyunu', 'aynı kişi üst üste oynayamaz! Sıranı bekle.');
     return true;
   }
 
-  const word = message.content.trim().split(" ")[0].toLowerCase();
+  const word = message.content.trim().split(' ')[0].toLowerCase();
 
   if (/[^a-zğüşıöç]/i.test(word)) {
     await message.delete().catch(() => {});
@@ -286,7 +306,8 @@ async function runWordGame(message) {
     const sonHarf = word.slice(-1);
     lastWordUser = message.author.id;
     usedWords.add(word);
-    await message.react("✅").catch(() => {});
+    await message.react('✅').catch(() => {});
+    getStats(message.author.id, 'Kelime Oyunu').dogru++;
 
     if (CIKMAZHARF.has(sonHarf)) {
       // Çıkmaz harf bonusu
@@ -314,13 +335,13 @@ async function runWordGame(message) {
     if (word.startsWith(lastWordLetter)) {
       if (usedWords.has(word)) {
         await message.delete().catch(() => {});
-        const reply = await message.channel.send(`<@${message.author.id}>, "${word}" kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`);
-        setTimeout(() => reply.delete().catch(() => {}), 3000);
+        await showYanlisBildirim(message, 'Kelime Oyunu', `**"${word}"** kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`);
       } else {
         const sonHarf = word.slice(-1);
         lastWordUser = message.author.id;
         usedWords.add(word);
-        await message.react("✅").catch(() => {});
+        await message.react('✅').catch(() => {});
+        getStats(message.author.id, 'Kelime Oyunu').dogru++;
 
         if (CIKMAZHARF.has(sonHarf)) {
           // Çıkmaz harf bonusu
@@ -346,8 +367,7 @@ async function runWordGame(message) {
       }
     } else {
       await message.delete().catch(() => {});
-      const reply = await message.channel.send(`<@${message.author.id}>, kelime **"${lastWordLetter}"** harfi ile başlamalı!`);
-      setTimeout(() => reply.delete().catch(() => {}), 3000);
+      await showYanlisBildirim(message, 'Kelime Oyunu', `kelime **"${lastWordLetter}"** harfi ile başlamalı!`);
     }
   }
   return true;
