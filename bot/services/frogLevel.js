@@ -619,6 +619,20 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000).unref();
 
+async function addXPDirectly(member, xpAmount, client) {
+  try {
+    const p = await getOrCreate(member.id);
+    if (!p) return;
+    
+    p.xp += xpAmount;
+    await p.save();
+    
+    await checkLevelUp(p, member, client);
+  } catch (err) {
+    console.error('[frogLevel] addXPDirectly fatal error:', err.message);
+  }
+}
+
 module.exports = {
   addMessageXP,
   addVoiceXP,
@@ -633,5 +647,6 @@ module.exports = {
   syncRolesFromLevel,
   enforceFrogRoles,
   handleBoosterReward,
+  addXPDirectly,
 };
 

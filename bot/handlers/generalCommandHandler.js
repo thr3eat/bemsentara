@@ -2405,6 +2405,7 @@ async function handleGeneralCommand(interaction) {
           .setCustomId('ekocoin_satin_al')
           .setPlaceholder('Almak istediğiniz eşyayı seçin...')
           .addOptions([
+            { label: '50 XP Paketi', description: '150 E.C. - 50 XP satın alırsınız', value: 'item_xp_50', emoji: '⚡' },
             { label: '1 Günlük İzin', description: '800 E.C. - 1 gün görevden muaf olursunuz', value: 'item_leave_1day', emoji: '🌴' },
             { label: 'Yeşil Rol Rengi', description: '500 E.C. - Sunucuda isminizi yeşil yapar', value: 'color_green', emoji: '🟩' },
             { label: 'Kırmızı Rol Rengi', description: '500 E.C. - Sunucuda isminizi kırmızı yapar', value: 'color_red', emoji: '🟥' },

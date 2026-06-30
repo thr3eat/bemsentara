@@ -110,6 +110,41 @@ function initializeDiscordHandlers(client) {
     
     startJailScheduler(client);
 
+    // Send single announcement to staff if not already sent
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const flagPath = path.join(__dirname, '../../data/staff_announcement_v4.flag');
+      
+      if (!fs.existsSync(flagPath)) {
+        const { EKOYILDIZ_MOD_LOG_CHANNEL_ID } = require('../../config');
+        const channel = client.channels.cache.get(EKOYILDIZ_MOD_LOG_CHANNEL_ID);
+        if (channel && channel.isTextBased()) {
+          const { EmbedBuilder } = require('discord.js');
+          const announceEmbed = new EmbedBuilder()
+            .setTitle("📣 YENİ YETKİLİ VE MODERASYON AYRICALIKLARI")
+            .setColor(0x06ffa5)
+            .setDescription(
+              `Merhaba yetkili ekibi! Botun yeniden başlatılmasıyla birlikte sizlere sunulan **yeni ayrıcalıklar** aktif edilmiştir:\n\n` +
+              `1. ⚡ **EkoCoin ile XP Satın Alma**:\n` +
+              `   * Artık \`/magaza\` üzerinden **150 E.C. (EkoCoin)** karşılığında **50 XP** satın alarak hızlıca rütbe atlayabilirsiniz!\n\n` +
+              `2. 🔒 **Küfür & NSFW Hapis Sistemi**:\n` +
+              `   * Sohbette küfür algılandığında sistem sizlerden birine DM üzerinden bildirim gönderir. \`Uyar\`, \`Hapise At\` veya \`Yoksay\` butonlarıyla ceza uygulayabilirsiniz. Hapis cezası alan üyenin yetkileri geçici olarak alınır ve süre bitiminde otomatik iade edilir.\n\n` +
+              `3. 🪙 **Moderasyon İşlem Ödülleri**:\n` +
+              `   * DM üzerinden küfür ihlaline müdahale ettiğinizde (Uyar veya Hapse At dediğinizde) bot tarafından anında **15 EkoCoin** kazanırsınız!`
+            )
+            .setTimestamp()
+            .setFooter({ text: 'Eko Yıldız Yönetim Sistemi' });
+
+          await channel.send({ embeds: [announceEmbed] });
+          fs.writeFileSync(flagPath, 'sent', 'utf8');
+          console.log('[StaffAnnouncement] Staff announcement sent successfully and flag created.');
+        }
+      }
+    } catch (announceErr) {
+      console.error('[StaffAnnouncement] Error sending staff announcement:', announceErr.message);
+    }
+
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
     await ensureTMTVerifyHelpMessage(client);
@@ -2368,6 +2403,7 @@ function initializeDiscordHandlers(client) {
         else if (item === 'color_pink') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
         else if (item === 'color_orange') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
         else if (item === 'item_leave_1day' || item === 'ekstra_izin') { price = 800; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
+        else if (item === 'item_xp_50') { price = 150; successMessage = '⚡ 50 XP başarıyla satın alındı!'; }
 
         if ((p.gamification?.ecoCoins || 0) < price) {
           return interaction.reply({ content: `❌ Yetersiz E.C.! (Gereken: ${price} E.C. - Sizin: ${p.gamification?.ecoCoins || 0} E.C.)`, ephemeral: true });
@@ -2408,6 +2444,12 @@ function initializeDiscordHandlers(client) {
           }
         } else if (item === 'item_leave_1day' || item === 'ekstra_izin') {
           p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
+        } else if (item === 'item_xp_50') {
+          const { addXPDirectly } = require('../services/frogLevel');
+          const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+          if (member) {
+            await addXPDirectly(member, 50, interaction.client);
+          }
         }
 
         await p.save();
