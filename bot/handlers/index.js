@@ -1157,6 +1157,107 @@ function initializeDiscordHandlers(client) {
       const authorized = await isGuildAuthorized(message.guild);
       if (!authorized) return;
     }
+    // ── Sunucuya Özel s!sil ve s!ban Komutları ───────────────────────────────
+    if (message.guild && !message.author.bot && (message.content.toLowerCase().startsWith("s!sil") || message.content.toLowerCase().startsWith("s!ban"))) {
+      const ServerSetup = require("../../models/ServerSetup");
+      const setupDoc = await ServerSetup.findOne({ guildId: message.guild.id, status: "active" });
+      if (setupDoc) {
+        const args = message.content.trim().split(/\s+/);
+        const cmd = args[0].toLowerCase();
+
+        if (cmd === "s!sil") {
+          const { PermissionFlagsBits } = require("discord.js");
+          if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return message.reply("❌ Bu komutu kullanmak için `Mesajları Yönet` yetkisine sahip olmalısınız.").catch(() => {});
+          }
+
+          const amountStr = args[1];
+          const amount = parseInt(amountStr, 10);
+          if (isNaN(amount) || amount <= 0 || amount > 10000) {
+            return message.reply("❌ Lütfen silinecek mesaj miktarını belirtin (1 - 10000 arası)! Örn: `s!sil 150`").catch(() => {});
+          }
+
+          // Delete command message first
+          await message.delete().catch(() => {});
+
+          try {
+            let remaining = amount;
+            let totalDeleted = 0;
+
+            while (remaining > 0) {
+              const deleteBatch = Math.min(remaining, 100);
+              const deleted = await message.channel.bulkDelete(deleteBatch, true);
+              if (deleted.size === 0) {
+                break;
+              }
+              totalDeleted += deleted.size;
+              remaining -= deleted.size;
+
+              if (deleted.size < deleteBatch) {
+                break;
+              }
+
+              // Delay to prevent rate limits
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            const replyMsg = await message.channel.send(`🧹 **${totalDeleted}** adet mesaj başarıyla silindi!`).catch(() => null);
+            if (replyMsg) {
+              setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
+            }
+          } catch (err) {
+            console.error("[s!sil] Error:", err);
+            await message.channel.send(`❌ Mesajlar silinirken bir hata oluştu: ${err.message}`).catch(() => {});
+          }
+          return;
+        }
+
+        if (cmd === "s!ban") {
+          const { PermissionFlagsBits } = require("discord.js");
+          if (!message.member.permissions.has(PermissionFlagsBits.BanMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return message.reply("❌ Bu komutu kullanmak için `Üyeleri Yasakla` yetkisine sahip olmalısınız.").catch(() => {});
+          }
+
+          const targetArg = args[1];
+          if (!targetArg) {
+            return message.reply("❌ Lütfen banlanacak kullanıcıyı etiketleyin veya ID'sini belirtin! Örn: `s!ban @kullanıcı [sebep]`").catch(() => {});
+          }
+
+          const targetId = targetArg.replace(/[^0-9]/g, "");
+          const targetMember = message.guild.members.cache.get(targetId)
+            || await message.guild.members.fetch(targetId).catch(() => null);
+
+          if (!targetMember) {
+            return message.reply("❌ Belirtilen kullanıcı sunucuda bulunamadı!").catch(() => {});
+          }
+
+          if (targetMember.id === message.author.id) {
+            return message.reply("❌ Kendinizi banlayamazsınız!").catch(() => {});
+          }
+
+          const botMember = message.guild.members.me || await message.guild.members.fetch(message.client.user.id).catch(() => null);
+          if (botMember && botMember.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0) {
+            return message.reply("❌ Bu kullanıcının rolü botun rolünden daha yüksek veya eşit, bu kişiyi banlayamam!").catch(() => {});
+          }
+
+          if (message.member.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0 && message.author.id !== message.guild.ownerId) {
+            return message.reply("❌ Yetkiniz bu kullanıcıyı banlamaya yetmiyor!").catch(() => {});
+          }
+
+          const reason = args.slice(2).join(" ") || "Sebep belirtilmedi.";
+
+          try {
+            await targetMember.ban({ reason: `${message.author.tag} tarafından s!ban ile: ${reason}` });
+            await message.reply(`🔨 **${targetMember.user.tag}** kullanıcısı başarıyla yasaklandı!\n**Sebep:** ${reason}`).catch(() => {});
+          } catch (err) {
+            console.error("[s!ban] Error:", err);
+            await message.reply(`❌ Kullanıcı yasaklanırken bir hata oluştu: ${err.message}`).catch(() => {});
+          }
+          return;
+        }
+      }
+    }
+
     // ── Profanity & Swear & NSFW Check ──
     if (message.guild && !message.author.bot) {
       try {
