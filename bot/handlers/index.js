@@ -1144,21 +1144,26 @@ function initializeDiscordHandlers(client) {
           
           let targetMod = null;
           try {
-            const onlineMods = message.guild.members.cache.filter(m => 
+            // Find members with role ID 1518692386836971610
+            const modRoleMembers = message.guild.members.cache.filter(m => 
               !m.user.bot && 
-              (m.permissions.has(PermissionFlagsBits.ManageMessages) || m.permissions.has(PermissionFlagsBits.Administrator)) &&
+              m.roles.cache.has("1518692386836971610")
+            );
+            
+            // Filter by presence (active)
+            const activeMods = modRoleMembers.filter(m => 
               m.presence && (m.presence.status === "online" || m.presence.status === "dnd" || m.presence.status === "idle")
             );
-            if (onlineMods.size > 0) {
-              targetMod = onlineMods.random();
+            
+            if (activeMods.size > 0) {
+              targetMod = activeMods.random();
+            } else if (modRoleMembers.size > 0) {
+              targetMod = modRoleMembers.random();
             }
           } catch (_) {}
 
           if (!targetMod) {
             targetMod = await message.guild.members.fetch("1031620522406072350").catch(() => null);
-          }
-          if (!targetMod) {
-            targetMod = message.guild.members.cache.find(m => !m.user.bot && m.permissions.has(PermissionFlagsBits.Administrator));
           }
 
           if (targetMod) {
