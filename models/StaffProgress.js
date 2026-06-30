@@ -84,6 +84,8 @@ const staffProgressSchema = new mongoose.Schema({
     lastMonthlyBriefingClaim: { type: String, default: '' }, // Son aylık brifing ödül tarihi (YYYY-MM)
     systemIntroducedV4: { type: Boolean, default: false },   // V4.0 tanıtımı yapıldı mı?
     versionRewardClaimedV4: { type: Boolean, default: false }, // V4.0 ödülü alındı mı?
+    systemIntroducedV5: { type: Boolean, default: false },   // V5.0 tanıtımı yapıldı mı?
+    versionRewardClaimedV5: { type: Boolean, default: false }, // V5.0 ödülü alındı mı?
   },
 
   // Moderasyon Rapor Takip Sistemi

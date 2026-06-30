@@ -2442,13 +2442,13 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
 // Başlangıçta çalışacak - tüm personele sistem yükseltmesi hakkında bildir
 async function sendSystemUpdateNotification(client) {
   try {
-    // Sadece systemIntroducedV4: false veya undefined olanları bul
+    // Sadece systemIntroducedV5: false veya undefined olanları bul
     const allProgress = await StaffProgress.find({
       level: { $gte: 1, $lte: 5 },
       status: 'active',
       $or: [
-        { 'gamification.systemIntroducedV4': false },
-        { 'gamification.systemIntroducedV4': { $exists: false } }
+        { 'gamification.systemIntroducedV5': false },
+        { 'gamification.systemIntroducedV5': { $exists: false } }
       ]
     });
 
@@ -2458,24 +2458,25 @@ async function sendSystemUpdateNotification(client) {
 
     const embed = new EmbedBuilder()
       .setColor(0x00b4d8)
-      .setTitle('🚀 EKOYILDIZ Moderasyon Personel Sistemi V4.0')
+      .setTitle('🚀 EKOYILDIZ Moderasyon Personel Sistemi V5.0')
       .setDescription(
-        'Hoşgeldiniz moderatörler.. Ben Sentara, yani EkoYıldız\'ın moderatör sistemi botunuz. İşte bu versiyonla birlikte gelen yeni özellikler:\n\n' +
-        '**📋 Yenilenmiş & Sadeleştirilmiş Brifing Sistemi:**\n' +
-        '• Artık sunucuda veya DM üzerinden `/briefing tip:gunluk` yazarak o gün yapmanız gerekenleri görebilirsiniz.\n' +
-        '• Günlük, haftalık ve aylık brifinglerinize tek bir yerden kolayca erişebilirsiniz.\n\n' +
-        '**🎁 Haftalık & Aylık Brifing Ödülleri:**\n' +
-        '• Haftalık brifinginize bakıp ödülünüzü alarak **150 EkoCoin + 300 XP + 50 Puan** kazanabilirsiniz.\n' +
-        '• Aylık brifinginize bakarak **500 EkoCoin + 1000 XP + 200 Puan + 1 İzin Kredisi** kazanabilirsiniz!\n\n' +
-        '**🛡️ Kolaylaştırılmış Birim Görevleri:**\n' +
-        '• Tüm birimlerin (Ban, Ses, Sohbet) günlük hedefleri (mesaj sayısı, sesli kalma süresi, mod sayıları) azaltılarak hafifletildi!\n\n' +
-        '**⏰ Akıllı Görev ve Uyarı Takibi:**\n' +
-        '• Hatalı gece brifingi bildirimleri ve uyarısızlık bugları tamamen çözüldü.\n' +
-        '• Görevlerin birini tamamlayıp diğerini tamamlamadığınızda uyarı size eksik kalan görevi söyleyecek!\n\n' +
-        '**🎁 Versiyon Güncelleme Ödülünüz:**\n' +
-        '• Yeni sisteme hoş geldiniz hediyesi olarak **200 EkoCoin** ve **500 XP** sizi bekliyor! Aşağıdaki **ÖDÜLÜ AL** butonuna basarak anında claim edebilirsiniz.'
+        'Hoşgeldiniz moderatörler.. Ben Sentara, EkoYıldız\'ın yeni nesil personel ve moderasyon botuyum. Sistemimiz V5.0 sürümüne yükseltildi! İşte bu güncellemede gelen yenilikler:\n\n' +
+        '**🌴 İnaktiflik & İzin Koruma Sistemi:**\n' +
+        '• Artık sunucuda inaktiflik, mazeret veya izin rolleri olan yetkililerimize hiçbir bildirim, hatırlatma veya uyarı gitmez.\n\n' +
+        '**⏰ Saat Dilimi & Gece Koruma Algoritması:**\n' +
+        '• Gece yarısı/sabah erken saatlerdeki görev kontrolü sıfırlanma bugları düzeltildi. Saat 04:00\'e kadar olan kontroller dün yapılmış gibi değerlendirilir.\n\n' +
+        '**📊 Görev İlerleme Yüzdeleri & Grafik İlerleme Barı:**\n' +
+        '• Artık `/profil`, `/personeldurum` ve DM hatırlatma mesajlarında günlük görevlerinizin yüzde kaçını tamamladığınızı gösteren bir grafik barı (`[██████░░░░]`) bulunuyor!\n\n' +
+        '**🛡️ Koç Spam Koruması & node-cron Entegrasyonu:**\n' +
+        '• Aylık koç sınav bildirimlerindeki spam bugları düzeltildi ve her ay kullanıcı başına maksimum 1 mesaj limiti getirildi.\n\n' +
+        '**🤖 Gerçekçi Moderasyon & AI Koç Roleplay Sistemi:**\n' +
+        '• AI Koçlarınız artık birer disiplinli, deneyimli ve gerçekçi moderatör rolünde sizinle konuşur! Kuralları, analizleri ve sunucu hedeflerini gerçekçi bir mentor gibi yönlendirir.\n\n' +
+        '**🔒 Sistem Güvenliği (Self-Shutdown):**\n' +
+        '• Discord yasaklamalarını önlemek için bot, herhangi bir spam döngüsü tespit ettiğinde kendini güvenli bir şekilde kapatır.\n\n' +
+        '**🎁 Versiyon V5.0 Güncelleme Ödülünüz:**\n' +
+        '• Yeni sürüme hoş geldiniz hediyesi olarak **300 EkoCoin** ve **800 XP** sizi bekliyor! Aşağıdaki **ÖDÜLÜ AL** butonuna basarak claim edebilirsiniz.'
       )
-      .setFooter({ text: 'Eko Yıldız • Personel Yönetim Sistemi V4.0' })
+      .setFooter({ text: 'Eko Yıldız • Personel Yönetim Sistemi V5.0' })
       .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
@@ -2496,13 +2497,13 @@ async function sendSystemUpdateNotification(client) {
           await user.send({ embeds: [embed], components: [row] }).catch(() => { });
 
           p.gamification = p.gamification || {};
-          p.gamification.systemIntroducedV4 = true;
+          p.gamification.systemIntroducedV5 = true;
           await p.save().catch(() => { });
         }
       } catch (_) { }
     }
 
-    console.log(`[staffSystem] ${allProgress.length} personele V4.0 güncelleme bildirimi gönderildi`);
+    console.log(`[staffSystem] ${allProgress.length} personele V5.0 güncelleme bildirimi gönderildi`);
   } catch (err) {
     console.error('[staffSystem] Sistem bildirimi hatası:', err.message);
   }

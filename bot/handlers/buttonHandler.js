@@ -748,16 +748,16 @@ async function handleButtonInteraction(interaction) {
         return interaction.editReply("❌ Sadece aktif personel bu güncelleme ödülünü alabilir.");
       }
 
-      if (p.gamification?.versionRewardClaimedV4) {
+      if (p.gamification?.versionRewardClaimedV5) {
         return interaction.editReply("⚠️ Bu güncelleme ödülünü zaten aldınız!");
       }
 
       p.gamification = p.gamification || {};
-      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 200;
-      p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 50;
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 300;
+      p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 100;
       
       // XP & Level up handle
-      p.gamification.currentXP = (p.gamification.currentXP || 0) + 500;
+      p.gamification.currentXP = (p.gamification.currentXP || 0) + 800;
       let levelUp = false;
       while (true) {
         const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
@@ -770,11 +770,11 @@ async function handleButtonInteraction(interaction) {
         }
       }
 
-      p.gamification.versionRewardClaimedV4 = true;
+      p.gamification.versionRewardClaimedV5 = true;
       await p.save();
 
       return interaction.editReply(
-        `🎉 **Güncelleme Ödülü Alındı!**\n💰 **+200 E.C.** (EkoCoin)\n⚡ **+500 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+        `🎉 **Güncelleme Ödülü Alındı! (V5.0)**\n💰 **+300 E.C.** (EkoCoin)\n⚡ **+800 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
         `Teşekkür eder, iyi çalışmalar dileriz! 💚`
       );
     } catch (err) {
