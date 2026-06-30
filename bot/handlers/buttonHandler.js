@@ -1040,7 +1040,325 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Sunucu Kurulum Asistanı Butonları ─────────────────────────────────────
+  if (customId.startsWith("setup_")) {
+    const parts = customId.split("_");
+    const action = parts[1]; // correct | incorrect | edit | confirm
+    
+    let targetGuildId = "";
+    if (action === "confirm") {
+      targetGuildId = parts[3]; // setup_confirm_channels_${guildId} or setup_confirm_chefs_${guildId}
+    } else if (action === "edit") {
+      targetGuildId = parts[3]; // setup_edit_save_${guildId}
+    } else {
+      targetGuildId = parts[2]; // setup_correct_${guildId} or setup_incorrect_${guildId}
+    }
+
+    const ServerSetup = require("../../models/ServerSetup");
+    const setupDoc = await ServerSetup.findOne({ guildId: targetGuildId });
+    if (!setupDoc) {
+      return interaction.reply({ content: "❌ Kurulum verisi bulunamadı.", ephemeral: true });
+    }
+
+    if (action === "correct") {
+      await interaction.deferUpdate().catch(() => {});
+      await renderChannelSelectionPanel(interaction, setupDoc);
+      return;
+    }
+
+    if (action === "incorrect") {
+      await interaction.deferUpdate().catch(() => {});
+      await renderRoleCustomizationPanel(interaction, setupDoc);
+      return;
+    }
+
+    if (action === "edit") {
+      await interaction.deferUpdate().catch(() => {});
+      
+      const noblox = require("noblox.js");
+      const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
+      
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      let mappedText = "";
+      for (const r of rbxRoles) {
+        const matchedId = setupDoc.roleMappings.get(r.rank.toString());
+        const roleObj = matchedId ? interaction.guild.roles.cache.get(matchedId) : null;
+        mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
+      }
+      
+      const setupEmbed = new EmbedBuilder()
+        .setTitle("🤖 Yapay Zeka Rol Eşleştirmesi")
+        .setColor(0x3498db)
+        .setDescription(
+          `**Seçilen Grup:** [${setupDoc.robloxGroupName}](https://www.roblox.com/groups/${setupDoc.robloxGroupId})\n\n` +
+          mappedText +
+          `\nBu eşleştirme doğru mu?`
+        )
+        .setTimestamp();
+        
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`setup_correct_${setupDoc.guildId}`)
+          .setLabel("DOĞRU")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`setup_incorrect_${setupDoc.guildId}`)
+          .setLabel("DOĞRU DEĞİL DÜZENLEMEK İSTİYORUM")
+          .setStyle(ButtonStyle.Danger)
+      );
+      
+      await interaction.editReply({ embeds: [setupEmbed], components: [row] }).catch(() => {});
+      return;
+    }
+
+    if (action === "confirm") {
+      const type = parts[2]; // channels | chefs
+      await interaction.deferUpdate().catch(() => {});
+
+      if (type === "channels") {
+        await renderChefsSelectionPanel(interaction, setupDoc);
+        return;
+      }
+
+      if (type === "chefs") {
+        try {
+          const { ChannelType, EmbedBuilder, StringSelectMenuBuilder } = require("discord.js");
+          const centralGuild = interaction.client.guilds.cache.get("1483482948320891074")
+            || await interaction.client.guilds.fetch("1483482948320891074").catch(() => null);
+            
+          let archiveChannelId = "";
+          if (centralGuild) {
+            const sanitizedGuildName = setupDoc.guildName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+            const channelName = `${sanitizedGuildName}-arsiv`;
+            
+            const newChan = await centralGuild.channels.create({
+              name: channelName,
+              type: ChannelType.GuildText,
+              parent: "1521515810512699452",
+              reason: "Branş Sunucu Kurulumu Arşiv Kanalı"
+            }).catch(() => null);
+            if (newChan) {
+              archiveChannelId = newChan.id;
+              setupDoc.archiveChannelId = newChan.id;
+            }
+          }
+
+          const rulesChan = interaction.guild.channels.cache.get(setupDoc.rulesChannelId);
+          if (rulesChan && rulesChan.isTextBased()) {
+            const rulesEmbed = new EmbedBuilder()
+              .setTitle("📜 TMT SUNUCU KURALLARI VE YÖNETİMİ")
+              .setColor(0x2c3e50)
+              .setDescription(
+                `Merhaba! Sunucumuza hoş geldiniz. Lütfen aşağıdaki kurallara ve yönetim kadrosuna dikkat edin:\n\n` +
+                `**1.** Sunucu içerisinde saygılı ve ahlaki kurallara uygun davranmak zorunludur.\n` +
+                `**2.** Reklam, spam ve sabotaj (abuse) girişimleri en ağır şekilde cezalandırılacaktır.\n` +
+                `**3.** Roblox rütbenizi eşitlemek için lütfen doğrulama kanalını kullanın.\n\n` +
+                `👑 **BRANŞ YÖNETİM KADROSU:**\n` +
+                `• **BRANŞ ŞEFİ:** ${setupDoc.branchChef ? `<@${setupDoc.branchChef}>` : "Bilinmiyor"}\n` +
+                `• **BRANŞ ŞEF YARDIMCISI:** ${setupDoc.branchChefAssistant ? `<@${setupDoc.branchChefAssistant}>` : "Bilinmiyor"}\n`
+              )
+              .setTimestamp()
+              .setFooter({ text: "TMT Yönetim Departmanı" });
+              
+            await rulesChan.send({ embeds: [rulesEmbed] }).catch(() => {});
+          }
+
+          setupDoc.status = "active";
+          await setupDoc.save();
+
+          if (centralGuild) {
+            const listChan = centralGuild.channels.cache.get("1521516376831823973")
+              || await centralGuild.channels.fetch("1521516376831823973").catch(() => null);
+            if (listChan && listChan.isTextBased()) {
+              const activeSetups = await ServerSetup.find({ status: "active" });
+              
+              const listEmbed = new EmbedBuilder()
+                .setTitle("🏢 KURULAN BRANŞ SUNUCULARI LİSTESİ")
+                .setColor(0x1abc9c)
+                .setDescription(
+                  "Aşağıdaki listeden dilediğiniz branş sunucusunu seçip, Branş Şefi ve Branş Şef Yardımcısı atamalarını güncelleyebilirsiniz.\n\n" +
+                  activeSetups.map(s => `• **${s.guildName}** (Grup: \`${s.robloxGroupName}\`)\n  > Şef: ${s.branchChef ? `<@${s.branchChef}>` : "Yok"}\n  > Yardımcı: ${s.branchChefAssistant ? `<@${s.branchChefAssistant}>` : "Yok"}`).join("\n\n")
+                )
+                .setTimestamp();
+                
+              const options = activeSetups.map(s => ({
+                label: s.guildName,
+                description: `${s.robloxGroupName} Grubu Sunucusu`,
+                value: s.guildId
+              })).slice(0, 25);
+
+              const listComponents = [];
+              if (options.length > 0) {
+                listComponents.push(
+                  new ActionRowBuilder().addComponents(
+                    new StringSelectMenuBuilder()
+                      .setCustomId("setup_central_branch_select")
+                      .setPlaceholder("Branş Seçin...")
+                      .addOptions(options)
+                  )
+                );
+              }
+
+              const msgs = await listChan.messages.fetch({ limit: 50 }).catch(() => []);
+              const botMsg = msgs.find(m => m.author.id === interaction.client.user.id && m.embeds[0]?.title?.includes("KURULAN BRANŞ SUNUCULARI"));
+              if (botMsg) {
+                await botMsg.edit({ embeds: [listEmbed], components: listComponents }).catch(() => {});
+              } else {
+                await listChan.send({ embeds: [listEmbed], components: listComponents }).catch(() => {});
+              }
+            }
+          }
+
+          const completeEmbed = new EmbedBuilder()
+            .setTitle("✅ Kurulum Başarıyla Tamamlandı!")
+            .setColor(0x2ecc71)
+            .setDescription(
+              `**${setupDoc.guildName}** sunucusunun kurulumu başarıyla tamamlandı!\n\n` +
+              `• **Sunucu Kuralları:** Gönderildi\n` +
+              `• **Merkezi Arşiv Log Kanalı:** ${archiveChannelId ? `<#${archiveChannelId}>` : "Yaratılamadı"}\n` +
+              `• **Branş Durumu:** Aktif`
+            )
+            .setTimestamp();
+
+          await interaction.editReply({ embeds: [completeEmbed], components: [] }).catch(() => {});
+        } catch (setupErr) {
+          console.error("[SunucuKurma] Final setup error:", setupErr);
+          await interaction.followUp({ content: `❌ Kurulum tamamlanırken hata oluştu: ${setupErr.message}`, ephemeral: true }).catch(() => {});
+        }
+      }
+    }
+  }
+
   return null;
 }
 
-module.exports = { handleButtonInteraction };
+// ── Sunucu Kurulumu Panel Yardımcı Fonksiyonları ───────────────────────────
+async function renderChannelSelectionPanel(interaction, setupDoc) {
+  const { EmbedBuilder, ActionRowBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChannelType } = require("discord.js");
+  
+  const embed = new EmbedBuilder()
+    .setTitle("📂 Sunucu Kurulumu - Kanal Seçimleri")
+    .setColor(0xf1c40f)
+    .setDescription(
+      `Lütfen kurulacak sunucu için aşağıdaki kanalları seçin:\n\n` +
+      `• **Yönetici/Log Kanalı:** ${setupDoc.adminChannelId ? `<#${setupDoc.adminChannelId}>` : "❌ *Seçilmedi*"}\n` +
+      `• **Doğrulama Yardım Kanalı:** ${setupDoc.verifyHelpChannelId ? `<#${setupDoc.verifyHelpChannelId}>` : "❌ *Seçilmedi*"}\n` +
+      `• **Kurallar Kanalı:** ${setupDoc.rulesChannelId ? `<#${setupDoc.rulesChannelId}>` : "❌ *Seçilmedi*"}`
+    )
+    .setTimestamp();
+
+  const adminRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId(`setup_select_admin_${setupDoc.guildId}`)
+      .setPlaceholder("Yönetici/Log Kanalı Seçin...")
+      .addChannelTypes(ChannelType.GuildText)
+  );
+
+  const verifyRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId(`setup_select_verify_${setupDoc.guildId}`)
+      .setPlaceholder("Doğrulama Yardım Kanalı Seçin...")
+      .addChannelTypes(ChannelType.GuildText)
+  );
+
+  const rulesRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId(`setup_select_rules_${setupDoc.guildId}`)
+      .setPlaceholder("Kurallar Kanalı Seçin...")
+      .addChannelTypes(ChannelType.GuildText)
+  );
+
+  const isProceedEnabled = setupDoc.adminChannelId && setupDoc.verifyHelpChannelId && setupDoc.rulesChannelId;
+  const buttonRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`setup_confirm_channels_${setupDoc.guildId}`)
+      .setLabel("Devam Et (Şef Seçimi)")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(!isProceedEnabled)
+  );
+
+  await interaction.editReply({ embeds: [embed], components: [adminRow, verifyRow, rulesRow, buttonRow] }).catch(() => {});
+}
+
+async function renderChefsSelectionPanel(interaction, setupDoc) {
+  const { EmbedBuilder, ActionRowBuilder, UserSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+
+  const embed = new EmbedBuilder()
+    .setTitle("👤 Sunucu Kurulumu - Branş Şefi & Yardımcısı Seçimi")
+    .setColor(0xe67e22)
+    .setDescription(
+      `Lütfen sunucu için Branş Şefi ve Branş Şef Yardımcısı seçin:\n\n` +
+      `• **BRANŞ ŞEFİ:** ${setupDoc.branchChef ? `<@${setupDoc.branchChef}>` : "❌ *Seçilmedi*"}\n` +
+      `• **BRANŞ ŞEF YARDIMCISI:** ${setupDoc.branchChefAssistant ? `<@${setupDoc.branchChefAssistant}>` : "❌ *Seçilmedi*"}`
+    )
+    .setTimestamp();
+
+  const chefRow = new ActionRowBuilder().addComponents(
+    new UserSelectMenuBuilder()
+      .setCustomId(`setup_select_chef_${setupDoc.guildId}`)
+      .setPlaceholder("Branş Şefi Seçin...")
+  );
+
+  const assistantRow = new ActionRowBuilder().addComponents(
+    new UserSelectMenuBuilder()
+      .setCustomId(`setup_select_chef_assistant_${setupDoc.guildId}`)
+      .setPlaceholder("Branş Şef Yardımcısı Seçin...")
+  );
+
+  const isProceedEnabled = setupDoc.branchChef && setupDoc.branchChefAssistant;
+  const buttonRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`setup_confirm_chefs_${setupDoc.guildId}`)
+      .setLabel("Kurulumu Tamamla ve Başlat!")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(!isProceedEnabled)
+  );
+
+  await interaction.editReply({ embeds: [embed], components: [chefRow, assistantRow, buttonRow] }).catch(() => {});
+}
+
+async function renderRoleCustomizationPanel(interaction, setupDoc) {
+  const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+  
+  const noblox = require("noblox.js");
+  const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
+  
+  const embed = new EmbedBuilder()
+    .setTitle("🔧 Rol Eşleştirme Düzenleme Paneli")
+    .setColor(0xe74c3c)
+    .setDescription(
+      `Aşağıdaki açılır menüden düzenlemek istediğiniz Roblox Rütbesini seçin.\n` +
+      `Ardından sunucu rollerinden eşleştireceğiniz rolü seçmeniz istenecektir.\n\n` +
+      `Eşleştirmeleri bitirdiğinizde **Kaydet ve Geri Dön** butonuna basın.`
+    )
+    .setTimestamp();
+
+  const menuOptions = rbxRoles.map(r => ({
+    label: `Rank ${r.rank}: ${r.name}`,
+    description: `Mevcut Rol ID: ${setupDoc.roleMappings.get(r.rank.toString()) || "Yok"}`,
+    value: r.rank.toString()
+  })).slice(0, 25);
+
+  const rankMenu = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`setup_select_edit_rank_${setupDoc.guildId}`)
+      .setPlaceholder("Düzenlenecek Roblox Rütbesini Seçin...")
+      .addOptions(menuOptions)
+  );
+
+  const saveRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`setup_edit_save_${setupDoc.guildId}`)
+      .setLabel("Kaydet ve Geri Dön")
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  await interaction.editReply({ embeds: [embed], components: [rankMenu, saveRow] }).catch(() => {});
+}
+
+module.exports = {
+  handleButtonInteraction,
+  renderChannelSelectionPanel,
+  renderChefsSelectionPanel,
+  renderRoleCustomizationPanel
+};

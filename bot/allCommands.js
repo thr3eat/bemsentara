@@ -638,6 +638,43 @@ const funCommands = [
           o.setName("bahis").setDescription("Bahis Miktarı").setRequired(true)
         )
     ),
+
+  new SlashCommandBuilder()
+    .setName("sunucukurma")
+    .setDescription("TMT sunucu kurulum asistanını başlatır")
+    .addStringOption((o) =>
+      o.setName("grup")
+        .setDescription("Kurulacak TMT grubu")
+        .setRequired(true)
+        .addChoices(
+          { name: "TMT Akademi", value: "35212138" },
+          { name: "TMT Askeri İnzibat", value: "33709461" },
+          { name: "TMT Birimler Bölükler", value: "35430592" },
+          { name: "TMT Deniz Kuvvetleri Komutanlığı", value: "5415548" },
+          { name: "TMT Genel Branş Komutanlığı", value: "35212127" },
+          { name: "TMT Hava Kuvvetleri", value: "33709391" },
+          { name: "TMT Hudut Müfettişleri", value: "35432150" },
+          { name: "TMT Jandarma Genel Komutanlığı", value: "12008462" },
+          { name: "TMT Kara Kuvvetleri Komutanlığı", value: "33714381" },
+          { name: "TMT Ministry of Foreign Affairs", value: "35528574" },
+          { name: "TMT Özel Kuvvetler Komutanlığı", value: "33708598" },
+          { name: "TMT Turkish Armed Forces", value: "11517908" },
+          { name: "TMT RAIDERS", value: "35528598" },
+          { name: "TMT Sürücü Okulu", value: "35528556" }
+        )
+    )
+    .setDMPermission(false),
+
+  new SlashCommandBuilder()
+    .setName("sunucurolsenkranizasyondüzenleme")
+    .setDescription("Kurulmuş sunucunun rütbe/rol eşleşmelerini düzenler")
+    .addNumberOption((o) =>
+      o.setName("rutbe").setDescription("Roblox Rütbe ID (1-255)").setRequired(true)
+    )
+    .addRoleOption((o) =>
+      o.setName("rol").setDescription("Eşleştirilecek Discord Rolü").setRequired(true)
+    )
+    .setDMPermission(false),
 ];
 
 // ── PERSONEL KOMUTLARı ────────────────────────────────────────────────────────

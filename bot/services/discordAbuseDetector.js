@@ -8,6 +8,17 @@ const MONITORED_GUILDS = {
   "1414639355456389344": "BEM Sentara"
 };
 
+async function isMonitoredGuild(guildId) {
+  if (MONITORED_GUILDS[guildId]) return true;
+  try {
+    const ServerSetup = require("../../models/ServerSetup");
+    const doc = await ServerSetup.findOne({ guildId, status: "active" });
+    return !!doc;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ─── Gece saatleri kontrol ────────────────────────────────────────────────────
 function isNightHours() {
   const now = new Date();
@@ -177,7 +188,16 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
   } catch (_) { return; }
 
   const cfg     = THRESHOLDS[type];
-  const gName   = MONITORED_GUILDS[guild.id] || guild.name;
+  let gName = MONITORED_GUILDS[guild.id];
+  if (!gName) {
+    try {
+      const ServerSetup = require("../../models/ServerSetup");
+      const doc = await ServerSetup.findOne({ guildId: guild.id });
+      gName = doc ? doc.guildName : guild.name;
+    } catch (_) {
+      gName = guild.name;
+    }
+  }
   const count   = recentCount(guild.id, executor.id, type);
   const unix    = Math.floor(Date.now() / 1000);
 
@@ -240,6 +260,24 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
     console.error("[DiscordAbuseDetector] Alert gönderilemedi:", err.message);
     return null;
   });
+
+  // Forward to setup archive channel if configured
+  try {
+    const ServerSetup = require("../../models/ServerSetup");
+    const setupDoc = await ServerSetup.findOne({ guildId: guild.id, status: "active" });
+    if (setupDoc && setupDoc.archiveChannelId) {
+      const centralGuild = client.guilds.cache.get("1483482948320891074");
+      if (centralGuild) {
+        const archChan = centralGuild.channels.cache.get(setupDoc.archiveChannelId)
+          || await centralGuild.channels.fetch(setupDoc.archiveChannelId).catch(() => null);
+        if (archChan && archChan.isTextBased()) {
+          await archChan.send({ embeds: [embed] }).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[DiscordAbuseDetector] Archive channel alert forward error:", err.message);
+  }
 
   console.log(`[DiscordAbuseDetector] 🚨 ${gName} — ${executor.tag} (${executor.id}) — ${cfg.label}`);
 
@@ -514,7 +552,7 @@ Lütfen cevabına sadece 'EVET' veya 'HAYIR' ile başla ve kısa bir açıklama 
 // ─── Olay işleyicileri ────────────────────────────────────────────────────────
 
 async function handleBanAdd(client, ban) {
-  if (!MONITORED_GUILDS[ban.guild.id]) return;
+  if (!await isMonitoredGuild(ban.guild.id)) return;
   const executor = await fetchExecutor(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
   if (!executor) return;
 
@@ -530,7 +568,7 @@ async function handleBanAdd(client, ban) {
 }
 
 async function handleChannelDelete(client, channel) {
-  if (!channel.guild || !MONITORED_GUILDS[channel.guild.id]) return;
+  if (!channel.guild || !await isMonitoredGuild(channel.guild.id)) return;
   const executor = await fetchExecutor(channel.guild, AuditLogEvent.ChannelDelete, channel.id);
   if (!executor) return;
 
@@ -546,7 +584,7 @@ async function handleChannelDelete(client, channel) {
 }
 
 async function handleRoleDelete(client, role) {
-  if (!MONITORED_GUILDS[role.guild.id]) return;
+  if (!await isMonitoredGuild(role.guild.id)) return;
   const executor = await fetchExecutor(role.guild, AuditLogEvent.RoleDelete, role.id);
   if (!executor) return;
 
@@ -562,7 +600,7 @@ async function handleRoleDelete(client, role) {
 }
 
 async function handleMemberRemove(client, member) {
-  if (!MONITORED_GUILDS[member.guild.id]) return;
+  if (!await isMonitoredGuild(member.guild.id)) return;
   // Ayrılma mı atılma mı kontrol et
   const executor = await fetchExecutor(member.guild, AuditLogEvent.MemberKick, member.id, 5);
   if (!executor) return; // Sadece ayrılma — atılma değil
@@ -579,7 +617,7 @@ async function handleMemberRemove(client, member) {
 }
 
 async function handleMessageCreateAbuse(client, message) {
-  if (!message.guild || !MONITORED_GUILDS[message.guild.id]) return;
+  if (!message.guild || !await isMonitoredGuild(message.guild.id)) return;
   if (message.author.bot) return;
 
   let isAbuse = false;
@@ -622,7 +660,7 @@ async function handleMessageCreateAbuse(client, message) {
 }
 
 async function handleRoleCreate(client, role) {
-  if (!MONITORED_GUILDS[role.guild.id]) return;
+  if (!await isMonitoredGuild(role.guild.id)) return;
   const executor = await fetchExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
   if (!executor) return;
 
@@ -638,7 +676,7 @@ async function handleRoleCreate(client, role) {
 }
 
 async function handleChannelCreate(client, channel) {
-  if (!channel.guild || !MONITORED_GUILDS[channel.guild.id]) return;
+  if (!channel.guild || !await isMonitoredGuild(channel.guild.id)) return;
   const executor = await fetchExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
   if (!executor) return;
 
@@ -654,7 +692,7 @@ async function handleChannelCreate(client, channel) {
 }
 
 async function handleWebhookUpdate(client, channel) {
-  if (!channel.guild || !MONITORED_GUILDS[channel.guild.id]) return;
+  if (!channel.guild || !await isMonitoredGuild(channel.guild.id)) return;
   const executor = await fetchExecutor(channel.guild, AuditLogEvent.WebhookCreate, null, 10);
   if (!executor) return;
 
@@ -963,26 +1001,41 @@ async function executeImmediateAbuseAction(client, guild, member, type, detailLi
   // 4. Log Kanalına Gönder
   try {
     const banLogChannel = guild.channels.cache.get("1504201531551907941");
+    const logEmbed = new EmbedBuilder()
+      .setTitle("⚡ OTOMATİK ABUSE ENGELLEME (MÜDAHALE)")
+      .setColor(0xFF0000)
+      .setDescription(
+        `**${member.user.tag}** kullanıcısının yaptığı eylem otomatik olarak engellendi.\n\n` +
+        `**Kullanıcıya Gönderilen AI Yorumu:**\n*${aiComment}*`
+      )
+      .addFields(
+        { name: "👤 Cezalandırılan Üye", value: `${member.toString()}\nTag: \`${member.user.tag}\`\nID: \`${member.id}\``, inline: true },
+        { name: "⚠️ İhlal Türü", value: type, inline: true },
+        { name: "🛠️ Uygulanan Ceza", value: isSevere ? "🔨 Sunucudan Banlama" : "🔇 Yetkilerinin Alınması + 28 Gün Zamanaşımı", inline: true },
+        { name: "📋 İhlal Detayları", value: detailLines.join("\n") || "Detay yok", inline: false }
+      )
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+      .setTimestamp();
+
     if (banLogChannel && banLogChannel.isTextBased()) {
-      const logEmbed = new EmbedBuilder()
-        .setTitle("⚡ OTOMATİK ABUSE ENGELLEME (MÜDAHALE)")
-        .setColor(0xFF0000)
-        .setDescription(
-          `**${member.user.tag}** kullanıcısının yaptığı eylem otomatik olarak engellendi.\n\n` +
-          `**Kullanıcıya Gönderilen AI Yorumu:**\n*${aiComment}*`
-        )
-        .addFields(
-          { name: "👤 Cezalandırılan Üye", value: `${member.toString()}\nTag: \`${member.user.tag}\`\nID: \`${member.id}\``, inline: true },
-          { name: "⚠️ İhlal Türü", value: type, inline: true },
-          { name: "🛠️ Uygulanan Ceza", value: isSevere ? "🔨 Sunucudan Banlama" : "🔇 Yetkilerinin Alınması + 28 Gün Zamanaşımı", inline: true },
-          { name: "📋 İhlal Detayları", value: detailLines.join("\n") || "Detay yok", inline: false }
-        )
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setTimestamp();
       await banLogChannel.send({ embeds: [logEmbed] }).catch(() => {});
     }
+
+    // Forward to setup archive channel if configured
+    const ServerSetup = require("../../models/ServerSetup");
+    const setupDoc = await ServerSetup.findOne({ guildId: guild.id, status: "active" });
+    if (setupDoc && setupDoc.archiveChannelId) {
+      const centralGuild = client.guilds.cache.get("1483482948320891074");
+      if (centralGuild) {
+        const archChan = centralGuild.channels.cache.get(setupDoc.archiveChannelId)
+          || await centralGuild.channels.fetch(setupDoc.archiveChannelId).catch(() => null);
+        if (archChan && archChan.isTextBased()) {
+          await archChan.send({ embeds: [logEmbed] }).catch(() => {});
+        }
+      }
+    }
   } catch (err) {
-    console.warn(`[AbuseDetector] Log kanal hatası:`, err.message);
+    console.warn(`[AbuseDetector] Log channel/archive log error:`, err.message);
   }
 }
 

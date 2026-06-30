@@ -2510,7 +2510,7 @@ async function handleInteraction(interaction) {
       return handleButtonInteraction(interaction);
     }
 
-    if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) {
+    if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
       const voiceSel = await handleVoiceSelect(interaction);
       if (voiceSel !== null) return voiceSel;
       return handleSelectInteraction(interaction);

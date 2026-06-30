@@ -6,6 +6,152 @@ const {
 } = require("discord.js");
 
 async function handleSelectInteraction(interaction) {
+  const customId = interaction.customId;
+
+  // ── Sunucu Kurulum Asistanı Select Menüleri ──────────────────────────────
+  if (customId.startsWith("setup_select_")) {
+    const parts = customId.split("_");
+    const targetType = parts[2]; // admin | verify | rules | edit | chef | chef_assistant
+    
+    let targetGuildId = "";
+    let extraParam = ""; // rank in case of edit_role
+    
+    if (targetType === "edit") {
+      const editType = parts[3]; // rank | role
+      targetGuildId = parts[4];
+      if (editType === "role") {
+        extraParam = parts[5]; // rank value
+      }
+    } else if (targetType === "chef") {
+      const isAssistant = parts[3] === "assistant";
+      targetGuildId = isAssistant ? parts[4] : parts[3];
+    } else {
+      targetGuildId = parts[3];
+    }
+
+    const ServerSetup = require("../../models/ServerSetup");
+    const setupDoc = await ServerSetup.findOne({ guildId: targetGuildId });
+    if (!setupDoc) {
+      return interaction.reply({ content: "❌ Kurulum verisi bulunamadı.", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    if (targetType === "admin") {
+      setupDoc.adminChannelId = interaction.values[0];
+      await setupDoc.save();
+      const { renderChannelSelectionPanel } = require("./buttonHandler");
+      await renderChannelSelectionPanel(interaction, setupDoc);
+      return;
+    }
+
+    if (targetType === "verify") {
+      setupDoc.verifyHelpChannelId = interaction.values[0];
+      await setupDoc.save();
+      const { renderChannelSelectionPanel } = require("./buttonHandler");
+      await renderChannelSelectionPanel(interaction, setupDoc);
+      return;
+    }
+
+    if (targetType === "rules") {
+      setupDoc.rulesChannelId = interaction.values[0];
+      await setupDoc.save();
+      const { renderChannelSelectionPanel } = require("./buttonHandler");
+      await renderChannelSelectionPanel(interaction, setupDoc);
+      return;
+    }
+
+    if (targetType === "edit") {
+      const editType = parts[3]; // rank | role
+      if (editType === "rank") {
+        const selectedRank = interaction.values[0];
+        const { ActionRowBuilder, RoleSelectMenuBuilder, EmbedBuilder } = require("discord.js");
+        
+        const embed = new EmbedBuilder()
+          .setTitle(`🔧 Rol Eşleştirme - Rank ${selectedRank}`)
+          .setColor(0xe74c3c)
+          .setDescription(
+            `Lütfen Roblox **Rank ${selectedRank}** rütbesiyle eşleştirmek istediğiniz Discord rolünü aşağıdaki menüden seçin.`
+          )
+          .setTimestamp();
+          
+        const roleMenu = new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder()
+            .setCustomId(`setup_select_edit_role_${setupDoc.guildId}_${selectedRank}`)
+            .setPlaceholder("Discord Rolü Seçin...")
+        );
+        
+        await interaction.editReply({ embeds: [embed], components: [roleMenu] }).catch(() => {});
+        return;
+      }
+
+      if (editType === "role") {
+        const selectedRank = extraParam;
+        const selectedRoleId = interaction.values[0];
+        
+        if (!setupDoc.roleMappings) {
+          setupDoc.roleMappings = new Map();
+        }
+        setupDoc.roleMappings.set(selectedRank, selectedRoleId);
+        await setupDoc.save();
+        
+        const { renderRoleCustomizationPanel } = require("./buttonHandler");
+        await renderRoleCustomizationPanel(interaction, setupDoc);
+        return;
+      }
+    }
+
+    if (targetType === "chef") {
+      const isAssistant = parts[3] === "assistant";
+      if (isAssistant) {
+        setupDoc.branchChefAssistant = interaction.values[0];
+      } else {
+        setupDoc.branchChef = interaction.values[0];
+      }
+      await setupDoc.save();
+      
+      const { renderChefsSelectionPanel } = require("./buttonHandler");
+      await renderChefsSelectionPanel(interaction, setupDoc);
+      return;
+    }
+  }
+
+  // ── Central Branch Selection Dropdown ────────────────────────────────────
+  if (customId === "setup_central_branch_select") {
+    const selectedGuildId = interaction.values[0];
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
+    const modal = new ModalBuilder()
+      .setCustomId(`setup_branch_modal_${selectedGuildId}`)
+      .setTitle("👑 Branş Yöneticilerini Güncelle");
+
+    const ServerSetup = require("../../models/ServerSetup");
+    const setupDoc = await ServerSetup.findOne({ guildId: selectedGuildId });
+
+    const chefInput = new TextInputBuilder()
+      .setCustomId("branch_chef_input")
+      .setLabel("Branş Şefi Discord Kullanıcı Adı veya ID")
+      .setPlaceholder("Örn: Alp 33 veya 1031620522406072350")
+      .setValue(setupDoc?.branchChef || "")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const assistantInput = new TextInputBuilder()
+      .setCustomId("branch_chef_assistant_input")
+      .setLabel("Branş Şef Yardımcısı Discord Kullanıcı Adı veya ID")
+      .setPlaceholder("Örn: Sentara veya 1228088674206617621")
+      .setValue(setupDoc?.branchChefAssistant || "")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(chefInput),
+      new ActionRowBuilder().addComponents(assistantInput)
+    );
+
+    await interaction.showModal(modal).catch(() => {});
+    return;
+  }
+
   if (interaction.customId.startsWith('panel_')) {
     const { handlePanelSelect } = require("../services/mainPanelService");
     return handlePanelSelect(interaction);

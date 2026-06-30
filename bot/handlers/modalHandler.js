@@ -16,6 +16,111 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  if (interaction.customId.startsWith('setup_branch_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const targetGuildId = interaction.customId.replace('setup_branch_modal_', '');
+
+    const chefVal = interaction.fields.getTextInputValue('branch_chef_input');
+    const assistantVal = interaction.fields.getTextInputValue('branch_chef_assistant_input');
+
+    const ServerSetup = require('../../models/ServerSetup');
+    const setupDoc = await ServerSetup.findOne({ guildId: targetGuildId });
+    if (!setupDoc) {
+      return interaction.editReply({ content: '❌ Kurulum verisi bulunamadı.' });
+    }
+
+    setupDoc.branchChef = chefVal;
+    setupDoc.branchChefAssistant = assistantVal;
+    await setupDoc.save();
+
+    const client = interaction.client;
+    
+    // Update branch rules message
+    try {
+      const targetGuild = client.guilds.cache.get(targetGuildId)
+        || await client.guilds.fetch(targetGuildId).catch(() => null);
+      if (targetGuild && setupDoc.rulesChannelId) {
+        const rulesChan = targetGuild.channels.cache.get(setupDoc.rulesChannelId)
+          || await targetGuild.channels.fetch(setupDoc.rulesChannelId).catch(() => null);
+        if (rulesChan && rulesChan.isTextBased()) {
+          const rulesEmbed = new EmbedBuilder()
+            .setTitle("📜 TMT SUNUCU KURALLARI VE YÖNETİMİ")
+            .setColor(0x2c3e50)
+            .setDescription(
+              `Merhaba! Sunucumuza hoş geldiniz. Lütfen aşağıdaki kurallara ve yönetim kadrosuna dikkat edin:\n\n` +
+              `**1.** Sunucu içerisinde saygılı ve ahlaki kurallara uygun davranmak zorunludur.\n` +
+              `**2.** Reklam, spam ve sabotaj (abuse) girişimleri en ağır şekilde cezalandırılacaktır.\n` +
+              `**3.** Roblox rütbenizi eşitlemek için lütfen doğrulama kanalını kullanın.\n\n` +
+              `👑 **BRANŞ YÖNETİM KADROSU:**\n` +
+              `• **BRANŞ ŞEFİ:** ${setupDoc.branchChef ? (setupDoc.branchChef.match(/^\d+$/) ? `<@${setupDoc.branchChef}>` : setupDoc.branchChef) : "Bilinmiyor"}\n` +
+              `• **BRANŞ ŞEF YARDIMCISI:** ${setupDoc.branchChefAssistant ? (setupDoc.branchChefAssistant.match(/^\d+$/) ? `<@${setupDoc.branchChefAssistant}>` : setupDoc.branchChefAssistant) : "Bilinmiyor"}\n`
+            )
+            .setTimestamp()
+            .setFooter({ text: "TMT Yönetim Departmanı" });
+
+          const msgs = await rulesChan.messages.fetch({ limit: 50 }).catch(() => []);
+          const botMsg = msgs.find(m => m.author.id === client.user.id && m.embeds[0]?.title?.includes("TMT SUNUCU KURALLARI"));
+          if (botMsg) {
+            await botMsg.edit({ embeds: [rulesEmbed] }).catch(() => {});
+          } else {
+            await rulesChan.send({ embeds: [rulesEmbed] }).catch(() => {});
+          }
+        }
+      }
+    } catch (rulesErr) {
+      console.error('[SunucuKurma] Error updating branch rules message:', rulesErr.message);
+    }
+
+    // Update central lists channel
+    try {
+      const centralGuild = client.guilds.cache.get("1483482948320891074")
+        || await client.guilds.fetch("1483482948320891074").catch(() => null);
+      if (centralGuild) {
+        const listChan = centralGuild.channels.cache.get("1521516376831823973")
+          || await centralGuild.channels.fetch("1521516376831823973").catch(() => null);
+        if (listChan && listChan.isTextBased()) {
+          const activeSetups = await ServerSetup.find({ status: "active" });
+          const listEmbed = new EmbedBuilder()
+            .setTitle("🏢 KURULAN BRANŞ SUNUCULARI LİSTESİ")
+            .setColor(0x1abc9c)
+            .setDescription(
+              "Aşağıdaki listeden dilediğiniz branş sunucusunu seçip, Branş Şefi ve Branş Şef Yardımcısı atamalarını güncelleyebilirsiniz.\n\n" +
+              activeSetups.map(s => `• **${s.guildName}** (Grup: \`${s.robloxGroupName}\`)\n  > Şef: ${s.branchChef ? (s.branchChef.match(/^\d+$/) ? `<@${s.branchChef}>` : s.branchChef) : "Yok"}\n  > Yardımcı: ${s.branchChefAssistant ? (s.branchChefAssistant.match(/^\d+$/) ? `<@${s.branchChefAssistant}>` : s.branchChefAssistant) : "Yok"}`).join("\n\n")
+            )
+            .setTimestamp();
+            
+          const msgs = await listChan.messages.fetch({ limit: 50 }).catch(() => []);
+          const botMsg = msgs.find(m => m.author.id === client.user.id && m.embeds[0]?.title?.includes("KURULAN BRANŞ SUNUCULARI"));
+          if (botMsg) {
+            const { StringSelectMenuBuilder } = require('discord.js');
+            const options = activeSetups.map(s => ({
+              label: s.guildName,
+              description: `${s.robloxGroupName} Grubu Sunucusu`,
+              value: s.guildId
+            })).slice(0, 25);
+            
+            const listComponents = [];
+            if (options.length > 0) {
+              listComponents.push(
+                new ActionRowBuilder().addComponents(
+                  new StringSelectMenuBuilder()
+                    .setCustomId("setup_central_branch_select")
+                    .setPlaceholder("Branş Seçin...")
+                    .addOptions(options)
+                )
+              );
+            }
+            await botMsg.edit({ embeds: [listEmbed], components: listComponents }).catch(() => {});
+          }
+        }
+      }
+    } catch (centralErr) {
+      console.error('[SunucuKurma] Error updating central panel message:', centralErr.message);
+    }
+
+    return interaction.editReply({ content: '✅ Branş yöneticileri başarıyla güncellendi!' });
+  }
+
   if (interaction.customId === 'ekocoin_convert_xp_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
     
