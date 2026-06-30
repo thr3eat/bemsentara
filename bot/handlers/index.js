@@ -1436,6 +1436,33 @@ function initializeDiscordHandlers(client) {
       }
     }
 
+    if (message.content === "!tumkanallaraciklamasiz" || message.content === "!tümkanallaraçıklamasız") {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu kullanmak için `Kanalları Yönet` veya `Yönetici` yetkisine sahip olmalısınız.");
+      }
+
+      const channels = message.guild.channels.cache
+        .filter(c => typeof c.setTopic === 'function' && (!c.topic || c.topic.trim() === ""))
+        .sort((a, b) => a.position - b.position);
+
+      if (channels.size === 0) {
+        return message.reply("ℹ️ Sunucuda açıklaması olmayan (ve açıklama eklenebilir olan) herhangi bir yazı kanalı bulunamadı.");
+      }
+
+      let replyText = "**Açıklaması Olmayan Kanallar (İsim = ID):**\n\n";
+      channels.forEach((channel) => {
+        replyText += `${channel.name} = ${channel.id}\n`;
+      });
+
+      if (replyText.length > 2000) {
+        const chunks = replyText.match(/[\s\S]{1,1999}/g) || [];
+        for (const chunk of chunks) await message.reply(chunk);
+      } else {
+        await message.reply(replyText);
+      }
+    }
+
     if (message.content.startsWith("!tumkanallaraciklama") || message.content.startsWith("!tümkanallaraciklama")) {
       const { PermissionFlagsBits } = require('discord.js');
       if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
