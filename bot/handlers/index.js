@@ -1612,8 +1612,7 @@ function initializeDiscordHandlers(client) {
         const rolesToMove = allRoles
           .filter(r => 
             r.id !== message.guild.id && 
-            !r.managed && 
-            botMember.roles.highest.comparePositionTo(r) > 0
+            r.editable
           )
           .sort((a, b) => a.position - b.position);
 
@@ -1642,7 +1641,11 @@ function initializeDiscordHandlers(client) {
           await message.reply(replyText);
         }
       } catch (err) {
-        console.error("[RolTersineCevir] Error:", err);
+        if (err.message.includes("yeterli sayıda")) {
+          console.warn("[RolTersineCevir] Validation warning:", err.message);
+        } else {
+          console.error("[RolTersineCevir] Error:", err);
+        }
         const errorText = `❌ Rollerin sırası tersine çevrilirken bir hata oluştu: ${err.message}`;
         if (statusMsg) {
           await statusMsg.edit(errorText).catch(() => message.reply(errorText));
