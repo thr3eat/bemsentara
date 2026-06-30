@@ -385,45 +385,25 @@ module.exports = {
  * Aylık terfi döngüsünü zamanla (her ayın son günü saat 20:00'de)
  */
 function startMonthlyPromotionScheduler(client) {
-  console.log('[monthlyPromotion] 📅 Aylık terfi döngüsü planlayıcısı başlatıldı');
+  console.log('[monthlyPromotion] 📅 Aylık terfi döngüsü planlayıcısı başlatıldı (cron ile)');
 
-  // Saati kontrol et ve gerekirse planı ayarla
-  function scheduleNextCycle() {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+  const cron = require('node-cron');
+  cron.schedule('0 20 * * *', async () => {
+    try {
+      const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+      const today = tzDate.getDate();
+      const lastDay = new Date(tzDate.getFullYear(), tzDate.getMonth() + 1, 0).getDate();
 
-    // Ayın son gününü bul
-    const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    const scheduleTime = new Date(lastDay);
-    scheduleTime.setHours(20, 0, 0, 0); // Saat 20:00
-
-    let timeUntilNext = scheduleTime.getTime() - now.getTime();
-
-    // Eğer bu ayın son günü geçtiyse, gelecek ayın son gününü ayarla
-    if (timeUntilNext < 0) {
-      const nextMonth = new Date(currentYear, currentMonth + 2, 0);
-      const nextSchedule = new Date(nextMonth);
-      nextSchedule.setHours(20, 0, 0, 0);
-      timeUntilNext = nextSchedule.getTime() - now.getTime();
-    }
-
-    const nextScheduleTime = new Date(now.getTime() + timeUntilNext);
-    console.log(`[monthlyPromotion] ⏰ Sonraki çalışma: ${nextScheduleTime.toLocaleString('tr-TR')}`);
-
-    // Schedule ile planla
-    setTimeout(async () => {
-      console.log('[monthlyPromotion] 🚀 Aylık terfi döngüsü şimdi başlatılıyor!');
-      try {
+      if (today === lastDay) {
+        console.log('[monthlyPromotion] 🚀 Bugün ayın son günü! Aylık terfi döngüsü başlatılıyor...');
         await triggerMonthlyPromotionCycle(client);
-      } catch (err) {
-        console.error('[monthlyPromotion] Planlanan çalışma hatası:', err.message);
+      } else {
+        console.log(`[monthlyPromotion] Bugün ayın son günü değil (${today}/${lastDay}). Çalıştırılmadı.`);
       }
-      // Sonraki döngüyü planla
-      scheduleNextCycle();
-    }, timeUntilNext);
-  }
-
-  // İlk döngüyü planla
-  scheduleNextCycle();
+    } catch (err) {
+      console.error('[monthlyPromotion] Cron çalışırken hata:', err.message);
+    }
+  }, {
+    timezone: "Europe/Istanbul"
+  });
 }
