@@ -20,6 +20,32 @@ let lastWordUser = null;
 const usedWords = new Set();
 let wordSynced = false;
 
+// Kelime oyunu puan tablosu (userId -> puan)
+const wordGameScores = new Map();
+
+/**
+ * Türkçe'de hiçbir kelime bu harflerle başlamaz — çıkmaz harfler.
+ * Oyuncu bu harfle biten kelime yazarsa +10 puan kazanır ve
+ * sistem rastgele güvenli bir harf seçerek oyunu sürdürür.
+ */
+const CIKMAZHARF = new Set(['ğ']);
+
+/** Güvenli başlangıç harfleri (çıkmaz olmayan yaygın harfler) */
+const GUVENLI_HARFLER = ['a','b','c','d','e','f','g','h','i','k','l','m','n','o','p','r','s','t','u','v','y','z'];
+
+function rastgeleGuvenliHarf() {
+  return GUVENLI_HARFLER[Math.floor(Math.random() * GUVENLI_HARFLER.length)];
+}
+
+function addWordScore(userId, puan) {
+  wordGameScores.set(userId, (wordGameScores.get(userId) || 0) + puan);
+  return wordGameScores.get(userId);
+}
+
+function getWordScore(userId) {
+  return wordGameScores.get(userId) || 0;
+}
+
 /**
  * Bom oyununu kanal geçmişinden senkronize et.
  * Son mesajlara bakarak currentBomNumber'ı belirle.
@@ -255,37 +281,81 @@ async function handleTMTGames(message, client) {
       return true;
     }
 
-    if (!lastWordLetter) {
-      // İlk oyun
-      lastWordLetter = word.slice(-1);
-      lastWordUser = message.author.id;
-      usedWords.add(word);
-      await message.react("✅").catch(() => {});
+  if (!lastWordLetter) {
+    // İlk oyun
+    const sonHarf = word.slice(-1);
+    lastWordUser = message.author.id;
+    usedWords.add(word);
+    await message.react("✅").catch(() => {});
+
+    if (CIKMAZHARF.has(sonHarf)) {
+      const yeniPuan = addWordScore(message.author.id, 10);
+      const yeniHarf = rastgeleGuvenliHarf();
+      lastWordLetter = yeniHarf;
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setTitle('🔤 Çıkmaz Harf')
+        .setColor(0xf59e0b)
+        .setDescription(
+          `<@${message.author.id}> çıkmaza sokan harf yazdığın için **10 oyun puanı** aldın!\n` +
+          `Girilen kelime **${word}** oyuncu çıkmaza sokan bir harf olan **${sonHarf}** ile bitiyor.\n` +
+          `Oyunun çıkmaza girmemesi için sistem tarafından rastgele bir harf seçildi.\n\n` +
+          `**Oyunun yeni harfi: ${yeniHarf.toUpperCase()}**`
+        )
+        .setFooter({ text: `Toplam puanın: ${yeniPuan}` })
+        .setTimestamp();
+      await message.channel.send({ embeds: [embed] }).catch(() => {});
     } else {
-      // Oyun devam ediyor
-      if (word.startsWith(lastWordLetter)) {
-        if (usedWords.has(word)) {
-          await message.delete().catch(() => {});
-          const reply = await message.channel.send(`<@${message.author.id}>, "${word}" kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`);
-          setTimeout(() => reply.delete().catch(() => {}), 3000);
-        } else {
-          lastWordLetter = word.slice(-1);
-          lastWordUser = message.author.id;
-          usedWords.add(word);
-          await message.react("✅").catch(() => {});
-        }
-      } else {
-        await message.delete().catch(() => {});
-        const reply = await message.channel.send(`<@${message.author.id}>, kelime **"${lastWordLetter}"** harfi ile başlamalı!`);
-        setTimeout(() => reply.delete().catch(() => {}), 3000);
-      }
+      lastWordLetter = sonHarf;
     }
-    return true;
+  } else {
+    // Oyun devam ediyor
+    if (word.startsWith(lastWordLetter)) {
+      if (usedWords.has(word)) {
+        await message.delete().catch(() => {});
+        const reply = await message.channel.send(`<@${message.author.id}>, "${word}" kelimesi daha önce kullanıldı! Lütfen başka kelime bulun.`);
+        setTimeout(() => reply.delete().catch(() => {}), 3000);
+      } else {
+        const sonHarf = word.slice(-1);
+        lastWordUser = message.author.id;
+        usedWords.add(word);
+        await message.react("✅").catch(() => {});
+
+        if (CIKMAZHARF.has(sonHarf)) {
+          const yeniPuan = addWordScore(message.author.id, 10);
+          const yeniHarf = rastgeleGuvenliHarf();
+          lastWordLetter = yeniHarf;
+          const { EmbedBuilder } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setTitle('🔤 Çıkmaz Harf')
+            .setColor(0xf59e0b)
+            .setDescription(
+              `<@${message.author.id}> çıkmaza sokan harf yazdığın için **10 oyun puanı** aldın!\n` +
+              `Girilen kelime **${word}** oyuncu çıkmaza sokan bir harf olan **${sonHarf}** ile bitiyor.\n` +
+              `Oyunun çıkmaza girmemesi için sistem tarafından rastgele bir harf seçildi.\n\n` +
+              `**Oyunun yeni harfi: ${yeniHarf.toUpperCase()}**`
+            )
+            .setFooter({ text: `Toplam puanın: ${yeniPuan}` })
+            .setTimestamp();
+          await message.channel.send({ embeds: [embed] }).catch(() => {});
+        } else {
+          lastWordLetter = sonHarf;
+        }
+      }
+    } else {
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send(`<@${message.author.id}>, kelime **"${lastWordLetter}"** harfi ile başlamalı!`);
+      setTimeout(() => reply.delete().catch(() => {}), 3000);
+    }
+  }
+  return true;
   }
 
   return false;
 }
 
 module.exports = {
-  handleTMTGames
+  handleTMTGames,
+  getWordScore,
+  wordGameScores
 };
