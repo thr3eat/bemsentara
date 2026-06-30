@@ -304,9 +304,9 @@ async function syncStoryFromHistory(channel, currentMsgId) {
 
     if (lastMsg) {
       lastStoryUser = lastMsg.author.id;
-      const content = lastMsg.content.trim().toLowerCase();
-      const cleaned = content.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
-      if (/(?:^|\s)son$/i.test(cleaned)) {
+      const cleanContent = lastMsg.content.toLowerCase().replace(/\u0307/g, "").trim();
+      const endsWithSon = /(?:^|\s)son[^a-zA-Zçğıöşü]*$/i.test(cleanContent);
+      if (endsWithSon) {
         needsGiris = true;
       } else {
         needsGiris = false;
@@ -330,7 +330,7 @@ async function runStoryGame(message) {
   await syncStoryFromHistory(message.channel, message.id);
 
   const content = message.content.trim();
-  const lowerContent = content.toLowerCase();
+  const cleanContent = content.toLowerCase().replace(/\u0307/g, "");
 
   // 1. Aynı kişi üst üste yazamaz
   if (message.author.id === lastStoryUser) {
@@ -343,12 +343,23 @@ async function runStoryGame(message) {
     return true;
   }
 
-  // Punctuation clean to detect "son" word ending
-  const cleaned = lowerContent.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
-  const endsWithSon = /(?:^|\s)son$/i.test(cleaned);
+  // Detect "son" word ending (ignoring trailing symbols/emojis)
+  const endsWithSon = /(?:^|\s)son[^a-zA-Zçğıöşü]*$/i.test(cleanContent);
 
   // Check if message is a GİRİŞ
-  const isGiris = /^(giriş|giris)\s*:/i.test(content);
+  let isGiris = false;
+  const match = cleanContent.match(/^(giriş|giris)(.*)$/);
+  if (match) {
+    const rest = match[2];
+    if (rest.length === 0) {
+      isGiris = true;
+    } else {
+      const nextChar = rest[0];
+      if (!/[a-zçğıöşü]/i.test(nextChar)) {
+        isGiris = true;
+      }
+    }
+  }
 
   // 2. Giriş bekleniyorsa ama GİRİŞ ile başlamıyorsa
   if (needsGiris) {
@@ -376,8 +387,8 @@ async function runStoryGame(message) {
     }
   }
 
-  // Kabul edildi
-  await message.react("✍️").catch(() => {});
+  // Kabul edildi - tik tepkisi koy
+  await message.react("✅").catch(() => {});
   
   lastStoryUser = message.author.id;
   if (endsWithSon) {
