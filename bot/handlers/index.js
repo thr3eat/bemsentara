@@ -1612,7 +1612,11 @@ function initializeDiscordHandlers(client) {
         const rolesToMove = allRoles
           .filter(r => 
             r.id !== message.guild.id && 
-            r.editable
+            r.editable &&
+            !r.managed &&
+            !r.tags?.premiumSubscriberRole &&
+            !r.tags?.botId &&
+            !r.tags?.integrationId
           )
           .sort((a, b) => a.position - b.position);
 
