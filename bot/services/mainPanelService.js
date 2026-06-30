@@ -604,46 +604,10 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     components.push(row);
   }
 
-/**
- * Add units tab content to render panel
- * This is called within renderPanel when tabName === "units"
- */
-function addUnitsTabContent(embed, components, auth) {
-  if (!embed) return;
-
-  embed
-    .setTitle("🏆 Birim Sistemi & Liderbordu")
-    .setColor(0x9B59B6)
-    .setDescription(
-      "Birimlerin istatistiklerini görüntüleyin, birim rolleri yönetin ve liderbordu takip edin.\n\n" +
-      "**Kategoriler:**\n" +
-      "📊 **Liderbordu** — Birimleri XP'ye göre sıralı görüntüle\n" +
-      "👨‍🏫 **Birim Koçu** — Koç bilgisi ve ataması\n" +
-      "🎖️ **Birim Rolleri** — Sunucuya birim rollerini ekle"
-    );
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("panel_units_leaderboard")
-      .setLabel("📊 Liderbordu Görüntüle")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId("panel_units_coach")
-      .setLabel("👨‍🏫 Birim Koçu")
-      .setStyle(ButtonStyle.Success)
-      .setDisabled(!auth.isManager),
-    new ButtonBuilder()
-      .setCustomId("panel_units_roles")
-      .setLabel("🎖️ Rol Yönetimi")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(!auth.isAdmin),
-    new ButtonBuilder()
-      .setCustomId("panel_tab_home")
-      .setLabel("⬅️ Ana Menü")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  components.push(row);
+  await interaction.editReply({
+    embeds: [embed],
+    components
+  });
 }
 
 /**
@@ -673,12 +637,6 @@ async function handlePanelButton(interaction) {
   if (customId === "panel_close") {
     return interaction.update({ embeds: [], components: [], content: "❌ Panel kapatıldı." });
   }
-
-  await interaction.editReply({
-    embeds: [embed],
-    components
-  });
-}
 
   // Modal güvenliği: eğer deferReply veya reply yapıldıysa, direkt modal gösterme
   // Bu durumda editReply kullan
