@@ -1399,6 +1399,8 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
 async function sendWarningDM(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
+
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
   const warnLeft = MAX_WARNINGS - (progress.warnings?.count || 0);
@@ -1426,6 +1428,8 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     taskStatusText = `❌ **Selamlaşma Görevi:** Eksik (Gereken: **${req.greets}x** selam)\n❌ **Ses Aktifliği Görevi:** Eksik (Gereken: **${req.voiceMinutes} dk**)`;
   }
 
+  const stats = getDailyTaskCompletionStats(progress);
+
   const embed = new EmbedBuilder()
     .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
     .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/${MAX_WARNINGS}`)
@@ -1433,6 +1437,7 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
       `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n` +
       `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
+      `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Görevlerinin Durumu:**\n` +
       `${taskStatusText}\n\n` +
       `💡 **Meşgulsen, yöneticilere yazabilirsin!** İzin isteyebilirsin. 😊\n` +
@@ -2058,8 +2063,8 @@ async function retireFromStaff(userId, client) {
   return { success: true, totalDays, levelName };
 }
 async function runDailyCheck(client) {
-  const today = todayStr();
-  console.log('[staffSystem] Günlük kontrol başladı...');
+  const checkDate = getTargetCheckDate();
+  console.log(`[staffSystem] Günlük kontrol başladı (Hedef Tarih: ${checkDate})...`);
 
   try {
     const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
@@ -2083,9 +2088,6 @@ async function runDailyCheck(client) {
       p.stats.lastCompleteDay = p.stats.lastCompleteDay || '';
       p.stats.breakCredits = p.stats.breakCredits || 0;
 
-      // 🔧 Günü sıfırla (ertesi gün başlasın temiz)
-      resetDaily(p);
-
       // Günlük ticket sayacını sıfırla
       p.stats.dailyTicketsToday = 0;
 
@@ -2106,17 +2108,18 @@ async function runDailyCheck(client) {
         }
       }
 
-      // 🔧 BUG FIX: Bugünün görevleri tamamlandı mı kontrol et (dün değil)
+      // Bugünü veya hedef günü kontrol et (görevi tamamladı mı?)
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const greetDone = p.daily?.date === today && p.daily?.greeted;
-      const voiceDone = p.daily?.date === today && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
-      const completedToday = (p.stats.lastCompleteDay === today) || (greetDone && voiceDone);
+      const greetDone = p.daily?.date === checkDate && p.daily?.greeted;
+      const voiceDone = p.daily?.date === checkDate && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      const completedToday = (p.stats.lastCompleteDay === checkDate) || (greetDone && voiceDone);
 
       const activeDays = p.stats?.activeDays || 0;
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(checkDate);
+      const isUserInactive = isOnLeave || (await hasInactivityRole(p.userId, client));
 
-      if (isOnLeave) {
-        // İzinli gün — uyarı veya ceza verilmez, streak sıfırlanmaz.
+      if (isUserInactive) {
+        // İzinli/inaktif gün — uyarı veya ceza verilmez, streak sıfırlanmaz.
         await p.save();
       } else if (!completedToday) {
         // Bugün görev yapılmadı ve izinli değil — uyarı ver
@@ -2140,8 +2143,8 @@ async function runDailyCheck(client) {
         await p.save().catch(() => {});
       }
 
-      // ⚠️ Aktif gün < 2 uyarısı (Bugün görevler yapıldıysa gönderme!)
-      if (activeDays < 2 && !isOnLeave && !completedToday) {
+      // ⚠️ Aktif gün < 2 uyarısı (Bugün görevler yapıldıysa veya izinli/inaktifse gönderme!)
+      if (activeDays < 2 && !isUserInactive && !completedToday) {
         await checkLowActivityWarning(p, client);
       }
     }
