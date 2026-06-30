@@ -85,7 +85,7 @@ function initializeDiscordHandlers(client) {
 
   const { initializeVoiceAndBanHandlers } = require("./voiceHandler");
   initializeVoiceAndBanHandlers(client);
-  
+
   // Merkezi Denetim Günlüğü Handler'ını başlat
   setupCentralAuditHandler(client);
 
@@ -107,7 +107,7 @@ function initializeDiscordHandlers(client) {
     const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
     const { ensureAdminPanels } = require("../services/panelManager");
     const { startJailScheduler } = require("../services/jailService");
-    
+
     startJailScheduler(client);
 
     // Send single announcement to staff if not already sent
@@ -115,7 +115,7 @@ function initializeDiscordHandlers(client) {
       const fs = require('fs');
       const path = require('path');
       const flagPath = path.join(__dirname, '../../data/staff_announcement_v4.flag');
-      
+
       if (!fs.existsSync(flagPath)) {
         const { EKOYILDIZ_MOD_LOG_CHANNEL_ID } = require('../../config');
         const channel = client.channels.cache.get(EKOYILDIZ_MOD_LOG_CHANNEL_ID);
@@ -248,7 +248,7 @@ function initializeDiscordHandlers(client) {
       const { initializeBlacklist, checkBlacklistCleanup } = require('../services/blacklistService');
       await initializeBlacklist(client);
       await checkBlacklistCleanup(client);
-      
+
       // Karaliste temizleme interval'i (24 saatte bir)
       setInterval(async () => {
         try {
@@ -271,15 +271,15 @@ function initializeDiscordHandlers(client) {
         const Giveaway = require('../../models/Giveaway');
         const StaffProgress = require('../../models/StaffProgress');
         const activeGiveaways = await Giveaway.find({ isActive: true, endsAt: { $lte: new Date() } });
-        
+
         for (const giveaway of activeGiveaways) {
           giveaway.isActive = false;
-          
+
           if (giveaway.participants.length > 0) {
             // Rastgele kazanan seç
             const winnerId = giveaway.participants[Math.floor(Math.random() * giveaway.participants.length)];
             giveaway.winners.push(winnerId);
-            
+
             // Ödülü ver
             const p = await StaffProgress.findOne({ userId: winnerId });
             if (p) {
@@ -306,6 +306,46 @@ function initializeDiscordHandlers(client) {
         console.error('[GiveawayScheduler] Hata:', err.message);
       }
     }, 60 * 1000); // Dakikada bir kontrol et
+
+    // ── Bot Durumunu (Presence) 15 saniyede bir değiştir ──────────────────
+    try {
+      const { ActivityType } = require('discord.js');
+      const statuses = [
+        "Ben Sentara! 🤖",
+        "EkoYıldız'ın 1 NUMARALI ASİSTANI! 🌟",
+        "Sana yardım etmek için buradayım! 💪",
+        "Sorunların benim için küçük! 🔧",
+        "7/24 hizmetinizdeyim! ⏰",
+        "Her sorunun bir çözümü var! 🎯",
+        "Destek sisteminin kalbi ben! ❤️",
+        "Hızlı, güvenilir, her zaman hazır! ⚡",
+        "Sorularını bana bırak! 📩",
+        "EkoYıldız ailesiyle gurur duyuyorum! 🏆",
+        "Ticket aç, gerisini ben hallederim! 🎫",
+        "Yapay zeka gücüyle buradayım! 🧠",
+        "Sorunun ne olursa olsun yanındayım! 🛡️",
+        "En iyi destek deneyimi için Sentara! ✨",
+        "Beklemeden, hızlıca çözüm üretiyorum! 🚀"
+      ];
+      let statusIndex = 0;
+
+      const updateBotPresence = () => {
+        client.user.setPresence({
+          activities: [{
+            name: "custom",
+            state: statuses[statusIndex],
+            type: ActivityType.Custom
+          }],
+          status: 'online'
+        });
+        statusIndex = (statusIndex + 1) % statuses.length;
+      };
+
+      updateBotPresence();
+      setInterval(updateBotPresence, 15000);
+    } catch (err) {
+      console.error("[Presence] Error setting bot presence:", err.message);
+    }
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -338,7 +378,7 @@ function initializeDiscordHandlers(client) {
       } else {
         return;
       }
-      
+
       if (!targetRoleId) {
         console.warn(`[guildMemberAdd] Unverified role not configured for guild ${member.guild.id}`);
         return;
@@ -349,12 +389,12 @@ function initializeDiscordHandlers(client) {
         console.error('[guildMemberAdd] Cannot fetch bot member:', err.code);
         return null;
       });
-      
+
       if (!botMember) {
         console.error('[guildMemberAdd] Bot member object is null');
         return;
       }
-      
+
       if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
         console.error('[guildMemberAdd] ⚠️ Bot missing ManageRoles permission');
         return;
@@ -372,7 +412,7 @@ function initializeDiscordHandlers(client) {
           console.error('[guildMemberAdd] ⚠️ Bot has insufficient permissions');
         }
       });
-      
+
       console.log(`[guildMemberAdd] ${member.user.tag} → doğrulanmamış rolü verildi`);
     } catch (err) {
       console.error("[guildMemberAdd] Fatal error:", err.message);
@@ -417,12 +457,12 @@ function initializeDiscordHandlers(client) {
                 });
               }
               if (rebelRole && !memberToReward.roles.cache.has(rebelRole.id)) {
-                await memberToReward.roles.add(rebelRole.id).catch(() => {});
-                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: İsyankar!**\nAutoMod\'un filtrelerine takılarak asi ruhunu gösterdin ve `🤡 İsyankar` rolünü kazandın!').catch(() => {});
+                await memberToReward.roles.add(rebelRole.id).catch(() => { });
+                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: İsyankar!**\nAutoMod\'un filtrelerine takılarak asi ruhunu gösterdin ve `🤡 İsyankar` rolünü kazandın!').catch(() => { });
               }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
     } catch (err) {
       console.error("AutoMod execution hatası:", err);
@@ -454,8 +494,8 @@ function initializeDiscordHandlers(client) {
                 });
               }
               if (loyalRole && !memberToReward.roles.cache.has(loyalRole.id)) {
-                await memberToReward.roles.add(loyalRole.id).catch(() => {});
-                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sadık Yıldız!**\nRakip / Diğer sunucular yerine EkoYıldız sadakatinizi gösterdiğiniz için `⭐ Sadık Yıldız` rolünü kazandınız!').catch(() => {});
+                await memberToReward.roles.add(loyalRole.id).catch(() => { });
+                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sadık Yıldız!**\nRakip / Diğer sunucular yerine EkoYıldız sadakatinizi gösterdiğiniz için `⭐ Sadık Yıldız` rolünü kazandınız!').catch(() => { });
               }
             }
           }
@@ -481,31 +521,31 @@ function initializeDiscordHandlers(client) {
         const sebep = dbUser.banReason || "Veritabanı Ban Kaydı";
 
         if (seviye === "very_high" || seviye === "high") {
-          await member.ban({ reason: `Otomatik Veritabanı Banı (${seviye}): ${sebep}` }).catch(() => {});
+          await member.ban({ reason: `Otomatik Veritabanı Banı (${seviye}): ${sebep}` }).catch(() => { });
           console.log(`[AutoBan] Banned user ${member.id} (${member.user.tag}) on join.`);
           return;
         } else if (seviye === "medium") {
           const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
           const isMain = member.guild.id === TMT_GUILD_ID || member.guild.id === GUILD2_ID;
           if (isMain) {
-            await member.ban({ reason: `Otomatik Veritabanı Banı (Orta): ${sebep}` }).catch(() => {});
+            await member.ban({ reason: `Otomatik Veritabanı Banı (Orta): ${sebep}` }).catch(() => { });
             console.log(`[AutoBan] Banned user ${member.id} (${member.user.tag}) on join (main guild).`);
             return;
           } else {
-            await member.kick(`Otomatik Veritabanı Cezası (Orta): ${sebep}`).catch(() => {});
+            await member.kick(`Otomatik Veritabanı Cezası (Orta): ${sebep}`).catch(() => { });
             console.log(`[AutoBan] Kicked user ${member.id} (${member.user.tag}) on join.`);
             return;
           }
         } else if (seviye === "low") {
-          await member.kick(`Otomatik Veritabanı Cezası (Düşük): ${sebep}`).catch(() => {});
+          await member.kick(`Otomatik Veritabanı Cezası (Düşük): ${sebep}`).catch(() => { });
           console.log(`[AutoBan] Kicked user ${member.id} (${member.user.tag}) on join.`);
           return;
         } else if (seviye === "very_low") {
-          const editableRoles = member.roles.cache.filter(role => 
+          const editableRoles = member.roles.cache.filter(role =>
             role.id !== member.guild.id && !role.managed && role.editable
           );
           if (editableRoles.size > 0) {
-            await member.roles.remove(Array.from(editableRoles.keys())).catch(() => {});
+            await member.roles.remove(Array.from(editableRoles.keys())).catch(() => { });
           }
           const namesToSearch = ["üye", "member", "personel", "onaylı", "onaylanmış hesap", "kullanıcı"];
           let basicRole = null;
@@ -517,7 +557,7 @@ function initializeDiscordHandlers(client) {
             }
           }
           if (basicRole) {
-            await member.roles.add(basicRole, `Otomatik Veritabanı Cezası (Çok Düşük): ${sebep}`).catch(() => {});
+            await member.roles.add(basicRole, `Otomatik Veritabanı Cezası (Çok Düşük): ${sebep}`).catch(() => { });
           }
           console.log(`[AutoBan] Reset roles for user ${member.id} on join.`);
           return;
@@ -660,12 +700,12 @@ function initializeDiscordHandlers(client) {
                   });
                 }
                 if (editorRole && !memberToReward.roles.cache.has(editorRole.id)) {
-                  await memberToReward.roles.add(editorRole.id).catch(() => {});
-                  newMessage.author.send('🎉 **Gizli Başarım Kazanıldı: Kararsız!**\nBugün 15 kez mesaj düzenleyerek ne kadar kararsız olduğunu kanıtladın ve `💌 Kararsız` rolünü kazandın!').catch(() => {});
+                  await memberToReward.roles.add(editorRole.id).catch(() => { });
+                  newMessage.author.send('🎉 **Gizli Başarım Kazanıldı: Kararsız!**\nBugün 15 kez mesaj düzenleyerek ne kadar kararsız olduğunu kanıtladın ve `💌 Kararsız` rolünü kazandın!').catch(() => { });
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     } catch (err) {
@@ -845,12 +885,12 @@ function initializeDiscordHandlers(client) {
                   });
                 }
                 if (reactionRole && !memberToReward.roles.cache.has(reactionRole.id)) {
-                  await memberToReward.roles.add(reactionRole.id).catch(() => {});
-                  user.send('🎉 **Gizli Başarım Kazanıldı: Tepki Kolik!**\nMesajlara tam 50 kez tepki ekleyerek sohbeti renklendirdiğin için `👍 Tepki Kolik` rolünü kazandın!').catch(() => {});
+                  await memberToReward.roles.add(reactionRole.id).catch(() => { });
+                  user.send('🎉 **Gizli Başarım Kazanıldı: Tepki Kolik!**\nMesajlara tam 50 kez tepki ekleyerek sohbeti renklendirdiğin için `👍 Tepki Kolik` rolünü kazandın!').catch(() => { });
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     } catch (err) {
@@ -887,7 +927,7 @@ function initializeDiscordHandlers(client) {
     try {
       const member = newState.member || oldState.member;
       if (!member || !member.user || member.user.bot) return;
-      
+
       const userId = member.id;
       if (!userId) {
         console.warn('[voiceStateUpdate] No user ID found');
@@ -902,7 +942,7 @@ function initializeDiscordHandlers(client) {
 
       const isStaff = guildId === STAFF_GUILD_ID &&
         staffRoleIds.some(rid =>
-          rid && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(rid)
+          rid && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(rid)
           && member.roles.cache.has(rid)
         );
 
@@ -918,9 +958,9 @@ function initializeDiscordHandlers(client) {
 
         if (guildId === GUILD2_ID) {
           const { checkAndRewardTag } = require("../services/clanTagService");
-          await checkAndRewardTag(member).catch(() => {});
+          await checkAndRewardTag(member).catch(() => { });
         }
-        
+
         // ── Sabah Kuşu Başarımı (Ses) ──
         if (guildId === '1367646464804655104') {
           const h = new Date().getHours();
@@ -934,8 +974,8 @@ function initializeDiscordHandlers(client) {
                   earlyRole = await mainGuild.roles.create({ name: '🌅 Sabah Kuşu', color: '#f1c40f', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
                 }
                 if (earlyRole && !memberToReward.roles.cache.has(earlyRole.id)) {
-                  await memberToReward.roles.add(earlyRole.id).catch(() => {});
-                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => {});
+                  await memberToReward.roles.add(earlyRole.id).catch(() => { });
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => { });
                 }
               }
             }
@@ -949,7 +989,7 @@ function initializeDiscordHandlers(client) {
           let joinedSet = socialButterflyTracker.get(userId) || new Set();
           joinedSet.add(newState.channelId);
           socialButterflyTracker.set(userId, joinedSet);
-          
+
           if (joinedSet.size === 5) {
             socialButterflyTracker.delete(userId); // Reset
             const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
@@ -961,8 +1001,8 @@ function initializeDiscordHandlers(client) {
                   butterflyRole = await mainGuild.roles.create({ name: '🎭 Sosyal Kelebek', color: '#e84393', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
                 }
                 if (butterflyRole && !memberToReward.roles.cache.has(butterflyRole.id)) {
-                  await memberToReward.roles.add(butterflyRole.id).catch(() => {});
-                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sosyal Kelebek!**\nKısa sürede birçok farklı kanala girdiğiniz için `🎭 Sosyal Kelebek` rolünü kazandınız!').catch(() => {});
+                  await memberToReward.roles.add(butterflyRole.id).catch(() => { });
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Sosyal Kelebek!**\nKısa sürede birçok farklı kanala girdiğiniz için `🎭 Sosyal Kelebek` rolünü kazandınız!').catch(() => { });
                 }
               }
             }
@@ -1010,13 +1050,13 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (voiceRole && !memberToReward.roles.cache.has(voiceRole.id)) {
-                    await memberToReward.roles.add(voiceRole.id).catch(() => {});
+                    await memberToReward.roles.add(voiceRole.id).catch(() => { });
                     // Özel Ses Kanalı Yetkisi
                     const specialVc = mainGuild.channels.cache.get('1467291940759277834');
                     if (specialVc) {
                       await specialVc.permissionOverwrites.create(memberToReward.id, { Connect: true, ViewChannel: true });
                     }
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ses Kurdu!**\nSeste 2 saatten fazla kaldığınız için `🏆 Ses Kurdu` rolünü ve özel ses kanalına giriş yetkisini kazandınız!').catch(() => {});
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Ses Kurdu!**\nSeste 2 saatten fazla kaldığınız için `🏆 Ses Kurdu` rolünü ve özel ses kanalına giriş yetkisini kazandınız!').catch(() => { });
                   }
                 }
 
@@ -1034,8 +1074,8 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (owlRole && !memberToReward.roles.cache.has(owlRole.id)) {
-                    await memberToReward.roles.add(owlRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde 10 dakikadan fazla seste kaldığınız için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
+                    await memberToReward.roles.add(owlRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde 10 dakikadan fazla seste kaldığınız için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => { });
                   }
                 }
 
@@ -1052,8 +1092,8 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (ghostRole && !memberToReward.roles.cache.has(ghostRole.id)) {
-                    await memberToReward.roles.add(ghostRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayalet!**\nSeste en az 1 saat boyunca tamamen sessiz/susturulmuş kaldığınız için `👻 Hayalet` rolünü kazandınız!').catch(() => {});
+                    await memberToReward.roles.add(ghostRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Hayalet!**\nSeste en az 1 saat boyunca tamamen sessiz/susturulmuş kaldığınız için `👻 Hayalet` rolünü kazandınız!').catch(() => { });
                   }
                 }
 
@@ -1070,8 +1110,8 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (vampireRole && !memberToReward.roles.cache.has(vampireRole.id)) {
-                    await memberToReward.roles.add(vampireRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Vampir!**\nİnanılmaz! Seste tam 10 saat boyunca kesintisiz durarak `🦇 Vampir` rolünü kazandınız!').catch(() => {});
+                    await memberToReward.roles.add(vampireRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Vampir!**\nİnanılmaz! Seste tam 10 saat boyunca kesintisiz durarak `🦇 Vampir` rolünü kazandınız!').catch(() => { });
                   }
                 }
 
@@ -1088,8 +1128,8 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (wolfRole && !memberToReward.roles.cache.has(wolfRole.id)) {
-                    await memberToReward.roles.add(wolfRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Yalnız Kurt!**\nSeste saatlerce tek başınıza kalarak `🐺 Yalnız Kurt` rolünü kazandınız!').catch(() => {});
+                    await memberToReward.roles.add(wolfRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Yalnız Kurt!**\nSeste saatlerce tek başınıza kalarak `🐺 Yalnız Kurt` rolünü kazandınız!').catch(() => { });
                   }
                 }
 
@@ -1106,8 +1146,8 @@ function initializeDiscordHandlers(client) {
                     });
                   }
                   if (sleepRole && !memberToReward.roles.cache.has(sleepRole.id)) {
-                    await memberToReward.roles.add(sleepRole.id).catch(() => {});
-                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Uyurgezer!**\nSeste saatlerce hem sağırlaştırılmış hem de susturulmuş şekilde tam bir uyurgezer gibi bekledin ve `😴 Uyurgezer` rolünü kazandın!').catch(() => {});
+                    await memberToReward.roles.add(sleepRole.id).catch(() => { });
+                    memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Uyurgezer!**\nSeste saatlerce hem sağırlaştırılmış hem de susturulmuş şekilde tam bir uyurgezer gibi bekledin ve `😴 Uyurgezer` rolünü kazandın!').catch(() => { });
                   }
                 }
               }
@@ -1168,17 +1208,17 @@ function initializeDiscordHandlers(client) {
         if (cmd === "s!sil") {
           const { PermissionFlagsBits } = require("discord.js");
           if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply("❌ Bu komutu kullanmak için `Mesajları Yönet` yetkisine sahip olmalısınız.").catch(() => {});
+            return message.reply("❌ Bu komutu kullanmak için `Mesajları Yönet` yetkisine sahip olmalısınız.").catch(() => { });
           }
 
           const amountStr = args[1];
           const amount = parseInt(amountStr, 10);
           if (isNaN(amount) || amount <= 0 || amount > 10000) {
-            return message.reply("❌ Lütfen silinecek mesaj miktarını belirtin (1 - 10000 arası)! Örn: `s!sil 150`").catch(() => {});
+            return message.reply("❌ Lütfen silinecek mesaj miktarını belirtin (1 - 10000 arası)! Örn: `s!sil 150`").catch(() => { });
           }
 
           // Delete command message first
-          await message.delete().catch(() => {});
+          await message.delete().catch(() => { });
 
           try {
             let remaining = amount;
@@ -1203,11 +1243,11 @@ function initializeDiscordHandlers(client) {
 
             const replyMsg = await message.channel.send(`🧹 **${totalDeleted}** adet mesaj başarıyla silindi!`).catch(() => null);
             if (replyMsg) {
-              setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
+              setTimeout(() => replyMsg.delete().catch(() => { }), 3000);
             }
           } catch (err) {
             console.error("[s!sil] Error:", err);
-            await message.channel.send(`❌ Mesajlar silinirken bir hata oluştu: ${err.message}`).catch(() => {});
+            await message.channel.send(`❌ Mesajlar silinirken bir hata oluştu: ${err.message}`).catch(() => { });
           }
           return;
         }
@@ -1215,12 +1255,12 @@ function initializeDiscordHandlers(client) {
         if (cmd === "s!ban") {
           const { PermissionFlagsBits } = require("discord.js");
           if (!message.member.permissions.has(PermissionFlagsBits.BanMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply("❌ Bu komutu kullanmak için `Üyeleri Yasakla` yetkisine sahip olmalısınız.").catch(() => {});
+            return message.reply("❌ Bu komutu kullanmak için `Üyeleri Yasakla` yetkisine sahip olmalısınız.").catch(() => { });
           }
 
           const targetArg = args[1];
           if (!targetArg) {
-            return message.reply("❌ Lütfen banlanacak kullanıcıyı etiketleyin veya ID'sini belirtin! Örn: `s!ban @kullanıcı [sebep]`").catch(() => {});
+            return message.reply("❌ Lütfen banlanacak kullanıcıyı etiketleyin veya ID'sini belirtin! Örn: `s!ban @kullanıcı [sebep]`").catch(() => { });
           }
 
           const targetId = targetArg.replace(/[^0-9]/g, "");
@@ -1228,30 +1268,30 @@ function initializeDiscordHandlers(client) {
             || await message.guild.members.fetch(targetId).catch(() => null);
 
           if (!targetMember) {
-            return message.reply("❌ Belirtilen kullanıcı sunucuda bulunamadı!").catch(() => {});
+            return message.reply("❌ Belirtilen kullanıcı sunucuda bulunamadı!").catch(() => { });
           }
 
           if (targetMember.id === message.author.id) {
-            return message.reply("❌ Kendinizi banlayamazsınız!").catch(() => {});
+            return message.reply("❌ Kendinizi banlayamazsınız!").catch(() => { });
           }
 
           const botMember = message.guild.members.me || await message.guild.members.fetch(message.client.user.id).catch(() => null);
           if (botMember && botMember.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0) {
-            return message.reply("❌ Bu kullanıcının rolü botun rolünden daha yüksek veya eşit, bu kişiyi banlayamam!").catch(() => {});
+            return message.reply("❌ Bu kullanıcının rolü botun rolünden daha yüksek veya eşit, bu kişiyi banlayamam!").catch(() => { });
           }
 
           if (message.member.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0 && message.author.id !== message.guild.ownerId) {
-            return message.reply("❌ Yetkiniz bu kullanıcıyı banlamaya yetmiyor!").catch(() => {});
+            return message.reply("❌ Yetkiniz bu kullanıcıyı banlamaya yetmiyor!").catch(() => { });
           }
 
           const reason = args.slice(2).join(" ") || "Sebep belirtilmedi.";
 
           try {
             await targetMember.ban({ reason: `${message.author.tag} tarafından s!ban ile: ${reason}` });
-            await message.reply(`🔨 **${targetMember.user.tag}** kullanıcısı başarıyla yasaklandı!\n**Sebep:** ${reason}`).catch(() => {});
+            await message.reply(`🔨 **${targetMember.user.tag}** kullanıcısı başarıyla yasaklandı!\n**Sebep:** ${reason}`).catch(() => { });
           } catch (err) {
             console.error("[s!ban] Error:", err);
-            await message.reply(`❌ Kullanıcı yasaklanırken bir hata oluştu: ${err.message}`).catch(() => {});
+            await message.reply(`❌ Kullanıcı yasaklanırken bir hata oluştu: ${err.message}`).catch(() => { });
           }
           return;
         }
@@ -1262,9 +1302,9 @@ function initializeDiscordHandlers(client) {
     if (message.guild && !message.author.bot) {
       try {
         const swearWords = [
-          "siktir", "sikis", "sikem", "sikim", "sikti", "orospu", "pic", "amk", "yarrak", 
-          "got", "amina", "amini", "kaltak", "yavsak", "kahpe", "meme", "tassak", "tasak", 
-          "amcik", "gavat", "godos", "porno", "hentai", "nsfw", "sikiş", "piç", "göt", 
+          "siktir", "sikis", "sikem", "sikim", "sikti", "orospu", "pic", "amk", "yarrak",
+          "got", "amina", "amini", "kaltak", "yavsak", "kahpe", "meme", "tassak", "tasak",
+          "amcik", "gavat", "godos", "porno", "hentai", "nsfw", "sikiş", "piç", "göt",
           "amına", "amını", "yavşak", "taşşak", "taşak", "amcık", "godoş"
         ];
 
@@ -1282,26 +1322,26 @@ function initializeDiscordHandlers(client) {
         if (hasSwear) {
           // Notify Moderator
           const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-          
+
           let targetMod = null;
           try {
             // Find members with role ID 1518692386836971610
-            const modRoleMembers = message.guild.members.cache.filter(m => 
-              !m.user.bot && 
+            const modRoleMembers = message.guild.members.cache.filter(m =>
+              !m.user.bot &&
               m.roles.cache.has("1518692386836971610")
             );
-            
+
             // Filter by presence (active)
-            const activeMods = modRoleMembers.filter(m => 
+            const activeMods = modRoleMembers.filter(m =>
               m.presence && (m.presence.status === "online" || m.presence.status === "dnd" || m.presence.status === "idle")
             );
-            
+
             if (activeMods.size > 0) {
               targetMod = activeMods.random();
             } else if (modRoleMembers.size > 0) {
               targetMod = modRoleMembers.random();
             }
-          } catch (_) {}
+          } catch (_) { }
 
           if (!targetMod) {
             targetMod = await message.guild.members.fetch("1031620522406072350").catch(() => null);
@@ -1314,8 +1354,8 @@ function initializeDiscordHandlers(client) {
             try {
               const { chatWithAI } = require("../services/aiService");
               const aiPrompt = "Sen bir Discord moderasyon asistanısın. Kullanıcı tarafından yazılan küfürlü mesajın ciddiyetini değerlendir. " +
-                               "Aşırı derecede kötü veya cinsel içerikliyse yüksek süre ver. Hafif küfür ise düşük süre ver. " +
-                               "Yalnızca JSON formatında yanıt dön: {\"severity\": \"dusuk|orta|yuksek\", \"minutes\": 10-180 arası sayı}";
+                "Aşırı derecede kötü veya cinsel içerikliyse yüksek süre ver. Hafif küfür ise düşük süre ver. " +
+                "Yalnızca JSON formatında yanıt dön: {\"severity\": \"dusuk|orta|yuksek\", \"minutes\": 10-180 arası sayı}";
               const aiResponse = await chatWithAI(`Kullanıcı Mesajı: "${message.content}"`, aiPrompt).catch(() => null);
               if (aiResponse) {
                 const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
@@ -1371,7 +1411,7 @@ function initializeDiscordHandlers(client) {
     try {
       const { recordMessage } = require("../services/telegramService");
       recordMessage();
-    } catch (_) {}
+    } catch (_) { }
 
     // Partial mesajları fetch et (DM için zorunlu)
     if (message.partial) {
@@ -1397,32 +1437,32 @@ function initializeDiscordHandlers(client) {
         const { handleSurveyReply } = require('../services/surveyAI');
         const handled = await handleSurveyReply(message, client);
         if (handled) return;
-      } catch (_) {}
+      } catch (_) { }
       // Moderatör mülakat cevabı mı?
       try {
         const { handleInterviewReply } = require('../services/modInterview');
         const handled = await handleInterviewReply(message, client);
         if (handled) return;
-      } catch (_) {}
+      } catch (_) { }
       // Koç sohbeti cevabı mı?
       try {
         const { handleCoachReply } = require('../services/staffCoach');
         const handled = await handleCoachReply(message, client);
         if (handled) return;
-      } catch (_) {}
+      } catch (_) { }
       // AI konus sohbeti cevabı mı?
       try {
         const { handleKonusReply } = require('../services/aiTalkService');
         const handled = await handleKonusReply(message, client);
         if (handled) return;
-      } catch (_) {}
+      } catch (_) { }
       // Normal DM ticket
       try {
         const { handleDMMessage } = require('../services/dmTicket');
         await handleDMMessage(message, client);
       } catch (err) {
         console.error('[messageCreate] DM handler hata:', err.message);
-        await message.author?.send('Bir hata oluştu. Lütfen daha sonra tekrar deneyin.').catch(() => {});
+        await message.author?.send('Bir hata oluştu. Lütfen daha sonra tekrar deneyin.').catch(() => { });
       }
       return;
     }
@@ -1432,8 +1472,8 @@ function initializeDiscordHandlers(client) {
     // ── 1518692502679588954 Kanalı Tepki Ekleme ─────────────────────────────────────
     if (message.channel.id === '1518692502679588954') {
       try {
-        await message.react('👍').catch(() => {});
-        await message.react('👎').catch(() => {});
+        await message.react('👍').catch(() => { });
+        await message.react('👎').catch(() => { });
       } catch (err) {
         console.error('[reaction] Tepki ekleme hatası:', err.message);
       }
@@ -1444,39 +1484,39 @@ function initializeDiscordHandlers(client) {
       const { handleTMTGames } = require('../services/tmtGames');
       const handled = await handleTMTGames(message, client);
       if (handled) return;
-    } catch (_) {}
+    } catch (_) { }
 
     // ── EkoYıldız Oyunları ─────────────────────────────────────────────────
     try {
       const { handleEkoGames } = require('../services/ekoGames');
       const handled = await handleEkoGames(message, client);
       if (handled) return;
-    } catch (_) {}
+    } catch (_) { }
 
     // ── Abone fotoğraf doğrulama (Eko Yıldız) ──────────────────────────────
     try {
       const { handlePhotoUpload } = require('../services/photoVerification');
       const handled = await handlePhotoUpload(message, client);
       if (handled) return;
-    } catch (_) {}
+    } catch (_) { }
 
     // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) & Sunucu Etiketi Kontrolü ────
     try {
       const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");
       if (message.guild.id === FROG_GUILD_ID) {
-        await addMessageXP(message.member, client).catch(() => {});
+        await addMessageXP(message.member, client).catch(() => { });
 
         const { checkAndRewardTag } = require("../services/clanTagService");
-        await checkAndRewardTag(message.member).catch(() => {});
+        await checkAndRewardTag(message.member).catch(() => { });
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // ── Gece Baykuşu Başarımı (Sohbet) ────────────────────────────────────
     try {
       if (message.guild.id === '1367646464804655104') {
         const uId = message.author.id;
         const hour = new Date().getHours();
-        
+
         // Sabah Kuşu (Sohbet)
         if (hour >= 6 && hour < 8) {
           let earlyRole = message.guild.roles.cache.find(r => r.name === '🌅 Sabah Kuşu');
@@ -1484,8 +1524,8 @@ function initializeDiscordHandlers(client) {
             earlyRole = await message.guild.roles.create({ name: '🌅 Sabah Kuşu', color: '#f1c40f', hoist: false, position: 1, reason: 'Gizli Başarım Sistemi' });
           }
           if (earlyRole && !message.member.roles.cache.has(earlyRole.id)) {
-            await message.member.roles.add(earlyRole.id).catch(() => {});
-            message.author.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => {});
+            await message.member.roles.add(earlyRole.id).catch(() => { });
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Sabah Kuşu!**\nSabahın erken saatlerinde aktif olduğunuz için `🌅 Sabah Kuşu` rolünü kazandınız!').catch(() => { });
           }
         }
 
@@ -1506,8 +1546,8 @@ function initializeDiscordHandlers(client) {
               });
             }
             if (owlRole && !message.member.roles.cache.has(owlRole.id)) {
-              await message.member.roles.add(owlRole.id).catch(() => {});
-              message.author.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde sohbette aktif olduğunuz için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => {});
+              await message.member.roles.add(owlRole.id).catch(() => { });
+              message.author.send('🎉 **Gizli Başarım Kazanıldı: Gece Baykuşu!**\nGece geç saatlerde sohbette aktif olduğunuz için `🦉 Gece Baykuşu` rolünü kazandınız!').catch(() => { });
             }
           }
         }
@@ -1527,8 +1567,8 @@ function initializeDiscordHandlers(client) {
             });
           }
           if (keyRole && !message.member.roles.cache.has(keyRole.id)) {
-            await message.member.roles.add(keyRole.id).catch(() => {});
-            message.author.send('🎉 **Gizli Başarım Kazanıldı: Klavyeşör!**\nBugün 100\'den fazla mesaj göndererek aktifliğini kanıtladın ve `⌨️ Klavyeşör` rolünü kazandın!').catch(() => {});
+            await message.member.roles.add(keyRole.id).catch(() => { });
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Klavyeşör!**\nBugün 100\'den fazla mesaj göndererek aktifliğini kanıtladın ve `⌨️ Klavyeşör` rolünü kazandın!').catch(() => { });
           }
         }
 
@@ -1545,8 +1585,8 @@ function initializeDiscordHandlers(client) {
             });
           }
           if (oracleRole && !message.member.roles.cache.has(oracleRole.id)) {
-            await message.member.roles.add(oracleRole.id).catch(() => {});
-            message.author.send('🎉 **Gizli Başarım Kazanıldı: Kahin!**\nSohbete tam olarak gizli şifreyi yazmayı başardığın için `🔮 Kahin` rolünü kazandın! Gerçekten bir kahin olmalısın.').catch(() => {});
+            await message.member.roles.add(oracleRole.id).catch(() => { });
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Kahin!**\nSohbete tam olarak gizli şifreyi yazmayı başardığın için `🔮 Kahin` rolünü kazandın! Gerçekten bir kahin olmalısın.').catch(() => { });
           }
         }
 
@@ -1567,8 +1607,8 @@ function initializeDiscordHandlers(client) {
               });
             }
             if (photoRole && !message.member.roles.cache.has(photoRole.id)) {
-              await message.member.roles.add(photoRole.id).catch(() => {});
-              message.author.send('🎉 **Gizli Başarım Kazanıldı: Fotoğrafçı!**\nSohbete birbirinden güzel tam 20 görsel yüklediğin için `📸 Fotoğrafçı` rolünü kazandın!').catch(() => {});
+              await message.member.roles.add(photoRole.id).catch(() => { });
+              message.author.send('🎉 **Gizli Başarım Kazanıldı: Fotoğrafçı!**\nSohbete birbirinden güzel tam 20 görsel yüklediğin için `📸 Fotoğrafçı` rolünü kazandın!').catch(() => { });
             }
           }
         }
@@ -1586,32 +1626,32 @@ function initializeDiscordHandlers(client) {
             });
           }
           if (writerRole && !message.member.roles.cache.has(writerRole.id)) {
-            await message.member.roles.add(writerRole.id).catch(() => {});
-            message.author.send('🎉 **Gizli Başarım Kazanıldı: Roman Yazarı!**\nSohbete tek seferde 1000 karakterden uzun harika bir destan yazdığın için `📝 Roman Yazarı` rolünü kazandın!').catch(() => {});
+            await message.member.roles.add(writerRole.id).catch(() => { });
+            message.author.send('🎉 **Gizli Başarım Kazanıldı: Roman Yazarı!**\nSohbete tek seferde 1000 karakterden uzun harika bir destan yazdığın için `📝 Roman Yazarı` rolünü kazandın!').catch(() => { });
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // ── AI Kanal Sohbet İzleme (moderatör etkileşimi) ─────────────────────
     try {
       const { handleAIChatMessage } = require('../services/aiChannelChat');
       await handleAIChatMessage(message, client);
-    } catch (_) {}
+    } catch (_) { }
 
     // ── Personel selam takibi ──────────────────────────────────────────────
     try {
       const { GUILD_ID, ROLES } = require("../services/staffSystem");
       if (message.guild.id === GUILD_ID) {
         const staffRoleIds = Object.values(ROLES).filter(id =>
-          id && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(id)
+          id && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(id)
         );
         const isStaff = staffRoleIds.some(rid => message.member?.roles.cache.has(rid));
         if (isStaff) {
           // 1) Mesaj gönderdiğini (Sohbet istatistiği) kaydet
           if (message.content.length > 2) {
             const { recordChatMessage } = require("../services/staffSystem");
-            await recordChatMessage(message.author.id, client).catch(() => {});
+            await recordChatMessage(message.author.id, client).catch(() => { });
           }
 
           // 2) Selam verip vermediğini kontrol et
@@ -1620,11 +1660,11 @@ function initializeDiscordHandlers(client) {
           const isGreet = greetWords.some(w => lower.startsWith(w) || lower.includes(w));
           if (isGreet) {
             const { recordGreet } = require("../services/staffSystem");
-            await recordGreet(message.author.id, client).catch(() => {});
+            await recordGreet(message.author.id, client).catch(() => { });
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // ── dm- kanalından yetkili mesajını kullanıcıya ilet ────────────────────
     if (message.channel.name?.startsWith('dm-') && !message.author.bot) {
@@ -1650,7 +1690,7 @@ function initializeDiscordHandlers(client) {
           cancelInactivityWarning(ticket.ticketId);
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     if (message.content.toLowerCase().startsWith("!sunucukur")) {
       const allowedUsers = ["1228088674206617621", "1031620522406072350"];
       if (!allowedUsers.includes(message.author.id)) {
@@ -1682,9 +1722,9 @@ function initializeDiscordHandlers(client) {
       } catch (err) {
         console.error("[SunucuKurma] Text command setup error:", err);
         if (statusMsg) {
-          await statusMsg.edit(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
+          await statusMsg.edit(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => { });
         } else {
-          await message.reply(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
+          await message.reply(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => { });
         }
       }
       return;
@@ -1703,7 +1743,7 @@ function initializeDiscordHandlers(client) {
         if (!botMember) {
           throw new Error("Bot üye bilgisi alınamadı.");
         }
-        
+
         if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
           throw new Error("Botun `Rolleri Yönet` yetkisi bulunmuyor.");
         }
@@ -1711,8 +1751,8 @@ function initializeDiscordHandlers(client) {
         // Fetch all roles, filter out @everyone, managed roles, and roles higher/equal to bot's highest role
         const allRoles = await message.guild.roles.fetch();
         const rolesToMove = allRoles
-          .filter(r => 
-            r.id !== message.guild.id && 
+          .filter(r =>
+            r.id !== message.guild.id &&
             r.editable &&
             !r.managed &&
             !r.tags?.premiumSubscriberRole &&
@@ -1737,9 +1777,9 @@ function initializeDiscordHandlers(client) {
         await message.guild.roles.setPositions(positionPayload);
 
         const replyText = `✅ **Rollerin Hiyerarşik Sıralaması Başarıyla Tersine Çevrildi!**\n\n` +
-                          `• Toplam **${rolesArray.length}** rolün sırası değiştirildi.\n` +
-                          `• En üstteki rol en alta, en alttaki rol ise en üste taşındı.`;
-                          
+          `• Toplam **${rolesArray.length}** rolün sırası değiştirildi.\n` +
+          `• En üstteki rol en alta, en alttaki rol ise en üste taşındı.`;
+
         if (statusMsg) {
           await statusMsg.edit(replyText).catch(() => message.reply(replyText));
         } else {
@@ -1834,7 +1874,7 @@ function initializeDiscordHandlers(client) {
 
       const lines = message.content.split("\n");
       const pairs = [];
-      
+
       for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
         if (i === 0) {
@@ -1844,9 +1884,9 @@ function initializeDiscordHandlers(client) {
             line = line.slice("!tümkanallaraciklama".length).trim();
           }
         }
-        
+
         if (!line) continue;
-        
+
         const parts = line.split("-----");
         if (parts.length >= 2) {
           const channelId = parts[0].trim();
@@ -1862,7 +1902,7 @@ function initializeDiscordHandlers(client) {
       }
 
       const statusMsg = await message.reply(`🔄 ${pairs.length} kanalın açıklaması güncelleniyor, lütfen bekleyin...`);
-      
+
       const success = [];
       const failed = [];
 
@@ -2037,10 +2077,10 @@ function initializeDiscordHandlers(client) {
             const roleId = ROLES[progress.level];
             if (roleId) {
               if (!member.roles.cache.has(roleId)) {
-                await member.roles.add(roleId, "EkoRolSync: Staff Seviye Kurtarma").catch(() => {});
+                await member.roles.add(roleId, "EkoRolSync: Staff Seviye Kurtarma").catch(() => { });
               }
               // Also run main guild roles sync
-              await staffAutomation.syncMainGuildRoles(client, memberId).catch(() => {});
+              await staffAutomation.syncMainGuildRoles(client, memberId).catch(() => { });
               staffCount++;
               updated = true;
             }
@@ -2049,7 +2089,7 @@ function initializeDiscordHandlers(client) {
           // 2. Frog Level (Dinazor/Penguen) System Sync
           const frog = await FrogLevel.findOne({ userId: memberId, guildId: guild.id });
           if (frog && frog.level !== undefined) {
-            await frogLevel.syncRolesFromLevel(member, frog.level, client).catch(() => {});
+            await frogLevel.syncRolesFromLevel(member, frog.level, client).catch(() => { });
             levelCount++;
             updated = true;
           }
@@ -2069,8 +2109,8 @@ function initializeDiscordHandlers(client) {
     // ── !birimalimi komut: Birim alımı başlat (admin only) ──────────────────
     if (message.content.toLowerCase().startsWith("!birimalimi")) {
       const { PermissionFlagsBits } = require('discord.js');
-      if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && 
-          !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator) &&
+        !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
         return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.");
       }
 
@@ -2080,7 +2120,7 @@ function initializeDiscordHandlers(client) {
 
       // Validate birim
       const validBirims = ['BAN_BIRIMI', 'SES_BIRIMI', 'SOHBET_BIRIMI', 'BAN', 'SES', 'SOHBET'];
-      
+
       if (!birimArg || !validBirims.includes(birimArg)) {
         const helpText = `ℹ️ **!birimalimi Kullanım**\n\n` +
           `**Format:** \`!birimalimi [birim]\`\n\n` +
@@ -2311,7 +2351,7 @@ function initializeDiscordHandlers(client) {
         if (!role) {
           try {
             role = await message.guild.roles.fetch(roleId);
-          } catch (_) {}
+          } catch (_) { }
         }
 
         if (!role) {
@@ -2389,7 +2429,7 @@ function initializeDiscordHandlers(client) {
           }
 
           await role.setPermissions(currentPermissions, `Yetkili: ${message.author.tag} tarafından güncellendi.`);
-          
+
           const actionText = value ? "Açıldı (true)" : "Kapatıldı (false)";
           const successPerms = permTokens.filter(pt => !unrecognized.includes(pt)).join(", ");
           let logMsg = `✅ **${role.name}** (${role.id}): Yetkiler ${actionText} -> \`${successPerms}\``;
@@ -2518,7 +2558,7 @@ function initializeDiscordHandlers(client) {
         const { isGuildAuthorized } = require("../services/guildAuthService");
         const authorized = await isGuildAuthorized(interaction.guild);
         if (!authorized) {
-          return interaction.reply({ content: "❌ Bu sunucu yetkilendirilmemiştir. Bot bu sunucuda kullanılamaz.", ephemeral: true }).catch(() => {});
+          return interaction.reply({ content: "❌ Bu sunucu yetkilendirilmemiştir. Bot bu sunucuda kullanılamaz.", ephemeral: true }).catch(() => { });
         }
       }
       // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
@@ -2621,7 +2661,7 @@ function initializeDiscordHandlers(client) {
         let price = 0;
         let roleName = '';
         let successMessage = '';
-        
+
         if (item === 'color_green') { price = 500; roleName = '- YEŞİL ROL RENGİ -'; successMessage = '🎨 Yeşil Rol Rengi satın alındı!'; }
         else if (item === 'color_red') { price = 500; roleName = '- KIRMIZI ROL RENGİ -'; successMessage = '🎨 Kırmızı Rol Rengi satın alındı!'; }
         else if (item === 'color_blue') { price = 500; roleName = '- MAVİ ROL RENGİ -'; successMessage = '🎨 Mavi Rol Rengi satın alındı!'; }
@@ -2637,7 +2677,7 @@ function initializeDiscordHandlers(client) {
 
         // Fiyatı Düş
         p.gamification.ecoCoins -= price;
-        
+
         // Ödülü Ver
         if (item.startsWith('color_')) {
           const guild = interaction.client.guilds.cache.get(require('../../config').GUILD_ID);
@@ -2663,9 +2703,9 @@ function initializeDiscordHandlers(client) {
             if (member && colorRole) {
               const existingColorRoles = member.roles.cache.filter(r => r.name.startsWith('- ') && r.name.endsWith(' RENGİ -'));
               for (const r of existingColorRoles.values()) {
-                await member.roles.remove(r.id).catch(() => {});
+                await member.roles.remove(r.id).catch(() => { });
               }
-              await member.roles.add(colorRole.id).catch(() => {});
+              await member.roles.add(colorRole.id).catch(() => { });
             }
           }
         } else if (item === 'item_leave_1day' || item === 'ekstra_izin') {
@@ -2693,13 +2733,13 @@ function initializeDiscordHandlers(client) {
                   });
                 }
                 if (shopRole && !memberToReward.roles.cache.has(shopRole.id)) {
-                  await memberToReward.roles.add(shopRole.id).catch(() => {});
-                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Mağaza Müdavimi!**\nEkoCoin mağazasından ilk alışverişinizi başarıyla yaptınız ve `🛒 Mağaza Müdavimi` rolünü kazandınız!').catch(() => {});
+                  await memberToReward.roles.add(shopRole.id).catch(() => { });
+                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Mağaza Müdavimi!**\nEkoCoin mağazasından ilk alışverişinizi başarıyla yaptınız ve `🛒 Mağaza Müdavimi` rolünü kazandınız!').catch(() => { });
                   extraMsg = '\n\n🛒 **Alışverişin ödüllendirildi! Mağaza Müdavimi gizli başarımını açtın, DM kutuna bak!**';
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         return interaction.reply({ content: `✅ ${successMessage}${extraMsg}\n💰 Kalan Bakiye: ${p.gamification.ecoCoins} E.C.`, ephemeral: true });
@@ -2731,79 +2771,79 @@ function initializeDiscordHandlers(client) {
 }
 
 async function handleInteraction(interaction) {
-    if (interaction.isButton()) {
-      const voiceResult = await handleVoiceButton(interaction);
-      if (voiceResult !== null) return voiceResult;
-      return handleButtonInteraction(interaction);
+  if (interaction.isButton()) {
+    const voiceResult = await handleVoiceButton(interaction);
+    if (voiceResult !== null) return voiceResult;
+    return handleButtonInteraction(interaction);
+  }
+
+  if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
+    const voiceSel = await handleVoiceSelect(interaction);
+    if (voiceSel !== null) return voiceSel;
+    return handleSelectInteraction(interaction);
+  }
+
+  if (interaction.isModalSubmit()) {
+    const voiceModal = await handleVoiceModal(interaction);
+    if (voiceModal !== null) return voiceModal;
+    return handleModalSubmit(interaction);
+  }
+
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "panel") {
+      const { handlePanelSlashCommand } = require("./panelCommandHandler");
+      return handlePanelSlashCommand(interaction);
     }
 
-    if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
-      const voiceSel = await handleVoiceSelect(interaction);
-      if (voiceSel !== null) return voiceSel;
-      return handleSelectInteraction(interaction);
-    }
+    // ── Gizli Başarım: Botun Kankası ──
+    if (interaction.guild && interaction.guild.id === '1367646464804655104') {
+      const uId = interaction.user.id;
+      let cmds = botFriendTracker.get(uId) || 0;
+      cmds++;
+      botFriendTracker.set(uId, cmds);
 
-    if (interaction.isModalSubmit()) {
-      const voiceModal = await handleVoiceModal(interaction);
-      if (voiceModal !== null) return voiceModal;
-      return handleModalSubmit(interaction);
-    }
-
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "panel") {
-        const { handlePanelSlashCommand } = require("./panelCommandHandler");
-        return handlePanelSlashCommand(interaction);
-      }
-
-      // ── Gizli Başarım: Botun Kankası ──
-      if (interaction.guild && interaction.guild.id === '1367646464804655104') {
-        const uId = interaction.user.id;
-        let cmds = botFriendTracker.get(uId) || 0;
-        cmds++;
-        botFriendTracker.set(uId, cmds);
-
-        if (cmds === 100) {
-          try {
-            const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
-            if (mainGuild) {
-              const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
-              if (memberToReward) {
-                let botFriendRole = mainGuild.roles.cache.find(r => r.name === '🤖 Botun Kankası');
-                if (!botFriendRole) {
-                  botFriendRole = await mainGuild.roles.create({
-                    name: '🤖 Botun Kankası',
-                    color: '#1abc9c', // Turkuaz
-                    hoist: false,
-                    position: 1,
-                    reason: 'Gizli Başarım Sistemi'
-                  });
-                }
-                if (botFriendRole && !memberToReward.roles.cache.has(botFriendRole.id)) {
-                  await memberToReward.roles.add(botFriendRole.id).catch(() => {});
-                  memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Botun Kankası!**\nBotun komutlarını tam 100 kez kullanarak botla en çok ilgilenenlerden biri oldun ve `🤖 Botun Kankası` rolünü kazandın!').catch(() => {});
-                }
+      if (cmds === 100) {
+        try {
+          const mainGuild = await interaction.client.guilds.fetch('1367646464804655104').catch(() => null);
+          if (mainGuild) {
+            const memberToReward = await mainGuild.members.fetch(uId).catch(() => null);
+            if (memberToReward) {
+              let botFriendRole = mainGuild.roles.cache.find(r => r.name === '🤖 Botun Kankası');
+              if (!botFriendRole) {
+                botFriendRole = await mainGuild.roles.create({
+                  name: '🤖 Botun Kankası',
+                  color: '#1abc9c', // Turkuaz
+                  hoist: false,
+                  position: 1,
+                  reason: 'Gizli Başarım Sistemi'
+                });
+              }
+              if (botFriendRole && !memberToReward.roles.cache.has(botFriendRole.id)) {
+                await memberToReward.roles.add(botFriendRole.id).catch(() => { });
+                memberToReward.send('🎉 **Gizli Başarım Kazanıldı: Botun Kankası!**\nBotun komutlarını tam 100 kez kullanarak botla en çok ilgilenenlerden biri oldun ve `🤖 Botun Kankası` rolünü kazandın!').catch(() => { });
               }
             }
-          } catch (_) {}
-        }
+          }
+        } catch (_) { }
       }
-
-      let result = await handleGeneralCommand(interaction);
-      if (result !== null) return result;
-
-      result = await handleEconomyCommand(interaction);
-      if (result !== null) return result;
-
-      result = await handleFunCommand(interaction);
-      if (result !== null) return result;
-
-      result = await handleModerationCommand(interaction);
-      if (result !== null) return result;
-
-      return null;
     }
 
+    let result = await handleGeneralCommand(interaction);
+    if (result !== null) return result;
+
+    result = await handleEconomyCommand(interaction);
+    if (result !== null) return result;
+
+    result = await handleFunCommand(interaction);
+    if (result !== null) return result;
+
+    result = await handleModerationCommand(interaction);
+    if (result !== null) return result;
+
     return null;
+  }
+
+  return null;
 }
 
 module.exports = { initializeDiscordHandlers };

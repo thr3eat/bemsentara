@@ -3113,38 +3113,64 @@ async function handlePanelCommand(interaction) {
 }
 
 async function generateInceleData(guild, targetUser, targetMember) {
-  // 1. Roblox ID Bul (RoWifi veya Yerel Veritabanı)
+  // 1. Roblox ID Bul (Yerel Veritabanı, RoWifi veya Bloxlink)
   let robloxId = null;
   let robloxUsername = null;
   let linkSource = null;
 
-  // RoWifi API
-  const { ROWIFI_TOKEN } = require("../../config");
-  if (ROWIFI_TOKEN) {
-    try {
+  // Local DB Check First
+  let dbUser = null;
+  try {
+    dbUser = await User.findOne({ discordId: targetUser.id });
+    if (dbUser && dbUser.robloxId) {
+      robloxId = String(dbUser.robloxId);
+      robloxUsername = dbUser.robloxUsername;
+      linkSource = "Sunucu Veritabanı";
+    }
+  } catch (err) {
+    console.warn("[incele] Local DB query error:", err.message);
+  }
+
+  // RoWifi API with Guild fallbacks if not found
+  if (!robloxId) {
+    const { ROWIFI_TOKEN } = require("../../config");
+    if (ROWIFI_TOKEN) {
+      const guildsToCheck = [guild.id, "1367646464804655104", "1483482948320891074"];
       const axios = require("axios");
-      const url = `https://api.rowifi.xyz/v3/guilds/${guild.id}/members/${targetUser.id}`;
-      const response = await axios.get(url, {
-        headers: {
-          'Authorization': `Bot ${ROWIFI_TOKEN}`
-        },
-        timeout: 5000
-      });
-      if (response.status === 200 && response.data && response.data.roblox_id) {
-        robloxId = String(response.data.roblox_id);
-        linkSource = "RoWifi API";
+      for (const gId of guildsToCheck) {
+        try {
+          const url = `https://api.rowifi.xyz/v3/guilds/${gId}/members/${targetUser.id}`;
+          const response = await axios.get(url, {
+            headers: {
+              'Authorization': `Bot ${ROWIFI_TOKEN}`
+            },
+            timeout: 3000
+          });
+          if (response.status === 200 && response.data && response.data.roblox_id) {
+            robloxId = String(response.data.roblox_id);
+            linkSource = gId === guild.id ? "RoWifi API (Bu Sunucu)" : "RoWifi API (Merkez Sunucu)";
+            break;
+          }
+        } catch (err) {
+          // Try next guild silently
+        }
       }
-    } catch (err) {
-      console.warn(`[RoWifi API] Hata (User: ${targetUser.id}):`, err.message);
     }
   }
 
-  // Local DB Fallback
-  let dbUser = await User.findOne({ discordId: targetUser.id });
-  if (!robloxId && dbUser && dbUser.robloxId) {
-    robloxId = String(dbUser.robloxId);
-    robloxUsername = dbUser.robloxUsername;
-    linkSource = "Sunucu Veritabanı";
+  // Bloxlink Public Global API Fallback if still not found
+  if (!robloxId) {
+    try {
+      const axios = require("axios");
+      const url = `https://v3.api.blox.link/developer/discord/${targetUser.id}`;
+      const response = await axios.get(url, { timeout: 4000 });
+      if (response.status === 200 && response.data && response.data.robloxId) {
+        robloxId = String(response.data.robloxId);
+        linkSource = "Bloxlink API (Global)";
+      }
+    } catch (err) {
+      // Bloxlink lookup failed
+    }
   }
 
   // Embed nesnesini hazırlayalım
