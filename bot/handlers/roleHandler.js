@@ -24,6 +24,66 @@ function buildUpdateEmbed(member, result) {
     .setTimestamp();
 }
 
+async function syncBranchServerRoles(guild, member, robloxUserId) {
+  const ServerSetup = require("../../models/ServerSetup");
+  const setupDoc = await ServerSetup.findOne({ guildId: guild.id, status: "active" });
+  if (!setupDoc) {
+    return { success: false, message: "Bu sunucu için aktif bir kurulum (ServerSetup) bulunamadı." };
+  }
+
+  const noblox = require("noblox.js");
+  const rank = await noblox.getRankInGroup(setupDoc.robloxGroupId, parseInt(robloxUserId, 10)).catch(() => 0);
+
+  // Mapped role ID'sini bul
+  const roleId = setupDoc.roleMappings instanceof Map ? setupDoc.roleMappings.get(rank.toString()) : setupDoc.roleMappings[rank.toString()];
+  
+  // Find all possible roles in the mapping to remove old ones
+  const allMappedRoleIds = setupDoc.roleMappings instanceof Map ? Array.from(setupDoc.roleMappings.values()) : Object.values(setupDoc.roleMappings);
+
+  const toAdd = [];
+  const toRemove = [];
+
+  if (roleId) {
+    toAdd.push({ id: roleId });
+  }
+
+  for (const rid of allMappedRoleIds) {
+    if (rid !== roleId && member.roles.cache.has(rid)) {
+      toRemove.push({ id: rid });
+    }
+  }
+
+  if (toAdd.length > 0) {
+    const roleObj = guild.roles.cache.get(roleId);
+    if (roleObj) {
+      await member.roles.add(roleId, "Branch server rank update").catch(() => {});
+    }
+  }
+
+  if (toRemove.length > 0) {
+    await member.roles.remove(toRemove.map(r => r.id), "Branch server rank update").catch(() => {});
+  }
+
+  // Update nickname: RobloxUsername [RankName]
+  const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
+  const rankObj = rbxRoles.find(r => r.rank === rank);
+  const rankName = rankObj ? rankObj.name : "Guest";
+  const robloxUsername = await noblox.getUsernameFromId(parseInt(robloxUserId, 10)).catch(() => null);
+
+  if (robloxUsername) {
+    const newNickname = `${robloxUsername} [${rankName}]`.slice(0, 32);
+    await member.setNickname(newNickname, "Branch server rank update").catch(() => {});
+  }
+
+  return {
+    success: true,
+    added: toAdd.map(r => guild.roles.cache.get(r.id)).filter(Boolean),
+    removed: toRemove.map(r => guild.roles.cache.get(r.id)).filter(Boolean),
+    nickname: robloxUsername ? `${robloxUsername} [${rankName}]` : null,
+    rankName
+  };
+}
+
 async function runSyncForMember(interaction, { ephemeral = true, commandName = "update" } = {}) {
   const { guild, member, user } = interaction;
 
@@ -54,6 +114,31 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
   const normalizedBEM = String(TARGET_GUILD_ID).trim();
   const normalizedAllied = String(ALLIED_GUILD_ID).trim();
   const normalizedEKO = String(GUILD2_ID).trim();
+
+  // Branch Sunucu Kontrolü (ServerSetup ile kurulmuş)
+  const ServerSetup = require("../../models/ServerSetup");
+  const setupDoc = await ServerSetup.findOne({ guildId: normalizedGuildId, status: "active" });
+
+  if (setupDoc) {
+    await interaction.deferReply(ephemeral ? deferEphemeral() : {});
+    try {
+      const fullMember = member.partial ? await member.fetch() : member;
+      const result = await syncBranchServerRoles(guild, fullMember, dbUser.robloxId);
+      if (result && result.success) {
+        const embed = buildUpdateEmbed(fullMember, result);
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        return interaction.editReply({
+          content: `❌ Roller senkronize edilemedi: ${result.message || 'Bilinmeyen hata'}`
+        });
+      }
+    } catch (err) {
+      console.error("[BranchSync] error:", err);
+      return interaction.editReply({
+        content: `❌ Bir hata oluştu: ${err.message}`,
+      });
+    }
+  }
 
   // TMT Sunucusu
   if (normalizedGuildId === normalizedTMT) {

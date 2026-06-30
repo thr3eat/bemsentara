@@ -324,6 +324,16 @@ async function handleSlashCommand(interaction) {
           success = result?.success || false;
           console.log(`[verify] EKOYILDIZ sync sonucu: ${success}`);
         } else {
+          // Check if it's a branch setup sunucusu
+          const ServerSetup = require("../../models/ServerSetup");
+          const setupDoc = await ServerSetup.findOne({ guildId, status: "active" });
+          if (setupDoc) {
+            console.log(`[verify] ✓ Kurulum yapılmış branch sunucu algılandı - Sync başlatılıyor`);
+            const { runSyncForMember } = require("./roleHandler");
+            await runSyncForMember(interaction, { ephemeral: true, commandName: "verify" });
+            return;
+          }
+
           console.warn(`[verify] ✗ Sunucu tanınmadı! Guild ID: "${guildId}"`);
           return interaction.editReply({ 
             content: `❌ Sunucu tanınmadı (Guild: ${guildId})` 

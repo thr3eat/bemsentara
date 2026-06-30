@@ -868,29 +868,29 @@ async function handleGeneralCommand(interaction) {
   // ── mod-alim: Geliştirilmiş moderatör mülakatı (MOD-ALIM Sistemi) ─────────
   if (commandName === "mod-alim") {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ 
-        content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir!', 
-        ephemeral: true 
+      return interaction.reply({
+        content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir!',
+        ephemeral: true
       });
     }
-    
+
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
 
     try {
       const target = interaction.options.getUser('kullanici');
-      
+
       // Validation checks
       if (target.bot) {
-        return interaction.editReply({ 
-          content: '❌ Botlara MOD-ALIM mülakatı gönderilemez.' 
+        return interaction.editReply({
+          content: '❌ Botlara MOD-ALIM mülakatı gönderilemez.'
         });
       }
 
       if (target.id === interaction.user.id) {
-        return interaction.editReply({ 
-          content: '❌ Kendine mülakat gönderemezsin!' 
+        return interaction.editReply({
+          content: '❌ Kendine mülakat gönderemezsin!'
         });
       }
 
@@ -915,8 +915,8 @@ async function handleGeneralCommand(interaction) {
 
         return interaction.editReply({ embeds: [successEmbed] });
       } else {
-        return interaction.editReply({ 
-          content: `❌ **${target.username}** kullanıcısına DM gönderilemedi.\n\n💡 *Kullanıcı DM'lerini kapalmış olabilir.*` 
+        return interaction.editReply({
+          content: `❌ **${target.username}** kullanıcısına DM gönderilemedi.\n\n💡 *Kullanıcı DM'lerini kapalmış olabilir.*`
         });
       }
     } catch (err) {
@@ -982,7 +982,7 @@ async function handleGeneralCommand(interaction) {
     }
     try {
       const { getLeaderboard, getUserLeaderboardRank } = require('../services/staffSystem');
-      
+
       // Varsayılan kategori: points
       const category = 'points';
       const lb = await getLeaderboard(category);
@@ -1085,7 +1085,7 @@ async function handleGeneralCommand(interaction) {
     try {
       const StaffProgress = require('../../models/StaffProgress');
       const target = interaction.options.getUser('kullanici') || interaction.user;
-      
+
       // Sadece staff görebilir
       const requestorStaff = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!requestorStaff || requestorStaff.status !== 'active') {
@@ -1127,7 +1127,7 @@ async function handleGeneralCommand(interaction) {
       if (targetStaff.stats?.chatMessages > 0) achievements += `${targetStaff.stats.chatMessages} 💬 | `;
       if (targetStaff.stats?.totalVoiceMinutes > 0) achievements += `${targetStaff.stats.totalVoiceMinutes}m 🎤 | `;
       if (targetStaff.stats?.moderationActions > 0) achievements += `${targetStaff.stats.moderationActions} 🛡️`;
-      
+
       achievements = achievements.replace(/ \| $/, '');
 
       const { getDailyTaskCompletionStats } = require('../services/staffSystem');
@@ -1264,7 +1264,7 @@ async function handleGeneralCommand(interaction) {
 
       if (tip === 'gunluk') {
         const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-        
+
         // AI Koç mesajı
         let aiMessage = '';
         try {
@@ -1275,7 +1275,7 @@ async function handleGeneralCommand(interaction) {
           Mevcut aktiflik streak'i: ${p.stats?.consecutiveDays || 0} gün.`;
           aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
           aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
-        } catch (_) {}
+        } catch (_) { }
 
         const isToday = p.daily?.date === today;
         const greetDone = isToday && p.daily?.greeted;
@@ -1297,7 +1297,7 @@ async function handleGeneralCommand(interaction) {
             {
               name: '⚡ Günlük Zorunlu Görevler',
               value: `${greetDone ? '✅' : '❌'} **Selamlaşma:** ${isToday && p.daily?.greeted ? 1 : 0}/${req.greets} selam (%${stats.greetPercent})\n` +
-                     `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk (%${stats.voicePercent})`,
+                `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk (%${stats.voicePercent})`,
               inline: false
             }
           );
@@ -1396,7 +1396,7 @@ async function handleGeneralCommand(interaction) {
           p.gamification = p.gamification || {};
           p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 150;
           p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 50;
-          
+
           // XP & Level up handle
           p.gamification.currentXP = (p.gamification.currentXP || 0) + 300;
           let levelUp = false;
@@ -1410,14 +1410,14 @@ async function handleGeneralCommand(interaction) {
               break;
             }
           }
-          
+
           p.gamification.lastWeeklyBriefingClaim = currentYearWeek;
           await p.save();
 
           rewardStatusText = `🎉 **Bu Haftanın Brifing Ödülü Başarıyla Alındı!**\n` +
-                             `💰 **+150 E.C.** (EkoCoin)\n` +
-                             `⚡ **+300 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
-                             `⭐ **+50 Puan**`;
+            `💰 **+150 E.C.** (EkoCoin)\n` +
+            `⚡ **+300 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+            `⭐ **+50 Puan**`;
         } else {
           rewardStatusText = `⚠️ **Bu haftaki brifing ödülünüzü zaten aldınız.** Haftaya tekrar gelin!`;
         }
@@ -1455,7 +1455,7 @@ async function handleGeneralCommand(interaction) {
           p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 500;
           p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 200;
           p.stats.breakCredits = (p.stats.breakCredits || 0) + 1;
-          
+
           // XP & Level up handle
           p.gamification.currentXP = (p.gamification.currentXP || 0) + 1000;
           let levelUp = false;
@@ -1469,15 +1469,15 @@ async function handleGeneralCommand(interaction) {
               break;
             }
           }
-          
+
           p.gamification.lastMonthlyBriefingClaim = currentYearMonth;
           await p.save();
 
           rewardStatusText = `🎉 **Bu Ayın Brifing Ödülü Başarıyla Alındı!**\n` +
-                             `💰 **+500 E.C.** (EkoCoin)\n` +
-                             `⚡ **+1000 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
-                             `⭐ **+200 Puan**\n` +
-                             `📅 **+1 İzin Kredisi** (Çok çalışmanın ödülü!)`;
+            `💰 **+500 E.C.** (EkoCoin)\n` +
+            `⚡ **+1000 XP** ${levelUp ? '*(SEVİYE ATLADINIZ!)*' : ''}\n` +
+            `⭐ **+200 Puan**\n` +
+            `📅 **+1 İzin Kredisi** (Çok çalışmanın ödülü!)`;
         } else {
           rewardStatusText = `⚠️ **Bu ayki brifing ödülünüzü zaten aldınız.** Gelecek ay tekrar gelin!`;
         }
@@ -2625,7 +2625,7 @@ async function handleGeneralCommand(interaction) {
         // Set position to highest manageable position
         const botMember = await guild.members.fetchMe();
         if (role.position < botMember.roles.highest.position) {
-          await role.setPosition(botMember.roles.highest.position - 1).catch(() => {});
+          await role.setPosition(botMember.roles.highest.position - 1).catch(() => { });
         }
 
         // Add role to user
@@ -2731,7 +2731,7 @@ async function handleGeneralCommand(interaction) {
 
     if (commandName === "abusetest") {
       const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-                         interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!isYonetici) {
         return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
       }
@@ -2749,9 +2749,9 @@ async function handleGeneralCommand(interaction) {
         )
         .setColor(0xFF0000)
         .addFields(
-          { name: "🏠 Sunucu",            value: `**Test Sunucusu**\nID: \`test\``,                                                     inline: true  },
-          { name: "👤 Şüpheli Kullanıcı", value: `${interaction.user.toString()}\n\`${interaction.user.tag}\`\nID: \`test\``,                 inline: true  },
-          { name: "⚠️ Tespit Edilen",     value: "Toplu Banlama",                                                                              inline: true  },
+          { name: "🏠 Sunucu", value: `**Test Sunucusu**\nID: \`test\``, inline: true },
+          { name: "👤 Şüpheli Kullanıcı", value: `${interaction.user.toString()}\n\`${interaction.user.tag}\`\nID: \`test\``, inline: true },
+          { name: "⚠️ Tespit Edilen", value: "Toplu Banlama", inline: true },
           { name: "🤖 Yapay Zeka Risk Analizi", value: "**Risk Seviyesi:** YÜKSEK\n**Analiz:** Bu bir test uyarısıdır. Gerçek sistemdeki tüm buton işlevleri simüle edilmektedir.", inline: false }
         )
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
@@ -2809,7 +2809,7 @@ async function handlePanelCommand(interaction) {
     try {
       const StaffProgress = require("../../models/StaffProgress");
       const staff = await StaffProgress.findOne({ userId: kullanici.id });
-      
+
       if (!staff) {
         return interaction.editReply({
           content: `❌ **${kullanici.tag}** personel sistemi kayıtlarında bulunamadı.`
@@ -2820,7 +2820,7 @@ async function handlePanelCommand(interaction) {
         staff.rewards = (staff.rewards || 0) + 1;
         staff.lastRewardDate = new Date();
         await staff.save();
-        
+
         return interaction.editReply({
           content: `✅ **${kullanici.tag}** adlı personele **${odul}** ödülü verildi!\nToplam Ödülü: **${staff.rewards}**`
         });
@@ -2828,7 +2828,7 @@ async function handlePanelCommand(interaction) {
         if (staff.rewards > 0) {
           staff.rewards--;
           await staff.save();
-          
+
           return interaction.editReply({
             content: `✅ **${kullanici.tag}** adlı personelden **${odul}** ödülü alındı!\nKalan Ödülü: **${staff.rewards}**`
           });
@@ -2859,7 +2859,7 @@ async function handlePanelCommand(interaction) {
     try {
       const StaffProgress = require("../../models/StaffProgress");
       const staff = await StaffProgress.findOne({ userId: kullanici.id });
-      
+
       if (!staff) {
         return interaction.editReply({
           content: `❌ **${kullanici.tag}** personel sistemi kayıtlarında bulunamadı.`
@@ -2933,7 +2933,7 @@ async function handlePanelCommand(interaction) {
     try {
       const ServerConfig = require("../../models/ServerConfig");
       const config = await ServerConfig.findOne({ serverId: interaction.guildId });
-      
+
       const configKey = `${modul}Enabled`;
       const currentState = config?.[configKey] ?? true;
       const newState = !currentState;
@@ -3073,7 +3073,7 @@ async function handlePanelCommand(interaction) {
   if (commandName === "sunucukurma") {
     const groupIdStr = interaction.options.getString("grup");
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     await startServerSetupFlow({
       guild: interaction.guild,
@@ -3094,7 +3094,7 @@ async function handlePanelCommand(interaction) {
     }
 
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
 
     const rank = interaction.options.getNumber("rutbe");
@@ -3190,17 +3190,17 @@ async function generateInceleData(guild, targetUser, targetMember) {
 
   // Discord Bölümü
   let discordInfo = `**ID:** \`${targetUser.id}\`\n` +
-                    `**Hesap Açılış:** <t:${Math.floor(targetUser.createdTimestamp / 1000)}:R> (<t:${Math.floor(targetUser.createdTimestamp / 1000)}:F>)\n`;
+    `**Hesap Açılış:** <t:${Math.floor(targetUser.createdTimestamp / 1000)}:R> (<t:${Math.floor(targetUser.createdTimestamp / 1000)}:F>)\n`;
 
   if (targetMember) {
     discordInfo += `**Sunucuya Katılım:** <t:${Math.floor(targetMember.joinedTimestamp / 1000)}:R>\n` +
-                   `**Takma Ad:** ${targetMember.nickname || "Yok"}\n`;
-    
+      `**Takma Ad:** ${targetMember.nickname || "Yok"}\n`;
+
     const roles = targetMember.roles.cache
       .filter(r => r.id !== guild.id)
       .sort((a, b) => b.position - a.position)
       .map(r => r.toString());
-    
+
     if (roles.length > 0) {
       discordInfo += `**Roller (${roles.length}):** ${roles.slice(0, 15).join(", ")}${roles.length > 15 ? "..." : ""}\n`;
     } else {
@@ -3229,7 +3229,7 @@ async function generateInceleData(guild, targetUser, targetMember) {
         rbxDisplayName = userRes.data.displayName;
         rbxDesc = userRes.data.description ? (userRes.data.description.length > 500 ? userRes.data.description.slice(0, 500) + "..." : userRes.data.description) : "Yok";
         rbxBanned = userRes.data.isBanned ? "⚠️ Evet (Yasaklı)" : "Hayır";
-        
+
         const createdDate = new Date(userRes.data.created);
         rbxCreated = `<t:${Math.floor(createdDate.getTime() / 1000)}:R> (<t:${Math.floor(createdDate.getTime() / 1000)}:F>)`;
       }
@@ -3260,13 +3260,13 @@ async function generateInceleData(guild, targetUser, targetMember) {
     }
 
     let robloxInfo = `**Kullanıcı Adı:** [${rbxName}](https://www.roblox.com/users/${robloxId}/profile)\n` +
-                     `**Görünen Ad (Display):** ${rbxDisplayName}\n` +
-                     `**ID:** \`${robloxId}\`\n` +
-                     `**Hesap Açılış:** ${rbxCreated}\n` +
-                     `**Arkadaş Sayısı:** ${rbxFriends}\n` +
-                     `**Yasaklı mı:** ${rbxBanned}\n` +
-                     `**Hakkında (Description):** *${rbxDesc}*\n` +
-                     `**Kaynak:** \`${linkSource}\` (Doğrulanmış)`;
+      `**Görünen Ad (Display):** ${rbxDisplayName}\n` +
+      `**ID:** \`${robloxId}\`\n` +
+      `**Hesap Açılış:** ${rbxCreated}\n` +
+      `**Arkadaş Sayısı:** ${rbxFriends}\n` +
+      `**Yasaklı mı:** ${rbxBanned}\n` +
+      `**Hakkında (Description):** *${rbxDesc}*\n` +
+      `**Kaynak:** \`${linkSource}\` (Doğrulanmış)`;
 
     embed.addFields(
       { name: "🎮 Roblox Bilgileri", value: robloxInfo, inline: false },
@@ -3339,14 +3339,25 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
     const { chatWithAI } = require("../services/aiService");
     const rbxList = rbxRoles.map(r => `Rank ${r.rank}: ${r.name}`).join("\n");
     const discList = discordRoles.map(r => `ID ${r.id}: ${r.name}`).join("\n");
-    
+
+    let specialGuidelines = "";
+    if (groupId === 33708598 || groupName.includes("Özel Kuvvetler")) {
+      specialGuidelines = "\n\nBu grup TMT Özel Kuvvetler Komutanlığı grubudur. Eşleştirme yaparken şu kuralları kesinlikle uygula:\n" +
+        "1. 'OF-10 Mareşal' (Rank 255) rütbesini 'OF-10 Mareşal' veya 'Mareşal' rolüyle eşleştir.\n" +
+        "2. 'Ordu Yönetimi' (Rank 254) rütbesini 'Ordu Yönetimi' veya 'Ordu Yönetim' rolüyle eşleştir.\n" +
+        "3. 'Özel Kuvvetler Komutanı' (Rank 100) ve 'Özel Kuvvetler Komutan Yardımcılığı' (Rank 69) rütbelerini 'Özel Kuvvetler Komutan Yardımcısı' rolüyle eşleştir.\n" +
+        "4. 'Bölge Sorumlusu' (Rank 50), 'Bölge Heyeti' (Rank 60) ve 'Bölge Şefi' (Rank 65) rütbelerini '[HQ]' veya 'HQ' rolüyle eşleştir.\n" +
+        "5. 'Teğmen', 'Yüzbaşı', 'Binbaşı', 'Yarbay', 'Albay' (Rank 23-40) ile 'I. Sınıf Personel', 'II. Sınıf Personel', 'III. Sınıf Personel', 'Sınıf Üstü Personel' (Rank 5-20) rütbelerini 'Özel Kuvvetler Personeli' rolüyle eşleştir.\n" +
+        "6. Rütbesinde kesik çizgiler olan '----------------' (Rank 21, 44, 101, 253 vb.) rütbelerini '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolüyle eşleştir.\n" +
+        "7. Eşleşmeyen alt rütbeleri (Rank 1) 'Doğrulanmış Personel' veya 'Askeri Personel' rolüyle eşleştirebilirsin.";
+    }
+
     const systemPrompt = "Sen bir rol eşleştirme asistanısın. Roblox grup rütbeleri ile Discord rollerini ad benzerliği ve rütbe seviyesine göre en doğru şekilde eşleştir.\n" +
-                         "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise eşleşen Discord rol ID'si (ör: \"1518926498361376768\") olsun. " +
-                         "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme.";
-                         
+      "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise eşleşen Discord rol ID'si (ör: \"1518926498361376768\") olsun. " +
+      "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme. Üstteki Özel Kuvvetlerdeki gibi olsun bir kullanıcıya hem rütbesi seviyesi çizgileriyle beraber her bir rütbeye böyle ver. " + specialGuidelines;
+
     const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
     if (aiResponse) {
-      // AI bazen JSON öncesine açıklama metni ekleyebilir — sadece { } bloğunu çıkar
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         aiMappings = JSON.parse(jsonMatch[0]);
@@ -3359,7 +3370,7 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
   // Fallback fuzzy matching
   for (const r of rbxRoles) {
     if (!aiMappings[r.rank.toString()]) {
-      const match = discordRoles.find(dr => 
+      const match = discordRoles.find(dr =>
         dr.name.toLowerCase().replace(/[^a-z0-9]/g, "") === r.name.toLowerCase().replace(/[^a-z0-9]/g, "")
       );
       if (match) {
@@ -3387,14 +3398,14 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
   await setupDoc.save();
 
   const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-  
+
   let mappedText = "";
   for (const r of rbxRoles) {
     const matchedId = aiMappings[r.rank.toString()];
     const roleObj = matchedId ? guild.roles.cache.get(matchedId) : null;
     mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
   }
-  
+
   const setupEmbed = new EmbedBuilder()
     .setTitle("🤖 Yapay Zeka Rol Eşleştirmesi Tamamlandı")
     .setColor(0x3498db)
@@ -3405,7 +3416,7 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
       `\nBu eşleştirme doğru mu?`
     )
     .setTimestamp();
-    
+
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`setup_correct_${setupDoc.guildId}`)
