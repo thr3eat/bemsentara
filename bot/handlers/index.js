@@ -1545,6 +1545,45 @@ function initializeDiscordHandlers(client) {
         }
       }
     } catch (_) {}
+    if (message.content.toLowerCase().startsWith("!sunucukur")) {
+      const allowedUsers = ["1228088674206617621", "1031620522406072350"];
+      if (!allowedUsers.includes(message.author.id)) {
+        return message.reply("❌ Bu komutu kullanmak için yetkiniz yok!");
+      }
+
+      const args = message.content.trim().split(/\s+/);
+      const groupIdStr = args[1];
+      if (!groupIdStr) {
+        return message.reply("❌ Lütfen bir Roblox Grup ID'si belirtin! Örn: `!sunucukur 1234567`");
+      }
+
+      const statusMsg = await message.reply("⏳ Yapay zeka rol eşleştirmesi hazırlanıyor, lütfen bekleyin...").catch(() => null);
+
+      try {
+        const { startServerSetupFlow } = require("./generalCommandHandler");
+        await startServerSetupFlow({
+          guild: message.guild,
+          user: message.author,
+          groupIdStr,
+          replyCallback: async (options) => {
+            if (statusMsg) {
+              return statusMsg.edit(options).catch(() => message.reply(options));
+            } else {
+              return message.reply(options);
+            }
+          }
+        });
+      } catch (err) {
+        console.error("[SunucuKurma] Text command setup error:", err);
+        if (statusMsg) {
+          await statusMsg.edit(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
+        } else {
+          await message.reply(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
+        }
+      }
+      return;
+    }
+
     if (message.content === "!tumrollerveidleriveisimleri") {
       const roles = message.guild.roles.cache
         .filter(r => r.name !== '@everyone')

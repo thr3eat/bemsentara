@@ -3063,111 +3063,19 @@ async function handlePanelCommand(interaction) {
 
   // ── sunucukurma: TMT sunucu kurulum asistanı ────────────────────────────────
   if (commandName === "sunucukurma") {
-    const allowedUsers = ["1228088674206617621", "1031620522406072350"];
-    if (!allowedUsers.includes(interaction.user.id)) {
-      return interaction.reply({ content: "❌ Bu komutu kullanmak için yetkiniz yok!", ephemeral: true });
-    }
-
+    const groupIdStr = interaction.options.getString("grup");
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: true }).catch(() => {});
     }
-
-    const groupIdStr = interaction.options.getString("grup");
-    const groupId = parseInt(groupIdStr, 10);
-    const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
-    const groupName = ROBLOX_GROUPS[groupIdStr] || `Grup #${groupId}`;
-
-    const noblox = require("noblox.js");
-    const rbxRoles = await noblox.getRoles(groupId).catch(() => []);
-    if (!rbxRoles || rbxRoles.length === 0) {
-      return interaction.editReply({ content: `❌ Roblox grubundan (${groupName}) rütbeler alınamadı!` });
-    }
-
-    const discordRoles = interaction.guild.roles.cache
-      .filter(r => r.id !== interaction.guild.id && !r.managed)
-      .sort((a, b) => b.position - a.position);
-
-    let aiMappings = {};
-    try {
-      const { chatWithAI } = require("../services/aiService");
-      const rbxList = rbxRoles.map(r => `Rank ${r.rank}: ${r.name}`).join("\n");
-      const discList = discordRoles.map(r => `ID ${r.id}: ${r.name}`).join("\n");
-      
-      const systemPrompt = "Sen bir rol eşleştirme asistanısın. Roblox grup rütbeleri ile Discord rollerini ad benzerliği ve rütbe seviyesine göre en doğru şekilde eşleştir.\n" +
-                           "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise eşleşen Discord rol ID'si (ör: \"1518926498361376768\") olsun. " +
-                           "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme.";
-                           
-      const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
-      if (aiResponse) {
-        const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
-        aiMappings = JSON.parse(cleanJson);
+    await startServerSetupFlow({
+      guild: interaction.guild,
+      user: interaction.user,
+      groupIdStr,
+      replyCallback: async (options) => {
+        return interaction.editReply(options);
       }
-    } catch (err) {
-      console.error("[SunucuKurma] AI match error:", err.message);
-    }
-
-    // Fallback fuzzy matching
-    for (const r of rbxRoles) {
-      if (!aiMappings[r.rank.toString()]) {
-        const match = discordRoles.find(dr => 
-          dr.name.toLowerCase().replace(/[^a-z0-9]/g, "") === r.name.toLowerCase().replace(/[^a-z0-9]/g, "")
-        );
-        if (match) {
-          aiMappings[r.rank.toString()] = match.id;
-        }
-      }
-    }
-
-    const ServerSetup = require("../../models/ServerSetup");
-    let setupDoc = await ServerSetup.findOne({ guildId: interaction.guild.id });
-    if (!setupDoc) {
-      setupDoc = new ServerSetup({
-        guildId: interaction.guild.id,
-        guildName: interaction.guild.name,
-        robloxGroupId: groupId,
-        robloxGroupName: groupName
-      });
-    } else {
-      setupDoc.guildName = interaction.guild.name;
-      setupDoc.robloxGroupId = groupId;
-      setupDoc.robloxGroupName = groupName;
-    }
-    setupDoc.roleMappings = aiMappings;
-    setupDoc.status = "draft";
-    await setupDoc.save();
-
-    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-    
-    let mappedText = "";
-    for (const r of rbxRoles) {
-      const matchedId = aiMappings[r.rank.toString()];
-      const roleObj = matchedId ? interaction.guild.roles.cache.get(matchedId) : null;
-      mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
-    }
-    
-    const setupEmbed = new EmbedBuilder()
-      .setTitle("🤖 Yapay Zeka Rol Eşleştirmesi Tamamlandı")
-      .setColor(0x3498db)
-      .setDescription(
-        `**Seçilen Grup:** [${groupName}](https://www.roblox.com/groups/${groupId})\n\n` +
-        `Aşağıda yapay zeka tarafından sunucu rolleriyle Roblox grup rütbeleri arasındaki eşleştirme listelenmiştir:\n\n` +
-        mappedText +
-        `\nBu eşleştirme doğru mu?`
-      )
-      .setTimestamp();
-      
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`setup_correct_${interaction.guild.id}`)
-        .setLabel("DOĞRU")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`setup_incorrect_${interaction.guild.id}`)
-        .setLabel("DOĞRU DEĞİL DÜZENLEMEK İSTİYORUM")
-        .setStyle(ButtonStyle.Danger)
-    );
-    
-    return interaction.editReply({ embeds: [setupEmbed], components: [row] });
+    });
+    return;
   }
 
   // ── sunucurolsenkranizasyondüzenleme: Eşleşmeleri manuel düzelt ────────────
@@ -3368,7 +3276,115 @@ async function handleAllGeneralCommands(interaction) {
   return await handlePanelCommand(interaction);
 }
 
+async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) {
+  const allowedUsers = ["1228088674206617621", "1031620522406072350"];
+  if (!allowedUsers.includes(user.id)) {
+    return replyCallback({ content: "❌ Bu komutu kullanmak için yetkiniz yok!", ephemeral: true });
+  }
+
+  const groupId = parseInt(groupIdStr, 10);
+  if (isNaN(groupId)) {
+    return replyCallback({ content: "❌ Geçersiz Roblox Grup ID'si!", ephemeral: true });
+  }
+
+  const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+  const groupName = ROBLOX_GROUPS[groupIdStr] || `Grup #${groupId}`;
+
+  const noblox = require("noblox.js");
+  const rbxRoles = await noblox.getRoles(groupId).catch(() => []);
+  if (!rbxRoles || rbxRoles.length === 0) {
+    return replyCallback({ content: `❌ Roblox grubundan (${groupName}) rütbeler alınamadı!`, ephemeral: true });
+  }
+
+  const discordRoles = guild.roles.cache
+    .filter(r => r.id !== guild.id && !r.managed)
+    .sort((a, b) => b.position - a.position);
+
+  let aiMappings = {};
+  try {
+    const { chatWithAI } = require("../services/aiService");
+    const rbxList = rbxRoles.map(r => `Rank ${r.rank}: ${r.name}`).join("\n");
+    const discList = discordRoles.map(r => `ID ${r.id}: ${r.name}`).join("\n");
+    
+    const systemPrompt = "Sen bir rol eşleştirme asistanısın. Roblox grup rütbeleri ile Discord rollerini ad benzerliği ve rütbe seviyesine göre en doğru şekilde eşleştir.\n" +
+                         "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise eşleşen Discord rol ID'si (ör: \"1518926498361376768\") olsun. " +
+                         "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme.";
+                         
+    const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
+    if (aiResponse) {
+      const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
+      aiMappings = JSON.parse(cleanJson);
+    }
+  } catch (err) {
+    console.error("[SunucuKurma] AI match error:", err.message);
+  }
+
+  // Fallback fuzzy matching
+  for (const r of rbxRoles) {
+    if (!aiMappings[r.rank.toString()]) {
+      const match = discordRoles.find(dr => 
+        dr.name.toLowerCase().replace(/[^a-z0-9]/g, "") === r.name.toLowerCase().replace(/[^a-z0-9]/g, "")
+      );
+      if (match) {
+        aiMappings[r.rank.toString()] = match.id;
+      }
+    }
+  }
+
+  const ServerSetup = require("../../models/ServerSetup");
+  let setupDoc = await ServerSetup.findOne({ guildId: guild.id });
+  if (!setupDoc) {
+    setupDoc = new ServerSetup({
+      guildId: guild.id,
+      guildName: guild.name,
+      robloxGroupId: groupId,
+      robloxGroupName: groupName
+    });
+  } else {
+    setupDoc.guildName = guild.name;
+    setupDoc.robloxGroupId = groupId;
+    setupDoc.robloxGroupName = groupName;
+  }
+  setupDoc.roleMappings = aiMappings;
+  setupDoc.status = "draft";
+  await setupDoc.save();
+
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+  
+  let mappedText = "";
+  for (const r of rbxRoles) {
+    const matchedId = aiMappings[r.rank.toString()];
+    const roleObj = matchedId ? guild.roles.cache.get(matchedId) : null;
+    mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
+  }
+  
+  const setupEmbed = new EmbedBuilder()
+    .setTitle("🤖 Yapay Zeka Rol Eşleştirmesi Tamamlandı")
+    .setColor(0x3498db)
+    .setDescription(
+      `**Seçilen Grup:** [${groupName}](https://www.roblox.com/groups/${groupId})\n\n` +
+      `Aşağıda yapay zeka tarafından sunucu rolleriyle Roblox grup rütbeleri arasındaki eşleştirme listelenmiştir:\n\n` +
+      mappedText +
+      `\nBu eşleştirme doğru mu?`
+    )
+    .setTimestamp();
+    
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`setup_correct_${setupDoc.guildId}`)
+      .setLabel("DOĞRU")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`setup_incorrect_${setupDoc.guildId}`)
+      .setLabel("DOĞRU DEĞİL DÜZENLEMEK İSTİYORUM")
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await replyCallback({ embeds: [setupEmbed], components: [row] });
+}
+
 module.exports = {
   handleGeneralCommand: handleAllGeneralCommands,
-  generateInceleData
+  generateInceleData,
+  startServerSetupFlow
 };
