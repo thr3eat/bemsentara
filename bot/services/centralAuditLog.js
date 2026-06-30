@@ -8,42 +8,27 @@
  * Log Hedefi: Allied Orduları: 1514691009668321360
  */
 
-const { EmbedBuilder, Colors, ChannelType, PermissionsBitField, AuditLogEvent } = require("discord.js");
-const { ALLIED_GUILD_ID, ALLIED_LOG_CHANNEL_ID, TARGET_GUILD_ID, GUILD2_ID, TMT_GUILD_ID } = require("../../config");
+const {
+  EmbedBuilder,
+  Colors,
+  ChannelType,
+  PermissionsBitField,
+  AuditLogEvent
+} = require("discord.js");
+
+const {
+  ALLIED_GUILD_ID,
+  ALLIED_LOG_CHANNEL_ID,
+  TARGET_GUILD_ID,
+  GUILD2_ID,
+  TMT_GUILD_ID
+} = require("../../config");
+
 const { getDiscordClient } = require("../discordClient");
 
-/**
- * İşlemi yapan kişinin bilgisini audit log'dan çek
- * @param {Object} guild - Discord Guild nesnesi
- * @param {string} targetId - İşlem yapılan hedefin ID'si
- * @param {string} auditType - Audit log event tipi
- * @returns {Promise<Object>} Executor bilgileri
- */
-async function getExecutor(guild, targetId, auditType) {
-  try {
-    if (!guild.members.me?.permissions.has(PermissionsBitField.Flags.ViewAuditLog)) {
-      return null;
-    }
-
-    const auditLogs = await guild.fetchAuditLogs({ limit: 10, type: auditType }).catch(() => null);
-    if (!auditLogs?.entries) return null;
-
-    // Son entry'yi bul (en son işlem)
-    const entry = auditLogs.entries.first();
-    if (!entry || !entry.executor) return null;
-
-    return {
-      id: entry.executor.id,
-      tag: entry.executor.tag,
-      username: entry.executor.username,
-      avatar: entry.executor.displayAvatarURL({ size: 256 }),
-      timestamp: entry.createdTimestamp
-    };
-  } catch (err) {
-    console.error("[CentralAudit] Executor bilgisi alınamadı:", err.message);
-    return null;
-  }
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// ⚙️ YAPILANDIRMA
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // Sunucu ID'leri ve isimleri
 const SERVER_INFO = {
@@ -52,38 +37,153 @@ const SERVER_INFO = {
   [TMT_GUILD_ID]: { name: "🪖 TMT (Türk Silahlı Kuvvetleri)", color: Colors.Red, icon: "🪖" }
 };
 
+const EVENT_COLORS = {
+  member: Colors.Blue,
+  message: Colors.Green,
+  role: Colors.Purple,
+  channel: Colors.Gold,
+  ban: Colors.Red,
+  warn: Colors.Orange,
+  moderation: Colors.DarkRed,
+  voice: Colors.Aqua,
+  automod: Colors.Yellow,
+  general: Colors.Greyple
+};
+
+// Kanal tipi çevirileri
+const CHANNEL_TYPE_MAP = {
+  [ChannelType.GuildText]: "📝 Yazı Kanalı",
+  [ChannelType.GuildVoice]: "🔊 Ses Kanalı",
+  [ChannelType.GuildCategory]: "📂 Kategori",
+  [ChannelType.GuildForum]: "💬 Forum",
+  [ChannelType.GuildAnnouncement]: "📢 Duyuru Kanalı",
+  [ChannelType.GuildStageVoice]: "🎭 Sahne Kanalı"
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🛠️ YARDIMCI FONKSİYONLAR
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
- * Allied Orduları merkezi kanalına log gönder
- * @param {Object} embed - Discord EmbedBuilder embed nesnesi
+ * Gün/saat/dakika cinsinden süre formatlar
+ * @param {number} ms - Milisaniye cinsinden süre
+ * @returns {string}
+ */
+function formatDuration(ms) {
+  if (!ms || ms < 0) return "Bilinmiyor";
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+
+  const parts = [];
+  if (days) parts.push(`${days}g`);
+  if (hours) parts.push(`${hours}s`);
+  if (minutes) parts.push(`${minutes}dk`);
+  return parts.length ? parts.join(" ") : "< 1 dakika";
+}
+
+/**
+ * Timestamp'i Discord relative time tag'ine çevirir
+ * @param {number} ms
+ * @returns {string}
+ */
+function toRelative(ms) {
+  return `<t:${Math.floor(ms / 1000)}:R>`;
+}
+
+/**
+ * Timestamp'i Discord full date tag'ine çevirir
+ * @param {number} ms
+ * @returns {string}
+ */
+function toFull(ms) {
+  return `<t:${Math.floor(ms / 1000)}:F>`;
+}
+
+/**
+ * İşlemi yapan kişinin bilgisini audit log'dan çek.
+ * 5 saniyeden eski entry'leri yoksay (alakasız audit log'ları engellemek için).
+ *
+ * @param {import("discord.js").Guild} guild
+ * @param {string|null} targetId - İşlem yapılan hedefin ID'si (opsiyonel, doğrulama için)
+ * @param {AuditLogEvent} auditType
+ * @param {number} [maxAgeMs=5000] - Kabul edilecek max audit log yaşı (ms)
+ * @returns {Promise<Object|null>}
+ */
+async function getExecutor(guild, targetId, auditType, maxAgeMs = 5000) {
+  try {
+    if (!guild?.members?.me?.permissions.has(PermissionsBitField.Flags.ViewAuditLog)) {
+      return null;
+    }
+
+    const auditLogs = await guild.fetchAuditLogs({ limit: 5, type: auditType }).catch(() => null);
+    if (!auditLogs?.entries?.size) return null;
+
+    const now = Date.now();
+
+    // targetId ile eşleşen ve yeterince yeni olan en son entry'yi bul
+    const entry = auditLogs.entries.find(e => {
+      const isRecent = (now - e.createdTimestamp) <= maxAgeMs;
+      const isTarget = targetId ? e.target?.id === targetId : true;
+      return isRecent && isTarget && e.executor;
+    });
+
+    if (!entry?.executor) return null;
+
+    return {
+      id: entry.executor.id,
+      tag: entry.executor.tag ?? entry.executor.username,
+      username: entry.executor.username,
+      avatar: entry.executor.displayAvatarURL({ size: 256 }),
+      reason: entry.reason ?? null,
+      timestamp: entry.createdTimestamp
+    };
+  } catch (err) {
+    console.error("[CentralAudit] Executor bilgisi alınamadı:", err.message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📤 LOG GÖNDERİCİ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Allied Orduları merkezi kanalına embed log gönder.
+ * @param {EmbedBuilder} embed
  */
 async function sendCentralLog(embed) {
   try {
     const client = getDiscordClient();
-    if (!client?.isReady() || !ALLIED_LOG_CHANNEL_ID) {
-      console.warn("[CentralAudit] Bot hazır değil veya kanal ID'si eksik");
+
+    if (!client?.isReady()) {
+      console.warn("[CentralAudit] Bot henüz hazır değil.");
+      return;
+    }
+
+    if (!ALLIED_LOG_CHANNEL_ID || !ALLIED_GUILD_ID) {
+      console.warn("[CentralAudit] ALLIED_LOG_CHANNEL_ID veya ALLIED_GUILD_ID eksik.");
       return;
     }
 
     const guild = await client.guilds.fetch(ALLIED_GUILD_ID).catch(() => null);
     if (!guild) {
-      console.warn("[CentralAudit] Allied Orduları sunucusu bulunamadı");
+      console.warn("[CentralAudit] Allied Orduları sunucusu bulunamadı.");
       return;
     }
 
     const channel = await guild.channels.fetch(ALLIED_LOG_CHANNEL_ID).catch(() => null);
     if (!channel?.isSendable()) {
-      console.warn("[CentralAudit] Log kanalına yazılamadı");
+      console.warn("[CentralAudit] Log kanalına yazılamıyor (bulunamadı veya izin yok).");
       return;
     }
 
-    // Embed'i discord.js embed'ine dönüştür
     const finalEmbed = embed instanceof EmbedBuilder ? embed : new EmbedBuilder(embed);
-    
-    // Footer'a timestamp ekle
-    if (!finalEmbed.data.footer?.text?.includes("•")) {
-      finalEmbed.setFooter({ 
-        text: `${finalEmbed.data.footer?.text || "Merkezi Denetim Günlüğü"} • Sentara Audit System`
-      });
+
+    // Footer henüz Sentara imzasını içermiyorsa ekle
+    const existingFooter = finalEmbed.data.footer?.text ?? "Merkezi Denetim Günlüğü";
+    if (!existingFooter.includes("Sentara Audit")) {
+      finalEmbed.setFooter({ text: `${existingFooter} • Sentara Audit System` });
     }
 
     await channel.send({ embeds: [finalEmbed] });
@@ -92,38 +192,52 @@ async function sendCentralLog(embed) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏗️ EMBED OLUŞTURUCU
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
- * Ağır bir değişiklik için detaylı embed oluştur
- * @param {string} guildId - Sunucu ID'si
- * @param {string} title - Başlık
- * @param {string} description - Açıklama
- * @param {object} details - Detaylar
- * @param {string} eventType - Olay tipi (member, message, role, channel, vb)
- * @param {Object} executor - İşlemi yapan kişinin bilgileri { id, tag, avatar }
+ * Standart detaylı embed oluşturur.
+ *
+ * @param {string} guildId
+ * @param {string} title
+ * @param {string} description
+ * @param {Object} [details={}]
+ * @param {string} [eventType="general"]
+ * @param {Object|null} [executor=null]
+ * @returns {EmbedBuilder}
  */
-function createDetailedEmbed(guildId, title, description, details = {}, eventType = "general", executor = null) {
-  const serverInfo = SERVER_INFO[guildId] || { name: "Bilinmeyen Sunucu", color: Colors.Greyple, icon: "❓" };
-  
-  const colorMap = {
-    member: Colors.Blue,
-    message: Colors.Green,
-    role: Colors.Purple,
-    channel: Colors.Gold,
-    ban: Colors.Red,
-    warn: Colors.Orange,
-    moderation: Colors.DarkRed,
-    voice: Colors.Aqua,
-    automod: Colors.Yellow,
-    general: serverInfo.color
+function createDetailedEmbed(
+  guildId,
+  title,
+  description,
+  details = {},
+  eventType = "general",
+  executor = null
+) {
+  const serverInfo = SERVER_INFO[guildId] ?? {
+    name: "❓ Bilinmeyen Sunucu",
+    color: Colors.Greyple,
+    icon: "❓"
   };
 
-  const embed = new EmbedBuilder()
-    .setColor(colorMap[eventType] || serverInfo.color)
-    .setTitle(`${serverInfo.icon} ${title}`)
-    .setDescription(description || "Açıklama yok")
-    .setThumbnail(serverInfo.name === "🏛️ BEM Sentara" ? "https://cdn.discordapp.com/avatars/1286046699693289513/e42da9e8fa7f1c28e27a8ee9b234b5f1.webp" : null);
+  const color = EVENT_COLORS[eventType] ?? serverInfo.color;
 
-  // Executor (işlemi yapan kişi) bilgisini başlığa ekle
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(`${serverInfo.icon} ${title}`)
+    .setDescription(description || "Açıklama yok.")
+    .setFooter({ text: serverInfo.name })
+    .setTimestamp();
+
+  // Thumbnail: sadece geçerli URL varsa ekle (null setThumbnail hata fırlatır)
+  if (guildId === TARGET_GUILD_ID) {
+    embed.setThumbnail(
+      "https://cdn.discordapp.com/avatars/1286046699693289513/e42da9e8fa7f1c28e27a8ee9b234b5f1.webp"
+    );
+  }
+
+  // Executor (işlemi yapan kişi)
   if (executor) {
     embed.setAuthor({
       name: `${executor.tag} tarafından`,
@@ -131,51 +245,49 @@ function createDetailedEmbed(guildId, title, description, details = {}, eventTyp
     });
   }
 
-  embed.setFooter({ text: serverInfo.name })
-    .setTimestamp();
+  // Detay alanları
+  for (const [key, value] of Object.entries(details)) {
+    if (value === null || value === undefined || value === "") continue;
 
-  // Detayları embed'e ekle
-  if (Object.keys(details).length > 0) {
-    for (const [key, value] of Object.entries(details)) {
-      if (value === null || value === undefined) continue;
-      
-      const formattedValue = typeof value === "object" 
-        ? JSON.stringify(value, null, 2).slice(0, 1000)
-        : String(value).slice(0, 1000);
-      
-      embed.addFields({
-        name: `📌 ${key}`,
-        value: formattedValue || "_(boş)_",
-        inline: false
-      });
-    }
+    const display =
+      typeof value === "object"
+        ? JSON.stringify(value, null, 2).slice(0, 1024)
+        : String(value).slice(0, 1024);
+
+    embed.addFields({
+      name: `📌 ${key}`,
+      value: display || "_(boş)_",
+      inline: false
+    });
   }
 
   return embed;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🟢 ÜYELER - Member Events
+// 🟢 ÜYELER — Member Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Yeni üye sunucuya katıldı
+ * @param {import("discord.js").GuildMember} member
  */
 async function logMemberJoin(member) {
   if (!member?.guild) return;
 
+  const accountAge = formatDuration(Date.now() - member.user.createdTimestamp);
+
   const embed = createDetailedEmbed(
     member.guild.id,
-    "➕ YENİ ÜYKE KATILDI",
+    "➕ YENİ ÜYE KATILDI",
     `<@${member.id}> sunucuya katıldı`,
     {
       "Kullanıcı": `${member.user.tag}\n\`${member.id}\``,
-      "Hesap Oluşturma": `<t:${Math.floor(member.user.createdTimestamp / 1000)}:F>`,
-      "Katılma Zamanı": `<t:${Math.floor(member.joinedTimestamp / 1000)}:F>`,
-      "Hesap Yaşı": `${Math.floor((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60 * 24))} gün`,
+      "Hesap Oluşturma": toFull(member.user.createdTimestamp),
+      "Katılma Zamanı": toFull(member.joinedTimestamp ?? Date.now()),
+      "Hesap Yaşı": accountAge,
       "Bot mu": member.user.bot ? "✅ Evet" : "❌ Hayır",
-      "Sistem Mesajı": member.user.systemMessage || "Hayır",
-      "İçerik Filtresi": member.user.flags?.has("VerifiedBot") ? "✅ Doğrulanmış" : "❌ Doğrulanmamış"
+      "Doğrulanmış Bot": member.user.flags?.has("VerifiedBot") ? "✅ Evet" : "❌ Hayır"
     },
     "member"
   );
@@ -185,21 +297,28 @@ async function logMemberJoin(member) {
 
 /**
  * Üye sunucudan ayrıldı
+ * @param {import("discord.js").GuildMember} member
  */
 async function logMemberLeave(member) {
   if (!member?.guild) return;
 
-  const roles = member.roles.cache.map(r => `<@&${r.id}>`).join(", ").slice(0, 1000) || "Rol yok";
+  const joinedAt = member.joinedTimestamp;
+  const stayLength = joinedAt ? formatDuration(Date.now() - joinedAt) : "Bilinmiyor";
+  const roles = member.roles.cache
+    .filter(r => r.id !== member.guild.id) // @everyone hariç
+    .map(r => `<@&${r.id}>`)
+    .join(", ")
+    .slice(0, 1000) || "Rol yok";
 
   const embed = createDetailedEmbed(
     member.guild.id,
-    "➖ ÜYKE AYRILDI",
+    "➖ ÜYE AYRILDI",
     `<@${member.id}> sunucudan ayrıldı`,
     {
       "Kullanıcı": `${member.user.tag}\n\`${member.id}\``,
-      "Katılmış Olduğu Süre": `${Math.floor((Date.now() - member.joinedTimestamp) / (1000 * 60 * 60 * 24))} gün`,
+      "Sunucuda Kaldığı Süre": stayLength,
       "Sahip Olduğu Roller": roles,
-      "Mesaj Sahibi": member.user.bot ? "✅ Bot" : "❌ Normal Kullanıcı"
+      "Bot mu": member.user.bot ? "✅ Bot" : "❌ Normal Kullanıcı"
     },
     "member"
   );
@@ -208,7 +327,9 @@ async function logMemberLeave(member) {
 }
 
 /**
- * Üye profilinde değişiklik (rol, nickname vs)
+ * Üye profili güncellendi (rol veya nickname değişimi)
+ * @param {import("discord.js").GuildMember} oldMember
+ * @param {import("discord.js").GuildMember} newMember
  */
 async function logMemberUpdate(oldMember, newMember) {
   if (!oldMember?.guild || oldMember.guild.id !== newMember.guild.id) return;
@@ -217,79 +338,83 @@ async function logMemberUpdate(oldMember, newMember) {
 
   // Nickname değişimi
   if (oldMember.nickname !== newMember.nickname) {
-    changes.push({
-      type: "Takma Ad",
-      before: oldMember.nickname || "_(boş)_",
-      after: newMember.nickname || "_(boş)_"
-    });
+    changes.push(`**Takma Ad**: \`${oldMember.nickname ?? "_(boş)_"}\` ➜ \`${newMember.nickname ?? "_(boş)_"}\``);
   }
 
-  // Rol değişimleri
+  // Rol eklemeleri
   const addedRoles = newMember.roles.cache
-    .filter(r => !oldMember.roles.cache.has(r.id))
-    .map(r => `<@&${r.id}>`)
-    .join(", ");
+    .filter(r => !oldMember.roles.cache.has(r.id) && r.id !== newMember.guild.id)
+    .map(r => `<@&${r.id}>`).join(", ");
+
+  // Rol çıkarmaları
   const removedRoles = oldMember.roles.cache
-    .filter(r => !newMember.roles.cache.has(r.id))
-    .map(r => `<@&${r.id}>`)
-    .join(", ");
+    .filter(r => !newMember.roles.cache.has(r.id) && r.id !== oldMember.guild.id)
+    .map(r => `<@&${r.id}>`).join(", ");
 
-  if (addedRoles) changes.push({ type: "Rol Eklendi", roles: addedRoles });
-  if (removedRoles) changes.push({ type: "Rol Kaldırıldı", roles: removedRoles });
+  if (addedRoles) changes.push(`**Rol Eklendi**: ${addedRoles}`);
+  if (removedRoles) changes.push(`**Rol Kaldırıldı**: ${removedRoles}`);
 
-  if (changes.length === 0) return; // Değişiklik yok
+  // Pending durumu (üyelik doğrulama)
+  if (oldMember.pending && !newMember.pending) {
+    changes.push("**Üyelik Doğrulandı** ✅");
+  }
 
-  const description = changes
-    .map(c => {
-      if (c.type === "Takma Ad") {
-        return `**${c.type}**: ${c.before} ➜ ${c.after}`;
-      } else {
-        return `**${c.type}**: ${c.roles}`;
-      }
-    })
-    .join("\n");
+  if (changes.length === 0) return;
+
+  // Executor'ı rol veya nickname işlemine göre belirle
+  const auditType = addedRoles || removedRoles
+    ? AuditLogEvent.MemberRoleUpdate
+    : AuditLogEvent.MemberUpdate;
+
+  const executor = await getExecutor(newMember.guild, newMember.id, auditType);
 
   const embed = createDetailedEmbed(
     oldMember.guild.id,
-    "✏️ ÜYKE GÜNCELLEMESI",
-    `<@${oldMember.id}> profili güncellendi\n\n${description}`,
+    "✏️ ÜYE GÜNCELLENDİ",
+    `<@${oldMember.id}> profili güncellendi\n\n${changes.join("\n")}`,
     {
       "Kullanıcı": `${oldMember.user.tag}\n\`${oldMember.id}\``,
-      "Toplam Roller": `${newMember.roles.cache.size}`
+      "Toplam Rol": String(newMember.roles.cache.size - 1) // @everyone çıkar
     },
-    "member"
+    "member",
+    executor
   );
 
   await sendCentralLog(embed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 📨 MESAJLAR - Message Events
+// 📨 MESAJLAR — Message Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Mesaj silindi
+ * @param {import("discord.js").Message} message
  */
 async function logMessageDelete(message) {
   if (!message?.guild || message.author?.bot) return;
-  
-  const contentPreview = message.content.slice(0, 500) || "_(boş veya embed)_";
-  
+
+  const content = message.content?.slice(0, 500) || "_(boş veya embed)_";
   const executor = await getExecutor(message.guild, message.author.id, AuditLogEvent.MessageDelete);
+
+  const attachmentInfo = message.attachments.size > 0
+    ? message.attachments.map(a => a.url).slice(0, 5).join("\n")
+    : null;
 
   const embed = createDetailedEmbed(
     message.guild.id,
     "🗑️ MESAJ SİLİNDİ",
-    `<@${message.author.id}> tarafından silinmiş mesaj`,
+    `<@${message.author.id}> tarafından yazılan mesaj silindi`,
     {
-      "Kanaldır": `<#${message.channelId}>\n\`${message.channelId}\``,
+      "Kanal": `<#${message.channelId}> \`${message.channelId}\``,
       "Yazar": `${message.author.tag}\n\`${message.author.id}\``,
       "Mesaj ID": `\`${message.id}\``,
-      "İçerik": contentPreview,
-      "Oluşturma Zamanı": `<t:${Math.floor(message.createdTimestamp / 1000)}:F>`,
-      "Dosya Sayısı": message.attachments.size,
-      "Mention Sayısı": message.mentions.size,
-      "Reaksiyon Sayısı": message.reactions.cache.size
+      "İçerik": content,
+      "Oluşturma Zamanı": toFull(message.createdTimestamp),
+      ...(attachmentInfo ? { "Dosya URL'leri": attachmentInfo } : {}),
+      "Dosya Sayısı": String(message.attachments.size),
+      "Mention Sayısı": String(message.mentions.users.size),
+      "Reaksiyon Sayısı": String(message.reactions.cache.size)
     },
     "message",
     executor
@@ -300,27 +425,34 @@ async function logMessageDelete(message) {
 
 /**
  * Mesaj düzenlendi
+ * @param {import("discord.js").Message} oldMessage
+ * @param {import("discord.js").Message} newMessage
  */
 async function logMessageUpdate(oldMessage, newMessage) {
   if (!oldMessage?.guild || oldMessage.author?.bot) return;
   if (oldMessage.content === newMessage.content) return;
 
-  const oldContent = oldMessage.content.slice(0, 300) || "_(boş)_";
-  const newContent = newMessage.content.slice(0, 300) || "_(boş)_";
+  const oldContent = oldMessage.content?.slice(0, 300) || "_(boş)_";
+  const newContent = newMessage.content?.slice(0, 300) || "_(boş)_";
 
-  const executor = await getExecutor(oldMessage.guild, oldMessage.author.id, AuditLogEvent.MessageDelete);
+  // BUG FIX: MessageUpdate kullan, MessageDelete değil
+  const executor = await getExecutor(
+    oldMessage.guild,
+    oldMessage.author.id,
+    AuditLogEvent.MessageUpdate
+  );
 
   const embed = createDetailedEmbed(
     oldMessage.guild.id,
-    "✏️ MESAJ DÜZELTİLDİ",
-    `<@${oldMessage.author.id}> mesajını düzenledi`,
+    "✏️ MESAJ DÜZENLENDİ",
+    `<@${oldMessage.author.id}> mesajını düzenledi\n[Mesaja Git](${newMessage.url})`,
     {
-      "Kanaldır": `<#${oldMessage.channelId}>`,
+      "Kanal": `<#${oldMessage.channelId}>`,
       "Yazar": `${oldMessage.author.tag}\n\`${oldMessage.author.id}\``,
       "Mesaj ID": `\`${oldMessage.id}\``,
-      "ESKİ İçerik": oldContent,
-      "YENİ İçerik": newContent,
-      "Düzenleme Zamanı": `<t:${Math.floor(Date.now() / 1000)}:R>`
+      "Eski İçerik": oldContent,
+      "Yeni İçerik": newContent,
+      "Düzenleme Zamanı": toRelative(Date.now())
     },
     "message",
     executor
@@ -330,27 +462,30 @@ async function logMessageUpdate(oldMessage, newMessage) {
 }
 
 /**
- * Bulk mesaj silme
+ * Toplu mesaj silindi
+ * @param {import("discord.js").Collection} messages
  */
 async function logBulkMessageDelete(messages) {
-  if (messages.size === 0) return;
+  if (!messages?.size) return;
 
   const guild = messages.first()?.guild;
   if (!guild) return;
 
+  // Sadece kullanıcı mesajlarını say
+  const userMessages = messages.filter(m => !m.author?.bot);
+  const uniqueAuthors = [...new Set(userMessages.map(m => m.author?.tag).filter(Boolean))];
+
   const embed = createDetailedEmbed(
     guild.id,
     "🗑️🗑️ TOPLU MESAJ SİLİNDİ",
-    `${messages.size} adet mesaj silindi`,
+    `${messages.size} adet mesaj silindi (${userMessages.size} kullanıcı, ${messages.size - userMessages.size} bot)`,
     {
-      "Silinen Mesaj Sayısı": messages.size,
-      "Kanaldır": `<#${messages.first().channelId}>`,
-      "Sil Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
-      "Silinen Yazarlar": messages
-        .map(m => m.author.tag)
-        .filter((tag, i, arr) => arr.indexOf(tag) === i)
-        .slice(0, 10)
-        .join(", ")
+      "Toplam Silinen": String(messages.size),
+      "Kullanıcı Mesajı": String(userMessages.size),
+      "Bot Mesajı": String(messages.size - userMessages.size),
+      "Kanal": `<#${messages.first().channelId}>`,
+      "Silinen Yazarlar": uniqueAuthors.slice(0, 10).join(", ") || "Bilinmiyor",
+      "Silme Zamanı": toFull(Date.now())
     },
     "message"
   );
@@ -359,18 +494,17 @@ async function logBulkMessageDelete(messages) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🎭 ROLLER - Role Events
+// 🎭 ROLLER — Role Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Rol oluşturuldu
+ * @param {import("discord.js").Role} role
  */
 async function logRoleCreate(role) {
   if (!role?.guild) return;
 
   const permissions = role.permissions.toArray().join(", ").slice(0, 1000) || "Yok";
-  
-  // Executor bilgisini al
   const executor = await getExecutor(role.guild, role.id, AuditLogEvent.RoleCreate);
 
   const embed = createDetailedEmbed(
@@ -380,12 +514,13 @@ async function logRoleCreate(role) {
     {
       "Rol Adı": role.name,
       "Rol ID": `\`${role.id}\``,
-      "Renk": role.hexColor || "_(Varsayılan)_",
-      "Pozisyon": role.position,
+      "Renk": role.hexColor !== "#000000" ? role.hexColor : "_(Varsayılan)_",
+      "Pozisyon": String(role.position),
       "İzinler": permissions,
-      "Bahsedilebilir": role.mentionable ? "✅" : "❌",
-      "Yönetilen Rol": role.managed ? "✅" : "❌",
-      "Oluşturma Zamanı": `<t:${Math.floor(role.createdTimestamp / 1000)}:F>`
+      "Bahsedilebilir": role.mentionable ? "✅ Evet" : "❌ Hayır",
+      "Ayrı Göster (Hoist)": role.hoist ? "✅ Evet" : "❌ Hayır",
+      "Bot Rolü (Yönetilen)": role.managed ? "✅ Evet" : "❌ Hayır",
+      "Oluşturma Zamanı": toFull(role.createdTimestamp)
     },
     "role",
     executor
@@ -396,6 +531,7 @@ async function logRoleCreate(role) {
 
 /**
  * Rol silindi
+ * @param {import("discord.js").Role} role
  */
 async function logRoleDelete(role) {
   if (!role?.guild) return;
@@ -409,8 +545,7 @@ async function logRoleDelete(role) {
     {
       "Rol Adı": role.name,
       "Rol ID": `\`${role.id}\``,
-      "Silim Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
-      "Üye Sayısı": role.guild.roles.cache.get(role.id)?.members?.size || "Bilinmiyor"
+      "Silme Zamanı": toFull(Date.now())
     },
     "role",
     executor
@@ -421,6 +556,8 @@ async function logRoleDelete(role) {
 
 /**
  * Rol güncellendi
+ * @param {import("discord.js").Role} oldRole
+ * @param {import("discord.js").Role} newRole
  */
 async function logRoleUpdate(oldRole, newRole) {
   if (!oldRole?.guild) return;
@@ -428,10 +565,10 @@ async function logRoleUpdate(oldRole, newRole) {
   const changes = [];
 
   if (oldRole.name !== newRole.name) {
-    changes.push(`**Ad**: ${oldRole.name} ➜ ${newRole.name}`);
+    changes.push(`**Ad**: \`${oldRole.name}\` ➜ \`${newRole.name}\``);
   }
   if (oldRole.hexColor !== newRole.hexColor) {
-    changes.push(`**Renk**: ${oldRole.hexColor} ➜ ${newRole.hexColor}`);
+    changes.push(`**Renk**: \`${oldRole.hexColor}\` ➜ \`${newRole.hexColor}\``);
   }
   if (oldRole.position !== newRole.position) {
     changes.push(`**Pozisyon**: ${oldRole.position} ➜ ${newRole.position}`);
@@ -439,16 +576,15 @@ async function logRoleUpdate(oldRole, newRole) {
   if (oldRole.mentionable !== newRole.mentionable) {
     changes.push(`**Bahsedilebilir**: ${oldRole.mentionable ? "✅" : "❌"} ➜ ${newRole.mentionable ? "✅" : "❌"}`);
   }
-
-  const permChanges = oldRole.permissions.toArray().filter(p => !newRole.permissions.has(p));
-  const permAdds = newRole.permissions.toArray().filter(p => !oldRole.permissions.has(p));
-
-  if (permChanges.length > 0) {
-    changes.push(`**Kaldırılan İzinler**: ${permChanges.join(", ").slice(0, 200)}`);
+  if (oldRole.hoist !== newRole.hoist) {
+    changes.push(`**Ayrı Göster**: ${oldRole.hoist ? "✅" : "❌"} ➜ ${newRole.hoist ? "✅" : "❌"}`);
   }
-  if (permAdds.length > 0) {
-    changes.push(`**Eklenen İzinler**: ${permAdds.join(", ").slice(0, 200)}`);
-  }
+
+  const removedPerms = oldRole.permissions.toArray().filter(p => !newRole.permissions.has(p));
+  const addedPerms = newRole.permissions.toArray().filter(p => !oldRole.permissions.has(p));
+
+  if (removedPerms.length > 0) changes.push(`**Kaldırılan İzinler**: ${removedPerms.join(", ").slice(0, 200)}`);
+  if (addedPerms.length > 0) changes.push(`**Eklenen İzinler**: ${addedPerms.join(", ").slice(0, 200)}`);
 
   if (changes.length === 0) return;
 
@@ -456,12 +592,12 @@ async function logRoleUpdate(oldRole, newRole) {
 
   const embed = createDetailedEmbed(
     oldRole.guild.id,
-    "✏️ ROL GÜNCELLEMESI",
+    "✏️ ROL GÜNCELLENDİ",
     `<@&${oldRole.id}> rolü güncellendi\n\n${changes.join("\n")}`,
     {
       "Rol Adı": newRole.name,
       "Rol ID": `\`${newRole.id}\``,
-      "Değişim Sayısı": changes.length
+      "Değişim Sayısı": String(changes.length)
     },
     "role",
     executor
@@ -471,21 +607,15 @@ async function logRoleUpdate(oldRole, newRole) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🏠 KANALLAR - Channel Events
+// 🏠 KANALLAR — Channel Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Kanal oluşturuldu
+ * @param {import("discord.js").GuildChannel} channel
  */
 async function logChannelCreate(channel) {
   if (!channel?.guild) return;
-
-  const typeMap = {
-    [ChannelType.Text]: "📝 Yazı Kanalı",
-    [ChannelType.Voice]: "🔊 Ses Kanalı",
-    [ChannelType.Category]: "📂 Kategori",
-    [ChannelType.Forum]: "💬 Forum"
-  };
 
   const executor = await getExecutor(channel.guild, channel.id, AuditLogEvent.ChannelCreate);
 
@@ -496,11 +626,12 @@ async function logChannelCreate(channel) {
     {
       "Kanal Adı": channel.name,
       "Kanal ID": `\`${channel.id}\``,
-      "Kanal Türü": typeMap[channel.type] || "Bilinmiyor",
-      "Kategori": channel.parent?.name || "Kategori yok",
-      "NSFW": channel.nsfw ? "✅" : "❌",
-      "Oluşturma Zamanı": `<t:${Math.floor(channel.createdTimestamp / 1000)}:F>`,
-      "Konumlandırma": channel.position
+      "Kanal Türü": CHANNEL_TYPE_MAP[channel.type] ?? "Bilinmiyor",
+      "Kategori": channel.parent?.name ?? "Kategori yok",
+      "NSFW": channel.nsfw ? "✅ Evet" : "❌ Hayır",
+      "Yavaş Mod": channel.rateLimitPerUser ? `${channel.rateLimitPerUser}s` : "Kapalı",
+      "Pozisyon": String(channel.position),
+      "Oluşturma Zamanı": toFull(channel.createdTimestamp)
     },
     "channel",
     executor
@@ -511,6 +642,7 @@ async function logChannelCreate(channel) {
 
 /**
  * Kanal silindi
+ * @param {import("discord.js").GuildChannel} channel
  */
 async function logChannelDelete(channel) {
   if (!channel?.guild) return;
@@ -520,11 +652,13 @@ async function logChannelDelete(channel) {
   const embed = createDetailedEmbed(
     channel.guild.id,
     "🗑️ KANAL SİLİNDİ",
-    `Kanal silindi: **${channel.name}**`,
+    `Kanal silindi: **#${channel.name}**`,
     {
       "Kanal Adı": channel.name,
       "Kanal ID": `\`${channel.id}\``,
-      "Silim Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+      "Kanal Türü": CHANNEL_TYPE_MAP[channel.type] ?? "Bilinmiyor",
+      "Kategori": channel.parent?.name ?? "Kategori yok",
+      "Silme Zamanı": toFull(Date.now())
     },
     "channel",
     executor
@@ -535,6 +669,8 @@ async function logChannelDelete(channel) {
 
 /**
  * Kanal güncellendi
+ * @param {import("discord.js").GuildChannel} oldChannel
+ * @param {import("discord.js").GuildChannel} newChannel
  */
 async function logChannelUpdate(oldChannel, newChannel) {
   if (!oldChannel?.guild) return;
@@ -542,13 +678,19 @@ async function logChannelUpdate(oldChannel, newChannel) {
   const changes = [];
 
   if (oldChannel.name !== newChannel.name) {
-    changes.push(`**Ad**: ${oldChannel.name} ➜ ${newChannel.name}`);
+    changes.push(`**Ad**: \`${oldChannel.name}\` ➜ \`${newChannel.name}\``);
   }
-  if (oldChannel.topic !== newChannel.topic) {
-    changes.push(`**Konu**: ${oldChannel.topic || "Yok"} ➜ ${newChannel.topic || "Yok"}`);
+  if ("topic" in oldChannel && oldChannel.topic !== newChannel.topic) {
+    changes.push(`**Konu**: ${oldChannel.topic || "_(boş)_"} ➜ ${newChannel.topic || "_(boş)_"}`);
   }
-  if (oldChannel.nsfw !== newChannel.nsfw) {
+  if ("nsfw" in oldChannel && oldChannel.nsfw !== newChannel.nsfw) {
     changes.push(`**NSFW**: ${oldChannel.nsfw ? "✅" : "❌"} ➜ ${newChannel.nsfw ? "✅" : "❌"}`);
+  }
+  if ("rateLimitPerUser" in oldChannel && oldChannel.rateLimitPerUser !== newChannel.rateLimitPerUser) {
+    changes.push(`**Yavaş Mod**: ${oldChannel.rateLimitPerUser}s ➜ ${newChannel.rateLimitPerUser}s`);
+  }
+  if (oldChannel.parentId !== newChannel.parentId) {
+    changes.push(`**Kategori**: ${oldChannel.parent?.name ?? "Yok"} ➜ ${newChannel.parent?.name ?? "Yok"}`);
   }
 
   if (changes.length === 0) return;
@@ -557,12 +699,12 @@ async function logChannelUpdate(oldChannel, newChannel) {
 
   const embed = createDetailedEmbed(
     oldChannel.guild.id,
-    "✏️ KANAL GÜNCELLEMESI",
+    "✏️ KANAL GÜNCELLENDİ",
     `<#${oldChannel.id}> kanalı güncellendi\n\n${changes.join("\n")}`,
     {
       "Kanal Adı": newChannel.name,
       "Kanal ID": `\`${newChannel.id}\``,
-      "Değişim Sayısı": changes.length
+      "Değişim Sayısı": String(changes.length)
     },
     "channel",
     executor
@@ -572,16 +714,18 @@ async function logChannelUpdate(oldChannel, newChannel) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🚫 MODERASYON - Moderation Events
+// 🚫 MODERASYON — Moderation Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Kullanıcı banlandı
+ * @param {import("discord.js").GuildBan} ban
  */
 async function logUserBan(ban) {
   if (!ban?.guild) return;
 
   const executor = await getExecutor(ban.guild, ban.user.id, AuditLogEvent.MemberBanAdd);
+  const reason = executor?.reason ?? ban.reason ?? "Sebep belirtilmedi";
 
   const embed = createDetailedEmbed(
     ban.guild.id,
@@ -589,9 +733,10 @@ async function logUserBan(ban) {
     `<@${ban.user.id}> sunucudan banlandı`,
     {
       "Kullanıcı": `${ban.user.tag}\n\`${ban.user.id}\``,
-      "Ban Sebebi": ban.reason || "Sebep belirtilmedi",
-      "Ban Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
-      "Hesap Yaşı": `${Math.floor((Date.now() - ban.user.createdTimestamp) / (1000 * 60 * 60 * 24))} gün`
+      "Ban Sebebi": reason,
+      "Ban Zamanı": toFull(Date.now()),
+      "Hesap Yaşı": formatDuration(Date.now() - ban.user.createdTimestamp),
+      "Bot mu": ban.user.bot ? "✅ Evet" : "❌ Hayır"
     },
     "ban",
     executor
@@ -602,6 +747,7 @@ async function logUserBan(ban) {
 
 /**
  * Ban kaldırıldı
+ * @param {import("discord.js").GuildBan} ban
  */
 async function logUserUnban(ban) {
   if (!ban?.guild) return;
@@ -614,8 +760,7 @@ async function logUserUnban(ban) {
     `<@${ban.user.id}> adlı kullanıcının banı kaldırıldı`,
     {
       "Kullanıcı": `${ban.user.tag}\n\`${ban.user.id}\``,
-      "Ban Sebebi": ban.reason || "Sebep belirtilmedi",
-      "Ban Kaldırma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+      "Ban Kaldırma Zamanı": toFull(Date.now())
     },
     "moderation",
     executor
@@ -625,15 +770,21 @@ async function logUserUnban(ban) {
 }
 
 /**
- * Kullanıcı timeout'a alındı
+ * Kullanıcı timeout'a alındı veya timeout kaldırıldı
+ * @param {import("discord.js").GuildMember} oldMember
+ * @param {import("discord.js").GuildMember} newMember
  */
 async function logMemberTimeout(oldMember, newMember) {
   if (!oldMember?.guild) return;
-  if (!oldMember.communicationDisabledUntil && newMember.communicationDisabledUntil) {
-    // Timeout başladı
-    const duration = newMember.communicationDisabledUntil.getTime() - Date.now();
-    const days = Math.floor(duration / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((duration % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+  const wasTimedOut = Boolean(oldMember.communicationDisabledUntil);
+  const isTimedOut = Boolean(newMember.communicationDisabledUntil);
+
+  // Timeout başladı
+  if (!wasTimedOut && isTimedOut) {
+    const endsAt = newMember.communicationDisabledUntil.getTime();
+    const duration = formatDuration(endsAt - Date.now());
+    const executor = await getExecutor(oldMember.guild, newMember.id, AuditLogEvent.MemberUpdate);
 
     const embed = createDetailedEmbed(
       oldMember.guild.id,
@@ -641,25 +792,32 @@ async function logMemberTimeout(oldMember, newMember) {
       `<@${newMember.id}> kullanıcıya timeout verildi`,
       {
         "Kullanıcı": `${newMember.user.tag}\n\`${newMember.id}\``,
-        "Timeout Süresi": `${days}gün ${hours}saat`,
-        "Timeout Bitiş": `<t:${Math.floor(newMember.communicationDisabledUntil.getTime() / 1000)}:F>`,
-        "Timeout Başladı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+        "Timeout Süresi": duration,
+        "Timeout Bitiş": toFull(endsAt),
+        "Timeout Başladı": toFull(Date.now())
       },
-      "warn"
+      "warn",
+      executor
     );
 
     await sendCentralLog(embed);
-  } else if (oldMember.communicationDisabledUntil && !newMember.communicationDisabledUntil) {
-    // Timeout sona erdi
+    return;
+  }
+
+  // Timeout kaldırıldı (erken kaldırma)
+  if (wasTimedOut && !isTimedOut) {
+    const executor = await getExecutor(oldMember.guild, newMember.id, AuditLogEvent.MemberUpdate);
+
     const embed = createDetailedEmbed(
       oldMember.guild.id,
-      "✅ TIMEOUT KALKTI",
+      "✅ TIMEOUT KALDIRILDI",
       `<@${newMember.id}> kullanıcının timeout'u kaldırıldı`,
       {
         "Kullanıcı": `${newMember.user.tag}\n\`${newMember.id}\``,
-        "Timeout Kaldırma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+        "Kaldırma Zamanı": toFull(Date.now())
       },
-      "moderation"
+      "moderation",
+      executor
     );
 
     await sendCentralLog(embed);
@@ -667,27 +825,31 @@ async function logMemberTimeout(oldMember, newMember) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🔊 SES - Voice Events
+// 🔊 SES — Voice Events
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Ses kanalına katılım
+ * Ses kanalına katılım (yeni katılım, taşıma değil)
+ * @param {import("discord.js").VoiceState} oldState
+ * @param {import("discord.js").VoiceState} newState
  */
 async function logVoiceJoin(oldState, newState) {
-  if (!oldState?.guild || oldState.channel) return; // Zaten kanaldaysa log yapma
-  if (!newState.channel) return;
+  // Zaten bir kanaldan geliyor = taşıma; bu fonksiyon sadece fresh join için
+  if (oldState.channel || !newState.channel) return;
+  if (!newState.member) return;
 
   const embed = createDetailedEmbed(
-    oldState.guild.id,
+    newState.guild.id,
     "🔊 SES KANALINA KATILDI",
     `<@${newState.member.id}> ses kanalına katıldı`,
     {
       "Kullanıcı": `${newState.member.user.tag}\n\`${newState.member.id}\``,
       "Ses Kanalı": `${newState.channel.name} (\`${newState.channel.id}\`)`,
-      "Katılma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`,
-      "Video Akışı": newState.streaming ? "✅" : "❌",
-      "Self Mute": newState.selfMute ? "✅" : "❌",
-      "Self Deaf": newState.selfDeaf ? "✅" : "❌"
+      "Katılma Zamanı": toFull(Date.now()),
+      "Yayın Yapıyor": newState.streaming ? "✅" : "❌",
+      "Kamera Açık": newState.selfVideo ? "✅" : "❌",
+      "Kendini Susturdu": newState.selfMute ? "✅" : "❌",
+      "Kendini Kapattı": newState.selfDeaf ? "✅" : "❌"
     },
     "voice"
   );
@@ -696,24 +858,25 @@ async function logVoiceJoin(oldState, newState) {
 }
 
 /**
- * Ses kanalından ayrılış
+ * Ses kanalından tamamen ayrılış
+ * @param {import("discord.js").VoiceState} oldState
+ * @param {import("discord.js").VoiceState} newState
  */
 async function logVoiceLeave(oldState, newState) {
-  if (!oldState?.guild || !oldState.channel) return;
-  if (newState.channel) return; // Hala kanaldaysa log yapma
+  // Hâlâ bir kanaldaysa taşıma — bu fonksiyon sadece tamamen ayrılış için
+  if (!oldState.channel || newState.channel) return;
+  if (!oldState.member) return;
 
-  const duration = Date.now() - oldState.joinedTimestamp;
-  const minutes = Math.floor(duration / (1000 * 60));
-
+  // BUG FIX: Discord.js VoiceState'de joinedTimestamp mevcut değil,
+  // bu nedenle kalış süresi hesaplanamaz — güvenli fallback kullan
   const embed = createDetailedEmbed(
     oldState.guild.id,
-    "🔇 SES KANALINDEN AYRILDI",
+    "🔇 SES KANALINDAN AYRILDI",
     `<@${oldState.member.id}> ses kanalından ayrıldı`,
     {
       "Kullanıcı": `${oldState.member.user.tag}\n\`${oldState.member.id}\``,
-      "Ses Kanalı": `${oldState.channel.name}`,
-      "Kalış Süresi": `${minutes} dakika`,
-      "Ayrılma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+      "Ses Kanalı": `${oldState.channel.name} (\`${oldState.channel.id}\`)`,
+      "Ayrılma Zamanı": toFull(Date.now())
     },
     "voice"
   );
@@ -722,10 +885,15 @@ async function logVoiceLeave(oldState, newState) {
 }
 
 /**
- * Ses kanalında hareket (taşıma)
+ * Ses kanalında taşıma (kanal değiştirme)
+ * @param {import("discord.js").VoiceState} oldState
+ * @param {import("discord.js").VoiceState} newState
  */
 async function logVoiceMove(oldState, newState) {
-  if (!oldState?.guild || oldState.channel?.id === newState.channel?.id) return;
+  // Her iki tarafta da kanal olmalı ve farklı kanallar olmalı
+  if (!oldState.channel || !newState.channel) return;
+  if (oldState.channel.id === newState.channel.id) return;
+  if (!newState.member) return;
 
   const embed = createDetailedEmbed(
     oldState.guild.id,
@@ -733,9 +901,9 @@ async function logVoiceMove(oldState, newState) {
     `<@${newState.member.id}> ses kanalında taşındı`,
     {
       "Kullanıcı": `${newState.member.user.tag}\n\`${newState.member.id}\``,
-      "Eski Kanal": oldState.channel?.name || "Yok",
-      "Yeni Kanal": newState.channel?.name || "Yok",
-      "Taşınma Zamanı": `<t:${Math.floor(Date.now() / 1000)}:F>`
+      "Eski Kanal": `${oldState.channel.name} (\`${oldState.channel.id}\`)`,
+      "Yeni Kanal": `${newState.channel.name} (\`${newState.channel.id}\`)`,
+      "Taşınma Zamanı": toFull(Date.now())
     },
     "voice"
   );
@@ -751,32 +919,32 @@ module.exports = {
   sendCentralLog,
   createDetailedEmbed,
   getExecutor,
-  
+
   // Members
   logMemberJoin,
   logMemberLeave,
   logMemberUpdate,
-  
+
   // Messages
   logMessageDelete,
   logMessageUpdate,
   logBulkMessageDelete,
-  
+
   // Roles
   logRoleCreate,
   logRoleDelete,
   logRoleUpdate,
-  
+
   // Channels
   logChannelCreate,
   logChannelDelete,
   logChannelUpdate,
-  
+
   // Moderation
   logUserBan,
   logUserUnban,
   logMemberTimeout,
-  
+
   // Voice
   logVoiceJoin,
   logVoiceLeave,
