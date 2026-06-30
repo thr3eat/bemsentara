@@ -1130,6 +1130,9 @@ async function handleGeneralCommand(interaction) {
       
       achievements = achievements.replace(/ \| $/, '');
 
+      const { getDailyTaskCompletionStats } = require('../services/staffSystem');
+      const stats = getDailyTaskCompletionStats(targetStaff);
+
       const embed = new EmbedBuilder()
         .setTitle(`👤 ${target.username} - Personel Durumu`)
         .setColor(0x7c6af7)
@@ -1139,6 +1142,7 @@ async function handleGeneralCommand(interaction) {
           { name: '🏆 PUAN & STREAK', value: `**Toplam Puan:** ${targetStaff.gamification?.totalPoints || 0}\n**Mevcut Streak:** ${targetStaff.gamification?.streak?.current || 0}\n**Rekord Streak:** ${targetStaff.gamification?.streak?.longest || 0}`, inline: true },
           { name: '📅 TARİHLER', value: `**Katılış:** <t:${Math.floor(new Date(targetStaff.joinedAt).getTime() / 1000)}:R>\n**Terfi Tarihi:** ${targetStaff.promotedAt ? `<t:${Math.floor(new Date(targetStaff.promotedAt).getTime() / 1000)}:R>` : 'Henüz terfi yok'}`, inline: true },
           { name: '⚠️ UYARILAR', value: `**Toplam:** ${targetStaff.warnings?.count || 0}\n**Son Uyarı:** ${targetStaff.warnings?.lastWarned ? `<t:${Math.floor(new Date(targetStaff.warnings.lastWarned).getTime() / 1000)}:R>` : 'Uyarı yok'}`, inline: true },
+          { name: '⚡ BUGÜNKÜ GÖREV İLERLEMESİ', value: `\`[${stats.progressBar}]\` **%${stats.totalPercent}**\n• Selamlaşma: ${targetStaff.daily?.greeted ? '✅ Tamamlandı' : '❌ Tamamlanmadı'}\n• Ses Aktifliği: ${targetStaff.daily?.voiceMinutes || 0} dk`, inline: false },
           { name: `🏅 ROZETLER (${badgeCount})`, value: badgeDisplay || 'Henüz rozet yok', inline: false },
           { name: '⭐ BAŞARIMLAR', value: achievements, inline: false }
         )
@@ -1277,19 +1281,23 @@ async function handleGeneralCommand(interaction) {
         const greetDone = isToday && p.daily?.greeted;
         const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
+        const { getDailyTaskCompletionStats } = require('../services/staffSystem');
+        const stats = getDailyTaskCompletionStats(p);
+
         const embed = new EmbedBuilder()
           .setColor(0x7c6af7)
           .setTitle(`☀️ Günlük Brifing — ${ROLE_NAMES[p.level]}`)
           .setThumbnail(interaction.user.displayAvatarURL())
           .setDescription(
             (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
-            `Bugündeki performans durumunuz ve görevleriniz aşağıdadır. Harika bir gün dileriz! 🌟`
+            `Bugündeki performans durumunuz ve görevleriniz aşağıdadır. Harika bir gün dileriz! 🌟\n\n` +
+            `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**`
           )
           .addFields(
             {
               name: '⚡ Günlük Zorunlu Görevler',
-              value: `${greetDone ? '✅' : '❌'} **Selamlaşma:** ${isToday && p.daily?.greeted ? 1 : 0}/${req.greets} selam\n` +
-                     `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk`,
+              value: `${greetDone ? '✅' : '❌'} **Selamlaşma:** ${isToday && p.daily?.greeted ? 1 : 0}/${req.greets} selam (%${stats.greetPercent})\n` +
+                     `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk (%${stats.voicePercent})`,
               inline: false
             }
           );

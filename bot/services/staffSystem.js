@@ -1198,6 +1198,8 @@ function getNextRequirementsText(level) {
 
 // ── AI Sabah Brifing DM'i ─────────────────────────────────────────────────
 async function sendMorningBriefing(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
+
   const StaffUnit = require('../../models/StaffUnit');
   let userUnit = null;
   try {
@@ -1465,6 +1467,7 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
 }
 
 async function sendRequirementIncreaseDM(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const embed = new EmbedBuilder()
     .setColor(0xfbbf24)
@@ -1487,6 +1490,7 @@ async function sendRequirementIncreaseDM(progress, client) {
 
 // ── Sert çalışma ödülü: 1 gün izin kredisi ─────────────────────────────────
 async function sendBreakRewardDM(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
   const totalCredits = progress.stats?.breakCredits || 0;
   const embed = new EmbedBuilder()
     .setColor(0xffd700)
@@ -1516,6 +1520,7 @@ async function sendBreakRewardDM(progress, client) {
 
 // ── Motivasyon mesajları: rasgele teşvik ─────────────────────────────────
 async function sendRandomMotivationDM(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
   const motivations = [
     {
       title: '💪 Devam Et!',
@@ -1735,6 +1740,7 @@ async function removeRole(progress, client) {
 
 // ── Öğlen hatırlatma (13:00) ──────────────────────────────────────────────
 async function sendMidDayReminder(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
@@ -1746,12 +1752,15 @@ async function sendMidDayReminder(progress, client) {
 
   if (missing.length === 0) return; // Zaten tamamlamış
 
+  const stats = getDailyTaskCompletionStats(progress);
+
   const embed = new EmbedBuilder()
     .setColor(0xfbbf24)
     .setTitle('🌤️ Öğlen Hatırlatması — Biraz Daha Kaldı!')
     .setDescription(
       `Günün yarısı geçti! Hâlâ yapman gerekenler var ama merak etme, çok az kaldı:\n\n` +
       missing.map(m => `• ${m}`).join('\n') +
+      `\n\n📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**` +
       `\n\n☕ Bir ara ver, sonra bitir. Zaman yeter! 💪`
     )
     .addFields(
@@ -1776,6 +1785,7 @@ async function sendMidDayReminder(progress, client) {
 
 // ── Akşam son uyarı (19:00) ───────────────────────────────────────────────
 async function sendEveningWarning(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
@@ -1783,6 +1793,7 @@ async function sendEveningWarning(progress, client) {
 
   if (isGreetDone && voiceDone) return; // Tamamlamış
 
+  const stats = getDailyTaskCompletionStats(progress);
   const warnCount = progress.warnings?.count || 0;
 
   // AI acil uyarı mesajı
@@ -1800,6 +1811,7 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
     .setDescription(
       (aiMsg ? `🤖 **AI:** ${aiMsg}\n\n` : '') +
       `**Gece 23:30'a kadar** görevlerini tamamlamazsan yarın uyarı sayacın artacak!\n\n` +
+      `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Yapman gerekenler:**\n` +
       (!isGreetDone ? `• ✅ Sohbete ${req.greets}x selam ver\n` : '') +
       (!voiceDone ? `• 🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal\n` : '') +
@@ -2815,6 +2827,7 @@ function getWeeklyChallenge() {
  * Personele eğlenceli mesaj gönder
  */
 async function sendFunMessage(userId, client) {
+  if (await hasInactivityRole(userId, client)) return;
   const funMessages = [
     {
       title: '🎮 OYUN ZAMANINDA!',

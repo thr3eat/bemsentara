@@ -43,8 +43,23 @@ async function triggerMonthlyPromotionCycle(client) {
     const results = [];
 
     // Her üye için sınav döngüsünü başlat
+    const { hasInactivityRole } = require('./staffSystem');
+    const currentMonthStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
     for (const member of allMembers) {
       try {
+        // İnaktiflik alanları veya izindekileri atla
+        if (await hasInactivityRole(member.userId, client)) {
+          console.log(`[monthlyPromotion] Skipping promotion/coach message for inactive/leave user: ${member.userId}`);
+          continue;
+        }
+
+        // Bu ay zaten gönderilmişse atla
+        if (member.lastCoachMotivationMonth === currentMonthStr) {
+          console.log(`[monthlyPromotion] Motivation already sent this month for ${member.userId}`);
+          continue;
+        }
+
         const user = await client.users.fetch(member.userId).catch(() => null);
         if (!user) continue;
 
@@ -55,6 +70,10 @@ async function triggerMonthlyPromotionCycle(client) {
 
         // Motivasyon mesajı gönder
         await sendMotivationFromCoach(user, member, client);
+
+        // Gönderildiğini kaydet
+        member.lastCoachMotivationMonth = currentMonthStr;
+        await member.save();
 
         examinedCount++;
 
