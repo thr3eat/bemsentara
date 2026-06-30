@@ -2,7 +2,8 @@ const {
   GUILD2_ID,
   EKOYILDIZ_SAYI_SAYMACA_CHANNEL_ID,
   EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID,
-  EKOYILDIZ_BOM_CHANNEL_ID
+  EKOYILDIZ_BOM_CHANNEL_ID,
+  EKOYILDIZ_STORY_GAME_CHANNEL_ID
 } = require("../../config");
 
 // --- In-Memory States for EkoYıldız Games ---
@@ -22,6 +23,11 @@ let lastWordLetter = null;
 let lastWordUser = null;
 const usedWords = new Set();
 let wordSynced = false;
+
+// Story Game State
+let lastStoryUser = null;
+let needsGiris = true;
+let storySynced = false;
 
 /**
  * Sayı saymacayı kanal geçmişinden senkronize et.
@@ -276,6 +282,115 @@ async function runWordGame(message) {
 }
 
 /**
+ * Hikaye oyununu kanal geçmişinden senkronize et.
+ */
+async function syncStoryFromHistory(channel, currentMsgId) {
+  if (storySynced) return;
+  storySynced = true;
+
+  try {
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const sorted = [...messages.values()]
+      .filter(m => m.id !== currentMsgId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    let lastMsg = null;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const msg = sorted[i];
+      if (msg.author.bot) continue;
+      lastMsg = msg;
+      break;
+    }
+
+    if (lastMsg) {
+      lastStoryUser = lastMsg.author.id;
+      const content = lastMsg.content.trim().toLowerCase();
+      const cleaned = content.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+      if (/(?:^|\s)son$/i.test(cleaned)) {
+        needsGiris = true;
+      } else {
+        needsGiris = false;
+      }
+      console.log(`[ekoGames] Hikaye oyunu senkronize edildi: Son Yazan=${lastStoryUser}, Giriş Bekleniyor mu=${needsGiris}`);
+    } else {
+      lastStoryUser = null;
+      needsGiris = true;
+      console.log('[ekoGames] Hikaye oyunu geçmişi boş, Giriş bekleniyor');
+    }
+  } catch (err) {
+    console.error('[ekoGames] Hikaye oyunu senkronizasyon hatası:', err.message);
+    if (needsGiris === null) needsGiris = true;
+  }
+}
+
+/**
+ * Hikaye Oyunu Mantığı
+ */
+async function runStoryGame(message) {
+  await syncStoryFromHistory(message.channel, message.id);
+
+  const content = message.content.trim();
+  const lowerContent = content.toLowerCase();
+
+  // 1. Aynı kişi üst üste yazamaz
+  if (message.author.id === lastStoryUser) {
+    await message.delete().catch(() => {});
+    const reply = await message.channel.send(
+      `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
+      `• Üst üste iki kez mesaj yazamazsınız! Lütfen başka birinin yazmasını bekleyin.`
+    );
+    setTimeout(() => reply.delete().catch(() => {}), 6000);
+    return true;
+  }
+
+  // Punctuation clean to detect "son" word ending
+  const cleaned = lowerContent.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+  const endsWithSon = /(?:^|\s)son$/i.test(cleaned);
+
+  // Check if message is a GİRİŞ
+  const isGiris = /^(giriş|giris)\s*:/i.test(content);
+
+  // 2. Giriş bekleniyorsa ama GİRİŞ ile başlamıyorsa
+  if (needsGiris) {
+    if (!isGiris) {
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send(
+        `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
+        `• Hikaye bittiği veya yeni başladığı için mesajınız **GİRİŞ: <hikaye başlangıcı>** şeklinde başlamalıdır!\n` +
+        `• Örnek: \`GİRİŞ: Bir varmış bir yokmuş...\``
+      );
+      setTimeout(() => reply.delete().catch(() => {}), 6000);
+      return true;
+    }
+  } else {
+    // 3. Giriş beklenmiyorsa ama yine de GİRİŞ yazılmışsa
+    if (isGiris) {
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send(
+        `❌ <@${message.author.id}>, **Hikaye Oyunu Kuralları:**\n` +
+        `• Hikaye zaten devam ediyor! **GİRİŞ:** yazmadan normal şekilde devam ettirmelisiniz.\n` +
+        `• Hikayeyi bitirmek için mesajın sonuna **SON** yazabilirsiniz.`
+      );
+      setTimeout(() => reply.delete().catch(() => {}), 6000);
+      return true;
+    }
+  }
+
+  // Kabul edildi
+  await message.react("✍️").catch(() => {});
+  
+  lastStoryUser = message.author.id;
+  if (endsWithSon) {
+    needsGiris = true;
+    await message.react("🏁").catch(() => {});
+  } else {
+    needsGiris = false;
+  }
+
+  return true;
+}
+
+/**
  * EkoYıldız Oyunları için ana handler
  */
 async function handleEkoGames(message, client) {
@@ -305,6 +420,10 @@ async function handleEkoGames(message, client) {
 
   if (channelId === EKOYILDIZ_BOM_CHANNEL_ID) {
     return await runBomGame(message);
+  }
+
+  if (channelId === EKOYILDIZ_STORY_GAME_CHANNEL_ID) {
+    return await runStoryGame(message);
   }
 
   return false;
