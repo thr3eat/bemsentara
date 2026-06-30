@@ -233,7 +233,78 @@ const PROMOTION_REQUIREMENTS = {
 };
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function getTargetCheckDate() {
+  const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+  const hour = tzDate.getHours();
+  if (hour < 4) {
+    tzDate.setDate(tzDate.getDate() - 1);
+  }
+  return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(tzDate);
+}
+
+async function hasInactivityRole(userId, client) {
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    if (!guild) return false;
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return false;
+    
+    return member.roles.cache.some(role => {
+      const name = role.name.toLowerCase();
+      return name.includes('inaktif') || 
+             name.includes('izinli') || 
+             name.includes('inactive') || 
+             name.includes('inactivity') ||
+             name.includes('mazeretli') ||
+             name.includes('mâzeretli');
+    });
+  } catch (err) {
+    console.error('[staffSystem] hasInactivityRole error:', err.message);
+    return false;
+  }
+}
+
+function getDailyTaskCompletionStats(progress) {
+  const today = todayStr();
+  const isToday = progress.daily?.date === today;
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+
+  const greeted = isToday && progress.daily?.greeted;
+  const voiceMinutes = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
+
+  const greetPercent = greeted ? 100 : 0;
+  const voicePercent = req.voiceMinutes > 0 ? Math.min(100, Math.round((voiceMinutes / req.voiceMinutes) * 100)) : 100;
+
+  let totalPercent = 0;
+  let hasChosenTask = false;
+  let chosenTaskDone = false;
+
+  if (progress.daily?.chosenTask) {
+    hasChosenTask = true;
+    chosenTaskDone = isToday && progress.daily?.chosenTaskCompleted;
+  }
+
+  if (hasChosenTask) {
+    const chosenPercent = chosenTaskDone ? 100 : 0;
+    totalPercent = Math.round(greetPercent * 0.4 + voicePercent * 0.4 + chosenPercent * 0.2);
+  } else {
+    totalPercent = Math.round(greetPercent * 0.5 + voicePercent * 0.5);
+  }
+
+  const filledBars = Math.round(totalPercent / 10);
+  const emptyBars = 10 - filledBars;
+  const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+
+  return {
+    greetPercent,
+    voicePercent,
+    totalPercent,
+    progressBar,
+    greetProgress: greeted ? `1/${req.greets}` : `0/${req.greets}`
+  };
 }
 
 // ── Kullanıcı al/oluştur ──────────────────────────────────────────────────
@@ -2826,4 +2897,7 @@ module.exports = {
   CHOSEN_TASKS,
   checkChosenTaskCompletion,
   checkDailyCompletion,
+  getDailyTaskCompletionStats,
+  hasInactivityRole,
+  getTargetCheckDate,
 };

@@ -12,6 +12,7 @@ const staffUnitSchema = new mongoose.Schema({
   joinedAt: { type: Date, default: null },
   dailyTasksCompleted: { type: Number, default: 0 },
   lastAutoPromoDate: { type: String, default: null }, // 'YYYY-MM-DD'
+  lastCoachMotivationMonth: { type: String, default: null }, // 'YYYY-MM'
   
   // Sınav Durumu
   exam: {
