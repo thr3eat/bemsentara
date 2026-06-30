@@ -1081,9 +1081,15 @@ async function handleButtonInteraction(interaction) {
       const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
       let mappedText = "";
       for (const r of rbxRoles) {
-        const matchedId = setupDoc.roleMappings.get(r.rank.toString());
-        const roleObj = matchedId ? interaction.guild.roles.cache.get(matchedId) : null;
-        mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
+        const matchedVal = setupDoc.roleMappings.get(r.rank.toString());
+        let roleDisplay = "❌ *Eşleştirilemedi*";
+        if (Array.isArray(matchedVal) && matchedVal.length > 0) {
+          roleDisplay = matchedVal.map(id => interaction.guild.roles.cache.get(id)?.toString() || `\`${id}\``).join(", ");
+        } else if (typeof matchedVal === "string" && matchedVal) {
+          const roleObj = interaction.guild.roles.cache.get(matchedVal);
+          roleDisplay = roleObj ? roleObj.toString() : `\`${matchedVal}\``;
+        }
+        mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleDisplay}\n`;
       }
       
       const setupEmbed = new EmbedBuilder()
@@ -1333,11 +1339,15 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
     )
     .setTimestamp();
 
-  const menuOptions = rbxRoles.map(r => ({
-    label: `Rank ${r.rank}: ${r.name}`,
-    description: `Mevcut Rol ID: ${setupDoc.roleMappings.get(r.rank.toString()) || "Yok"}`,
-    value: r.rank.toString()
-  })).slice(0, 25);
+  const menuOptions = rbxRoles.map(r => {
+    const val = setupDoc.roleMappings.get(r.rank.toString());
+    const displayVal = Array.isArray(val) ? val.join(",") : (val || "Yok");
+    return {
+      label: `Rank ${r.rank}: ${r.name}`,
+      description: `Mevcut Rol ID: ${displayVal.slice(0, 100)}`,
+      value: r.rank.toString()
+    };
+  }).slice(0, 25);
 
   const rankMenu = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()

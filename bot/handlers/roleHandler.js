@@ -34,34 +34,44 @@ async function syncBranchServerRoles(guild, member, robloxUserId) {
   const noblox = require("noblox.js");
   const rank = await noblox.getRankInGroup(setupDoc.robloxGroupId, parseInt(robloxUserId, 10)).catch(() => 0);
 
-  // Mapped role ID'sini bul
-  const roleId = setupDoc.roleMappings instanceof Map ? setupDoc.roleMappings.get(rank.toString()) : setupDoc.roleMappings[rank.toString()];
-  
+  // Mapped role ID(s)
+  const mappedVal = setupDoc.roleMappings instanceof Map ? setupDoc.roleMappings.get(rank.toString()) : setupDoc.roleMappings[rank.toString()];
+  const mappedRoleIds = Array.isArray(mappedVal) ? mappedVal : (typeof mappedVal === "string" ? mappedVal.split(",") : []);
+
   // Find all possible roles in the mapping to remove old ones
-  const allMappedRoleIds = setupDoc.roleMappings instanceof Map ? Array.from(setupDoc.roleMappings.values()) : Object.values(setupDoc.roleMappings);
+  let allMappedRoleIds = [];
+  const rawValues = setupDoc.roleMappings instanceof Map ? Array.from(setupDoc.roleMappings.values()) : Object.values(setupDoc.roleMappings);
+  for (const val of rawValues) {
+    if (Array.isArray(val)) {
+      allMappedRoleIds.push(...val);
+    } else if (typeof val === "string" && val) {
+      allMappedRoleIds.push(...val.split(","));
+    }
+  }
+  // Keep unique values
+  allMappedRoleIds = Array.from(new Set(allMappedRoleIds));
 
   const toAdd = [];
   const toRemove = [];
 
-  if (roleId) {
-    toAdd.push({ id: roleId });
+  for (const rid of mappedRoleIds) {
+    if (rid && !member.roles.cache.has(rid)) {
+      toAdd.push(rid);
+    }
   }
 
   for (const rid of allMappedRoleIds) {
-    if (rid !== roleId && member.roles.cache.has(rid)) {
-      toRemove.push({ id: rid });
+    if (rid && !mappedRoleIds.includes(rid) && member.roles.cache.has(rid)) {
+      toRemove.push(rid);
     }
   }
 
   if (toAdd.length > 0) {
-    const roleObj = guild.roles.cache.get(roleId);
-    if (roleObj) {
-      await member.roles.add(roleId, "Branch server rank update").catch(() => {});
-    }
+    await member.roles.add(toAdd, "Branch server rank update").catch(() => {});
   }
 
   if (toRemove.length > 0) {
-    await member.roles.remove(toRemove.map(r => r.id), "Branch server rank update").catch(() => {});
+    await member.roles.remove(toRemove, "Branch server rank update").catch(() => {});
   }
 
   // Update nickname: RobloxUsername [RankName]
@@ -77,8 +87,8 @@ async function syncBranchServerRoles(guild, member, robloxUserId) {
 
   return {
     success: true,
-    added: toAdd.map(r => guild.roles.cache.get(r.id)).filter(Boolean),
-    removed: toRemove.map(r => guild.roles.cache.get(r.id)).filter(Boolean),
+    added: toAdd.map(id => guild.roles.cache.get(id)).filter(Boolean),
+    removed: toRemove.map(id => guild.roles.cache.get(id)).filter(Boolean),
     nickname: robloxUsername ? `${robloxUsername} [${rankName}]` : null,
     rankName
   };

@@ -7,7 +7,7 @@ const serverSetupSchema = new mongoose.Schema({
   guildName: { type: String, required: true },
   robloxGroupId: { type: Number, required: true },
   robloxGroupName: { type: String, required: true },
-  roleMappings: { type: Map, of: String, default: {} }, // Rank (as string number) -> Discord Role ID
+  roleMappings: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }, // Rank -> Discord Role ID or Array of Role IDs
   adminChannelId: { type: String },
   verifyHelpChannelId: { type: String },
   rulesChannelId: { type: String },

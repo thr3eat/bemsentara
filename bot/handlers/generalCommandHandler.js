@@ -3339,22 +3339,26 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
     const { chatWithAI } = require("../services/aiService");
     const rbxList = rbxRoles.map(r => `Rank ${r.rank}: ${r.name}`).join("\n");
     const discList = discordRoles.map(r => `ID ${r.id}: ${r.name}`).join("\n");
-
     let specialGuidelines = "";
     if (groupId === 33708598 || groupName.includes("Özel Kuvvetler")) {
       specialGuidelines = "\n\nBu grup TMT Özel Kuvvetler Komutanlığı grubudur. Eşleştirme yaparken şu kuralları kesinlikle uygula:\n" +
-        "1. 'OF-10 Mareşal' (Rank 255) rütbesini 'OF-10 Mareşal' veya 'Mareşal' rolüyle eşleştir.\n" +
-        "2. 'Ordu Yönetimi' (Rank 254) rütbesini 'Ordu Yönetimi' veya 'Ordu Yönetim' rolüyle eşleştir.\n" +
-        "3. 'Özel Kuvvetler Komutanı' (Rank 100) ve 'Özel Kuvvetler Komutan Yardımcılığı' (Rank 69) rütbelerini 'Özel Kuvvetler Komutan Yardımcısı' rolüyle eşleştir.\n" +
-        "4. 'Bölge Sorumlusu' (Rank 50), 'Bölge Heyeti' (Rank 60) ve 'Bölge Şefi' (Rank 65) rütbelerini '[HQ]' veya 'HQ' rolüyle eşleştir.\n" +
-        "5. 'Teğmen', 'Yüzbaşı', 'Binbaşı', 'Yarbay', 'Albay' (Rank 23-40) ile 'I. Sınıf Personel', 'II. Sınıf Personel', 'III. Sınıf Personel', 'Sınıf Üstü Personel' (Rank 5-20) rütbelerini 'Özel Kuvvetler Personeli' rolüyle eşleştir.\n" +
-        "6. Rütbesinde kesik çizgiler olan '----------------' (Rank 21, 44, 101, 253 vb.) rütbelerini '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolüyle eşleştir.\n" +
-        "7. Eşleşmeyen alt rütbeleri (Rank 1) 'Doğrulanmış Personel' veya 'Askeri Personel' rolüyle eşleştirebilirsin.";
+        "1. 'OF-10 Mareşal' (Rank 255) rütbesine 'OF-10 Mareşal', 'Ordu Yönetimi', 'Özel Kuvvetler Personeli', 'Askeri Personel', 'Doğrulanmış Personel' ve '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolünü ata.\n" +
+        "2. 'Ordu Yönetimi' (Rank 254) rütbesine 'Ordu Yönetimi', 'Özel Kuvvetler Personeli', 'Askeri Personel', 'Doğrulanmış Personel', 'Duyuru Yetkisi' ve '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolünü ata.\n" +
+        "3. 'Özel Kuvvetler Komutanı' (Rank 100) ve 'Özel Kuvvetler Komutan Yardımcılığı' (Rank 69) rütbelerine 'Özel Kuvvetler Komutan Yardımcısı', '[HQ]', 'Özel Kuvvetler Personeli', 'Askeri Personel', 'Doğrulanmış Personel' ve '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolünü ata.\n" +
+        "4. 'Bölge Sorumlusu' (Rank 50), 'Bölge Heyeti' (Rank 60) ve 'Bölge Şefi' (Rank 65) rütbelerine '[HQ]', 'Özel Kuvvetler Personeli', 'Askeri Personel', 'Doğrulanmış Personel', 'Birimsiz' ve '▬▬▬▬▬▬▬▬▬▬▬▬▬' seperatör rolünü ata.\n" +
+        "5. 'Teğmen', 'Yüzbaşı', 'Binbaşı', 'Yarbay', 'Albay' (Rank 23-40) ile 'I. Sınıf Personel', 'II. Sınıf Personel', 'III. Sınıf Personel', 'Sınıf Üstü Personel' (Rank 5-20) rütbelerine 'Özel Kuvvetler Personeli', 'Askeri Personel', 'Doğrulanmış Personel', 'Birimsiz' ve en az iki farklı seperatör rolünü ('▬▬▬▬▬▬▬▬▬▬▬▬▬' vb.) ata.";
     }
 
     const systemPrompt = "Sen bir rol eşleştirme asistanısın. Roblox grup rütbeleri ile Discord rollerini ad benzerliği ve rütbe seviyesine göre en doğru şekilde eşleştir.\n" +
-      "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise eşleşen Discord rol ID'si (ör: \"1518926498361376768\") olsun. " +
-      "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme. Üstteki Özel Kuvvetlerdeki gibi olsun bir kullanıcıya hem rütbesi seviyesi çizgileriyle beraber her bir rütbeye böyle ver. " + specialGuidelines;
+      "Her bir Roblox rütbesine (rank numarasına) EN AZ 6 ADET Discord rolü eşleştirmen gerekiyor. Her rank için mutlaka şunları dahil et:\n" +
+      "- Rütbe rolü (Spesifik rütbe ismi)\n" +
+      "- Kategori/Tier rolü (HQ, ordu personeli vb.)\n" +
+      "- Branş rolü (Özel Kuvvetler Personeli vb.)\n" +
+      "- Genel rol (Askeri Personel, Doğrulanmış Personel vb.)\n" +
+      "- Durum/İzin rolleri (Duyuru Yetkisi, Birimsiz, Branşsız/Branşlı Personel vb.)\n" +
+      "- Çizgi/Seperatör rolleri (▬▬▬▬▬▬▬▬▬▬▬▬▬ vb.)\n\n" +
+      "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise o ranka atanacak Discord rol ID'lerinin dizisi (array of strings) (ör: [\"1518926498361376768\", \"1518926498361376769\", ...]) olsun. " +
+      "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme. Tüm branşlar için bu en az 6 rol eşleştirme kuralını kesinlikle uygula." + specialGuidelines;
 
     const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
     if (aiResponse) {
@@ -3369,12 +3373,20 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
 
   // Fallback fuzzy matching
   for (const r of rbxRoles) {
-    if (!aiMappings[r.rank.toString()]) {
+    const rankStr = r.rank.toString();
+    if (!aiMappings[rankStr]) {
+      aiMappings[rankStr] = [];
+    }
+    if (typeof aiMappings[rankStr] === "string") {
+      aiMappings[rankStr] = [aiMappings[rankStr]];
+    }
+    // Her rütbenin en az bir rolü olsun fallback olarak
+    if (aiMappings[rankStr].length === 0) {
       const match = discordRoles.find(dr =>
         dr.name.toLowerCase().replace(/[^a-z0-9]/g, "") === r.name.toLowerCase().replace(/[^a-z0-9]/g, "")
       );
       if (match) {
-        aiMappings[r.rank.toString()] = match.id;
+        aiMappings[rankStr].push(match.id);
       }
     }
   }
@@ -3401,9 +3413,15 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
 
   let mappedText = "";
   for (const r of rbxRoles) {
-    const matchedId = aiMappings[r.rank.toString()];
-    const roleObj = matchedId ? guild.roles.cache.get(matchedId) : null;
-    mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleObj ? roleObj.toString() : "❌ *Eşleştirilemedi*"}\n`;
+    const matchedVal = aiMappings[r.rank.toString()];
+    let roleDisplay = "❌ *Eşleştirilemedi*";
+    if (Array.isArray(matchedVal) && matchedVal.length > 0) {
+      roleDisplay = matchedVal.map(id => guild.roles.cache.get(id)?.toString() || `\`${id}\``).join(", ");
+    } else if (typeof matchedVal === "string" && matchedVal) {
+      const roleObj = guild.roles.cache.get(matchedVal);
+      roleDisplay = roleObj ? roleObj.toString() : `\`${matchedVal}\``;
+    }
+    mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleDisplay}\n`;
   }
 
   const setupEmbed = new EmbedBuilder()
