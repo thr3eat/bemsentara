@@ -28,6 +28,48 @@ const photoTracker = new Map();
 const botFriendTracker = new Map();
 
 function initializeDiscordHandlers(client) {
+  // 🚨 DM Spam Protection Patch
+  try {
+    const { User } = require("discord.js");
+    if (User && User.prototype) {
+      const origSend = User.prototype.send;
+      const dmTracker = new Map();
+      const GLOBAL_LIMIT = 15; // Max 15 DMs total in 1 minute
+      const USER_LIMIT = 3;    // Max 3 DMs to same user in 2 minutes
+      const globalTimestamps = [];
+
+      User.prototype.send = function (options) {
+        const now = Date.now();
+        const userId = this.id;
+
+        // Global limit check
+        while (globalTimestamps.length > 0 && now - globalTimestamps[0] > 60000) {
+          globalTimestamps.shift();
+        }
+        globalTimestamps.push(now);
+        if (globalTimestamps.length > GLOBAL_LIMIT) {
+          console.error(`🚨 [CRITICAL SPAM PROTECTION] Global DM limit exceeded (${globalTimestamps.length}/${GLOBAL_LIMIT} in 1 min). Shutting down bot...`);
+          process.exit(1);
+        }
+
+        // User limit check
+        let userTimestamps = dmTracker.get(userId) || [];
+        userTimestamps = userTimestamps.filter(t => now - t < 120000);
+        userTimestamps.push(now);
+        dmTracker.set(userId, userTimestamps);
+
+        if (userTimestamps.length > USER_LIMIT) {
+          console.error(`🚨 [CRITICAL SPAM PROTECTION] User DM limit exceeded for ${this.username || 'unknown'} (${userId}) (${userTimestamps.length}/${USER_LIMIT} in 2 mins). Shutting down bot...`);
+          process.exit(1);
+        }
+
+        return origSend.call(this, options);
+      };
+    }
+  } catch (err) {
+    console.error("[spamPatch] Failed to apply DM spam protection patch:", err.message);
+  }
+
   // Intercept and patch interaction replies to avoid ephemeral deprecation warnings
   try {
     const { CommandInteraction, MessageComponentInteraction, ModalSubmitInteraction, MessageFlags } = require("discord.js");
