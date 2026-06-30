@@ -888,6 +888,121 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Swear/NSFW Moderatör Hapis / Uyarı Butonları ──────────────────────────
+  if (customId.startsWith("jail_")) {
+    const parts = customId.split("_");
+    const action = parts[1]; // warn | immed | ignore
+    const guildId = parts[2];
+    const targetUserId = parts[3];
+    const targetMsgId = parts[4];
+    const duration = parts[5] ? parseInt(parts[5], 10) : 10; // Default 10 mins
+
+    await interaction.deferUpdate().catch(() => {});
+
+    let targetGuild = interaction.client.guilds.cache.get(guildId)
+      || await interaction.client.guilds.fetch(guildId).catch(() => null);
+    if (!targetGuild) return;
+
+    const User = require("../../models/User");
+    let dbUser = await User.findOne({ discordId: targetUserId });
+    if (!dbUser) {
+      dbUser = new User({ discordId: targetUserId, discordUsername: "Bilinmiyor" });
+    }
+
+    const targetUserObj = await interaction.client.users.fetch(targetUserId).catch(() => null);
+
+    let resultText = "";
+    let isJailAction = false;
+    let finalDuration = duration;
+
+    // Award Moderator reward (coins) in StaffProgress database
+    const StaffProgress = require("../../models/StaffProgress");
+    let modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (modProgress) {
+      if (!modProgress.gamification) {
+        modProgress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0 };
+      }
+      modProgress.gamification.ecoCoins = (modProgress.gamification.ecoCoins || 0) + 15; // Give 15 EkoCoins reward!
+      modProgress.stats.moderationActions = (modProgress.stats.moderationActions || 0) + 1;
+      await modProgress.save();
+      resultText += `\n\n💰 **Yetkili Ödülü:** Moderasyon işleminiz için **15 E.C. (EkoCoin)** kazandınız!`;
+    }
+
+    if (action === "ignore") {
+      resultText = `✅ **${targetUserObj?.tag || targetUserId}** için küfür ihlali yoksayıldı.` + resultText;
+    } else if (action === "warn") {
+      dbUser.warnCount = (dbUser.warnCount || 0) + 1;
+      await dbUser.save();
+
+      resultText = `⚠️ **${targetUserObj?.tag || targetUserId}** uyarıldı. (Güncel Uyarı: **${dbUser.warnCount}/3**)` + resultText;
+
+      // Send warning DM to target user
+      if (targetUserObj) {
+        await targetUserObj.send(
+          `⚠️ **EkoYıldız Moderasyonu Tarafından Uyarıldınız!**\n\n` +
+          `**Sebep:** Küfür / Uygunsuz içerik tespiti.\n` +
+          `**Uyarı Sayınız:** ${dbUser.warnCount}/3\n` +
+          `Uyarı sayınız 3'ü geçerse otomatik olarak hapishaneye gönderileceksiniz.`
+        ).catch(() => {});
+      }
+
+      if (dbUser.warnCount >= 3) {
+        isJailAction = true;
+        finalDuration = 30; // 30 minutes for 3 warnings
+      }
+    } else if (action === "immed") {
+      isJailAction = true;
+    }
+
+    if (isJailAction) {
+      const { jailUser } = require("../services/jailService");
+      const success = await jailUser(
+        interaction.client,
+        targetGuild,
+        targetUserId,
+        `Küfür/NSFW İhlali (Moderatör Onaylı: ${action === "warn" ? "3. Uyarı" : "Direkt Hapis"})`,
+        finalDuration,
+        interaction.user.id
+      );
+
+      if (success) {
+        resultText = `🔒 **${targetUserObj?.tag || targetUserId}** başarıyla **${finalDuration} dakika** hapishaneye atıldı.` + resultText;
+      } else {
+        resultText = `❌ **${targetUserObj?.tag || targetUserId}** hapise atılırken bir hata oluştu (Yetki eksikliği vb.).` + resultText;
+      }
+    }
+
+    // Update moderator's DM message to show action completed
+    const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+      .setColor(action === "ignore" ? 0x95a5a6 : (isJailAction ? 0x9b59b6 : 0xf39c12))
+      .setTitle("🚨 MODERASYON İŞLEMİ TAMAMLANDI")
+      .setDescription(
+        (interaction.message.embeds[0].description || "") +
+        `\n\n> **Uygulayan Yetkili:** ${interaction.user.toString()}\n> **Sonuç:** ${resultText}`
+      );
+
+    const disabledRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`disabled_warn`)
+        .setLabel("Uyarılmış")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`disabled_hapis`)
+        .setLabel("Hapise Atılmış")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`disabled_ignore`)
+        .setLabel("Yoksayılmış")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+    await interaction.editReply({ embeds: [updatedEmbed], components: [disabledRow] }).catch(() => {});
+    return;
+  }
+
   return null;
 }
 

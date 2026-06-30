@@ -106,6 +106,9 @@ function initializeDiscordHandlers(client) {
     const { initTMTInvites, ensureTMTLogEmbed } = require("../services/tmtLogger");
     const { ensureAlliedVerifyHelpMessage, ensureAlliedSupportMessage } = require("../services/alliedRoleSyncService");
     const { ensureAdminPanels } = require("../services/panelManager");
+    const { startJailScheduler } = require("../services/jailService");
+    
+    startJailScheduler(client);
 
     await ensureVerifyHelpMessage(client);
     await ensureVoicePanelMessage(client);
@@ -1114,6 +1117,110 @@ function initializeDiscordHandlers(client) {
 
 
   client.on("messageCreate", async (message) => {
+    // ── Profanity & Swear & NSFW Check ──
+    if (message.guild && !message.author.bot) {
+      try {
+        const swearWords = [
+          "siktir", "sikis", "sikem", "sikim", "sikti", "orospu", "pic", "amk", "yarrak", 
+          "got", "amina", "amini", "kaltak", "yavsak", "kahpe", "meme", "tassak", "tasak", 
+          "amcik", "gavat", "godos", "porno", "hentai", "nsfw", "sikiş", "piç", "göt", 
+          "amına", "amını", "yavşak", "taşşak", "taşak", "amcık", "godoş"
+        ];
+
+        const cleanedContent = message.content
+          .toLowerCase()
+          .replace(/\u0307/g, "")
+          .replace(/ı/g, "i")
+          .replace(/ğ/g, "g")
+          .replace(/ü/g, "u")
+          .replace(/ş/g, "s")
+          .replace(/ö/g, "o")
+          .replace(/ç/g, "c");
+
+        const hasSwear = swearWords.some(word => cleanedContent.includes(word));
+        if (hasSwear) {
+          // Notify Moderator
+          const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+          
+          let targetMod = null;
+          try {
+            const onlineMods = message.guild.members.cache.filter(m => 
+              !m.user.bot && 
+              (m.permissions.has(PermissionFlagsBits.ManageMessages) || m.permissions.has(PermissionFlagsBits.Administrator)) &&
+              m.presence && (m.presence.status === "online" || m.presence.status === "dnd" || m.presence.status === "idle")
+            );
+            if (onlineMods.size > 0) {
+              targetMod = onlineMods.random();
+            }
+          } catch (_) {}
+
+          if (!targetMod) {
+            targetMod = await message.guild.members.fetch("1031620522406072350").catch(() => null);
+          }
+          if (!targetMod) {
+            targetMod = message.guild.members.cache.find(m => !m.user.bot && m.permissions.has(PermissionFlagsBits.Administrator));
+          }
+
+          if (targetMod) {
+            // AI Evaluation of the severity
+            let severity = "orta";
+            let suggestedDuration = 15;
+            try {
+              const { chatWithAI } = require("../services/aiService");
+              const aiPrompt = "Sen bir Discord moderasyon asistanısın. Kullanıcı tarafından yazılan küfürlü mesajın ciddiyetini değerlendir. " +
+                               "Aşırı derecede kötü veya cinsel içerikliyse yüksek süre ver. Hafif küfür ise düşük süre ver. " +
+                               "Yalnızca JSON formatında yanıt dön: {\"severity\": \"dusuk|orta|yuksek\", \"minutes\": 10-180 arası sayı}";
+              const aiResponse = await chatWithAI(`Kullanıcı Mesajı: "${message.content}"`, aiPrompt).catch(() => null);
+              if (aiResponse) {
+                const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
+                const parsed = JSON.parse(cleanJson);
+                severity = parsed.severity || severity;
+                suggestedDuration = parsed.minutes || suggestedDuration;
+              }
+            } catch (err) {
+              console.error("[SwearDetector] AI değerlendirme hatası:", err.message);
+            }
+
+            const embed = new EmbedBuilder()
+              .setTitle("🚨 KÜFÜR VEYA UYGUNSUZ İÇERİK ALGILANDI")
+              .setColor(0xe74c3c)
+              .setDescription(
+                `Sunucuda küfür veya uygunsuz içerik barındıran bir mesaj tespit edildi.\n\n` +
+                `👤 **Kullanıcı:** ${message.author.toString()} (\`${message.author.tag}\`)\n` +
+                `🏠 **Sunucu:** ${message.guild.name}\n` +
+                `📂 **Kanal:** <#${message.channel.id}>\n` +
+                `📝 **İçerik:** \`${message.content}\`\n\n` +
+                `🤖 **AI Değerlendirmesi:**\n` +
+                `• **Önem Derecesi:** \`${severity.toUpperCase()}\`\n` +
+                `• **Önerilen Hapis Süresi:** \`${suggestedDuration} dakika\``
+              )
+              .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`jail_warn_${message.guild.id}_${message.author.id}_${message.id}`)
+                .setLabel("⚠️ UYAR")
+                .setStyle(ButtonStyle.Primary),
+              new ButtonBuilder()
+                .setCustomId(`jail_immed_${message.guild.id}_${message.author.id}_${message.id}_${suggestedDuration}`)
+                .setLabel("🔒 HAPİSE AT")
+                .setStyle(ButtonStyle.Danger),
+              new ButtonBuilder()
+                .setCustomId(`jail_ignore_${message.guild.id}_${message.author.id}_${message.id}`)
+                .setLabel("✅ YOKSAY")
+                .setStyle(ButtonStyle.Secondary)
+            );
+
+            await targetMod.send({ embeds: [embed], components: [row] }).catch((err) => {
+              console.error(`[SwearDetector] Yetkiliye DM gönderilemedi:`, err.message);
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[SwearDetector] Hata:", err);
+      }
+    }
+
     // Son mesajları Telegram AI kullanımı için kaydet
     try {
       const { recordMessage } = require("../services/telegramService");

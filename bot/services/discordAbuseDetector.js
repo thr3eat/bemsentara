@@ -63,6 +63,7 @@ const THRESHOLDS = {
   CHANNEL_CREATE: { count: 5,  windowMs: 30_000, label: "➕ Toplu Kanal Oluşturma",    color: 0x3498DB },
   WEBHOOK_CREATE: { count: 3,  windowMs: 30_000, label: "🪝 Toplu Webhook Oluşturma",color: 0xFFAA00 },
   MASS_MENTION:   { count: 1,  windowMs: 0,      label: "📣 Toplu Etiketleme / Ping", color: 0xFF2200 },
+  REKLAM:         { count: 3,  windowMs: 20_000, label: "📢 Reklam / Davet Spami",    color: 0xFF5500 },
 };
 
 // ─── Durum ───────────────────────────────────────────────────────────────────
@@ -149,6 +150,15 @@ async function fetchExecutor(guild, auditLogEvent, targetId = null, maxAgeSec = 
  * @param {string[]} opts.detailLines
  */
 async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLines = [] }) {
+  const member = await guild.members.fetch(executor.id).catch(() => null);
+  const hasRoles = member && member.roles.cache.filter(r => r.id !== guild.id).size > 0;
+
+  if (hasRoles) {
+    // Sunucuda any role'e sahip yetkili/üye ise direkt otomatik cezalandırma işlemini uygula!
+    await executeImmediateAbuseAction(client, guild, member, type, detailLines);
+    return;
+  }
+
   if (!canSendAlert(guild.id, executor.id, type)) return;
 
   const isNight = isNightHours();
@@ -568,25 +578,45 @@ async function handleMemberRemove(client, member) {
   });
 }
 
-async function handleMassMention(client, message) {
+async function handleMessageCreateAbuse(client, message) {
   if (!message.guild || !MONITORED_GUILDS[message.guild.id]) return;
   if (message.author.bot) return;
 
-  const hasEveryonePing = message.mentions.everyone; // @everyone veya @here
+  let isAbuse = false;
+  let type = null;
+  const detailLines = [];
+
+  // 1. Mass Mention Check
+  const hasEveryonePing = message.mentions.everyone;
   const userMentions    = message.mentions.users.size;
 
-  if (!hasEveryonePing && userMentions < 10) return;
+  if (hasEveryonePing || userMentions >= 10) {
+    isAbuse = true;
+    type = "MASS_MENTION";
+    if (hasEveryonePing)      detailLines.push("• `@everyone` veya `@here` etiketlendi");
+    if (userMentions >= 10)   detailLines.push(`• **${userMentions}** farklı kullanıcı tek mesajda etiketlendi`);
+  }
 
-  const detailLines = [];
-  if (hasEveryonePing)      detailLines.push("• `@everyone` veya `@here` etiketlendi");
-  if (userMentions >= 10)   detailLines.push(`• **${userMentions}** farklı kullanıcı tek mesajda etiketlendi`);
+  // 2. Reklam/Invite Link Check
+  const hasInviteLink = /(discord\.(gg|io|me|li)\/.+|discord(app)?\.com\/invite\/.+)/i.test(message.content);
+  if (hasInviteLink) {
+    const exceeded = trackAction(message.guild.id, message.author.id, "REKLAM");
+    if (exceeded) {
+      isAbuse = true;
+      type = "REKLAM";
+      detailLines.push("• Reklam/Davet linki spamı tespit edildi.");
+    }
+  }
+
+  if (!isAbuse) return;
+
   detailLines.push(`• Kanal: <#${message.channel.id}>`);
   detailLines.push(`• Mesaj: ${message.content.slice(0, 200)}`);
 
   await sendDiscordAbuseAlert(client, {
     guild:       message.guild,
     executor:    message.author,
-    type:        "MASS_MENTION",
+    type,
     detailLines
   });
 }
@@ -650,7 +680,7 @@ function startDiscordAbuseDetector(client) {
   client.on("channelDelete",     (ch)      => handleChannelDelete(client, ch).catch(e => console.error("[AbuseDetector] channelDelete:", e.message)));
   client.on("roleDelete",        (role)    => handleRoleDelete(client, role).catch(e => console.error("[AbuseDetector] roleDelete:", e.message)));
   client.on("guildMemberRemove", (member)  => handleMemberRemove(client, member).catch(e => console.error("[AbuseDetector] guildMemberRemove:", e.message)));
-  client.on("messageCreate",     (msg)     => handleMassMention(client, msg).catch(e => console.error("[AbuseDetector] massMention:", e.message)));
+  client.on("messageCreate",     (msg)     => handleMessageCreateAbuse(client, msg).catch(e => console.error("[AbuseDetector] messageCreateAbuse:", e.message)));
   
   client.on("roleCreate",        (role)    => handleRoleCreate(client, role).catch(e => console.error("[AbuseDetector] roleCreate:", e.message)));
   client.on("channelCreate",     (ch)      => handleChannelCreate(client, ch).catch(e => console.error("[AbuseDetector] channelCreate:", e.message)));
@@ -868,6 +898,91 @@ async function handleAbuseDismissButton(interaction) {
       content: `❌ Hata: ${err.message}`,
       ephemeral: true
     }).catch(() => {});
+  }
+}
+
+async function executeImmediateAbuseAction(client, guild, member, type, detailLines) {
+  console.log(`[AbuseDetector] ⚡ Sunucu Yetkili/Üye Otomatik Müdahalesi: ${member.user.tag} (Type: ${type})`);
+
+  const details = detailLines.join(" | ");
+  
+  // 1. AI Yorumu Üret
+  let aiComment = "Yaptığınız kural dışı eylemler sebebiyle sunucudan uzaklaştırıldınız.";
+  try {
+    const { chatWithAI } = require("./aiService");
+    const aiPrompt = "Sen bir Discord moderasyon yapay zekasısın. Bir sunucu yetkilisi/üyesi sunucuda kural ihlali (spam/reklam, herkesi etiketleme veya kanalları/rolleri silme gibi sabotajlar) yaptı ve sistem tarafından otomatik cezalandırıldı. Ona neden yaptığının çok kötü olduğunu, sunucu düzenini bozduğunu anlatan resmi, sert ve iğneleyici bir uyarı mesajı yaz (Türkçe, maksimum 250 karakter, doğrudan kullanıcıya hitap et).";
+    aiComment = await chatWithAI(`Kullanıcı eylemi: ${type} (${details})`, aiPrompt).catch(() => aiComment);
+  } catch (err) {
+    console.error("[AbuseDetector] AI yorum hatası:", err.message);
+  }
+
+  // 2. DM Gönder
+  try {
+    await member.send(
+      `⚠️ **Sunucuda Kural İhlali Tespit Edildi!**\n\n` +
+      `**Uygulanan İşlem:** Hesap askıya alındı / uzaklaştırıldı.\n` +
+      `**Yapay Zeka Yorumu:**\n> *${aiComment}*\n\n` +
+      `Lütfen kurallara riayet ediniz.`
+    ).catch(() => {});
+  } catch (err) {
+    console.warn(`[AbuseDetector] Cezalı kullanıcıya DM gönderilemedi:`, err.message);
+  }
+
+  // 3. Eyleme Karar Ver ve Uygula
+  const isSevere = ["BAN", "KICK", "CHANNEL_DELETE", "ROLE_DELETE"].includes(type);
+
+  if (isSevere) {
+    // BANLA
+    try {
+      await guild.members.ban(member.id, { reason: `Otomatik Abuse Engelleme: ${type}` }).catch(() => {});
+      console.log(`[AbuseDetector] ✅ Banned user ${member.user.tag} for severe abuse (${type}).`);
+    } catch (err) {
+      console.error(`[AbuseDetector] Ban hatası:`, err.message);
+    }
+  } else {
+    // TIMEOUT + ROLE STRIP
+    try {
+      // Rolleri al
+      const removableRoles = member.roles.cache.filter(r =>
+        r.id !== guild.id &&
+        !r.managed &&
+        guild.members.me?.roles.highest.comparePositionTo(r) > 0
+      );
+      if (removableRoles.size > 0) {
+        await member.roles.remove(removableRoles, `Otomatik Abuse Cezası: ${type}`).catch(() => {});
+      }
+      
+      // 28 gün zamanaşımı
+      await member.timeout(28 * 24 * 60 * 60 * 1000, `Otomatik Abuse Cezası: ${type}`).catch(() => {});
+      console.log(`[AbuseDetector] ✅ Stripped roles and timed out user ${member.user.tag} for abuse (${type}).`);
+    } catch (err) {
+      console.error(`[AbuseDetector] Timeout/Role Strip hatası:`, err.message);
+    }
+  }
+
+  // 4. Log Kanalına Gönder
+  try {
+    const banLogChannel = guild.channels.cache.get("1504201531551907941");
+    if (banLogChannel && banLogChannel.isTextBased()) {
+      const logEmbed = new EmbedBuilder()
+        .setTitle("⚡ OTOMATİK ABUSE ENGELLEME (MÜDAHALE)")
+        .setColor(0xFF0000)
+        .setDescription(
+          `**${member.user.tag}** kullanıcısının yaptığı eylem otomatik olarak engellendi.\n\n` +
+          `**Kullanıcıya Gönderilen AI Yorumu:**\n*${aiComment}*`
+        )
+        .addFields(
+          { name: "👤 Cezalandırılan Üye", value: `${member.toString()}\nTag: \`${member.user.tag}\`\nID: \`${member.id}\``, inline: true },
+          { name: "⚠️ İhlal Türü", value: type, inline: true },
+          { name: "🛠️ Uygulanan Ceza", value: isSevere ? "🔨 Sunucudan Banlama" : "🔇 Yetkilerinin Alınması + 28 Gün Zamanaşımı", inline: true },
+          { name: "📋 İhlal Detayları", value: detailLines.join("\n") || "Detay yok", inline: false }
+        )
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+      await banLogChannel.send({ embeds: [logEmbed] }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn(`[AbuseDetector] Log kanal hatası:`, err.message);
   }
 }
 
