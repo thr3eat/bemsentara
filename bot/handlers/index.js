@@ -1152,6 +1152,11 @@ function initializeDiscordHandlers(client) {
 
 
   client.on("messageCreate", async (message) => {
+    if (message.guild) {
+      const { isGuildAuthorized } = require("../services/guildAuthService");
+      const authorized = await isGuildAuthorized(message.guild);
+      if (!authorized) return;
+    }
     // ── Profanity & Swear & NSFW Check ──
     if (message.guild && !message.author.bot) {
       try {
@@ -1579,6 +1584,70 @@ function initializeDiscordHandlers(client) {
           await statusMsg.edit(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
         } else {
           await message.reply(`❌ Kurulum başlatılırken bir hata oluştu: ${err.message}`).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (message.content === "!rolleritamtersineceviryoneticiizniile") {
+      const { PermissionFlagsBits } = require("discord.js");
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply("❌ Bu komutu sadece sunucu yöneticileri kullanabilir!");
+      }
+
+      const statusMsg = await message.reply("⏳ Rollerin hiyerarşik sıralaması tersine çevriliyor...").catch(() => null);
+
+      try {
+        const botMember = message.guild.members.me || await message.guild.members.fetch(message.client.user.id).catch(() => null);
+        if (!botMember) {
+          throw new Error("Bot üye bilgisi alınamadı.");
+        }
+        
+        if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+          throw new Error("Botun `Rolleri Yönet` yetkisi bulunmuyor.");
+        }
+
+        // Fetch all roles, filter out @everyone, managed roles, and roles higher/equal to bot's highest role
+        const allRoles = await message.guild.roles.fetch();
+        const rolesToMove = allRoles
+          .filter(r => 
+            r.id !== message.guild.id && 
+            !r.managed && 
+            botMember.roles.highest.comparePositionTo(r) > 0
+          )
+          .sort((a, b) => a.position - b.position);
+
+        if (rolesToMove.size < 2) {
+          throw new Error("Tersine çevrilecek yeterli sayıda hareket ettirilebilir rol bulunamadı (en az 2 rol gerekli).");
+        }
+
+        const rolesArray = Array.from(rolesToMove.values());
+        const originalPositions = rolesArray.map(r => r.position);
+        const reversedPositions = [...originalPositions].reverse();
+
+        const positionPayload = rolesArray.map((role, idx) => ({
+          role: role.id,
+          position: reversedPositions[idx]
+        }));
+
+        await message.guild.roles.setPositions(positionPayload);
+
+        const replyText = `✅ **Rollerin Hiyerarşik Sıralaması Başarıyla Tersine Çevrildi!**\n\n` +
+                          `• Toplam **${rolesArray.length}** rolün sırası değiştirildi.\n` +
+                          `• En üstteki rol en alta, en alttaki rol ise en üste taşındı.`;
+                          
+        if (statusMsg) {
+          await statusMsg.edit(replyText).catch(() => message.reply(replyText));
+        } else {
+          await message.reply(replyText);
+        }
+      } catch (err) {
+        console.error("[RolTersineCevir] Error:", err);
+        const errorText = `❌ Rollerin sırası tersine çevrilirken bir hata oluştu: ${err.message}`;
+        if (statusMsg) {
+          await statusMsg.edit(errorText).catch(() => message.reply(errorText));
+        } else {
+          await message.reply(errorText);
         }
       }
       return;
@@ -2293,6 +2362,10 @@ function initializeDiscordHandlers(client) {
   // ── Bot sunucuya eklendi — Otomatik setup ───────────────────────────────────
   client.on("guildCreate", async (guild) => {
     try {
+      const { isGuildAuthorized } = require("../services/guildAuthService");
+      const authorized = await isGuildAuthorized(guild);
+      if (!authorized) return;
+
       console.log(`[guildCreate] 🤖 Bot ${guild.name} (${guild.id}) sunucusuna eklendi. Setup başlatılıyor...`);
 
       // ready event'inde yapılan tüm setup fonksiyonlarını çağır
@@ -2333,6 +2406,13 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     try {
+      if (interaction.guild) {
+        const { isGuildAuthorized } = require("../services/guildAuthService");
+        const authorized = await isGuildAuthorized(interaction.guild);
+        if (!authorized) {
+          return interaction.reply({ content: "❌ Bu sunucu yetkilendirilmemiştir. Bot bu sunucuda kullanılamaz.", ephemeral: true }).catch(() => {});
+        }
+      }
       // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
         await handleSurveyButton(interaction, client);
