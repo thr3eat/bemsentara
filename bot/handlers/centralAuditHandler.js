@@ -26,12 +26,45 @@ const {
 const { recordModAction, isStaffMember, REPORT_GUILD_ID } = require("../services/modReportTracker");
 const { AuditLogEvent } = require("discord.js");
 
+// ─── Yardımcı: Audit Log'dan işlemi yapan personeli bul ve kaydet ────────────
+/**
+ * @param {import('discord.js').Guild} guild
+ * @param {AuditLogEvent} type
+ * @param {string} targetId
+ * @param {string} actionType     - 'kick' | 'ban' | 'timeout'
+ * @param {string} targetTag
+ * @param {string} [extraReason]
+ */
+async function detectAndRecord(guild, type, targetId, actionType, targetTag, extraReason) {
+  if (guild?.id !== REPORT_GUILD_ID) return;
+  try {
+    const auditLogs = await guild.fetchAuditLogs({ limit: 5, type });
+    const entry = auditLogs.entries.first();
+    if (!entry) return;
+    if (entry.target?.id !== targetId) return;
+    if (Date.now() - entry.createdTimestamp >= 10000) return;
+    if (entry.executor?.bot) return;
+
+    const executor = await guild.members.fetch(entry.executor.id).catch(() => null);
+    if (executor && isStaffMember(executor)) {
+      recordModAction(
+        entry.executor.id,
+        actionType,
+        targetId,
+        targetTag,
+        extraReason || entry.reason || 'Sebep belirtilmedi'
+      );
+    }
+  } catch (_) { }
+}
+
+// ─── Handler Kurulumu ─────────────────────────────────────────────────────────
 /**
  * Merkezi denetim günlüğü event listenerlarını kaydet
- * @param {import('discord.js').Client} client 
+ * @param {import('discord.js').Client} client
  */
 function setupCentralAuditHandler(client) {
-  // ─── Üye Olayları ────────────────────────────────────────────────────────
+  // ─── Üye Olayları ──────────────────────────────────────────────────────────
   client.on("guildMemberAdd", async (member) => {
     try {
       await logMemberJoin(member);
@@ -43,34 +76,47 @@ function setupCentralAuditHandler(client) {
   client.on("guildMemberRemove", async (member) => {
     try {
       await logMemberLeave(member);
-
-      // ── Rapor Takip: Kick işlemini yapan personeli tespit et ──
-      if (member.guild?.id === REPORT_GUILD_ID) {
-        try {
-          const auditLogs = await member.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.MemberKick });
-          const entry = auditLogs.entries.first();
-          if (entry && entry.target?.id === member.id && (Date.now() - entry.createdTimestamp) < 10000) {
-            const executor = await member.guild.members.fetch(entry.executor.id).catch(() => null);
-            if (executor && isStaffMember(executor) && !entry.executor.bot) {
-              recordModAction(entry.executor.id, 'kick', member.id, member.user.tag, entry.reason || 'Sebep belirtilmedi');
-            }
-          }
-        } catch (_) {}
-      }
+      await detectAndRecord(
+        member.guild,
+        AuditLogEvent.MemberKick,
+        member.id,
+        'kick',
+        member.user.tag
+      );
     } catch (err) {
       console.error("[CentralAudit] guildMemberRemove hatası:", err.message);
     }
   });
 
+  // FIX: Tek bir guildMemberUpdate — hem logMemberUpdate, hem logMemberTimeout,
+  // hem de timeout rapor takibi burada birleştirildi.
   client.on("guildMemberUpdate", async (oldMember, newMember) => {
     try {
       await logMemberUpdate(oldMember, newMember);
+      await logMemberTimeout(oldMember, newMember);
+
+      // Timeout rapor takibi: sadece yeni timeout uygulandıysa
+      if (
+        !oldMember.communicationDisabledUntil &&
+        newMember.communicationDisabledUntil
+      ) {
+        const duration = newMember.communicationDisabledUntil.getTime() - Date.now();
+        const mins = Math.floor(duration / 60000);
+        await detectAndRecord(
+          newMember.guild,
+          AuditLogEvent.MemberUpdate,
+          newMember.id,
+          'timeout',
+          newMember.user.tag,
+          `Timeout süresi: ${mins} dakika`
+        );
+      }
     } catch (err) {
       console.error("[CentralAudit] guildMemberUpdate hatası:", err.message);
     }
   });
 
-  // ─── Mesaj Olayları ──────────────────────────────────────────────────────
+  // ─── Mesaj Olayları ────────────────────────────────────────────────────────
   client.on("messageDelete", async (message) => {
     try {
       await logMessageDelete(message);
@@ -95,7 +141,7 @@ function setupCentralAuditHandler(client) {
     }
   });
 
-  // ─── Rol Olayları ────────────────────────────────────────────────────────
+  // ─── Rol Olayları ──────────────────────────────────────────────────────────
   client.on("roleCreate", async (role) => {
     try {
       await logRoleCreate(role);
@@ -120,7 +166,7 @@ function setupCentralAuditHandler(client) {
     }
   });
 
-  // ─── Kanal Olayları ──────────────────────────────────────────────────────
+  // ─── Kanal Olayları ────────────────────────────────────────────────────────
   client.on("channelCreate", async (channel) => {
     try {
       await logChannelCreate(channel);
@@ -145,24 +191,18 @@ function setupCentralAuditHandler(client) {
     }
   });
 
-  // ─── Moderasyon Olayları ─────────────────────────────────────────────────
+  // ─── Moderasyon Olayları ───────────────────────────────────────────────────
   client.on("guildBanAdd", async (ban) => {
     try {
       await logUserBan(ban);
-
-      // ── Rapor Takip: Ban işlemini yapan personeli tespit et ──
-      if (ban.guild?.id === REPORT_GUILD_ID) {
-        try {
-          const auditLogs = await ban.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.MemberBanAdd });
-          const entry = auditLogs.entries.first();
-          if (entry && entry.target?.id === ban.user.id && (Date.now() - entry.createdTimestamp) < 10000) {
-            const executor = await ban.guild.members.fetch(entry.executor.id).catch(() => null);
-            if (executor && isStaffMember(executor) && !entry.executor.bot) {
-              recordModAction(entry.executor.id, 'ban', ban.user.id, ban.user.tag, ban.reason || 'Sebep belirtilmedi');
-            }
-          }
-        } catch (_) {}
-      }
+      await detectAndRecord(
+        ban.guild,
+        AuditLogEvent.MemberBanAdd,
+        ban.user.id,
+        'ban',
+        ban.user.tag,
+        ban.reason
+      );
     } catch (err) {
       console.error("[CentralAudit] guildBanAdd hatası:", err.message);
     }
@@ -176,44 +216,14 @@ function setupCentralAuditHandler(client) {
     }
   });
 
-  client.on("guildMemberUpdate", async (oldMember, newMember) => {
-    try {
-      // Timeout durumunu kontrol et
-      await logMemberTimeout(oldMember, newMember);
-
-      // ── Rapor Takip: Timeout işlemini yapan personeli tespit et ──
-      if (newMember.guild?.id === REPORT_GUILD_ID && !oldMember.communicationDisabledUntil && newMember.communicationDisabledUntil) {
-        try {
-          const auditLogs = await newMember.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.MemberUpdate });
-          const entry = auditLogs.entries.first();
-          if (entry && entry.target?.id === newMember.id && (Date.now() - entry.createdTimestamp) < 10000) {
-            const executor = await newMember.guild.members.fetch(entry.executor.id).catch(() => null);
-            if (executor && isStaffMember(executor) && !entry.executor.bot) {
-              const duration = newMember.communicationDisabledUntil.getTime() - Date.now();
-              const mins = Math.floor(duration / 60000);
-              recordModAction(entry.executor.id, 'timeout', newMember.id, newMember.user.tag, `Timeout süresi: ${mins} dakika. Sebep: ${entry.reason || 'Belirtilmedi'}`);
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (err) {
-      console.error("[CentralAudit] timeout detection hatası:", err.message);
-    }
-  });
-
-  // ─── Ses Olayları ────────────────────────────────────────────────────────
+  // ─── Ses Olayları ──────────────────────────────────────────────────────────
   client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
-      // Katılım
       if (!oldState.channel && newState.channel) {
         await logVoiceJoin(oldState, newState);
-      }
-      // Ayrılış
-      else if (oldState.channel && !newState.channel) {
+      } else if (oldState.channel && !newState.channel) {
         await logVoiceLeave(oldState, newState);
-      }
-      // Kanal değişimi (taşıma)
-      else if (oldState.channel?.id !== newState.channel?.id) {
+      } else if (oldState.channel?.id !== newState.channel?.id) {
         await logVoiceMove(oldState, newState);
       }
     } catch (err) {
