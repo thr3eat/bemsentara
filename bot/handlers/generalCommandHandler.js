@@ -3350,15 +3350,9 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
     }
 
     const systemPrompt = "Sen bir rol eşleştirme asistanısın. Roblox grup rütbeleri ile Discord rollerini ad benzerliği ve rütbe seviyesine göre en doğru şekilde eşleştir.\n" +
-      "Her bir Roblox rütbesine (rank numarasına) EN AZ 6 ADET Discord rolü eşleştirmen gerekiyor. Her rank için mutlaka şunları dahil et:\n" +
-      "- Rütbe rolü (Spesifik rütbe ismi)\n" +
-      "- Kategori/Tier rolü (HQ, ordu personeli vb.)\n" +
-      "- Branş rolü (Özel Kuvvetler Personeli vb.)\n" +
-      "- Genel rol (Askeri Personel, Doğrulanmış Personel vb.)\n" +
-      "- Durum/İzin rolleri (Duyuru Yetkisi, Birimsiz, Branşsız/Branşlı Personel vb.)\n" +
-      "- Çizgi/Seperatör rolleri (▬▬▬▬▬▬▬▬▬▬▬▬▬ vb.)\n\n" +
+      "Her bir Roblox rütbesine (rank numarasına) o rütbeye uygun olan TÜM Discord rol ID'lerini bir dizi (array) olarak eşleştir. Bir rütbeye birden fazla rol atanabilir (örneğin hem genel askeri personel, hem branş personeli, hem seperatör rolü vb.). Her rütbenin değerine olabildiğince çok sayıda (en az 6 adet) uygun rol eşleştir.\n\n" +
       "Sadece geçerli bir JSON objesi dön. Obje anahtarları Roblox rank numarası (ör: \"254\"), değerleri ise o ranka atanacak Discord rol ID'lerinin dizisi (array of strings) (ör: [\"1518926498361376768\", \"1518926498361376769\", ...]) olsun. " +
-      "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme. Tüm branşlar için bu en az 6 rol eşleştirme kuralını kesinlikle uygula." + specialGuidelines;
+      "Eşleşmeyenleri dahil etme. JSON dışında açıklama veya ek metin kesinlikle ekleme. Tüm branşlar için bu çoklu rol eşleştirme kuralını kesinlikle uygula." + specialGuidelines;
 
     const aiResponse = await chatWithAI(`Roblox Rütbeleri:\n${rbxList}\n\nDiscord Rolleri:\n${discList}`, systemPrompt).catch(() => null);
     if (aiResponse) {
@@ -3380,7 +3374,6 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
     if (typeof aiMappings[rankStr] === "string") {
       aiMappings[rankStr] = [aiMappings[rankStr]];
     }
-    // Her rütbenin en az bir rolü olsun fallback olarak
     if (aiMappings[rankStr].length === 0) {
       const match = discordRoles.find(dr =>
         dr.name.toLowerCase().replace(/[^a-z0-9]/g, "") === r.name.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -3389,6 +3382,80 @@ async function startServerSetupFlow({ guild, user, groupIdStr, replyCallback }) 
         aiMappings[rankStr].push(match.id);
       }
     }
+  }
+
+  // Auto-bundling helper to guarantee at least 6 roles per rank (or as many suitable roles as possible)
+  const separatorRole = discordRoles.find(r => r.name.includes("▬") || r.name.includes("—") || r.name.includes("___"));
+  const generalRole = discordRoles.find(r => r.name.toLowerCase().includes("askeri personel") || r.name.toLowerCase() === "personel");
+  const verifiedRole = discordRoles.find(r => r.name.toLowerCase().includes("doğrulanmış") || r.name.toLowerCase().includes("verified"));
+  const hqRole = discordRoles.find(r => r.name.toUpperCase().includes("HQ") || r.name.toLowerCase().includes("yönetim"));
+  const birimsizRole = discordRoles.find(r => r.name.toLowerCase().includes("birimsiz"));
+  const duyuruRole = discordRoles.find(r => r.name.toLowerCase().includes("duyuru"));
+
+  // Grubun isminden temizleyerek branş ismini bulalım
+  const cleanedGroupName = groupName.replace(/TMT/gi, "").replace(/Komutanlığı/gi, "").replace(/Müfettişleri/gi, "").trim();
+  const branchKeywords = cleanedGroupName.split(" ").filter(w => w.length > 2);
+  
+  const branchRole = discordRoles.find(r => {
+    const nameLower = r.name.toLowerCase();
+    const hasKeyword = branchKeywords.some(w => nameLower.includes(w.toLowerCase()));
+    return hasKeyword && (nameLower.includes("personel") || nameLower.includes("üye") || nameLower.includes("asker") || nameLower.includes("komutanlığı"));
+  }) || discordRoles.find(r => r.name.toLowerCase().includes("personel") && !r.name.toLowerCase().includes("askeri"));
+
+  // Check if target is Özel Kuvvetler Komutanlığı
+  const isÖzelKuvvetler = groupId === 33708598 || groupName.includes("Özel Kuvvetler");
+  const ozelKuvvetlerKomutanYardimcisiRole = discordRoles.find(r => r.name.toLowerCase().includes("komutan yardımcısı"));
+
+  for (const r of rbxRoles) {
+    const rankStr = r.rank.toString();
+    const rank = r.rank;
+    if (rank === 0) continue; // Guest
+
+    const roleSet = new Set(aiMappings[rankStr] || []);
+
+    // 1. Separator Ekle (çizgi)
+    if (separatorRole) roleSet.add(separatorRole.id);
+
+    // 2. Doğrulanmış Personel ekle
+    if (verifiedRole) roleSet.add(verifiedRole.id);
+
+    // Rütbesinde kesik çizgiler olan seperatör rütbeleri ise sadece seperatör ve doğrulanmış alsın
+    const isSeparatorRank = r.name.includes("---") || r.name.includes("___") || r.name.includes("▬");
+    if (isSeparatorRank) {
+      aiMappings[rankStr] = Array.from(roleSet);
+      continue;
+    }
+
+    // 3. Branş Personel / Üye Rolü ekle
+    if (branchRole) roleSet.add(branchRole.id);
+
+    // 4. Genel Askeri Personel ekle
+    if (generalRole) roleSet.add(generalRole.id);
+
+    // 5. Birimsiz ekle
+    if (birimsizRole) roleSet.add(birimsizRole.id);
+
+    // HQ / Yönetim seviyesi rütbeleri (Rank >= 50 veya komutan/yardımcı rütbeleri)
+    const isHQRank = rank >= 50 || r.name.toLowerCase().includes("komutan") || r.name.toLowerCase().includes("şef") || r.name.toLowerCase().includes("lider");
+    if (isHQRank) {
+      // 6. HQ Rolü ekle
+      if (hqRole) roleSet.add(hqRole.id);
+      
+      // 7. Duyuru Yetkisi ekle
+      if (duyuruRole) roleSet.add(duyuruRole.id);
+
+      // Özel Kuvvetler Komutan Yardımcısı ekle (Rank >= 69 için)
+      if (isÖzelKuvvetler && rank >= 69 && ozelKuvvetlerKomutanYardimcisiRole) {
+        roleSet.add(ozelKuvvetlerKomutanYardimcisiRole.id);
+      }
+    }
+
+    // If still less than 6 roles and we have duyuruRole, add it to officers (Rank >= 23)
+    if (roleSet.size < 6 && rank >= 23 && duyuruRole) {
+      roleSet.add(duyuruRole.id);
+    }
+
+    aiMappings[rankStr] = Array.from(roleSet);
   }
 
   const ServerSetup = require("../../models/ServerSetup");
