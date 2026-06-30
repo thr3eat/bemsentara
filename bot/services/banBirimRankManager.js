@@ -24,13 +24,18 @@ async function ensureBanBirimRoles(guild, season = 1) {
 
       if (role) {
         rolesFound++;
-        // Varsa güncelle
-        await role.edit({
-          color: rankData.color,
-          position: 0, // En aşağıda tut
-        }).catch(err => {
-          console.warn(`[banRankManager] Rol güncelleme hatası (${roleName}):`, err.message);
-        });
+        // Yalnızca renk farklıysa güncelle — gereksiz API çağrısını ve audit log kirliliğini önler
+        const currentHex = role.hexColor?.toLowerCase();
+        const expectedHex = typeof rankData.color === 'string'
+          ? rankData.color.toLowerCase()
+          : `#${rankData.color.toString(16).padStart(6, '0')}`.toLowerCase();
+        if (currentHex !== expectedHex) {
+          await role.edit({
+            color: rankData.color,
+          }).catch(err => {
+            console.warn(`[banRankManager] Rol güncelleme hatası (${roleName}):`, err.message);
+          });
+        }
       } else {
         // Oluştur
         try {
