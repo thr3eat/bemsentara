@@ -202,9 +202,11 @@ async function handleDMMessage(message, client) {
     return;
   }
 
-  // İlk kez yazıyor → Üç butonlu akıllı menüyü göster
+  // İlk kez yazıyor → Akıllı menüyü göster
   if (!dmConversations.has(userId)) {
     pendingConfirmation.set(userId, true);
+
+    const isMod = await isModeratorOrStaff(userId, client);
 
     const embed = new EmbedBuilder()
       .setColor(0x7c6af7)
@@ -212,8 +214,8 @@ async function handleDMMessage(message, client) {
       .setDescription(
         'Hoş geldiniz! Yapmak istediğiniz işlemi aşağıdaki butonları kullanarak seçebilirsiniz:\n\n' +
         '🟢 **Normal Destek Aç:** Yetkililere doğrudan ulaşmak için bilet oluşturun.\n' +
-        '🤖 **Yapay Zeka Destek:** Sorularınızı sormak için EkoBot AI ile doğrudan sohbete başlayın.\n' +
-        '🚨 **ACİL YAPAY ZEKAYA BAĞLAN:** Sunucudaki istilacı/abusecileri raporlayıp banlatın veya bot spamlarını durdurun.'
+        '🤖 **Yapay Zeka Destek:** Sorularınızı sormak için EkoBot AI ile doğrudan sohbete başlayın.' +
+        (isMod ? '\n🚨 **ACİL YAPAY ZEKAYA BAĞLAN:** Sunucudaki istilacı/abusecileri raporlayıp banlatın veya bot spamlarını durdurun.' : '')
       )
       .setFooter({ text: 'Sentara Güvenlik & Destek' });
 
@@ -225,12 +227,17 @@ async function handleDMMessage(message, client) {
       new ButtonBuilder()
         .setCustomId(`dm_confirm_ai_${userId}`)
         .setLabel('🤖 Yapay Zeka Destek')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`dm_confirm_emergency_${userId}`)
-        .setLabel('🚨 ACİL AI BAĞLAN')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Primary)
     );
+
+    if (isMod) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`dm_confirm_emergency_${userId}`)
+          .setLabel('🚨 ACİL AI BAĞLAN')
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
 
     await message.author.send({ embeds: [embed], components: [row] }).catch((err) => {
       console.error('[dmTicket] Karşılama gönderilemedi:', err.message);
@@ -352,6 +359,11 @@ async function handleDMConfirmButton(interaction, client) {
   }
 
   if (customId.startsWith('dm_confirm_emergency_')) {
+    const isMod = await isModeratorOrStaff(userId, client);
+    if (!isMod) {
+      await interaction.reply({ content: '❌ Bu özelliği sadece moderasyon ekibi kullanabilir.', ephemeral: true }).catch(() => {});
+      return true;
+    }
     dmConversations.set(userId, []);
     dmModes.set(userId, 'emergency_ai');
     await interaction.update({
@@ -731,6 +743,48 @@ async function handleDMCloseButton(interaction, client) {
   }, 5 * 60 * 1000);
 
   return true;
+}
+
+async function isModeratorOrStaff(userId, client) {
+  const { ADMIN_IDS, TARGET_GUILD_ID } = require('../../config');
+  if (ADMIN_IDS && ADMIN_IDS.includes(userId)) return true;
+
+  try {
+    const StaffProgress = require('../../models/StaffProgress');
+    const staff = await StaffProgress.findOne({ userId });
+    if (staff && staff.level >= 1) return true;
+  } catch (err) {
+    console.error("[dmTicket] StaffProgress check error:", err.message);
+  }
+
+  const guildsToCheck = [TARGET_GUILD_ID, '1367646464804655104'];
+  const staffRoleIds = [
+    '1518692395774906648', // Stajyer Personel
+    '1518692394495643830', // Personel
+    '1518692393660973186', // Kıdemli Personel
+    '1518692392415395971', // Sekreter
+    '1518709348506013706', // Kıdemli Sekreter
+    '1518692391312298045', // Genel Koordinatör
+  ];
+  
+  for (const gId of guildsToCheck) {
+    if (!gId) continue;
+    try {
+      const guild = client.guilds.cache.get(gId) || await client.guilds.fetch(gId).catch(() => null);
+      if (guild) {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member) {
+          if (member.permissions.has('Administrator') || member.permissions.has('ManageGuild')) return true;
+          const hasRole = staffRoleIds.some(rid => member.roles.cache.has(rid));
+          if (hasRole) return true;
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  return false;
 }
 
 module.exports = {
