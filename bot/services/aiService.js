@@ -10,7 +10,14 @@ const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
                  || '';
 const MODELS = process.env.AI_MODEL
   ? [process.env.AI_MODEL]
-  : ['llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it'];
+  : [
+      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
+      'llama-3.2-3b-preview',
+      'llama-3.2-1b-preview',
+      'deepseek-r1-distill-llama-70b',
+      'deepseek-r1-distill-qwen-32b'
+    ];
 
 const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
