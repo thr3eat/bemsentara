@@ -17,6 +17,9 @@ async function isGuildAuthorized(guild) {
   if (!guild) return false;
   if (WHITELISTED_GUILDS.has(guild.id)) return true;
 
+  const db = require("../../models/db");
+  if (!db.isMongoActive()) return true;
+
   // 1. Check database cache
   try {
     const auth = await GuildAuth.findOne({ guildId: guild.id });

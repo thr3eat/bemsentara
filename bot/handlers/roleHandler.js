@@ -25,6 +25,11 @@ function buildUpdateEmbed(member, result) {
 }
 
 async function syncBranchServerRoles(guild, member, robloxUserId) {
+  const db = require("../../models/db");
+  if (!db.isMongoActive()) {
+    return { success: false, message: "Bu sunucu için aktif bir kurulum (ServerSetup) bulunamadı (Veritabanı aktif değil)." };
+  }
+
   const ServerSetup = require("../../models/ServerSetup");
   const setupDoc = await ServerSetup.findOne({ guildId: guild.id, status: "active" });
   if (!setupDoc) {
@@ -126,8 +131,12 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
   const normalizedEKO = String(GUILD2_ID).trim();
 
   // Branch Sunucu Kontrolü (ServerSetup ile kurulmuş)
-  const ServerSetup = require("../../models/ServerSetup");
-  const setupDoc = await ServerSetup.findOne({ guildId: normalizedGuildId, status: "active" });
+  const db = require("../../models/db");
+  let setupDoc = null;
+  if (db.isMongoActive()) {
+    const ServerSetup = require("../../models/ServerSetup");
+    setupDoc = await ServerSetup.findOne({ guildId: normalizedGuildId, status: "active" });
+  }
 
   if (setupDoc) {
     await interaction.deferReply(ephemeral ? deferEphemeral() : {});

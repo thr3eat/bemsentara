@@ -1,3 +1,6 @@
+const mongoose = require("mongoose");
+mongoose.set("bufferCommands", false);
+
 const app = require("./server/app");
 const { createDiscordClient } = require("./bot/client");
 const { initializeDiscordHandlers } = require("./bot/handlers");

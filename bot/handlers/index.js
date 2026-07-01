@@ -2734,11 +2734,12 @@ function initializeDiscordHandlers(client) {
       console.error("[interactionCreate]", err);
       const { Ephemeral } = require("../utils/interaction");
       if (interaction.isRepliable()) {
+        const errorContent = `❌ Bir hata oluştu: ${err.message}`;
         if (interaction.deferred || interaction.replied) {
-          await interaction.editReply({ content: "❌ Bir hata oluştu." }).catch(() => null);
+          await interaction.editReply({ content: errorContent }).catch(() => null);
         } else {
           await interaction
-            .reply({ content: "❌ Bir hata oluştu.", flags: Ephemeral })
+            .reply({ content: errorContent, flags: Ephemeral })
             .catch(() => null);
         }
       }
