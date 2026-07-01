@@ -5,6 +5,7 @@ const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const SESSION_SECRET = process.env.SESSION_SECRET || "sentara-secret-key";
 const BOT_ID = process.env.BOTID || process.env.BOT_ID;
 const TOKEN = process.env.TOKEN;
+const ROWIFI_TOKEN = process.env.ROWIFI_TOKEN || "";
 
 // ── Ana sunucu (BEM Sentara) ─────────────────────────────────────────────────
 const TARGET_GUILD_ID = process.env.TARGET_GUILD_ID || "1414639355456389344";
@@ -170,4 +171,5 @@ module.exports = {
   EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID,
   EKOYILDIZ_BOM_CHANNEL_ID,
   EKOYILDIZ_STORY_GAME_CHANNEL_ID,
+  ROWIFI_TOKEN,
 };

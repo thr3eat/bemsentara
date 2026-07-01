@@ -3129,7 +3129,7 @@ async function generateInceleData(guild, targetUser, targetMember) {
   // Local DB Check First
   let dbUser = null;
   try {
-    dbUser = await User.findOne({ discordId: targetUser.id });
+    dbUser = await findUserByDiscordId(targetUser.id);
     if (dbUser && dbUser.robloxId) {
       robloxId = String(dbUser.robloxId);
       robloxUsername = dbUser.robloxUsername;
