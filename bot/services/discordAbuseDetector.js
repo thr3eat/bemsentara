@@ -74,6 +74,7 @@ const THRESHOLDS = {
   CHANNEL_CREATE: { count: 5,  windowMs: 30_000, label: "➕ Toplu Kanal Oluşturma",    color: 0x3498DB },
   WEBHOOK_CREATE: { count: 3,  windowMs: 30_000, label: "🪝 Toplu Webhook Oluşturma",color: 0xFFAA00 },
   MASS_MENTION:   { count: 1,  windowMs: 0,      label: "📣 Toplu Etiketleme / Ping", color: 0xFF2200 },
+  EVERYONE_PING:  { count: 5,  windowMs: 60_000, label: "📣 Toplu @everyone / @here Pingi", color: 0xFF2200 },
   REKLAM:         { count: 3,  windowMs: 20_000, label: "📢 Reklam / Davet Spami",    color: 0xFF5500 },
 };
 
@@ -628,11 +629,17 @@ async function handleMessageCreateAbuse(client, message) {
   const hasEveryonePing = message.mentions.everyone;
   const userMentions    = message.mentions.users.size;
 
-  if (hasEveryonePing || userMentions >= 10) {
+  if (userMentions >= 10) {
     isAbuse = true;
     type = "MASS_MENTION";
-    if (hasEveryonePing)      detailLines.push("• `@everyone` veya `@here` etiketlendi");
-    if (userMentions >= 10)   detailLines.push(`• **${userMentions}** farklı kullanıcı tek mesajda etiketlendi`);
+    detailLines.push(`• **${userMentions}** farklı kullanıcı tek mesajda etiketlendi`);
+  } else if (hasEveryonePing) {
+    const exceeded = trackAction(message.guild.id, message.author.id, "EVERYONE_PING");
+    if (exceeded) {
+      isAbuse = true;
+      type = "MASS_MENTION";
+      detailLines.push("• `@everyone` veya `@here` etiketlendi (Son 60 saniyede 5 veya daha fazla)");
+    }
   }
 
   // 2. Reklam/Invite Link Check

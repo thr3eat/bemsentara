@@ -80,6 +80,29 @@ function initializeVoiceAndBanHandlers(client) {
   client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       if (newState.guild.id !== oldState.guild.id) return;
+
+      // ── Hapis Ses Kanalı Engelleme Kontrolü ─────────────────────────────────
+      if (newState.channelId && newState.member && !newState.member.user.bot) {
+        const hasHapisRole = newState.member.roles.cache.some(r => r.name.toLowerCase() === "hapis");
+        let isUserJailed = hasHapisRole;
+        if (!isUserJailed) {
+          const User = require("../../models/User");
+          const dbUser = await User.findOne({ discordId: newState.member.id });
+          if (dbUser && dbUser.isJailed) {
+            isUserJailed = true;
+          }
+        }
+
+        if (isUserJailed) {
+          const isJailCategory = newState.channel && newState.channel.parentId === "1521501154339586078";
+          if (!isJailCategory) {
+            await newState.disconnect("Hapiste olan kullanıcı ses kanalına katılamaz.").catch(() => {});
+            await newState.member.send("❌ Hapiste olduğunuz için bu ses kanalına katılamazsınız!").catch(() => {});
+            return;
+          }
+        }
+      }
+
       await handleJoinToCreate(oldState, newState);
       if (oldState.channelId && oldState.channelId !== newState.channelId) {
         await handleVoiceLeave(oldState, newState);

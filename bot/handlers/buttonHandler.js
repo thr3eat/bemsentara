@@ -951,12 +951,57 @@ async function handleButtonInteraction(interaction) {
         isJailAction = true;
         finalDuration = 30; // 30 minutes for 3 warnings
       }
+    } else if (action === "mute") {
+      const member = await targetGuild.members.fetch(targetUserId).catch(() => null);
+      if (member) {
+        try {
+          const msDuration = finalDuration * 60 * 1000;
+          await member.timeout(msDuration, `Küfür/NSFW İhlali (Moderatör Onaylı Susturma): ${interaction.user.tag}`);
+          resultText = `🔇 **${targetUserObj?.tag || targetUserId}** başarıyla **${finalDuration} dakika** susturuldu.` + resultText;
+        } catch (err) {
+          resultText = `❌ **${targetUserObj?.tag || targetUserId}** susturulurken bir hata oluştu: ${err.message}` + resultText;
+        }
+      } else {
+        resultText = `❌ **${targetUserObj?.tag || targetUserId}** sunucuda bulunamadı.` + resultText;
+      }
+    } else if (action === "kick") {
+      const member = await targetGuild.members.fetch(targetUserId).catch(() => null);
+      if (member) {
+        try {
+          if (member.kickable) {
+            await member.kick(`Küfür/NSFW İhlali (Moderatör Onaylı Atılma): ${interaction.user.tag}`);
+            resultText = `👢 **${targetUserObj?.tag || targetUserId}** başarıyla sunucudan atıldı.` + resultText;
+          } else {
+            resultText = `❌ **${targetUserObj?.tag || targetUserId}** yetki yetersizliğinden dolayı atılamadı.` + resultText;
+          }
+        } catch (err) {
+          resultText = `❌ **${targetUserObj?.tag || targetUserId}** atılırken bir hata oluştu: ${err.message}` + resultText;
+        }
+      } else {
+        resultText = `❌ **${targetUserObj?.tag || targetUserId}** sunucuda bulunamadı.` + resultText;
+      }
+    } else if (action === "ban") {
+      const member = await targetGuild.members.fetch(targetUserId).catch(() => null);
+      if (member) {
+        try {
+          if (member.bannable) {
+            await member.ban({ reason: `Küfür/NSFW İhlali (Moderatör Onaylı Ban): ${interaction.user.tag}` });
+            resultText = `🔨 **${targetUserObj?.tag || targetUserId}** başarıyla banlandı.` + resultText;
+          } else {
+            resultText = `❌ **${targetUserObj?.tag || targetUserId}** yetki yetersizliğinden dolayı banlanamadı.` + resultText;
+          }
+        } catch (err) {
+          resultText = `❌ **${targetUserObj?.tag || targetUserId}** banlanırken bir hata oluştu: ${err.message}` + resultText;
+        }
+      } else {
+        resultText = `❌ **${targetUserObj?.tag || targetUserId}** sunucuda bulunamadı.` + resultText;
+      }
     } else if (action === "immed") {
       isJailAction = true;
     }
 
     // Delete the swear/NSFW message from the chat channel
-    if (action === "warn" || action === "immed") {
+    if (action === "warn" || action === "immed" || action === "mute" || action === "kick" || action === "ban") {
       try {
         const channel = await targetGuild.channels.fetch(targetChannelId).catch(() => null);
         if (channel && channel.isTextBased()) {
@@ -997,21 +1042,33 @@ async function handleButtonInteraction(interaction) {
         `\n\n> **Uygulayan Yetkili:** ${interaction.user.toString()}\n> **Sonuç:** ${resultText}`
       );
 
+    let btnLabel = "İşlem Tamamlandı";
+    let btnStyle = ButtonStyle.Secondary;
+    if (action === "warn") {
+      btnLabel = isJailAction ? "🔒 Hapise Atılmış (3. Uyarı)" : "⚠️ Uyarılmış";
+      btnStyle = isJailAction ? ButtonStyle.Danger : ButtonStyle.Primary;
+    } else if (action === "mute") {
+      btnLabel = "🔇 Susturulmuş";
+      btnStyle = ButtonStyle.Primary;
+    } else if (action === "immed" || isJailAction) {
+      btnLabel = "🔒 Hapise Atılmış";
+      btnStyle = ButtonStyle.Danger;
+    } else if (action === "kick") {
+      btnLabel = "👢 Atılmış";
+      btnStyle = ButtonStyle.Danger;
+    } else if (action === "ban") {
+      btnLabel = "🔨 Banlanmış";
+      btnStyle = ButtonStyle.Danger;
+    } else if (action === "ignore") {
+      btnLabel = "✅ Yoksayılmış";
+      btnStyle = ButtonStyle.Secondary;
+    }
+
     const disabledRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`disabled_warn`)
-        .setLabel("Uyarılmış")
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`disabled_hapis`)
-        .setLabel("Hapise Atılmış")
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`disabled_ignore`)
-        .setLabel("Yoksayılmış")
-        .setStyle(ButtonStyle.Secondary)
+        .setCustomId(`disabled_action`)
+        .setLabel(btnLabel)
+        .setStyle(btnStyle)
         .setDisabled(true)
     );
 
