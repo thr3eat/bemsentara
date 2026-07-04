@@ -191,10 +191,13 @@ async function handleModalSubmit(interaction) {
     } catch (err) {
       console.error('[photoVerification] Modal hata:', err.message);
       try {
+        const { sendErrorReplyWithButton } = require('../services/errorReporter');
+        await sendErrorReplyWithButton(interaction, err, "modalHandler photoVerification");
+      } catch (reporterErr) {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true }).catch(() => {});
         }
-      } catch (_) {}
+      }
     }
     return null;
   }
@@ -207,10 +210,13 @@ async function handleModalSubmit(interaction) {
     } catch (err) {
       console.error('[AdminForm] Modal hata:', err.message);
       try {
+        const { sendErrorReplyWithButton } = require('../services/errorReporter');
+        await sendErrorReplyWithButton(interaction, err, "modalHandler AdminForm");
+      } catch (reporterErr) {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+          await interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true }).catch(() => {});
         }
-      } catch (_) {}
+      }
     }
     return null;
   }

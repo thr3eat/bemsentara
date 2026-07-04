@@ -1323,7 +1323,12 @@ function initializeDiscordHandlers(client) {
             }
           } catch (err) {
             console.error("[s!sil] Error:", err);
-            await message.channel.send(`❌ Mesajlar silinirken bir hata oluştu: ${err.message}`).catch(() => { });
+            try {
+              const { sendErrorReplyWithButton } = require("../services/errorReporter");
+              await sendErrorReplyWithButton(message, err, "s!sil Prefix Command");
+            } catch (reporterErr) {
+              await message.channel.send(`❌ Mesajlar silinirken bir hata oluştu: ${err.message}`).catch(() => { });
+            }
           }
           return;
         }
@@ -2858,15 +2863,23 @@ function initializeDiscordHandlers(client) {
       await handleInteraction(interaction);
     } catch (err) {
       console.error("[interactionCreate]", err);
-      const { Ephemeral } = require("../utils/interaction");
-      if (interaction.isRepliable()) {
-        const errorContent = `❌ Bir hata oluştu: ${err.message}`;
-        if (interaction.deferred || interaction.replied) {
-          await interaction.editReply({ content: errorContent }).catch(() => null);
-        } else {
-          await interaction
-            .reply({ content: errorContent, flags: Ephemeral })
-            .catch(() => null);
+      try {
+        const { sendErrorReplyWithButton } = require("../services/errorReporter");
+        if (interaction.isRepliable()) {
+          await sendErrorReplyWithButton(interaction, err, "interactionCreate Central Catch");
+        }
+      } catch (reporterErr) {
+        console.error("[interactionCreate] Reporter error:", reporterErr.message);
+        const { Ephemeral } = require("../utils/interaction");
+        if (interaction.isRepliable()) {
+          const errorContent = `❌ Bir hata oluştu: ${err.message}`;
+          if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ content: errorContent }).catch(() => null);
+          } else {
+            await interaction
+              .reply({ content: errorContent, flags: Ephemeral })
+              .catch(() => null);
+          }
         }
       }
     }

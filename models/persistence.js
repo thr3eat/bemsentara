@@ -10,6 +10,7 @@ const DATE_FIELDS = new Set([
   "updatedAt",
   "joinedAt",
   "closedAt",
+  "timestamp",
 ]);
 
 function reviveDates(record) {
@@ -79,6 +80,7 @@ function flushSave(collections) {
       tickets: serializeMap(collections.tickets.data),
       economies: serializeMap(collections.economies.data),
       wikiArticles: serializeMap(collections.wikiArticles.data),
+      errorReports: serializeMap(collections.errorReports.data),
     };
     const tmp = `${STORE_FILE}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
@@ -141,6 +143,7 @@ function loadIntoCollections(collections) {
       collections.wikiArticles,
       saved.wikiArticles || saved.wikis
     ),
+    errorReports: hydrateCollection(collections.errorReports, saved.errorReports),
   };
 
   migrateLegacyWikis(collections, saved);

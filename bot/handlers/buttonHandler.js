@@ -54,16 +54,21 @@ function buildModal(customId, title, fields) {
   return modal;
 }
 
-// ─── Yardımcı: Güvenli hata yanıtı ──────────────────────────────────────────
-
 async function safeErrorReply(interaction, message) {
   try {
-    if (interaction.replied || interaction.deferred) {
-      await interaction.editReply({ content: message });
-    } else {
-      await interaction.reply({ content: message, ephemeral: true });
-    }
-  } catch (_) { }
+    const { sendErrorReplyWithButton } = require("../services/errorReporter");
+    const cleanMsg = typeof message === "string" ? message.replace(/^❌\s*/, "") : "Beklenmedik bir hata oluştu.";
+    const err = new Error(cleanMsg);
+    await sendErrorReplyWithButton(interaction, err, "buttonHandler safeErrorReply");
+  } catch (_) {
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: message });
+      } else {
+        await interaction.reply({ content: message, ephemeral: true });
+      }
+    } catch (__) { }
+  }
 }
 
 // ─── Handler Map: Guild ID → Sync Servis ─────────────────────────────────────
@@ -91,6 +96,52 @@ const GUILD_SYNC_MAP = {
 
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
+
+  // ── Hata Bildirim Butonu ──────────────────────────────────────────────────
+  if (customId.startsWith("report_err_")) {
+    const errorId = customId.replace("report_err_", "");
+    await interaction.deferUpdate().catch(() => {});
+
+    try {
+      const ErrorReportModel = require("../../models/ErrorReport");
+      const report = await ErrorReportModel.findOne({ _id: errorId });
+      if (report) {
+        report.reported = true;
+        await report.save();
+
+        const disabledRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`reported_${errorId}`)
+            .setLabel("✅ HATA BİLDİRİLDİ")
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(true)
+        );
+
+        const payload = { components: [disabledRow] };
+        if (interaction.message.embeds && interaction.message.embeds.length > 0) {
+          payload.embeds = [interaction.message.embeds[0]];
+        }
+        await interaction.editReply(payload).catch(() => {});
+
+        await interaction.followUp({
+          content: "✅ **Hata başarıyla geliştirici ekibine bildirildi.** Teşekkür ederiz!",
+          ephemeral: true
+        }).catch(() => {});
+      } else {
+        await interaction.followUp({
+          content: "❌ Hata raporu veri tabanında bulunamadı veya silinmiş olabilir.",
+          ephemeral: true
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error("[report_err] Button click handle error:", err.message);
+      await interaction.followUp({
+        content: "❌ Hata bildirilirken beklenmedik bir sorun oluştu.",
+        ephemeral: true
+      }).catch(() => {});
+    }
+    return;
+  }
 
   // ── Koç Mesaj Filtre Butonları ──────────────────────────────────────────
   if (customId.startsWith("coach_msg_level_")) {

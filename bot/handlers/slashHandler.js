@@ -828,7 +828,12 @@ async function handleSlashCommand(interaction) {
     }
   } catch (err) {
     console.error(`[${commandName}] Hata:`, err);
-    return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    try {
+      const { sendErrorReplyWithButton } = require("../services/errorReporter");
+      await sendErrorReplyWithButton(interaction, err, `slashCommand ${commandName}`);
+    } catch (reporterErr) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
   }
 
   return null;
