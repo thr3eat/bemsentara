@@ -855,6 +855,9 @@ function initializeDiscordHandlers(client) {
         const { logEkoChannelCreate } = require("../services/ekoLogger");
         logEkoChannelCreate(channel);
       }
+
+      const { handleArchiveChannel } = require("../services/archiveService");
+      await handleArchiveChannel(channel);
     } catch (err) {
       console.error("channelCreate hatası:", err);
     }
@@ -885,6 +888,9 @@ function initializeDiscordHandlers(client) {
         const { logEkoChannelUpdate } = require("../services/ekoLogger");
         logEkoChannelUpdate(oldChannel, newChannel);
       }
+
+      const { handleArchiveChannel } = require("../services/archiveService");
+      await handleArchiveChannel(newChannel);
     } catch (err) {
       console.error("channelUpdate hatası:", err);
     }
