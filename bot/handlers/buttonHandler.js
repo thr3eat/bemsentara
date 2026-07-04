@@ -916,17 +916,33 @@ async function handleButtonInteraction(interaction) {
     let isJailAction = false;
     let finalDuration = duration;
 
-    // Award Moderator reward (coins) in StaffProgress database
+    // Call the central recordModerationAction to handle XP, EkoCoins, daily tasks, and check promotion
+    const { recordModerationAction, PROMOTION_REQUIREMENTS, ROLE_NAMES } = require("../services/staffSystem");
+    await recordModerationAction(interaction.user.id, interaction.client);
+
+    // Retrieve updated progress to show the promotion requirement progress bar
     const StaffProgress = require("../../models/StaffProgress");
-    let modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
     if (modProgress) {
-      if (!modProgress.gamification) {
-        modProgress.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0 };
+      resultText += `\n\n💰 **Yetkili Ödülü:** Moderasyon işleminiz için **10 E.C. (EkoCoin)** kazandınız!`;
+
+      const currentLevel = modProgress.level || 1;
+      const reqs = PROMOTION_REQUIREMENTS[currentLevel];
+      if (reqs) {
+        const currentActions = modProgress.stats?.moderationActions || 0;
+        const requiredActions = reqs.moderationActions;
+        const percentage = Math.min(100, Math.round((currentActions / requiredActions) * 100));
+
+        // Build progress bar
+        const filled = Math.round(percentage / 10);
+        const empty = 10 - filled;
+        const progressBar = '█'.repeat(filled) + '░'.repeat(empty);
+
+        resultText += `\n\n📈 **Terfi İlerlemeniz (Mod. Eylemi):**\n` +
+                      `• Rütbe: **${ROLE_NAMES[currentLevel]}**\n` +
+                      `• İlerleme: \`[${progressBar}]\` **${percentage}%**\n` +
+                      `• Yapılan Eylem: **${currentActions} / ${requiredActions}** (Terfi için)`;
       }
-      modProgress.gamification.ecoCoins = (modProgress.gamification.ecoCoins || 0) + 15; // Give 15 EkoCoins reward!
-      modProgress.stats.moderationActions = (modProgress.stats.moderationActions || 0) + 1;
-      await modProgress.save();
-      resultText += `\n\n💰 **Yetkili Ödülü:** Moderasyon işleminiz için **15 E.C. (EkoCoin)** kazandınız!`;
     }
 
     if (action === "ignore") {
