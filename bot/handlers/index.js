@@ -311,6 +311,14 @@ function initializeDiscordHandlers(client) {
     } catch (err) {
       console.error("[Presence] Error setting bot presence:", err.message);
     }
+
+    // Bilmece sistemi durumunu geri yükle
+    try {
+      const { initializeRiddleState } = require("../services/riddleService");
+      await initializeRiddleState(client);
+    } catch (err) {
+      console.error("[RiddleService] Başlatma hatası:", err.message);
+    }
   });
 
   // ── Sunucuya katılan üyeye doğrulanmamış rolü ver ──────────────────────────
@@ -901,6 +909,15 @@ function initializeDiscordHandlers(client) {
       if (reaction.partial) {
         try { await reaction.fetch(); } catch (_) { return; }
       }
+
+      // Bilmece sistemi tepki kontrolü
+      try {
+        const { handleRiddleReaction } = require("../services/riddleService");
+        await handleRiddleReaction(reaction, user);
+      } catch (err) {
+        console.error("handleRiddleReaction hatası:", err);
+      }
+
       const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (reaction.message.guild && reaction.message.guild.id === TMT_GUILD_ID) {
         const { logTMTReactionAdd } = require("../services/tmtLogger");
@@ -1240,6 +1257,14 @@ function initializeDiscordHandlers(client) {
 
 
   client.on("messageCreate", async (message) => {
+    // Bilmece kanalı mesaj kontrolü
+    try {
+      const { handleRiddleMessage } = require("../services/riddleService");
+      await handleRiddleMessage(message);
+    } catch (err) {
+      console.error("handleRiddleMessage hatası:", err);
+    }
+
     if (message.guild) {
       const { isGuildAuthorized } = require("../services/guildAuthService");
       const authorized = await isGuildAuthorized(message.guild);
