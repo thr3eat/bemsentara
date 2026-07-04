@@ -553,6 +553,83 @@ function initializeDiscordHandlers(client) {
 
   client.on("guildMemberUpdate", async (oldMember, newMember) => {
     try {
+      // ── Mute Tracker (Susturma Takibi) ──
+      const oldTimeout = oldMember.communicationDisabledUntil;
+      const newTimeout = newMember.communicationDisabledUntil;
+      if (newTimeout && (!oldTimeout || newTimeout.getTime() !== oldTimeout.getTime())) {
+        const now = Date.now();
+        if (newTimeout.getTime() > now) {
+          const User = require("../../models/User");
+          let dbUser = await User.findOne({ discordId: newMember.id });
+          if (!dbUser) {
+            dbUser = new User({ discordId: newMember.id, discordUsername: newMember.user.tag });
+          }
+
+          if (!dbUser.lastMuteCountedAt || (now - new Date(dbUser.lastMuteCountedAt).getTime()) > 5000) {
+            dbUser.muteCount = (dbUser.muteCount || 0) + 1;
+            dbUser.lastMuteCountedAt = new Date();
+            await dbUser.save();
+
+            console.log(`[MuteTracker] ${newMember.user.tag} susturuldu. Ceza sayısı: ${dbUser.muteCount}`);
+
+            // Log this to the log channel
+            const { EKOYILDIZ_MOD_LOG_CHANNEL_ID } = require("../../config");
+            const logChannel = newMember.guild.channels.cache.get(EKOYILDIZ_MOD_LOG_CHANNEL_ID || "1521502699324178492")
+              || newMember.guild.channels.cache.get("1521502699324178492")
+              || newMember.guild.channels.cache.get("1504201531551907941");
+              
+            if (logChannel && logChannel.isTextBased()) {
+              const { EmbedBuilder } = require("discord.js");
+              const logEmbed = new EmbedBuilder()
+                .setTitle("🔇 SUSTURMA CEZASI ALGILANDI")
+                .setColor(0xe67e22)
+                .addFields(
+                  { name: "👤 Cezalandırılan Üye", value: `${newMember.toString()} (\`${newMember.user.tag}\`)`, inline: true },
+                  { name: "📊 Susturma Sayısı", value: `**${dbUser.muteCount} / 3 (Kick) / 6 (Ban)**`, inline: true },
+                  { name: "🕒 Bitiş", value: `<t:${Math.floor(newTimeout.getTime() / 1000)}:R>`, inline: true }
+                )
+                .setTimestamp();
+              await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+            }
+
+            // Check if muteCount is 3 (Kick)
+            if (dbUser.muteCount === 3) {
+              if (newMember.kickable) {
+                await newMember.send(`⚠️ **3 kez susturulduğunuz için sunucudan atıldınız!**`).catch(() => {});
+                await newMember.kick("3 kez susturulduğu için otomatik atıldı.").catch(err => console.error("[MuteTracker] Kick error:", err.message));
+                
+                if (logChannel && logChannel.isTextBased()) {
+                  const { EmbedBuilder } = require("discord.js");
+                  const kickEmbed = new EmbedBuilder()
+                    .setTitle("👢 OTOMATİK ATILMA (3 SUSTURMA)")
+                    .setColor(0xe74c3c)
+                    .setDescription(`👤 **Kullanıcı:** ${newMember.toString()} (\`${newMember.user.tag}\`)\n⚠️ **Durum:** 3. kez susturulduğu için sunucudan atıldı.`)
+                    .setTimestamp();
+                  await logChannel.send({ embeds: [kickEmbed] }).catch(() => {});
+                }
+              }
+            } 
+            // Check if muteCount is 6 (Ban)
+            else if (dbUser.muteCount >= 6) {
+              if (newMember.bannable) {
+                await newMember.send(`❌ **6 kez susturulduğunuz için sunucudan yasaklandınız (BAN)!**`).catch(() => {});
+                await newMember.ban({ reason: "6 kez susturulduğu için otomatik yasaklandı (BAN)." }).catch(err => console.error("[MuteTracker] Ban error:", err.message));
+                
+                if (logChannel && logChannel.isTextBased()) {
+                  const { EmbedBuilder } = require("discord.js");
+                  const banEmbed = new EmbedBuilder()
+                    .setTitle("🔨 OTOMATİK BAN (6 SUSTURMA)")
+                    .setColor(0xc0392b)
+                    .setDescription(`👤 **Kullanıcı:** ${newMember.toString()} (\`${newMember.user.tag}\`)\n❌ **Durum:** 6. kez susturulduğu için sunucudan banlandı.`)
+                    .setTimestamp();
+                  await logChannel.send({ embeds: [banEmbed] }).catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      }
+
       const { TMT_GUILD_ID, GUILD2_ID } = require("../../config");
       if (newMember.guild.id === TMT_GUILD_ID) {
         const { logTMTMemberUpdate } = require("../services/tmtLogger");
@@ -1161,6 +1238,40 @@ function initializeDiscordHandlers(client) {
       const { isGuildAuthorized } = require("../services/guildAuthService");
       const authorized = await isGuildAuthorized(message.guild);
       if (!authorized) return;
+
+      // ── Hapis Engelleme Kontrolü ───────────────────────────────────────────
+      if (!message.author.bot) {
+        if (!message.member && message.author) {
+          await message.guild.members.fetch(message.author.id).catch(() => {});
+        }
+
+        const hasHapisRole = message.member?.roles.cache.some(r => r.name.toLowerCase() === "hapis");
+        let isUserJailed = hasHapisRole;
+        if (!isUserJailed) {
+          const User = require("../../models/User");
+          const dbUser = await User.findOne({ discordId: message.author.id });
+          if (dbUser && dbUser.isJailed) {
+            isUserJailed = true;
+          }
+        }
+
+        if (isUserJailed) {
+          const isJailCategory = message.channel.parentId === "1521501154339586078";
+          const isCayOcagi = message.channel.name && (
+            (message.channel.name.toLowerCase().includes("çay") || message.channel.name.toLowerCase().includes("cay")) &&
+            (message.channel.name.toLowerCase().includes("ocak") || message.channel.name.toLowerCase().includes("ocağ") || message.channel.name.toLowerCase().includes("ocag"))
+          );
+
+          if (!isJailCategory && !isCayOcagi) {
+            await message.delete().catch(() => {});
+            const reply = await message.channel.send(`❌ <@${message.author.id}>, hapiste olduğunuz için bu kanalda konuşamazsınız!`).catch(() => null);
+            if (reply) {
+              setTimeout(() => reply.delete().catch(() => {}), 5000);
+            }
+            return;
+          }
+        }
+      }
     }
     // ── Sunucuya Özel s!sil ve s!ban Komutları ───────────────────────────────
     if (message.guild && !message.author.bot && (message.content.toLowerCase().startsWith("s!sil") || message.content.toLowerCase().startsWith("s!ban"))) {
@@ -1358,14 +1469,29 @@ function initializeDiscordHandlers(client) {
               )
               .setTimestamp();
 
-            const row = new ActionRowBuilder().addComponents(
+            const row1 = new ActionRowBuilder().addComponents(
               new ButtonBuilder()
                 .setCustomId(`jail_warn_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
                 .setLabel("⚠️ UYAR")
                 .setStyle(ButtonStyle.Primary),
               new ButtonBuilder()
+                .setCustomId(`jail_mute_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}_${suggestedDuration}`)
+                .setLabel("🔇 SUSTUR (MUTE)")
+                .setStyle(ButtonStyle.Primary),
+              new ButtonBuilder()
                 .setCustomId(`jail_immed_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}_${suggestedDuration}`)
                 .setLabel("🔒 HAPİSE AT")
+                .setStyle(ButtonStyle.Danger)
+            );
+
+            const row2 = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`jail_kick_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
+                .setLabel("👢 SUNUCUDAN AT")
+                .setStyle(ButtonStyle.Danger),
+              new ButtonBuilder()
+                .setCustomId(`jail_ban_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
+                .setLabel("🔨 BANLA")
                 .setStyle(ButtonStyle.Danger),
               new ButtonBuilder()
                 .setCustomId(`jail_ignore_${message.guild.id}_${message.author.id}_${message.channel.id}_${message.id}`)
@@ -1373,7 +1499,7 @@ function initializeDiscordHandlers(client) {
                 .setStyle(ButtonStyle.Secondary)
             );
 
-            await targetMod.send({ embeds: [embed], components: [row] }).catch((err) => {
+            await targetMod.send({ embeds: [embed], components: [row1, row2] }).catch((err) => {
               console.error(`[SwearDetector] Yetkiliye DM gönderilemedi:`, err.message);
             });
           }

@@ -208,7 +208,7 @@ function saveStoreNow() {
 }
 
 // Tarih alanlarını string'den Date'e çevir
-const DATE_FIELDS = new Set(["createdAt", "updatedAt", "joinedAt", "closedAt"]);
+const DATE_FIELDS = new Set(["createdAt", "updatedAt", "joinedAt", "closedAt", "jailedUntil", "lastMuteCountedAt"]);
 
 function reviveDates(record) {
   if (!record || typeof record !== "object") return record;
