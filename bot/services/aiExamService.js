@@ -5,274 +5,274 @@ const StaffProgress = require('../../models/StaffProgress');
 const { chatWithAI } = require('./aiService');
 
 const FALLBACK_QUESTIONS_BY_LEVEL = {
-  2: [ // Target Level 2 (Personel) - Easy
+  2: [ // Target Level 2 (Personel) - Crisis Management
     {
-      question: "Bir yetkili olarak genel sohbette uymanız gereken en temel kural nedir?",
-      options: ["Diğer üyelerle tartışmaya girmemek ve sakin kalmak", "Kuralları ihlal edenlere anında küfür etmek", "Hiçbir şeye karışmayıp sadece izlemek", "Sohbeti tamamen kilitlemek"],
+      question: "Bir üye genel sohbette yetkililere kışkırtıcı/trol mesajlar atarak kriz çıkarmaya çalışırsa ne yapmalısınız?",
+      options: ["Onunla tartışmaya girmeyip sakin kalmak ve gerekirse uyarıp susturmak", "Anında küfür ederek karşılık vermek", "Sohbeti tamamen kilitlemek", "Üyeyi sunucudan doğrudan banlamak"],
       correctIndex: 0
     },
     {
-      question: "Sohbette spam (arka arkaya hızlı mesaj yazma) yapan bir üyeye ilk ne yapmalısınız?",
-      options: ["Doğrudan sunucudan yasaklamak", "/sustur komutu ile uyararak susturmak", "Mesajını görmezden gelmek", "Üyeyi gruptan atmak"],
+      question: "Sohbette birden fazla üyenin birbiriyle sertçe kavga ettiğini ve ortamın gerildiğini görürseniz yapacağınız ilk müdahale ne olmalıdır?",
+      options: ["Kavgayı izlemek ve taraf tutmak", "Kanalı yavaş moda alıp üyeleri uyararak tartışmayı sonlandırmak", "Kavga eden herkesi kalıcı olarak banlamak", "Genel sohbet kanalını silmek"],
       correctIndex: 1
     },
     {
-      question: "Roblox grubunda Personel rütbesindeki bir yetkili hangi rank ID'sine sahip olmalıdır?",
-      options: ["Rank 1 (Misafir)", "Rank 2 (Stajyer)", "Rank 3 (Personel)", "Rank 4 (Gelişmiş Personel)"],
-      correctIndex: 2
-    },
-    {
-      question: "EkoYıldız Moderatör Ekibi sunucusunda günlük aktif kalma zorunluluğu ne kadardır?",
-      options: ["Zorunlu bir süre yoktur", "7 saat", "Rütbeye göre günlük gereksinim tablosunda belirtilen süre kadar", "Sadece hafta sonları aktiftir"],
-      correctIndex: 2
-    },
-    {
-      question: "Her gün cüzdanınıza otomatik/aktif olarak EkoCoin (E.C.) eklenmesi için ne yapmalısınız?",
-      options: ["Günde bir kez /profil yazmak", "Günlük selamlaşma ve ses aktifliği görevlerini tamamlamak", "Hiçbir şey yapmamak", "Başka bir yetkiliye puan aktarmak"],
+      question: "Sunucuya aniden birden fazla bot hesap girip hızlıca reklam yapmaya (raid/baskın başlangıcı) başlarsa ne yapılmalıdır?",
+      options: ["Durumu görmezden gelmek", "Spam yapanları susturmak/engellemek ve hemen üst yetkililere haber vermek", "Tüm sunucu üyelerini kicklemek", "Kendi hesabını kapatmak"],
       correctIndex: 1
     },
     {
-      question: "Personel rütbesinin Discord'daki rol ismi aşağıdakilerden hangisidir?",
-      options: ["👔 Personel", "🎓 Stajyer Personel", "⭐ Gelişmiş Personel", "👑 Sekreter"],
+      question: "Bir üye sunucunun adaletsiz olduğunu iddia ederek sohbette isyan çıkartmaya ve kriz yaratmaya çalışırsa ne yapmalısınız?",
+      options: ["Onu desteklemek", "Sohbette tartışmaya girmeyip destek bileti (ticket) açarak şikayetini iletmesini söylemek", "Üyeyi hemen sunucudan banlamak", "Ona özelden kızmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir moderatör arkadaşınızın genel sohbette bir üyeyle hararetli bir kavgaya tutuştuğunu fark ederseniz nasıl davranmalısınız?",
+      options: ["Moderatör arkadaşınızı destekleyip üyeye saldırmak", "Kavgayı genel sohbette büyütmeden özelden arkadaşınızı uyarmak ve üst yönetime bildirmek", "İkisini de engellemek", "Kavgayı izleyip keyif almak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir üye kuralları ihlal ettikten sonra size DM'den hakaret edip tehditler savurursa kriz anında tepkiniz ne olmalıdır?",
+      options: ["Aynı şekilde hakaret etmek", "Cevap vermeyip ekran görüntüsü alarak durumu üst yönetime raporlamak", "Üyeyi Roblox grubundan silmek", "Ona sunucu şifresini vermek"],
+      correctIndex: 1
+    },
+    {
+      question: "Yanlışlıkla bir üyeye gereksiz veya hatalı ceza verdiğinizi fark ettiğinizde bu durumu nasıl yönetirsiniz?",
+      options: ["Hatayı gizlemeye çalışmak", "Hatayı kabul edip durumu üst yetkililere bildirmek ve cezanın düzeltilmesini istemek", "Üyeyi tamamen sunucudan banlayarak delili yok etmek", "Hiçbir şey yapmamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Kriz anlarında yetkilinin sakin kalması neden en önemli kuraldır?",
+      options: ["Sadece kurucunun gözüne girmek için", "Doğru ve adil kararlar vererek krizin daha da büyümesini engellemek için", "Daha hızlı EkoCoin kasmak için", "Rolünün rengini korumak için"],
+      correctIndex: 1
+    },
+    {
+      question: "Sohbet kanalında dini veya siyasi tartışma çıkıp üyeler birbirine girmeye başladığında ilk kriz yönetimi adımı nedir?",
+      options: ["Tartışmaya katılanları susturmak, mesajları temizlemek ve konuyu kapatmak", "Kendi siyasi görüşünüzü yazarak tartışmaya dahil olmak", "Kanalları tamamen silmek", "Yalnızca izlemek"],
       correctIndex: 0
     },
     {
-      question: "Bir üye size özel mesajdan (DM) sunucu kuralları hakkında soru sorarsa ne yapmalısınız?",
-      options: ["Soruyu cevapsız bırakıp engellemek", "Kibarca kurallar kanalını göstermek ve yardımcı olmak", "Yöneticileri etiketlemesini söylemek", "Üyeye kızmak"],
-      correctIndex: 1
-    },
-    {
-      question: "Rütbe terfileri nasıl gerçekleşir?",
-      options: ["Sadece yöneticilerden rica ederek", "Sistemdeki tüm görev ve aktiflik şartlarını tamamlayıp sınavı geçerek", "Hiçbir şey yapmadan bekleyerek", "Rastgele çekilişle"],
-      correctIndex: 1
-    },
-    {
-      question: "Günlük selamlaşma (recordGreet) görevi nasıl tamamlanır?",
-      options: ["Genel sohbete ilk selamı vererek", "Yetkili kanalına günün ilk selamını göndererek", "Özel mesajla yöneticilere selam vererek", "Sadece ses kanalında selam vererek"],
-      correctIndex: 1
-    },
-    {
-      question: "Yetkililikten kendi isteğinizle ayrılmak isterseniz hangi komutu kullanırsınız?",
-      options: ["/istifa", "/cikis", "/tenzilat", "/odulver"],
-      correctIndex: 0
-    }
-  ],
-  3: [ // Target Level 3 (Gelişmiş Personel) - Medium
-    {
-      question: "Gelişmiş Personel olarak stajyer bir yetkilinin hata yaptığını görürseniz ne yapmalısınız?",
-      options: ["Onu sertçe uyarmak ve rezil etmek", "Kibarca doğrusunu anlatmak ve yol göstermek", "Yöneticilere şikayet edip atılmasını istemek", "Görmezden gelip geçmek"],
-      correctIndex: 1
-    },
-    {
-      question: "Bir üye sohbette dini veya siyasi tartışma başlatırsa yetkili olarak tavrınız ne olmalıdır?",
-      options: ["Siz de kendi görüşünüzü yazıp tartışmaya katılmalısınız", "Tartışmayı hızlıca sonlandırıp ilgili kişileri uyarmak/susturmak", "Kanalı tamamen silmek", "Yalnızca izlemek"],
-      correctIndex: 1
-    },
-    {
-      question: "Roblox grubunda Gelişmiş Personel rütbesinin rank ID'si kaçtır?",
-      options: ["Rank 2", "Rank 3", "Rank 4", "Rank 7"],
-      correctIndex: 2
-    },
-    {
-      question: "Ticket (Destek Bileti) çözerken en çok neye dikkat etmelisiniz?",
-      options: ["Bileti hızlıca kapatmaya", "Üyeye karşı nazik olmaya ve sorunu tam olarak çözmeye", "Üyeyi azarlamaya", "Hiç kimseye cevap vermemeye"],
-      correctIndex: 1
-    },
-    {
-      question: "Sistemde ardışık kaç gün görev yapılmadığında yetki duraklatılır/alınır?",
-      options: ["1 gün", "3 gün", "5 gün", "10 gün"],
-      correctIndex: 1
-    },
-    {
-      question: "Haftalık personel raporları (weeklyReports) kimin terfi etmesi için gereklidir?",
-      options: ["Sadece Stajyerler", "Stajyerlikten Personelliğe geçişte", "Personellikten Gelişmiş Personelliğe ve üstüne geçişte", "Tüm normal üyeler"],
-      correctIndex: 2
-    },
-    {
-      question: "EkoCoin cüzdanınızdaki parayla mağazadan (ekocoin_magaza) ne satın alabilirsiniz?",
-      options: ["Özel rol renkleri, izin günleri ve kozmetikler", "Yönetici yetkileri", "Diğer yetkilileri banlama hakkı", "Robux"],
-      correctIndex: 0
-    },
-    {
-      question: "Sohbette bir yetkiliyle fikir ayrılığına düşerseniz ne yapmalısınız?",
-      options: ["Genel sohbette kavga etmelisiniz", "Özelden veya yetkili kanalından sakin bir şekilde konuşarak çözmeli, gerekirse üst yönetime bildirmelisiniz", "Onu sunucudan banlamalısınız", "Sohbeti kilitlemelisiniz"],
-      correctIndex: 1
-    },
-    {
-      question: "Gelişmiş Personel için günlük ses kanalı aktiflik şartı en az kaç dakikadır?",
-      options: ["10 dakika", "20 dakika", "30 dakika", "60 dakika"],
-      correctIndex: 2
-    },
-    {
-      question: "Destek biletinde (ticket) size hakaret eden bir üyeye karşı ne yapmalısınız?",
-      options: ["Aynı şekilde karşılık verip hakaret etmelisiniz", "Sakin kalarak durumu log kaydıyla üst yöneticilere bildirmelisiniz", "Bileti silip üyeyi engellemelisiniz", "Sohbeti kapatmalısınız"],
+      question: "Bir üye bilet (ticket) açıp acil olduğunu söyleyerek yetkililere bağırıp çağırdığında nasıl yaklaşmalısınız?",
+      options: ["Ona aynı tonda bağırmak", "Sakinleşmesini rica edip sorunun ne olduğunu profesyonelce anlamaya çalışmak", "Bileti hemen kapatmak", "Üyeyi engellemek"],
       correctIndex: 1
     }
   ],
-  4: [ // Target Level 4 (Sekreter) - Hard
+  3: [ // Target Level 3 (Gelişmiş Personel) - Crisis Management
     {
-      question: "Sekreter rütbesinin en temel sorumluluklarından biri hangisidir?",
-      options: ["Sadece sohbette takılmak", "Ticket kalitesini denetlemek, stajyerleri eğitmek ve haftalık personel raporu hazırlamak", "Tüm sunucuyu tek başına yönetmek", "Roblox grubunu satmak"],
+      question: "Stajyer bir yetkilinin bir kriz anında panikleyerek hatalı kararlar verdiğini görürseniz ne yapmalısınız?",
+      options: ["Onu genel sohbette rezil etmek", "Sohbette durumu bozmadan krize müdahale etmek, sonrasında özelden stajyere doğrusunu anlatmak", "Yöneticilere şikayet edip atılmasını istemek", "Görmezden gelip geçmek"],
       correctIndex: 1
     },
     {
-      question: "Bir personelin haftalık raporlarını düzenli teslim etmediğini fark ederseniz ne yapmalısınız?",
-      options: ["Onu doğrudan gruptan atmalısınız", "Durumu analiz edip uyarılmasını sağlamak için üst yönetime bildirmelisiniz", "Hiçbir şey yapmamalısınız", "Ona kızmalısınız"],
+      question: "Genel sohbette büyük bir tartışma patlak verdiğinde ve mod etiketleri yağmaya başladığında ilk kriz önlemi ne olmalıdır?",
+      options: ["Kanalı tamamen silmek", "Yavaş modu açarak mesaj akışını kontrol altına almak ve tarafları uyarmak", "Yetkili sohbetine kaçmak", "Herkese ban atmak"],
       correctIndex: 1
     },
     {
-      question: "Roblox grubunda Sekreter rütbesinin rank ID'si kaçtır?",
-      options: ["Rank 3", "Rank 4", "Rank 7", "Rank 8"],
-      correctIndex: 2
-    },
-    {
-      question: "Sekreter rütbesindeki bir personelin günlük ses aktifliği en az kaç dakikadır?",
-      options: ["30 dakika", "60 dakika", "90 dakika", "120 dakika"],
-      correctIndex: 1
-    },
-    {
-      question: "Bir yetkili sistem kurallarını suistimal ediyor veya EkoCoin hilesi yapıyorsa ne yapılmalıdır?",
-      options: ["Sessiz kalıp ortak olunmalıdır", "Kanıtlarla birlikte durumu derhal üst yöneticilere ve log sistemine iletmelisiniz", "Onu genel sohbette rezil etmelisiniz", "Onun yerine de görev yapmalısınız"],
-      correctIndex: 1
-    },
-    {
-      question: "Yönetici izni olmadan bir personelin rütbe atlaması mümkün müdür?",
-      options: ["Evet, sistem otomatik yapar", "Hayır, tüm koşulları tamamlasa bile son kararı sistem ve yöneticiler verir ve sınav sürecinden geçer", "Sadece Roblox grubundan talep edilirse mümkündür", "Evet, puanı yetiyorsa doğrudan geçer"],
-      correctIndex: 1
-    },
-    {
-      question: "Sekreterlik görevindeyken stajyer ekibin motivasyonunu artırmak için ne yapabilirsiniz?",
-      options: ["Onlara sürekli emirler vermek", "Sorularını yanıtlamak, onlara rehberlik etmek ve yapıcı geri bildirimlerde bulunmak", "Onların görevlerini kendiniz yapmak", "Görevlerini yapmadıklarında doğrudan banlamak"],
-      correctIndex: 1
-    },
-    {
-      question: "Sunucudaki güvenlik bypass veya yetkili istisnalarını denetlemek kimin görevidir?",
-      options: ["Stajyerlerin", "Yalnızca normal üyelerin", "Sekreterler ve üst düzey yönetim ekibinin", "Roblox destek ekibinin"],
-      correctIndex: 2
-    },
-    {
-      question: "Haftalık personel raporları neden kritik öneme sahiptir?",
-      options: ["Yetkililerin aktifliğini, çözülen ticketları ve genel performansı üst yönetime raporlamak için", "Boş zaman geçirmek için", "Sohbette mesaj kasmak için", "Üyelerin şikayetlerini silmek için"],
+      question: "Destek biletinde bir üye size sunucu kurucularına hakaret ederek kışkırtma yaptığında bu krizi nasıl yönetirsiniz?",
+      options: ["Provokasyona gelmeden bilet kurallarına göre işlem yapmak ve kanıtları kaydetmek", "Kurucuya haber verip üyeye küfretmek", "Bileti kapatıp silmek", "Üyeyi engellemek"],
       correctIndex: 0
     },
     {
-      question: "Sekreter rütbesi için günlük selamlaşma gereksinimi en az kaçtır?",
-      options: ["4x", "6x", "10x", "15x"],
-      correctIndex: 2
+      question: "Sunucuya bot hesaplar tarafından organize bir spam saldırısı yapıldığında gelişmiş yetkili olarak ilk göreviniz nedir?",
+      options: ["Sunucuyu tamamen silmek", "Saldırganları susturmak/engellemek ve üst yetkilileri acilen bilgilendirmek", "Sohbette laklak yapmak", "Hiçbir şeye karışmamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir üye haksız yere banlandığını söyleyerek sohbette kaos yaratmaya çalışırsa kriz yönetimi politikanız ne olmalıdır?",
+      options: ["Onunla genel sohbette tartışmak", "İtiraz kanallarını / ticket açmasını söyleyerek mesajlarını silmek ve sohbette polemiğe girmemek", "Üyeyi tekrar banlamak", "Onu engellemek"],
+      correctIndex: 1
+    },
+    {
+      question: "Yetkili sohbetinde iki ekip arkadaşınız arasında ciddi bir kriz çıktığını görürseniz gelişmiş personel olarak ne yaparsınız?",
+      options: ["Taraf tutup kavgayı körüklemek", "Ortamı sakinleştirip konunun özelden veya üst yönetim eşliğinde çözülmesini tavsiye etmek", "Yöneticileri etiketleyerek kaosu büyütmek", "Kanalı susturmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Sunucudaki popüler bir üye kuralları ihlal ettiğinde ve onun cezalandırılması üyeler arasında tepkiye yol açtığında kriz nasıl yönetilir?",
+      options: ["Popüler üyeyi affederek", "Kuralın herkes için eşit olduğunu hatırlatıp provokatörleri susturarak", "Yetkiyi bırakarak", "Cezayı veren yetkiliyi suçlayarak"],
+      correctIndex: 1
+    },
+    {
+      question: "Destek talebinde (ticket) çözülemeyen teknik bir kriz oluştuğunda üyeye karşı tavrınız ne olmalıdır?",
+      options: ["Bileti kapatıp üyeyi suçlamak", "Sakin kalmasını sağlayıp durumu üst birimlere aktaracağını kibarce iletmek", "Üyeyi engellemek", "Cevap vermeyi bırakmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir üye sunucunun güvenliğini tehlikeye sokacak bir açığı sohbette ifşa etmeye çalışırsa ne yapılmalıdır?",
+      options: ["Açığı test edip sohbette paylaşmak", "Mesajı anında silip üyeyi susturmak ve durumu hemen yönetime raporlamak", "Görmezden gelmek", "Üyeyi tebrik etmek"],
+      correctIndex: 1
+    },
+    {
+      question: "Kriz anında bir yetkili yetkilerini kötüye kullanır ve haksız cezalar verirse ne tür bir yaptırımla karşılaşır?",
+      options: ["Hiçbir yaptırım uygulanmaz", "Rütbe düşürülmesi veya yetkili ekibinden tamamen ihraç edilmesi", "Puan ödülü alır", "Yönetici yapılır"],
+      correctIndex: 1
     }
   ],
-  5: [ // Target Level 5 (Kıdemli Sekreter) - Very Hard
+  4: [ // Target Level 4 (Sekreter) - Crisis Management
     {
-      question: "Kıdemli Sekreter rütbesinin temel görevi nedir?",
-      options: ["Yöneticilerle koordineli çalışmak, tüm moderatör ekibini denetlemek ve yönetmek", "Sadece oyun oynamak", "Roblox grubunu tamamen silmek", "Biletlerin tamamını tek başına çözmek"],
-      correctIndex: 0
-    },
-    {
-      question: "Bir Sekreterin yetkilerini kötüye kullandığını tespit ederseniz ne yapmalısınız?",
-      options: ["Görmezden gelmelisiniz", "Kanıtları toplayıp durumu derhal üst yönetim ile paylaşmalı ve idari işlem başlatmalısınız", "Onu doğrudan sunucudan banlamalısınız", "Onu sohbette tehdit etmelisiniz"],
+      question: "Destek biletlerinde (ticket) üyeler ile stajyerler arasında ciddi bir üslup krizi yaşandığını fark ettiğinizde Sekreter olarak yaklaşımınız ne olmalıdır?",
+      options: ["Üyeyi doğrudan banlamak", "Bileti devralıp üyeyi sakinleştirmek, stajyer yetkiliyi ise özelden uyararak eğitmek", "Stajyeri genel sohbette ifşa etmek", "İzleyici kalmak"],
       correctIndex: 1
     },
     {
-      question: "Roblox grubunda Kıdemli Sekreter (Yönetici) rütbesinin rank ID'si kaçtır?",
-      options: ["Rank 4", "Rank 7", "Rank 8", "Rank 9"],
-      correctIndex: 2
-    },
-    {
-      question: "Kıdemli Sekreter rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
-      options: ["30 dakika", "60 dakika", "90 dakika", "120 dakika"],
-      correctIndex: 2
-    },
-    {
-      question: "Tüm moderatör ekibinin haftalık performansını değerlendirirken hangi metriklere bakmalısınız?",
-      options: ["Çözülen ticket sayısı, sohbet aktifliği, ses süresi, uyarı durumları ve rapor teslim oranları", "Sadece Roblox grubundaki arkadaş listesine", "Dış görünüşlerine", "Hiçbir metriğe bakılmaz"],
-      correctIndex: 0
-    },
-    {
-      question: "Sistemde 3 gün görev yapmayan bir yetkilinin yetkileri nasıl duraklatılır?",
-      options: ["Yönetici manuel olarak yetkiyi alır", "Sistem otomatik olarak tüm yetkili ve moderasyon rollerini temizler ve DM uyarısı atar", "Hiçbir şey yapılmaz", "Roblox grubu üzerinden şikayet edilir"],
+      question: "Sunucuda büyük bir raid (baskın) olduğunda ve üst yönetim aktif olmadığında sekreter olarak hangi kriz önlemini alırsınız?",
+      options: ["Sunucuyu kilitleyip hiçbir şey yapmamak", "İlgili sohbet kanallarını kilitlemek / yavaş modu maksimuma getirmek ve güvenlik botunu devreye sokmak", "Sunucu kurucusunu uyandırmak için telefonla aramak", "Tüm rolleri silmek"],
       correctIndex: 1
     },
     {
-      question: "Ekip içinde moral ve motivasyon düşüklüğü yaşanıyorsa Kıdemli Sekreter olarak ilk adımınız ne olmalıdır?",
-      options: ["Herkese ceza ve uyarı yağdırmak", "Birebir görüşmeler veya toplantılarla sorunları dinlemek, motivasyon etkinlikleri/ödüllendirmeler planlamak", "İstifa etmek", "Görmezden gelip ekibi suçlamak"],
+      question: "Bir personelinizin sunucu kurallarını suistimal ettiğini ve bu durumun üyeler arasında ifşa edilerek krize dönüştüğünü görürseniz ne yaparsınız?",
+      options: ["Personeli korumaya çalışmak", "Kanıtları toplayıp personeli geçici olarak askıya almak ve durumu acilen üst yönetime sunmak", "Konuyu görmezden gelmek", "Sohbette ifşayı desteklemek"],
       correctIndex: 1
     },
     {
-      question: "Yetkili cüzdanındaki EkoCoin (E.C.) puanlarının dağıtımı ve doğruluğunu denetlemek kimin yetkisindedir?",
-      options: ["Stajyer personellerin", "Normal sunucu üyelerinin", "Kıdemli Sekreter ve üst düzey yöneticilerin", "Dışarıdan bir botun"],
-      correctIndex: 2
-    },
-    {
-      question: "Yeni bir kural ihlali tespit edildiğinde ve kural kitabında yer almadığında ne yapılmalıdır?",
-      options: ["Kendi kafanıza göre ceza vermelisiniz", "Durumu üst yönetimle koordine edip yeni bir kural maddesi oluşturulmasını sağlamalısınız", "İhlali cezasız bırakmalısınız", "Kanalı silmelisiniz"],
+      question: "Haftalık rapor tesliminde ekibinizde kriz çıkarsa ve kimse rapor yazmak istemezse sekreter olarak kriz yönetimi çözümünüz nedir?",
+      options: ["Herkese doğrudan ceza puanı vermek", "Sorunları dinlemek, süreci kolaylaştırmak ve sorumlulukları hatırlatarak motivasyon sağlamak", "Raporları kendiniz yazmak", "Rapor sistemini tamamen iptal etmek"],
       correctIndex: 1
     },
     {
-      question: "Kıdemli Sekreter için günlük selamlaşma gereksinimi en az kaçtır?",
-      options: ["6x", "10x", "12x", "15x"],
-      correctIndex: 2
+      question: "Sunucu kurallarında açık bulan bir üye bunu kullanarak sohbette kaos yaratırsa nasıl müdahale edersiniz?",
+      options: ["Üyenin açığı kullanmasına izin vermek", "Üyeyi uyararak sohbetteki açığı kapatmak, kural güncellemesi için yönetime rapor sunmak", "Üyeyi tebrik etmek", "Sunucuyu kapatmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir üyenin haksız yere cezalandırıldığına dair sunucuda ciddi bir karalama kampanyası başladığında kriz nasıl yönetilir?",
+      options: ["Sessiz kalıp beklemek", "Resmi bir açıklama veya ticket üzerinden kanıtları sunarak üyeleri bilgilendirmek ve kışkırtıcıları susturmak", "Cezayı veren yetkiliyi suçlamak", "Karalama yapan herkesi banlamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Birden fazla yetkilinin eş zamanlı istifa etmesiyle oluşan ekip krizinde ne yapmalısınız?",
+      options: ["Siz de istifa etmelisiniz", "Mevcut ekibi organize edip iş bölümü yapmak ve yeni yetkili alımları için süreci hızlandırmak", "Tüm yetkili kanallarını silmek", "Ekibi suçlamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Destek sisteminde (ticket) yığılma olduğunda ve üyeler geç cevap verilmesinden ötürü kriz çıkardığında ne yapılmalıdır?",
+      options: ["Biletleri topluca kapatmak", "Diğer aktif birimleri yardıma çağırmak ve öncelikli biletleri belirleyip çözmek", "Üyeleri engellemek", "Cevap vermeyi bırakmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir yetkilinin başka bir sunucuda karalama yaptığını ve bunun sunucumuza kriz getirdiğini görürseniz tavrınız ne olmalıdır?",
+      options: ["Görmezden gelmek", "İlişkisini kesmek veya askıya alarak durumu resmi kanallardan üst yönetime iletmek", "O yetkiliyle kavga etmek", "O yetkiliyi savunmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Sekreter rütbesinde kriz anında inisiyatif alırken sınırınız ne olmalıdır?",
+      options: ["Sınırsız yetki kullanmak", "Sunucu güvenliğini koruyacak acil önlemleri almak ancak kalıcı kararları üst yönetime bırakmak", "Hiçbir inisiyatif almamak", "Kendi kurallarını koymak"],
+      correctIndex: 1
     }
   ],
-  6: [ // Target Level 6 (Genel Koordinatör) - Expert
+  5: [ // Target Level 5 (Kıdemli Sekreter) - Crisis Management
     {
-      question: "Genel Koordinatör rütbesinin en üst düzeydeki sorumluluğu nedir?",
-      options: ["Tüm personel ve moderasyon operasyonlarını koordine etmek, yeni personellerin sınav süreçlerini tasarlamak ve genel sunucu denetimini gerçekleştirmek", "Sadece ticket kanallarını izlemek", "Roblox grubunu yöneticiye devretmek", "Sadece sohbette aktif olmak"],
-      correctIndex: 0
-    },
-    {
-      question: "Yeni personeller için hazırlanan AI Sınav sisteminin temel amacı nedir?",
-      options: ["Yetkililerin kuralları, Roblox ranklarını, ticket kalitesini ve liderlik vasıflarını tam olarak öğrendiğini adil şekilde ölçmek", "Personeli sunucudan soğutmak", "Sadece vakit doldurmak", "Rastgele insanları elemek"],
-      correctIndex: 0
-    },
-    {
-      question: "Roblox grubunda Genel Koordinatör rütbesinin rank ID'si kaçtır?",
-      options: ["Rank 7", "Rank 8", "Rank 9", "Rank 201"],
-      correctIndex: 2
-    },
-    {
-      question: "Genel Koordinatör rütbesindeki bir yetkili günlük ses kanalında en az kaç dakika kalmalıdır?",
-      options: ["60 dakika", "90 dakika", "120 dakika", "180 dakika"],
-      correctIndex: 2
-    },
-    {
-      question: "Sınavı geçemeyen (başarısız olan) bir personelin bir sonraki sınavı ne zaman planlanır?",
-      options: ["3 gün sonra öğlen 12:00", "Bir sonraki gün öğlen 12:00", "Hemen o an", "1 hafta sonra"],
+      question: "Sunucu yönetiminde büyük bir sızıntı (leak) gerçekleştiğinde ve yetkili bilgileri ifşa olduğunda Kıdemli Sekreter olarak kriz yönetim planınız ne olur?",
+      options: ["Bütün yetkili rollerini silmek", "Şüpheli hesapları askıya almak, sızıntı kaynağını tespit etmek ve ekibe sükunet çağrısı yapmak", "Yöneticileri suçlamak", "Sunucudan çıkmak"],
       correctIndex: 1
     },
     {
-      question: "EkoYıldız Moderatör Ekibi ana sunucusunda Genel Koordinatör rütbesine atanan kişinin rol ID'si nedir?",
-      options: ["1517651154220355836", "1517695716594683904", "1517656567481372772", "1419688146689593415"],
-      correctIndex: 0
-    },
-    {
-      question: "Sınavda başarılı kabul edilmek için 10 sorudan en az kaç tanesinin doğru yanıtlanması gerekir?",
-      options: ["5", "6", "8", "10"],
-      correctIndex: 2
-    },
-    {
-      question: "Sınav süreci tamamlandığında, adayın testi geçmesi durumunda terfi işlemini hangi fonksiyon gerçekleştirir?",
-      options: ["checkPromotion()", "promote()", "syncStaffRobloxRanks()", "addVoiceMinutes()"],
+      question: "Genel Koordinatörlerin inaktif olduğu bir dönemde sunucuda büyük çaplı bir üye isyanı çıkarsa krizi nasıl kontrol altına alırsınız?",
+      options: ["İsyanı görmezden gelmek", "Sakin ve resmi bir dille duyuru yayınlamak, isyanın elebaşlarını susturmak ve bilet kanalları üzerinden birebir görüşmeler yapmak", "İsyancılara hak vermek", "Sohbeti kalıcı olarak kapatmak"],
       correctIndex: 1
     },
     {
-      question: "Genel Koordinatör için günlük selamlaşma gereksinimi en az kaçtır?",
-      options: ["10x", "12x", "15x", "20x"],
-      correctIndex: 2
+      question: "Moderatör ekibinin kendi içinde gruplaşarak birbirine karşı kriz çıkardığını ve işleri aksattığını görürseniz ne yaparsınız?",
+      options: ["Bir tarafı tutup diğer grubu sunucudan atmak", "Grupların liderleriyle toplantı yapmak, uyarılarda bulunmak ve gerekirse huzursuzluk çıkaranları ekipten uzaklaştırmak", "Yetkili kanalında kavga etmek", "Hiçbir şeye karışmamak"],
+      correctIndex: 1
     },
     {
-      question: "Bir personelin aktiflik uyarısı aldığında sistemden rolünün tamamen alınması için ardışık kaç gün uyarılması gerekir?",
-      options: ["1 gün", "2 gün", "3 gün", "5 gün"],
-      correctIndex: 2
+      question: "Sunucuya yapılan DDoS veya bot saldırısı gibi teknik kriz anlarında Kıdemli Sekreter olarak moderasyon ekibini nasıl yönlendirirsiniz?",
+      options: ["Herkesi sunucudan banlatmak", "Ekibe panik yapmamalarını söylemek, kanalları kilitlemek ve teknik ekibin müdahale etmesini beklerken üyeleri bilgilendirmek", "Sohbette geyik yapmak", "Yetkiyi bırakmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir üst yöneticinin (Genel Koordinatör) kuralları ağır şekilde ihlal ettiğini ve kriz yarattığını fark ederseniz ne yapmalısınız?",
+      options: ["Onu genel sohbette ifşa etmek", "Diğer üst yöneticiler ve sunucu kurucuları ile kanıtları paylaşarak idari sürecin başlamasını sağlamak", "Ona şantaj yapmak", "Görmezden gelmek"],
+      correctIndex: 1
+    },
+    {
+      question: "EkoCoin sisteminde büyük bir açık (exploit) bulunup bazı yetkililerce sömürüldüğünde kriz yönetimi adımınız ne olmalıdır?",
+      options: ["Açığı kendiniz de kullanmak", "İlgili yetkililerin puanlarını sıfırlayıp yetkilerini askıya almak, açığı teknik ekibe bildirmek", "Sistemi tamamen kapatıp silmek", "Yetkilileri tebrik etmek"],
+      correctIndex: 1
+    },
+    {
+      question: "Sunucudaki kriz anında moderatörlerin yetersiz kalması sonucu üyelerin güveninin sarsılmasını engellemek için ne yapılmalıdır?",
+      options: ["Ekibi tamamen değiştirmek", "Eğitimleri artırmak, kriz anı prosedürlerini netleştirmek ve yönetim olarak sahada aktif rol almak", "Üyeleri susturmak", "Hataları inkar etmek"],
+      correctIndex: 1
+    },
+    {
+      question: "Kriz durumlarında esnek yönetim sergilemek ile kuralcı olmak arasındaki dengeyi nasıl kurarsınız?",
+      options: ["Kuralları tamamen yok sayarak", "Temel güvenlik kurallarından taviz vermeden, üye memnuniyeti için yapıcı çözümler üreterek", "Sadece kuralcı olarak", "Üyeleri sunucudan atarak"],
+      correctIndex: 1
+    },
+    {
+      question: "Ekibin haftalık raporlarında ciddi performans düşüşü ve kriz sinyalleri varsa ne yapılmalıdır?",
+      options: ["Herkese ceza puanı yağdırmak", "Performans düşüşünün kök nedenini araştırmak, motivasyon ve ödül sistemlerini devreye sokmak", "Raporları iptal etmek", "Ekibi suçlamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Kıdemli Sekreter rütbesinde başarılı bir kriz yönetiminin en önemli kriteri nedir?",
+      options: ["Çok fazla ban atmak", "Krizin en az hasarla, sunucu düzenini bozmadan ve ekibin motivasyonunu kaybettirmeden çözülmesidir", "Kurucunun onayını almak", "En popüler yetkili olmak"],
+      correctIndex: 1
+    }
+  ],
+  6: [ // Target Level 6 (Genel Koordinatör) - Crisis Management
+    {
+      question: "Sunucu kurucularının olmadığı bir anda sunucunun ana kanallarının silinmesi veya hacklenmesi gibi en kritik kriz anında Genel Koordinatör olarak ilk aksiyonunuz ne olmalıdır?",
+      options: ["Sunucuyu tamamen silmek", "Botların yetkilerini kısmak, sunucu şablonunu/yedekleri hazırlamak ve moderasyon ekibine acil görev dağılımı yapmak", "Kurucuları beklemek için hiçbir şey yapmamak", "Sohbete gidip geyik yapmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Tüm moderatör ekibinin katıldığı toplu bir boykot veya istifa krizi yaşandığında nasıl bir strateji izlersiniz?",
+      options: ["Tüm ekibi doğrudan sunucudan yasaklamak", "Talepleri dinlemek için acil toplantı düzenlemek, haklı talepleri çözüme kavuşturmak ve sunucu güvenliği için geçici ekipler kurmak", "Boykotu görmezden gelmek", "Ekibi kuruculara şikayet etmek"],
+      correctIndex: 1
+    },
+    {
+      question: "AI Sınav sisteminin manipüle edildiği veya soruların dışarı sızdırıldığı bir kriz durumunda ne yaparsınız?",
+      options: ["Sistemi görmezden gelmek", "Sınav sistemini askıya almak, sızdıranı ekipten ihraç etmek ve AI promptlarını/soruları tamamen yenilemek", "Sınavı iptal edip herkesi terfi ettirmek", "Sınavı yapan botu silmek"],
+      correctIndex: 1
+    },
+    {
+      question: "Sunucudaki iki büyük birim (örn: Ses Birimi ve Sohbet Birimi) arasında çıkan rekabet krizini nasıl çözersiniz?",
+      options: ["Birimlerden birini tamamen kapatmak", "Birim liderleriyle toplantı yapıp ortak hedefler belirlemek, rollerin sınırlarını netleştirmek ve işbirliğini teşvik etmek", "Birimleri birbirine düşürmek", "Hiçbir şey yapmamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Kriz yönetimi eğitimleri hazırlarken yeni yetkililerin öğrenmesi gereken en kritik kriz protokolü nedir?",
+      options: ["İstediği an ban atabilmek", "Yetki zincirine saygı, soğukkanlılık, delil toplama yeteneği ve hızlı raporlama", "Yalnızca üstleriyle sohbet etmek", "Sohbeti kilitlemek"],
+      correctIndex: 1
+    },
+    {
+      question: "Üst düzey bir kriz sonrasında ekibin ve üyelerin moralini geri kazanmak için ne tür adımlar atılmalıdır?",
+      options: ["Herkesi susturmak", "Şeffaf bir açıklama yapmak, ödüllü etkinlikler düzenlemek ve krizden çıkarılan dersleri paylaşmak", "Krizi inkar etmek", "Ekibi suçlamak"],
+      correctIndex: 1
+    },
+    {
+      question: "Roblox grubu ile Discord rolleri arasındaki senkronizasyon bozulup büyük bir rol krizi çıktığında ne yapılmalıdır?",
+      options: ["Grubu silmek", "Senkronizasyon botunu durdurup rolleri manuel kontrol altına almak ve teknik ekiple sorunu çözene kadar geçici kural koymak", "Discord sunucusunu kapatmak", "Üyeleri Roblox'ta cezalandırmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Kriz yönetiminde 'Önleyici Moderasyon' yaklaşımı neyi ifade eder?",
+      options: ["Herkesi susturarak kriz çıkmasını önlemek", "Kriz daha çıkmadan kuralları netleştirmek, riskli üyeleri izlemek ve ekibi kriz senaryolarına hazırlamak", "Hiçbir şey yapmamak", "Ceza vermeden sadece izlemek"],
+      correctIndex: 1
+    },
+    {
+      question: "Genel Koordinatör olarak sunucu genelinde uygulanacak yeni bir ceza sisteminin getireceği tepki krizini nasıl yönetirsiniz?",
+      options: ["Tepki gösterenleri banlayarak", "Değişikliğin neden gerekli olduğunu şeffafça açıklamak, geri bildirimleri toplamak ve aşamalı geçiş yapmak", "Tepkilere boyun eğip sistemi kaldırmak", "Gizlice yürürlüğe sokmak"],
+      correctIndex: 1
+    },
+    {
+      question: "Bir Genel Koordinatörün kriz anında yapabileceği en büyük hata nedir?",
+      options: ["Ekip arkadaşlarından yardım istemek", "Panik yapmak, fevri kararlar almak ve ekibiyle iletişimi koparmaktır", "Yedekleme yapmak", "Kanalları kilitlemek"],
+      correctIndex: 1
     }
   ]
 };
 
 const DIFFICULTY_INFO = {
-  2: { difficulty: 'Kolay / Temel Düzey', focus: 'Discord temel kuralları, basit moderasyon işlemleri (/sustur vb.), selamlaşma disiplini, temel üye ilişkileri.' },
-  3: { difficulty: 'Orta Düzey', focus: 'Orta düzey moderasyon, kural ihlallerine hızlı müdahale, yeni personellere/stajyerlere yardım ve rehberlik, aktiflik kuralları.' },
-  4: { difficulty: 'Zor Düzey', focus: 'Destek biletleri (ticket) kalitesi, haftalık raporlama, ekip içi iletişim, güvenlik bypass kuralları, rol dağılımı.' },
-  5: { difficulty: 'Çok Zor Düzey', focus: 'Yönetim koordinasyonu, genel denetim, üst düzey ceza/mod kuralları, kriz yönetimi, ekipler arası koordinasyon.' },
-  6: { difficulty: 'Uzman / En Üst Düzey', focus: 'Genel sunucu operasyonları, yeni personellerin sınav ve eğitim süreçleri, operasyon koordinasyonu, liderlik standartları.' }
+  2: { difficulty: 'Kolay / Temel Düzey', focus: 'Kriz yönetimi, gergin ve kışkırtıcı durumlarda temel sükunet ve müdahale, basit kriz anlarında soğukkanlılığı koruma.' },
+  3: { difficulty: 'Orta Düzey', focus: 'Orta düzey kriz yönetimi, sohbette patlak veren kavgaları ve kaos ortamını yatıştırma, kural ihlallerini manipüle eden üyelere karşı kriz müdahalesi.' },
+  4: { difficulty: 'Zor Düzey', focus: 'Kriz yönetimi, destek biletlerindeki (ticket) hakaret ve provokasyon krizlerini çözme, ekip içi krizler ve şikayetlerde arabuluculuk.' },
+  5: { difficulty: 'Çok Zor Düzey', focus: 'Gelişmiş kriz yönetimi, sunucu genelinde organize troll saldırıları veya kural suistimalleri gibi ciddi kriz anlarında moderatör ekibini yönetme.' },
+  6: { difficulty: 'Uzman / En Üst Düzey', focus: 'En üst düzey kriz yönetimi, sunucu baskınları (raid), güvenlik açıkları, kurallar arası çelişkiler ve ciddi yönetim krizlerinde stratejik kriz yönetimi kararları.' }
 };
 
 async function generateExamQuestions(targetLevel = 6) {
@@ -282,7 +282,9 @@ async function generateExamQuestions(targetLevel = 6) {
       role: 'user',
       content: `Sen EkoYıldız Moderatör Ekibi eğitim sorumlusu bir yapay zekasın. Seviye ${targetLevel} rütbesine terfi edecek yetkililer için 10 soruluk çoktan seçmeli bir sınav hazırlaman gerekiyor.
 Sınavın Zorluk Derecesi: ${diff.difficulty}
-Konu Odakları: ${diff.focus}
+Konu Odakları (Mutlaka Kriz Yönetimi odaklı olmalı): ${diff.focus}
+
+Sınavdaki tüm 10 soru mutlaka kriz yönetimi (crisis management), gergin üyeleri sakinleştirme, sunucu baskınları (raid), kaos, provokasyon ve manipülasyon anlarında doğru kararlar verme ve yetkili/üye arasındaki krizleri yönetme konularında olmalıdır.
 
 Senden yanıtı SADECE ve SADECE aşağıdaki JSON formatında vermeni istiyorum. Markdown, açıklama veya başka hiçbir metin ekleme. Sadece geçerli bir JSON array'i dönder.
 
