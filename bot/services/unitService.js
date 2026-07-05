@@ -322,7 +322,7 @@ JSON formatında cevap ver: {"questions": [{"question": "...", "options": ["A", 
 
     let parsedData = null;
     try {
-      const aiResponse = await chatWithAI(systemPrompt, { timeout: 10000 });
+      const aiResponse = await chatWithAI("Lütfen kurallara göre sınavı hazırla.", systemPrompt);
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsedData = JSON.parse(jsonMatch[0]);

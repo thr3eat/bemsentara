@@ -2987,6 +2987,11 @@ async function handleInteraction(interaction) {
     result = await handleModerationCommand(interaction);
     if (result !== null) return result;
 
+    // Fallback to legacy slashHandler for left-behind commands (e.g. grupcekeko, grupcekekogerial)
+    const { handleSlashCommand } = require("./slashHandler");
+    result = await handleSlashCommand(interaction);
+    if (result !== null) return result;
+
     return null;
   }
 
