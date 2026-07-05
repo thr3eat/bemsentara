@@ -172,7 +172,7 @@ async function sendCoachFilterPanel(client, coachId) {
       new ButtonBuilder()
         .setCustomId('coach_msg_level_important')
         .setLabel('⚠️ Önemli')
-        .setStyle(currentLevel === MESSAGE_LEVELS.IMPORTANT ? ButtonStyle.Warning : ButtonStyle.Secondary)
+        .setStyle(currentLevel === MESSAGE_LEVELS.IMPORTANT ? ButtonStyle.Primary : ButtonStyle.Secondary)
         .setDisabled(currentLevel === MESSAGE_LEVELS.IMPORTANT),
       new ButtonBuilder()
         .setCustomId('coach_msg_level_silent')

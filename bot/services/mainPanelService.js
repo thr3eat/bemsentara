@@ -154,7 +154,7 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       new ButtonBuilder()
         .setCustomId("panel_tab_units")
         .setLabel("🏆 Birim Sistemi")
-        .setStyle(ButtonStyle.Blurple)
+        .setStyle(ButtonStyle.Primary)
     );
 
     if (allowedSpecial.includes(interaction.user.id)) {
