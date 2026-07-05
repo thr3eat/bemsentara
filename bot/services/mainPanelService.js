@@ -157,8 +157,10 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Primary)
     );
 
+    const row2 = new ActionRowBuilder();
+
     if (allowedSpecial.includes(interaction.user.id)) {
-      row.addComponents(
+      row2.addComponents(
         new ButtonBuilder()
           .setCustomId("panel_emergency_call")
           .setLabel("📞 Acil Ara")
@@ -166,13 +168,13 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
       );
     }
 
-    row.addComponents(
+    row2.addComponents(
       new ButtonBuilder()
         .setCustomId("panel_close")
         .setLabel("❌ Kapat")
         .setStyle(ButtonStyle.Secondary)
     );
-    components.push(row);
+    components.push(row, row2);
   }
 
   else if (tabName === "moderation") {
