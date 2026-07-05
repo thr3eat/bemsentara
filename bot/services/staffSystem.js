@@ -308,12 +308,47 @@ function getDailyTaskCompletionStats(progress) {
 }
 
 // ── Kullanıcı al/oluştur ──────────────────────────────────────────────────
-async function getOrCreate(userId, guildId) {
+async function getOrCreate(userId, guildId, client) {
   let p = await StaffProgress.findOne({ userId });
-  if (!p) {
-    p = new StaffProgress({ userId, guildId: guildId || GUILD_ID });
-    await p.save();
+  
+  if (p) {
+    if (p.status !== 'active') {
+      p.status = 'active';
+      await p.save();
+    }
+    return p;
   }
+
+  let initialLevel = 1;
+  if (client) {
+    try {
+      const targetGuildId = guildId || GUILD_ID;
+      const guild = await client.guilds.fetch(targetGuildId).catch(() => null);
+      if (guild) {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member) {
+          // En yüksek seviyeli rolü bul
+          for (let lvl = 6; lvl >= 1; lvl--) {
+            const roleId = ROLES[lvl];
+            if (roleId && member.roles.cache.has(roleId)) {
+              initialLevel = lvl;
+              break;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[staffSystem] Error detecting initial staff level in getOrCreate:', err.message);
+    }
+  }
+
+  p = new StaffProgress({
+    userId,
+    guildId: guildId || GUILD_ID,
+    level: initialLevel,
+    status: 'active'
+  });
+  await p.save();
   return p;
 }
 
@@ -359,7 +394,7 @@ async function recordGreet(userId, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') {
       return;
     }
@@ -436,7 +471,7 @@ async function addVoiceMinutes(userId, minutes, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') {
       return;
     }
@@ -543,7 +578,7 @@ async function recordModerationAction(userId, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
@@ -575,7 +610,7 @@ async function recordWeeklyReport(userId, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
@@ -786,7 +821,7 @@ async function recordTicketSolved(userId, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
@@ -897,7 +932,7 @@ async function recordChatMessage(userId, client) {
       return;
     }
 
-    const p = await StaffProgress.findOne({ userId });
+    const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
