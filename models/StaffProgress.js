@@ -26,6 +26,20 @@ const staffProgressSchema = new mongoose.Schema({
     chatMessagesToday: { type: Number, default: 0 },    // Bugün atılan mesajlar
     ticketsSolvedToday: { type: Number, default: 0 },   // Bugün çözülen ticketlar
     moderationActionsToday: { type: Number, default: 0 },   // Bugün yapılan mod işlemleri
+    
+    // Ek Mesai & Ek Görev Alanları
+    overtimeActive: { type: Boolean, default: false },
+    overtimeTask: { type: String, default: '' }, // 'overtime_voice', 'task_chat', etc.
+    overtimeCompleted: { type: Boolean, default: false },
+    overtimeProgress: { type: Number, default: 0 },
+    overtimeTarget: { type: Number, default: 0 },
+
+    // Görev Eksiltme & Sonraya Aktarma
+    postponedToday: { type: Boolean, default: false },
+    transferredVoiceMinutes: { type: Number, default: 0 },
+    transferredGreets: { type: Number, default: 0 },
+    transferToTomorrowVoice: { type: Number, default: 0 },
+    transferToTomorrowGreets: { type: Number, default: 0 }
   },
 
   // İstatistikler (terfi için)

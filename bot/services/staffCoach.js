@@ -192,22 +192,37 @@ async function startCoachSession(interaction) {
       .setFooter({ text: 'Eko Yıldız • AI Koç Sistemi | /koc sıfırla ile yenile' })
       .setTimestamp();
 
-    const row = new ActionRowBuilder().addComponents(
+    const row1 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`coach_tip_${userId}`)
-        .setLabel('💡 Günlük İpucu Al')
+        .setLabel('💡 Günlük İpucu')
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`coach_promo_${userId}`)
         .setLabel('📈 Terfi Planım')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
+        .setCustomId(`coach_ekgorev_${userId}`)
+        .setLabel('💪 Ek Görev Al')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`coach_ekmesai_${userId}`)
+        .setLabel('⚡ Ek Mesai Yap')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`coach_eksilt_${userId}`)
+        .setLabel('⏳ Görev Eksilt')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
         .setCustomId(`coach_end_${userId}`)
         .setLabel('👋 Sohbeti Bitir')
         .setStyle(ButtonStyle.Secondary)
     );
 
-    await interaction.user.send({ embeds: [embed], components: [row] });
+    await interaction.user.send({ embeds: [embed], components: [row1, row2] });
     return interaction.editReply({ content: '✅ Koçun DM\'ine gönderildi! DM\'ini aç.' });
   } catch (err) {
     activeCoachSessions.delete(userId);
@@ -285,6 +300,58 @@ async function handleCoachButton(interaction, client) {
 
   if (!session) {
     await interaction.reply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.', ephemeral: true }).catch(() => {});
+    return true;
+  }
+
+  if (cid.startsWith('coach_ekgorev_') || cid.startsWith('coach_ekmesai_') || cid.startsWith('coach_eksilt_')) {
+    await interaction.update({ components: [] }).catch(() => {});
+    const { recordOvertimeTask, postponeDailyTask } = require('./staffSystem');
+
+    try {
+      if (cid.startsWith('coach_ekgorev_')) {
+        const result = await recordOvertimeTask(userId, 'ek_gorev', client);
+        if (result.success) {
+          const embed = new EmbedBuilder()
+            .setColor(0xfbbf24)
+            .setTitle('💪 Yeni Ek Görev Tanımlandı!')
+            .setDescription(`AI Koçunuz tarafından bugün için size özel bir ek görev tanımlandı. Başarılar!\n\n**Görev:** ${result.taskName}\n**Açıklama:** ${result.description}\n**Ödül:** ${result.reward}`)
+            .setFooter({ text: 'Eko Yıldız • Ek Görev Sistemi' })
+            .setTimestamp();
+          await interaction.user.send({ embeds: [embed] }).catch(() => {});
+        } else {
+          await interaction.user.send(`❌ **Hata:** ${result.message}`).catch(() => {});
+        }
+      } else if (cid.startsWith('coach_ekmesai_')) {
+        const result = await recordOvertimeTask(userId, 'ek_mesai', client);
+        if (result.success) {
+          const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle('⚡ Ek Mesai Başladı!')
+            .setDescription(`Bugün için ek mesai sisteminiz aktif edildi. Görevinizi yerine getirin!\n\n**Görev:** ${result.taskName}\n**Açıklama:** ${result.description}\n**Ödül:** ${result.reward}`)
+            .setFooter({ text: 'Eko Yıldız • Ek Mesai Sistemi' })
+            .setTimestamp();
+          await interaction.user.send({ embeds: [embed] }).catch(() => {});
+        } else {
+          await interaction.user.send(`❌ **Hata:** ${result.message}`).catch(() => {});
+        }
+      } else if (cid.startsWith('coach_eksilt_')) {
+        const result = await postponeDailyTask(userId, client);
+        if (result.success) {
+          const embed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle('⏳ Görevler Hafifletildi!')
+            .setDescription(`Bugünkü görev hedefleriniz hafifletildi ve gününüz tamamlandı sayıldı!\n\n**Yarına Aktarılan Görevler:**\n${result.message}`)
+            .setFooter({ text: 'Eko Yıldız • Görev Erteleme Sistemi' })
+            .setTimestamp();
+          await interaction.user.send({ embeds: [embed] }).catch(() => {});
+        } else {
+          await interaction.user.send(`❌ **Hata:** ${result.message}`).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error('[staffCoach] Button handling error:', err.message);
+      await interaction.user.send('⚠️ İşlem gerçekleştirilirken teknik bir hata oluştu.').catch(() => {});
+    }
     return true;
   }
 

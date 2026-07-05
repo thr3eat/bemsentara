@@ -272,11 +272,14 @@ function getDailyTaskCompletionStats(progress) {
   const isToday = progress.daily?.date === today;
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
 
+  const targetVoice = req.voiceMinutes + (isToday ? (progress.daily?.transferredVoiceMinutes || 0) : 0);
+  const targetGreets = req.greets + (isToday ? (progress.daily?.transferredGreets || 0) : 0);
+
   const greeted = isToday && progress.daily?.greeted;
   const voiceMinutes = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
 
   const greetPercent = greeted ? 100 : 0;
-  const voicePercent = req.voiceMinutes > 0 ? Math.min(100, Math.round((voiceMinutes / req.voiceMinutes) * 100)) : 100;
+  const voicePercent = targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100;
 
   let totalPercent = 0;
   let hasChosenTask = false;
@@ -303,7 +306,7 @@ function getDailyTaskCompletionStats(progress) {
     voicePercent,
     totalPercent,
     progressBar,
-    greetProgress: greeted ? `1/${req.greets}` : `0/${req.greets}`
+    greetProgress: greeted ? `${targetGreets}/${targetGreets}` : `0/${targetGreets}`
   };
 }
 
@@ -367,7 +370,17 @@ function resetDaily(progress) {
       chosenTaskCompleted: false,
       chatMessagesToday: 0,
       ticketsSolvedToday: 0,
-      moderationActionsToday: 0
+      moderationActionsToday: 0,
+      overtimeActive: false,
+      overtimeTask: '',
+      overtimeCompleted: false,
+      overtimeProgress: 0,
+      overtimeTarget: 0,
+      postponedToday: false,
+      transferredVoiceMinutes: 0,
+      transferredGreets: 0,
+      transferToTomorrowVoice: 0,
+      transferToTomorrowGreets: 0
     };
     return;
   }
@@ -376,6 +389,11 @@ function resetDaily(progress) {
   if (progress.daily.date !== today) {
     const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
+    
+    // Dünün ertelenen hedeflerini bugüne aktar
+    const nextTransferredVoice = progress.daily.transferToTomorrowVoice || 0;
+    const nextTransferredGreets = progress.daily.transferToTomorrowGreets || 0;
+
     progress.daily.date = today;
     progress.daily.greeted = false;
     progress.daily.voiceMinutes = 0;
@@ -384,6 +402,20 @@ function resetDaily(progress) {
     progress.daily.chatMessagesToday = 0;
     progress.daily.ticketsSolvedToday = 0;
     progress.daily.moderationActionsToday = 0;
+    
+    // Ek Mesai alanlarını sıfırla
+    progress.daily.overtimeActive = false;
+    progress.daily.overtimeTask = '';
+    progress.daily.overtimeCompleted = false;
+    progress.daily.overtimeProgress = 0;
+    progress.daily.overtimeTarget = 0;
+
+    // Görev eksiltme/aktarma alanlarını güncelle
+    progress.daily.postponedToday = false;
+    progress.daily.transferredVoiceMinutes = nextTransferredVoice;
+    progress.daily.transferredGreets = nextTransferredGreets;
+    progress.daily.transferToTomorrowVoice = 0;
+    progress.daily.transferToTomorrowGreets = 0;
   }
 }
 
@@ -478,12 +510,13 @@ async function addVoiceMinutes(userId, minutes, client) {
 
     resetDaily(p);
     const req = getDailyRequirements(p.level, p.stats.consecutiveDays || 0);
-    const wasVoiceDoneBefore = (p.daily.voiceMinutes || 0) >= req.voiceMinutes;
+    const targetVoice = req.voiceMinutes + (p.daily.transferredVoiceMinutes || 0);
+    const wasVoiceDoneBefore = (p.daily.voiceMinutes || 0) >= targetVoice;
 
     p.daily.voiceMinutes += minutes;
     p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
 
-    const isVoiceDoneNow = (p.daily.voiceMinutes || 0) >= req.voiceMinutes;
+    const isVoiceDoneNow = (p.daily.voiceMinutes || 0) >= targetVoice;
 
     if (!wasVoiceDoneBefore && isVoiceDoneNow) {
       try {
@@ -495,7 +528,7 @@ async function addVoiceMinutes(userId, minutes, client) {
             .setTitle('🎙️ 2. Görev (Ses Aktifliği) Başarıyla Tamamlandı!')
             .setDescription(
               `Merhaba <@${userId}>,\n\n` +
-              `Bugünkü ses aktifliği göreviniz (**${req.voiceMinutes} dakika**) başarıyla tamamlandı! 🎉\n\n` +
+              `Bugünkü ses aktifliği göreviniz (**${targetVoice} dakika**) başarıyla tamamlandı! 🎉\n\n` +
               `Ses kanallarında aktif kalarak görevinizi yerine getirdiniz. Tebrikler! 🎤`
             )
             .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
@@ -512,6 +545,14 @@ async function addVoiceMinutes(userId, minutes, client) {
         }
       } catch (dmErr) {
         console.warn(`[staffSystem] Voice task completion DM error:`, dmErr.message);
+      }
+    }
+
+    // Ek Mesai / Ek Görev (Ses) İlerlemesi
+    if (p.daily.overtimeActive && !p.daily.overtimeCompleted && (p.daily.overtimeTask === 'task_voice' || p.daily.overtimeTask === 'overtime_voice')) {
+      p.daily.overtimeProgress = (p.daily.overtimeProgress || 0) + minutes;
+      if (p.daily.overtimeProgress >= p.daily.overtimeTarget) {
+        await completeOvertime(p, client).catch(() => {});
       }
     }
 
@@ -587,6 +628,14 @@ async function recordModerationAction(userId, client) {
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
     p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
 
+    // Ek Görev (Mod) İlerlemesi
+    if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_mod') {
+      p.daily.overtimeProgress = (p.daily.overtimeProgress || 0) + 1;
+      if (p.daily.overtimeProgress >= p.daily.overtimeTarget) {
+        await completeOvertime(p, client).catch(() => {});
+      }
+    }
+
     // YENİ: E.C. Kazandır
     await addEkoCoin(p, 10, client, 'Moderasyon İşlemi');
 
@@ -642,8 +691,10 @@ async function checkDailyCompletion(progress, client) {
 
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
+  const targetVoice = req.voiceMinutes + (progress.daily.transferredVoiceMinutes || 0);
+
   const greetDone = progress.daily.greeted;
-  const voiceDone = progress.daily.voiceMinutes >= req.voiceMinutes;
+  const voiceDone = progress.daily.voiceMinutes >= targetVoice;
 
   // ✅ BUGFIX: lastCompleteDay'in bugün olup olmadığını kontrol et
   const alreadyCompletedToday = progress.stats.lastCompleteDay === today;
@@ -830,6 +881,14 @@ async function recordTicketSolved(userId, client) {
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
 
+    // Ek Görev (Ticket) İlerlemesi
+    if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_ticket') {
+      p.daily.overtimeProgress = (p.daily.overtimeProgress || 0) + 1;
+      if (p.daily.overtimeProgress >= p.daily.overtimeTarget) {
+        await completeOvertime(p, client).catch(() => {});
+      }
+    }
+
     // 🎮 Gamification: XP ve Puan ekle
     if (!p.gamification) {
       p.gamification = {
@@ -940,6 +999,15 @@ async function recordChatMessage(userId, client) {
 
     p.stats.chatMessages = (p.stats.chatMessages || 0) + 1;
     p.daily.chatMessagesToday = (p.daily.chatMessagesToday || 0) + 1;
+
+    // Ek Görev (Sohbet) İlerlemesi
+    if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_chat') {
+      p.daily.overtimeProgress = (p.daily.overtimeProgress || 0) + 1;
+      if (p.daily.overtimeProgress >= p.daily.overtimeTarget) {
+        await completeOvertime(p, client).catch(() => {});
+      }
+    }
+
     await p.save().catch(err => {
       console.error('[staffSystem] Save failed:', err.message);
     });
@@ -1387,7 +1455,19 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
       new ButtonBuilder()
         .setCustomId('talk_to_coach')
         .setLabel('💬 Koçla Konuş')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`coach_ekgorev_${progress.userId}`)
+        .setLabel('💪 Ek Görev Al')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`coach_ekmesai_${progress.userId}`)
+        .setLabel('⚡ Ek Mesai Yap')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`coach_eksilt_${progress.userId}`)
+        .setLabel('⏳ Görev Eksilt')
+        .setStyle(ButtonStyle.Danger)
     );
     const allOptions = [
       {
@@ -2161,8 +2241,9 @@ async function runDailyCheck(client) {
 
       // Bugünü veya hedef günü kontrol et (görevi tamamladı mı?)
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
       const greetDone = p.daily?.date === checkDate && p.daily?.greeted;
-      const voiceDone = p.daily?.date === checkDate && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      const voiceDone = p.daily?.date === checkDate && (p.daily?.voiceMinutes || 0) >= targetVoice;
       const completedToday = (p.stats.lastCompleteDay === checkDate) || (greetDone && voiceDone);
 
       const activeDays = p.stats?.activeDays || 0;
@@ -2250,7 +2331,9 @@ function startStaffScheduler(client) {
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
-      const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= getDailyRequirements(p.level, p.stats?.consecutiveDays || 0).voiceMinutes;
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
+      const isComplete = p.daily?.date === today && p.daily?.greeted && p.daily?.voiceMinutes >= targetVoice;
       if (!isComplete) {
         await sendMidDayReminder(p, client).catch(() => { });
       }
@@ -2266,7 +2349,8 @@ function startStaffScheduler(client) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
+      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= targetVoice;
       if (!isComplete) {
         await sendEveningWarning(p, client).catch(() => { });
       }
@@ -2312,7 +2396,8 @@ function startStaffScheduler(client) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
-      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
+      const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
+      const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= targetVoice;
 
       // Tamamlayanları tebrik et, tamamlayamayanlara son çağrı yap
       if (isComplete) {
@@ -2915,6 +3000,203 @@ async function sendFunMessage(userId, client) {
   } catch (_) { }
 }
 
+async function completeOvertime(progress, client) {
+  try {
+    progress.daily.overtimeCompleted = true;
+    
+    // Determine rewards
+    let coinsReward = 50;
+    let xpReward = 150;
+    let taskNameText = 'Ek Görev';
+    
+    if (progress.daily.overtimeTask === 'overtime_voice') {
+      coinsReward = 100;
+      xpReward = 300;
+      taskNameText = 'Ses Ek Mesaisi (20 Dakika)';
+    } else {
+      const taskLabels = {
+        'task_chat': 'Ek Sohbet Görevi (10 Mesaj)',
+        'task_voice': 'Ek Ses Görevi (15 Dakika)',
+        'task_ticket': 'Ek Ticket Görevi (1 Çözüm)',
+        'task_mod': 'Ek Moderasyon Görevi (1 İşlem)'
+      };
+      taskNameText = taskLabels[progress.daily.overtimeTask] || 'Ek Görev';
+    }
+    
+    // Add EkoCoins and XP
+    progress.gamification = progress.gamification || {};
+    progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + coinsReward;
+    progress.gamification.currentXP = (progress.gamification.currentXP || 0) + xpReward;
+    
+    // Check level up
+    const nextLevelXp = getXpForLevel((progress.gamification.level || 1) + 1);
+    if (progress.gamification.currentXP >= nextLevelXp) {
+      progress.gamification.level = (progress.gamification.level || 1) + 1;
+      progress.gamification.currentXP = 0;
+    }
+    
+    await progress.save();
+    
+    // Send DM
+    if (client) {
+      try {
+        const user = await client.users.fetch(progress.userId).catch(() => null);
+        if (user) {
+          const embed = new EmbedBuilder()
+            .setColor(0xfbbf24)
+            .setTitle('🔥 EK GÖREV / EK MESAİ TAMAMLANDI!')
+            .setDescription(
+              `Tebrikler <@${progress.userId}>, bugünün **"${taskNameText}"** ek mesai görevini başarıyla tamamladın!\n\n` +
+              `✨ **+${xpReward} XP** kazanıldı!\n` +
+              `💰 **+${coinsReward} EkoCoin (E.C.)** kazanıldı!\n` +
+              `💳 Güncel Bakiyen: \`${progress.gamification.ecoCoins} E.C.\``
+            )
+            .setFooter({ text: 'Eko Yıldız • Ek Görev Sistemi' })
+            .setTimestamp();
+          await user.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (dmErr) {
+        console.warn(`[staffSystem] Overtime completion DM error:`, dmErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[staffSystem] completeOvertime error:', err.message);
+  }
+}
+
+async function recordOvertimeTask(userId, type, client) {
+  try {
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    if (!p || p.status !== 'active') {
+      return { success: false, message: 'Aktif personel bulunamadı.' };
+    }
+    
+    resetDaily(p);
+    
+    if (p.daily.overtimeActive) {
+      return { success: false, message: 'Bugün zaten aktif bir ek göreviniz veya ek mesainiz var!' };
+    }
+    
+    if (type === 'ek_mesai') {
+      // Ses Ek Mesaisi
+      p.daily.overtimeActive = true;
+      p.daily.overtimeTask = 'overtime_voice';
+      p.daily.overtimeTarget = 20; // 20 dk seste kal
+      p.daily.overtimeProgress = 0;
+      p.daily.overtimeCompleted = false;
+      await p.save();
+      
+      return {
+        success: true,
+        taskName: '⚡ Ses Ek Mesaisi',
+        description: 'Ses kanallarında fazladan **20 dakika** geçir.',
+        reward: '💰 +100 E.C. ve ✨ +300 XP'
+      };
+    } else {
+      // Ek Görev
+      const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+      const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
+      
+      p.daily.overtimeActive = true;
+      p.daily.overtimeTask = randomTask;
+      p.daily.overtimeCompleted = false;
+      p.daily.overtimeProgress = 0;
+      
+      let taskName = '';
+      let description = '';
+      let target = 0;
+      
+      if (randomTask === 'task_chat') {
+        target = 10;
+        taskName = '💬 Ek Sohbet Görevi';
+        description = 'Sohbette fazladan **10 mesaj** gönder.';
+      } else if (randomTask === 'task_voice') {
+        target = 15;
+        taskName = '🎤 Ek Ses Görevi';
+        description = 'Ses kanallarında fazladan **15 dakika** geçir.';
+      } else if (randomTask === 'task_ticket') {
+        target = 1;
+        taskName = '🎫 Ek Ticket Görevi';
+        description = 'Bugün fazladan **1 ticket** çöz.';
+      } else if (randomTask === 'task_mod') {
+        target = 1;
+        taskName = '🛡️ Ek Moderasyon Görevi';
+        description = 'Bugün fazladan **1 moderasyon işlemi** gerçekleştir.';
+      }
+      
+      p.daily.overtimeTarget = target;
+      await p.save();
+      
+      return {
+        success: true,
+        taskName,
+        description,
+        reward: '💰 +50 E.C. ve ✨ +150 XP'
+      };
+    }
+  } catch (err) {
+    console.error('[staffSystem] recordOvertimeTask error:', err.message);
+    return { success: false, message: 'Ek görev tanımlanırken hata oluştu.' };
+  }
+}
+
+async function postponeDailyTask(userId, client) {
+  try {
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    if (!p || p.status !== 'active') {
+      return { success: false, message: 'Aktif personel bulunamadı.' };
+    }
+    
+    resetDaily(p);
+    
+    if (p.daily.postponedToday) {
+      return { success: false, message: 'Bugün zaten görev eksiltme hakkınızı kullandınız!' };
+    }
+    
+    const req = getDailyRequirements(p.level, p.stats.consecutiveDays || 0);
+    const todayTargetVoice = req.voiceMinutes + (p.daily.transferredVoiceMinutes || 0);
+    
+    const remainingVoice = Math.max(0, todayTargetVoice - (p.daily.voiceMinutes || 0));
+    
+    // Selamlaşma için: eğer selam verilmemişse selamı ertele
+    const remainingGreets = p.daily.greeted ? 0 : 1;
+    
+    if (remainingVoice <= 0 && remainingGreets <= 0) {
+      return { success: false, message: 'Bugünkü tüm görevlerinizi zaten tamamladınız, eksiltecek görev kalmadı!' };
+    }
+    
+    let resultText = '';
+    
+    if (remainingVoice > 0) {
+      p.daily.transferToTomorrowVoice = (p.daily.transferToTomorrowVoice || 0) + remainingVoice;
+      p.daily.transferredVoiceMinutes = (p.daily.transferredVoiceMinutes || 0) - remainingVoice;
+      resultText += `• **${remainingVoice} dakika** ses aktifliği yarınki görevinize aktarıldı.\n`;
+    }
+    
+    if (remainingGreets > 0) {
+      p.daily.transferToTomorrowGreets = (p.daily.transferToTomorrowGreets || 0) + remainingGreets;
+      p.daily.transferredGreets = (p.daily.transferredGreets || 0) - remainingGreets;
+      // Bugün tamamlanmış sayılması için greeted'ı true yapalım
+      p.daily.greeted = true;
+      resultText += `• **Selamlaşma görevi** yarınki görevinize aktarıldı.\n`;
+    }
+    
+    p.daily.postponedToday = true;
+    await p.save();
+    
+    // Günlük görevin tamamlanıp tamamlanmadığını kontrol et
+    await checkDailyCompletion(p, client).catch(() => {});
+    
+    return {
+      success: true,
+      message: resultText
+    };
+  } catch (err) {
+    console.error('[staffSystem] postponeDailyTask error:', err.message);
+    return { success: false, message: 'Görev erteleme işlemi sırasında hata oluştu.' };
+  }
+}
+
 module.exports = {
   getOrCreate,
   recordGreet,
@@ -2961,4 +3243,7 @@ module.exports = {
   getDailyTaskCompletionStats,
   hasInactivityRole,
   getTargetCheckDate,
+  completeOvertime,
+  recordOvertimeTask,
+  postponeDailyTask,
 };
