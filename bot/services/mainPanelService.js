@@ -624,27 +624,6 @@ async function handlePanelButton(interaction) {
   const customId = interaction.customId;
   const client = interaction.client;
 
-  // Tab navigation
-  if (customId === "panel_tab_moderation") {
-    return renderPanel(interaction, "moderation");
-  }
-  if (customId === "panel_tab_staff") {
-    return renderPanel(interaction, "staff");
-  }
-  if (customId === "panel_tab_system") {
-    return renderPanel(interaction, "system");
-  }
-  if (customId === "panel_tab_units") {
-    return renderPanel(interaction, "units");
-  }
-  if (customId === "panel_tab_home") {
-    return renderPanel(interaction, "home");
-  }
-
-  if (customId === "panel_close") {
-    return interaction.update({ embeds: [], components: [], content: "❌ Panel kapatıldı." });
-  }
-
   // Modal güvenliği: eğer deferReply veya reply yapıldıysa, direkt modal gösterme
   // Bu durumda editReply kullan
   const showModalSafely = async (modal) => {
