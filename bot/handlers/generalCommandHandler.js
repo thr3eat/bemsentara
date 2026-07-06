@@ -541,6 +541,7 @@ async function handleGeneralCommand(interaction) {
 
       const StaffProgress = require("../../models/StaffProgress");
       const User = require("../../models/User");
+      const StaffUnit = require("../../models/StaffUnit");
 
       const p = await StaffProgress.findOne({ userId: targetUser.id });
       const u = await User.findOne({ discordId: targetUser.id });
@@ -549,9 +550,28 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
       }
 
-      // 1. StaffProgress'ten sil
+      // 1. Veritabanından (StaffProgress & StaffUnit) sil
       if (p) {
-        await StaffProgress.deleteOne({ userId: targetUser.id });
+        await StaffProgress.deleteOne({ userId: targetUser.id }).catch(() => {});
+      }
+      await StaffUnit.deleteOne({ userId: targetUser.id }).catch(() => {});
+
+      // 1.5. Discord Sunucusundan Yetki Rollerini Kaldır (Mükerrer kaydı önlemek için en önemlisi)
+      let roleIslem = "Yetki rolleri bulunamadı veya kaldırılamadı.";
+      if (interaction.guild) {
+        const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        if (member) {
+          const { ROLES } = require("../services/staffSystem");
+          const staffRoleIds = Object.values(ROLES);
+          let removedCount = 0;
+          for (const roleId of staffRoleIds) {
+            if (roleId && member.roles.cache.has(roleId)) {
+              await member.roles.remove(roleId).catch(() => {});
+              removedCount++;
+            }
+          }
+          roleIslem = `Discord üzerinden ${removedCount} adet yetkili rolü başarıyla kaldırıldı.`;
+        }
       }
 
       // 2. Roblox Grubundan At (Exile)
@@ -591,8 +611,9 @@ async function handleGeneralCommand(interaction) {
         .setDescription(`${targetUser} adlı personel sistemden tamamen kaldırıldı.`)
         .addFields(
           { name: "Sebep", value: sebep },
+          { name: "Discord Rolleri", value: roleIslem },
           { name: "Roblox İşlemi", value: robloxIslem },
-          { name: "Discord İşlemi", value: discordIslem }
+          { name: "Discord Sunucu İşlemi", value: discordIslem }
         )
         .setColor(0xE74C3C)
         .setTimestamp();

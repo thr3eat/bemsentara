@@ -3162,20 +3162,37 @@ async function getLeaderboard(category = 'points') {
     const allProgress = await StaffProgress.find({ status: 'active' })
       .sort(sortField)
       .limit(25)
-      .select('userId gamification stats level ROLE_NAMES');
+      .select('userId gamification stats level');
 
-    return allProgress.map((p, idx) => ({
-      rank: idx + 1,
-      userId: p.userId,
-      points: p.gamification?.totalPoints || 0,
-      level: p.level,
-      xpLevel: p.gamification?.level || 1,
-      xp: p.gamification?.currentXP || 0,
-      tickets: p.stats?.ticketsSolved || 0,
-      badges: Object.values(p.gamification?.badges || {}).filter(Boolean).length,
-      streak: p.gamification?.streak?.current || 0,
-      isPremium: false // İhtiyaç duyarsa premium badge
-    }));
+    const { getDiscordClient } = require('../discordClient');
+    const client = getDiscordClient();
+
+    const leaderboardData = await Promise.all(
+      allProgress.map(async (p, idx) => {
+        let username = `Kullanıcı #${p.userId}`;
+        if (client) {
+          const userObj = await client.users.fetch(p.userId).catch(() => null);
+          if (userObj) {
+            username = userObj.username;
+          }
+        }
+        return {
+          rank: idx + 1,
+          userId: p.userId,
+          username: username,
+          points: p.gamification?.totalPoints || 0,
+          level: p.level,
+          xpLevel: p.gamification?.level || 1,
+          xp: p.gamification?.currentXP || 0,
+          tickets: p.stats?.ticketsSolved || 0,
+          badges: Object.values(p.gamification?.badges || {}).filter(Boolean).length,
+          streak: p.gamification?.streak?.current || 0,
+          isPremium: false
+        };
+      })
+    );
+
+    return leaderboardData;
   } catch (err) {
     console.error('[staffSystem] Leaderboard hatası:', err.message);
     return [];
@@ -3214,10 +3231,21 @@ async function getUserLeaderboardRank(userId, category = 'points') {
 
     if (!userData) return null;
 
+    const { getDiscordClient } = require('../discordClient');
+    const client = getDiscordClient();
+    let username = `Kullanıcı #${userData.userId}`;
+    if (client) {
+      const userObj = await client.users.fetch(userData.userId).catch(() => null);
+      if (userObj) {
+        username = userObj.username;
+      }
+    }
+
     return {
       rank: userRank,
       total: allProgress.length,
       userId: userData.userId,
+      username: username,
       points: userData.gamification?.totalPoints || 0,
       level: userData.level,
       xpLevel: userData.gamification?.level || 1,
