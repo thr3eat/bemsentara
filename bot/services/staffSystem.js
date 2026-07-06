@@ -2662,18 +2662,26 @@ function startStaffScheduler(client) {
 
       const staffRoleIds = Object.values(ROLES);
 
+      // Tüm aktif yetkilileri veritabanından al
+      const allActiveStaff = await StaffProgress.find({ status: 'active' }).catch(() => []);
+      const activeStaffIds = new Set(allActiveStaff.map(p => p.userId));
+
       // Sunucudaki tüm ses kanallarını gez
       const voiceStates = guild.voiceStates.cache;
       for (const [userId, voiceState] of voiceStates) {
-        // Eğer bir kanaldaysa, bot değilse ve staff rolü varsa
+        // Eğer bir kanaldaysa, bot değilse
         if (voiceState.channelId && !voiceState.member?.user.bot) {
-          const member = voiceState.member;
+          // Üye önbellekte yoksa fetch et
+          const member = voiceState.member || await guild.members.fetch(userId).catch(() => null);
           if (!member) continue;
 
-          const isStaff = staffRoleIds.some(rid =>
-            rid && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(rid)
-            && member.roles.cache.has(rid)
-          );
+          // Veritabanında aktifse, Discord üzerinde yetkili rolü varsa veya Administrator ise yetkili kabul et
+          const isStaff = activeStaffIds.has(userId) ||
+                          member.permissions.has('Administrator') ||
+                          staffRoleIds.some(rid =>
+                            rid && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(rid)
+                            && member.roles.cache.has(rid)
+                          );
 
           if (isStaff) {
             // 1 dakika ses aktifliği ekle
