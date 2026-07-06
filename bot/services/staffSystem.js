@@ -270,16 +270,36 @@ async function hasInactivityRole(userId, client) {
 async function verifyActiveStaffRole(userId, client) {
   try {
     const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    if (!guild) return false;
-    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!guild) {
+      console.warn(`[staffSystem] verifyActiveStaffRole: Guild ${GUILD_ID} not found. Defaulting to true.`);
+      return true; // Safety fallback
+    }
+    
+    let member = null;
+    try {
+      member = await guild.members.fetch(userId);
+    } catch (e) {
+      if (e.code === 10007 || e.status === 404) {
+        // Unknown Member (explicitly left the server)
+        console.log(`[staffSystem] verifyActiveStaffRole: User ${userId} is not a member of the guild.`);
+        return false;
+      }
+      // Any other error (network/timeout/rate limit): treat as safety fallback (return true)
+      console.warn(`[staffSystem] verifyActiveStaffRole: Failed to fetch member ${userId} due to error: ${e.message}. Defaulting to true.`);
+      return true;
+    }
+
     if (!member) return false;
+
+    // Check if member is Administrator
+    if (member.permissions.has('Administrator')) return true;
 
     // Check if member has at least one of the staff roles defined in ROLES
     const staffRoleIds = Object.values(ROLES);
     return staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
   } catch (err) {
-    console.error('[staffSystem] verifyActiveStaffRole error:', err.message);
-    return false;
+    console.error('[staffSystem] verifyActiveStaffRole fatal error:', err.message);
+    return true; // Safety fallback
   }
 }
 
@@ -288,11 +308,7 @@ async function syncAndFilterActiveStaff(allProgress, client) {
   for (const p of allProgress) {
     const isStillStaff = await verifyActiveStaffRole(p.userId, client);
     if (!isStillStaff) {
-      p.status = 'dismissed';
-      p.dismissedAt = new Date();
-      p.dismissReason = 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)';
-      await p.save().catch(() => {});
-      console.log(`[staffSystem] Auto-dismissed user ${p.userId} due to missing staff roles or left server.`);
+      console.log(`[staffSystem] Skipping user ${p.userId} in scheduled run due to missing roles or not in guild.`);
       continue;
     }
     activeList.push(p);

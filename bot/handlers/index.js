@@ -686,7 +686,8 @@ function initializeDiscordHandlers(client) {
           if (p) {
             const { ROLES } = require("../services/staffSystem");
             const staffRoleIds = Object.values(ROLES);
-            const stillHasRole = staffRoleIds.some(roleId => roleId && newMember.roles.cache.has(roleId));
+            const stillHasRole = staffRoleIds.some(roleId => roleId && newMember.roles.cache.has(roleId)) ||
+                                 newMember.permissions.has('Administrator');
             if (!stillHasRole) {
               p.status = 'dismissed';
               p.dismissedAt = new Date();
