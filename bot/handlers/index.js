@@ -486,6 +486,17 @@ function initializeDiscordHandlers(client) {
       } else if (member.guild.id === GUILD2_ID) {
         const { logEkoMemberLeave } = require("../services/ekoLogger");
         logEkoMemberLeave(member);
+
+        // Sunucudan çıkan yetkiliyi veritabanında inaktif/dismissed yap
+        const StaffProgress = require("../../models/StaffProgress");
+        const p = await StaffProgress.findOne({ userId: member.id, status: "active" }).catch(() => null);
+        if (p) {
+          p.status = 'dismissed';
+          p.dismissedAt = new Date();
+          p.dismissReason = 'Sunucudan ayrılma (Otomatik Senkronizasyon)';
+          await p.save().catch(() => {});
+          console.log(`[staffSystem] Auto-dismissed user ${member.id} during leave due to leaving the server.`);
+        }
       }
     } catch (err) {
       console.error("guildMemberRemove hatası:", err);
@@ -668,6 +679,22 @@ function initializeDiscordHandlers(client) {
           await enforceRoleDividers(newMember).catch(err => {
             console.error("[guildMemberUpdate] enforceRoleDividers error:", err.message);
           });
+
+          // Yetki rollerini kaybetme kontrolü (Senkronizasyon)
+          const StaffProgress = require("../../models/StaffProgress");
+          const p = await StaffProgress.findOne({ userId: newMember.id, status: "active" }).catch(() => null);
+          if (p) {
+            const { ROLES } = require("../services/staffSystem");
+            const staffRoleIds = Object.values(ROLES);
+            const stillHasRole = staffRoleIds.some(roleId => roleId && newMember.roles.cache.has(roleId));
+            if (!stillHasRole) {
+              p.status = 'dismissed';
+              p.dismissedAt = new Date();
+              p.dismissReason = 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)';
+              await p.save().catch(() => {});
+              console.log(`[staffSystem] Auto-dismissed user ${newMember.id} during role update due to missing staff roles.`);
+            }
+          }
         }
       }
     } catch (err) {

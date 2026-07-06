@@ -267,6 +267,39 @@ async function hasInactivityRole(userId, client) {
   }
 }
 
+async function verifyActiveStaffRole(userId, client) {
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    if (!guild) return false;
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return false;
+
+    // Check if member has at least one of the staff roles defined in ROLES
+    const staffRoleIds = Object.values(ROLES);
+    return staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
+  } catch (err) {
+    console.error('[staffSystem] verifyActiveStaffRole error:', err.message);
+    return false;
+  }
+}
+
+async function syncAndFilterActiveStaff(allProgress, client) {
+  const activeList = [];
+  for (const p of allProgress) {
+    const isStillStaff = await verifyActiveStaffRole(p.userId, client);
+    if (!isStillStaff) {
+      p.status = 'dismissed';
+      p.dismissedAt = new Date();
+      p.dismissReason = 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)';
+      await p.save().catch(() => {});
+      console.log(`[staffSystem] Auto-dismissed user ${p.userId} due to missing staff roles or left server.`);
+      continue;
+    }
+    activeList.push(p);
+  }
+  return activeList;
+}
+
 function getDailyTaskCompletionStats(progress) {
   const today = todayStr();
   const isToday = progress.daily?.date === today;
@@ -2335,7 +2368,8 @@ async function runDailyCheck(client) {
   console.log(`[staffSystem] Günlük kontrol başladı (Hedef Tarih: ${checkDate})...`);
 
   try {
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
 
     for (const p of allProgress) {
       // 🔧 Güvenlik: Objeler tanımlı değilse oluştur
@@ -2452,7 +2486,8 @@ function startStaffScheduler(client) {
   scheduleAt(9, 0, async () => {
     console.log('[staffSystem] 09:00 sabah brifing gönderiliyor...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2464,7 +2499,8 @@ function startStaffScheduler(client) {
   scheduleAt(13, 0, async () => {
     console.log('[staffSystem] 13:00 öğlen hatırlatması...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2481,7 +2517,8 @@ function startStaffScheduler(client) {
   scheduleAt(19, 0, async () => {
     console.log('[staffSystem] 19:00 akşam uyarısı...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2498,7 +2535,8 @@ function startStaffScheduler(client) {
   scheduleAt(15, 0, async () => {
     console.log('[staffSystem] 15:00 motivasyon mesajları gönderiliyor...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2513,7 +2551,8 @@ function startStaffScheduler(client) {
   scheduleAt(18, 0, async () => {
     console.log('[staffSystem] 18:00 eğlenceli mesajları gönderiliyor...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2528,7 +2567,8 @@ function startStaffScheduler(client) {
   scheduleAt(21, 0, async () => {
     console.log('[staffSystem] 21:00 gece motivasyonu...');
     const today = todayStr();
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today);
       if (isOnLeave) continue;
@@ -2647,7 +2687,8 @@ function startStaffScheduler(client) {
 // ── PERSONEL DOĞRULAMA KONTROLÜ (ROBLOX & DISCORD) ─────────────────────────
 async function checkStaffVerifications(client) {
   try {
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     const User = require('../../models/User');
     const { BASE_URL } = require('../../config');
     let notifiedCount = 0;
@@ -2735,7 +2776,8 @@ async function checkStaffVerifications(client) {
  */
 async function notifyAllStaffAboutUpdate(title, description, changes, client) {
   try {
-    const allProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
 
     const embed = new EmbedBuilder()
       .setColor(0x3b82f6)
@@ -2766,7 +2808,7 @@ async function notifyAllStaffAboutUpdate(title, description, changes, client) {
 async function sendSystemUpdateNotification(client) {
   try {
     // Sadece systemIntroducedV5: false veya undefined olanları bul
-    const allProgress = await StaffProgress.find({
+    const rawProgress = await StaffProgress.find({
       level: { $gte: 1, $lte: 5 },
       status: 'active',
       $or: [
@@ -2774,6 +2816,7 @@ async function sendSystemUpdateNotification(client) {
         { 'gamification.systemIntroducedV5': { $exists: false } }
       ]
     });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
 
     if (allProgress.length === 0) return;
 
