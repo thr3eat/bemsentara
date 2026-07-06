@@ -427,14 +427,14 @@ function resetDaily(progress) {
   }
 }
 
-async function recordGreet(userId, client) {
+async function recordGreet(userId, client, guildId = null) {
   try {
     if (!userId) {
       console.warn('[staffSystem] recordGreet: Invalid userId');
       return;
     }
 
-    const p = await getOrCreate(userId, GUILD_ID, client);
+    const p = await getOrCreate(userId, guildId || GUILD_ID, client);
     if (!p || p.status !== 'active') {
       return;
     }
@@ -1028,14 +1028,14 @@ async function recordTicketSolved(userId, client) {
   }
 }
 
-async function recordChatMessage(userId, client) {
+async function recordChatMessage(userId, client, guildId = null) {
   try {
     if (!userId) {
       console.warn('[staffSystem] recordChatMessage: Invalid userId');
       return;
     }
 
-    const p = await getOrCreate(userId, GUILD_ID, client);
+    const p = await getOrCreate(userId, guildId || GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)

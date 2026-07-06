@@ -1790,7 +1790,13 @@ function initializeDiscordHandlers(client) {
     // ── Personel selam takibi ──────────────────────────────────────────────
     try {
       const { GUILD_ID, ROLES } = require("../services/staffSystem");
-      if (message.guild.id === GUILD_ID) {
+      const allowedGuilds = [
+        GUILD_ID,
+        '1466927911364726845', // Admin/Mod Server
+        '1367646464804655104', // EkoYıldız Server
+        '1414639355456389344'  // BEM Sentara Main Server
+      ];
+      if (allowedGuilds.includes(message.guild.id)) {
         const staffRoleIds = Object.values(ROLES).filter(id =>
           id && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(id)
         );
@@ -1799,7 +1805,7 @@ function initializeDiscordHandlers(client) {
           // 1) Mesaj gönderdiğini (Sohbet istatistiği) kaydet
           if (message.content.length > 2) {
             const { recordChatMessage } = require("../services/staffSystem");
-            await recordChatMessage(message.author.id, client).catch(() => { });
+            await recordChatMessage(message.author.id, client, message.guild.id).catch(() => { });
           }
 
           // 2) Selam verip vermediğini kontrol et (Türkçe selam varyasyonlarını kapsar ve hatalı eşleşmeleri önler)
@@ -1808,10 +1814,10 @@ function initializeDiscordHandlers(client) {
           
           const singleWordGreetings = [
             'selam', 'merhaba', 'günaydın', 'tünaydın', 'hey', 'heyy', 'hello', 'hi',
-            'sa', 'slm', 'mrb', 'selamlar', 'merhabalar', 'günaydınlar'
+            'sa', 'slm', 'mrb', 'selamlar', 'merhabalar', 'günaydınlar', 'as'
           ];
           const phraseGreetings = [
-            'iyi günler', 'iyi akşamlar', 'iyi geceler', 'selamün aleyküm', 'selamun aleyküm', 's.a'
+            'iyi günler', 'iyi akşamlar', 'iyi geceler', 'selamün aleyküm', 'selamun aleyküm', 's.a', 'aleyküm selam', 'aleykum selam'
           ];
           
           const isGreet = words.some(w => singleWordGreetings.includes(w)) || 
@@ -1819,7 +1825,7 @@ function initializeDiscordHandlers(client) {
                           
           if (isGreet) {
             const { recordGreet } = require("../services/staffSystem");
-            await recordGreet(message.author.id, client).catch(() => { });
+            await recordGreet(message.author.id, client, message.guild.id).catch(() => { });
           }
         }
       }
