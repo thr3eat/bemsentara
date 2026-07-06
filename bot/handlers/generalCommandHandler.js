@@ -1130,7 +1130,7 @@ async function handleGeneralCommand(interaction) {
 
       achievements = achievements.replace(/ \| $/, '');
 
-      const { getDailyTaskCompletionStats } = require('../services/staffSystem');
+      const { getDailyTaskCompletionStats, CHOSEN_TASKS } = require('../services/staffSystem');
       const stats = getDailyTaskCompletionStats(targetStaff);
 
       const embed = new EmbedBuilder()
@@ -1142,7 +1142,14 @@ async function handleGeneralCommand(interaction) {
           { name: '🏆 PUAN & STREAK', value: `**Toplam Puan:** ${targetStaff.gamification?.totalPoints || 0}\n**Mevcut Streak:** ${targetStaff.gamification?.streak?.current || 0}\n**Rekord Streak:** ${targetStaff.gamification?.streak?.longest || 0}`, inline: true },
           { name: '📅 TARİHLER', value: `**Katılış:** <t:${Math.floor(new Date(targetStaff.joinedAt).getTime() / 1000)}:R>\n**Terfi Tarihi:** ${targetStaff.promotedAt ? `<t:${Math.floor(new Date(targetStaff.promotedAt).getTime() / 1000)}:R>` : 'Henüz terfi yok'}`, inline: true },
           { name: '⚠️ UYARILAR', value: `**Toplam:** ${targetStaff.warnings?.count || 0}\n**Son Uyarı:** ${targetStaff.warnings?.lastWarned ? `<t:${Math.floor(new Date(targetStaff.warnings.lastWarned).getTime() / 1000)}:R>` : 'Uyarı yok'}`, inline: true },
-          { name: '⚡ BUGÜNKÜ GÖREV İLERLEMESİ', value: `\`[${stats.progressBar}]\` **%${stats.totalPercent}**\n• Selamlaşma: ${targetStaff.daily?.greeted ? '✅ Tamamlandı' : '❌ Tamamlanmadı'}\n• Ses Aktifliği: ${targetStaff.daily?.voiceMinutes || 0} dk`, inline: false },
+          { 
+            name: '⚡ BUGÜNKÜ GÖREV İLERLEMESİ', 
+            value: `\`[${stats.progressBar}]\` **%${stats.totalPercent}**\n` +
+                   `• **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${targetStaff.daily?.greeted ? '✅' : '❌'}\n` +
+                   `• **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%)\n` +
+                   (targetStaff.daily?.chosenTask ? `• **Seçimli Görev:** ${CHOSEN_TASKS[targetStaff.daily.chosenTask] || targetStaff.daily.chosenTask} ${targetStaff.daily?.chosenTaskCompleted ? '✅' : '❌'}` : ''), 
+            inline: false 
+          },
           { name: `🏅 ROZETLER (${badgeCount})`, value: badgeDisplay || 'Henüz rozet yok', inline: false },
           { name: '⭐ BAŞARIMLAR', value: achievements, inline: false }
         )
@@ -1162,7 +1169,7 @@ async function handleGeneralCommand(interaction) {
       await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
-      const { BADGES, getXpForLevel } = require('../services/staffSystem');
+      const { BADGES, getXpForLevel, getDailyTaskCompletionStats, CHOSEN_TASKS } = require('../services/staffSystem');
       const StaffProgress = require('../../models/StaffProgress');
       const target = interaction.options.getUser('kullanici') || interaction.user;
 
@@ -1190,6 +1197,8 @@ async function handleGeneralCommand(interaction) {
       if (badgeCount === 0) badgeList += 'Henüz rozet yok. Başlasana! 🎮\n';
       badgeList += '```';
 
+      const dailyStats = getDailyTaskCompletionStats(p);
+
       const embed = new EmbedBuilder()
         .setColor(0x9d4edd)
         .setTitle(`🎮 ${target.username}'nin Gamification Profili`)
@@ -1199,6 +1208,14 @@ async function handleGeneralCommand(interaction) {
           { name: '🎯 Puanlar', value: `**${gm.totalPoints}**`, inline: true },
           { name: '🏆 Rozetler', value: `**${badgeCount}**`, inline: true },
           { name: '📈 XP İlerlemesi', value: `\`${gm.currentXP}/${nextLevelXp} (${xpPercent}%)\``, inline: false },
+          { 
+            name: '⚡ BUGÜNKÜ GÖREV İLERLEMESİ', 
+            value: `\`[${dailyStats.progressBar}]\` **%${dailyStats.totalPercent}**\n` +
+                   `• **Selamlaşma:** \`${dailyStats.greetProgress}\` (${dailyStats.greetPercent}%) ${p.daily?.greeted ? '✅' : '❌'}\n` +
+                   `• **Ses Aktifliği:** \`${dailyStats.voiceProgress}\` (${dailyStats.voicePercent}%)\n` +
+                   (p.daily?.chosenTask ? `• **Seçimli Görev:** ${CHOSEN_TASKS[p.daily.chosenTask] || p.daily.chosenTask} ${p.daily?.chosenTaskCompleted ? '✅' : '❌'}` : ''), 
+            inline: false 
+          },
           { name: '🎪 Streak', value: `Mevcut: ${gm.streak?.current || 0} | En Uzun: ${gm.streak?.longest || 0}`, inline: false },
           { name: '🏅 Rozetlerin', value: badgeList, inline: false },
         )

@@ -1087,13 +1087,15 @@ function initializeDiscordHandlers(client) {
 
         const minutes = session ? Math.floor((Date.now() - session.joinedAt) / 60000) : 0;
 
-        // Personel ses takibi
+        // Personel ses takibi (Real-time olarak 1 dakikalık interval ile staffSystem.js'te takip edilmektedir, mükerrer olmaması için burası kapatıldı)
+        /*
         if (isStaff && minutes > 0) {
           const { addVoiceMinutes } = require("../services/staffSystem");
           await addVoiceMinutes(userId, minutes, client).catch(err => {
             console.warn(`[voiceStateUpdate] addVoiceMinutes error for ${userId}:`, err.message);
           });
         }
+        */
 
         // ── GİZLİ BAŞARIMLAR (Üye / Personel Fark Etmeksizin) ──
         if (guildId === '1367646464804655104' && minutes > 0) {

@@ -276,9 +276,10 @@ function getDailyTaskCompletionStats(progress) {
   const targetGreets = req.greets + (isToday ? (progress.daily?.transferredGreets || 0) : 0);
 
   const greeted = isToday && progress.daily?.greeted;
+  const greetsSent = isToday ? (progress.daily?.greetCount || 0) : 0;
   const voiceMinutes = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
 
-  const greetPercent = greeted ? 100 : 0;
+  const greetPercent = targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100;
   const voicePercent = targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100;
 
   let totalPercent = 0;
@@ -306,7 +307,12 @@ function getDailyTaskCompletionStats(progress) {
     voicePercent,
     totalPercent,
     progressBar,
-    greetProgress: greeted ? `${targetGreets}/${targetGreets}` : `0/${targetGreets}`
+    greetProgress: `${greetsSent}/${targetGreets}`,
+    voiceProgress: `${voiceMinutes}/${targetVoice} dk`,
+    greetsSent,
+    targetGreets,
+    voiceMinutes,
+    targetVoice
   };
 }
 
@@ -365,6 +371,7 @@ function resetDaily(progress) {
     progress.daily = {
       date: today,
       greeted: false,
+      greetCount: 0,
       voiceMinutes: 0,
       chosenTask: randomTask,
       chosenTaskCompleted: false,
@@ -396,6 +403,7 @@ function resetDaily(progress) {
 
     progress.daily.date = today;
     progress.daily.greeted = false;
+    progress.daily.greetCount = 0;
     progress.daily.voiceMinutes = 0;
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
@@ -432,7 +440,18 @@ async function recordGreet(userId, client) {
     }
 
     resetDaily(p);
-    if (!p.daily.greeted) {
+
+    if (p.daily.greeted) {
+      return;
+    }
+
+    const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+    const targetGreets = req.greets + (p.daily.transferredGreets || 0);
+
+    p.daily.greetCount = (p.daily.greetCount || 0) + 1;
+    const isGreetDoneNow = p.daily.greetCount >= targetGreets;
+
+    if (isGreetDoneNow) {
       p.daily.greeted = true;
 
       // EkoCoin İyileştirmesi: Selamlaşma için +15 EkoCoin verelim (Seri çarpanı ile!)
@@ -447,7 +466,6 @@ async function recordGreet(userId, client) {
 
       await p.save().catch(err => {
         console.error('[staffSystem] Save failed in recordGreet:', err.message);
-        return;
       });
 
       // DM Bildirimi gönder
@@ -460,7 +478,7 @@ async function recordGreet(userId, client) {
             .setTitle('🌅 1. Görev (Selamlaşma) Başarıyla Tamamlandı!')
             .setDescription(
               `Merhaba <@${userId}>,\n\n` +
-              `Moderatör ekibi kanalına bugünün ilk selamını gönderdin ve günlük selamlaşma görevin (1. Görev) başarıyla tamamlandı!\n\n` +
+              `Moderatör ekibi kanalına bugünün tüm gerekli selamlarını gönderdin ve günlük selamlaşma görevin (1. Görev) başarıyla tamamlandı! (${targetGreets}/${targetGreets}) 🎉\n\n` +
               (streakMultiplier > 1.0 ? `🔥 **Seri Çarpanı Aktif:** \`${consecutiveDays} Gün\` ardışık aktifliğin sayesinde **x${streakMultiplier}** ödül kazandın!\n\n` : "") +
               `💰 **+${greetCoins} EkoCoin (E.C.)** cüzdanına eklendi!\n` +
               `💳 Güncel Bakiyen: \`${p.gamification.ecoCoins} E.C.\``
@@ -490,6 +508,32 @@ async function recordGreet(userId, client) {
       await checkDailyCompletion(p, client).catch(err => {
         console.error('[staffSystem] checkDailyCompletion failed:', err.message);
       });
+    } else {
+      await p.save().catch(err => {
+        console.error('[staffSystem] Save failed in recordGreet progress:', err.message);
+      });
+
+      // Send a DM notification updating the user on their greet progress
+      try {
+        const discordUser = await client.users.fetch(userId).catch(() => null);
+        if (discordUser) {
+          const stats = getDailyTaskCompletionStats(p);
+          const embed = new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle('🌅 Selamlaşma İlerlemesi')
+            .setDescription(
+              `Merhaba <@${userId}>,\n\n` +
+              `Grupta selam verdin! Selamlaşma görevi ilerlemen: **${p.daily.greetCount}/${targetGreets}**\n\n` +
+              `📊 **Genel Görev İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**`
+            )
+            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+            .setTimestamp();
+
+          await discordUser.send({ embeds: [embed] }).catch(() => { });
+        }
+      } catch (dmErr) {
+        console.warn(`[staffSystem] Greet progress DM error:`, dmErr.message);
+      }
     }
   } catch (err) {
     console.error('[staffSystem] recordGreet error:', err.message);
@@ -1536,14 +1580,12 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
   const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
-  let taskStatusText = '';
-  if (isGreetDone && !voiceDone) {
-    taskStatusText = `✅ **Selamlaşma Görevi:** Başarıyla tamamlandı!\n❌ **Ses Aktifliği Görevi:** Eksik (Kalan: **${Math.max(0, req.voiceMinutes - (progress.daily?.voiceMinutes || 0))} dk**)`;
-  } else if (!isGreetDone && voiceDone) {
-    taskStatusText = `❌ **Selamlaşma Görevi:** Eksik (Gereken: **${req.greets}x** selam)\n✅ **Ses Aktifliği Görevi:** Başarıyla tamamlandı!`;
-  } else {
-    taskStatusText = `❌ **Selamlaşma Görevi:** Eksik (Gereken: **${req.greets}x** selam)\n❌ **Ses Aktifliği Görevi:** Eksik (Gereken: **${req.voiceMinutes} dk**)`;
-  }
+  const greetsSent = progress.daily?.greetCount || 0;
+  const voiceMins = progress.daily?.voiceMinutes || 0;
+
+  const taskStatusText = 
+    `• **Selamlaşma Görevi:** ${isGreetDone ? '✅ Tamamlandı' : '❌ Eksik'} (${greetsSent}/${req.greets} selam)\n` +
+    `• **Ses Aktifliği Görevi:** ${voiceDone ? '✅ Tamamlandı' : '❌ Eksik'} (${voiceMins}/${req.voiceMinutes} dk)`;
 
   const stats = getDailyTaskCompletionStats(progress);
 
@@ -1862,8 +1904,9 @@ async function sendMidDayReminder(progress, client) {
   const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
   const missing = [];
-  if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets}x selam ver`);
-  if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal`);
+  const greetsSent = progress.daily?.greetCount || 0;
+  if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets - greetsSent}x daha selam ver (Gereken: ${req.greets})`);
+  if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)`);
 
   if (missing.length === 0) return; // Zaten tamamlamış
 
@@ -1928,8 +1971,8 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
       `**Gece 23:30'a kadar** görevlerini tamamlamazsan yarın uyarı sayacın artacak!\n\n` +
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Yapman gerekenler:**\n` +
-      (!isGreetDone ? `• ✅ Sohbete ${req.greets}x selam ver\n` : '') +
-      (!voiceDone ? `• 🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal\n` : '') +
+      (!isGreetDone ? `• ✅ Sohbete **${req.greets - (progress.daily?.greetCount || 0)}x** daha selam ver (Gereken: ${req.greets})\n` : '') +
+      (!voiceDone ? `• 🎤 **${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk** daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)\n` : '') +
       `\n🕐 **${7 - warnCount} uyarı hakkın kaldı.** (Sonra rol geçici olarak alınır)\n\n` +
       `Meşgulsen, yapabilecekten bile yararlı! Kısmi tamamlama da iyi!`
     )
@@ -2411,6 +2454,28 @@ function startStaffScheduler(client) {
           const user = await client.users.fetch(p.userId);
           await user.send({ embeds: [embed] });
         } catch (_) { }
+      } else {
+        const stats = getDailyTaskCompletionStats(p);
+        const embed = new EmbedBuilder()
+          .setColor(0xff3333)
+          .setTitle('🚨 SON ÇAĞRI: Günlük Görevler İçin Son 2.5 Saat!')
+          .setDescription(
+            `Hey <@${p.userId}>, bugünün günlük görevlerini tamamlaman için **son 2.5 saat** kaldı! ⏰\n\n` +
+            `Görevin gece **23:30'da** sıfırlanacak ve kontrol edilecektir. Haklarının yanmaması için lütfen kalan hedeflerini tamamla!\n\n` +
+            `📊 **Mevcut İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
+            `📋 **Kalan Görevlerin:**\n` +
+            (!p.daily?.greeted ? `• ✅ Sohbete **${req.greets - (p.daily?.greetCount || 0)}x** daha selam ver (Gereken: ${req.greets})\n` : '') +
+            ((p.daily?.voiceMinutes || 0) < targetVoice ? `• 🎤 **${targetVoice - (p.daily?.voiceMinutes || 0)} dk** daha ses kanalında kal (Gereken: ${targetVoice} dk)\n` : '') +
+            (p.daily?.chosenTask && !p.daily?.chosenTaskCompleted ? `• 🎯 Seçmeli Görev: **${CHOSEN_TASKS[p.daily.chosenTask] || p.daily.chosenTask}**\n` : '') +
+            `\n⚠️ **Unutma:** Görevleri tamamlamazsan uyarı alabilirsin. Şu anki ardışık günlerin: **${p.stats?.consecutiveDays || 0} gün**.`
+          )
+          .setFooter({ text: 'Eko Yıldız • Son Hatırlatma Sistemi' })
+          .setTimestamp();
+
+        try {
+          const user = await client.users.fetch(p.userId);
+          await user.send({ embeds: [embed] });
+        } catch (_) { }
       }
     }
   });
@@ -2437,6 +2502,41 @@ function startStaffScheduler(client) {
       console.error('[staffSystem] Sınav kontrolü hatası:', err.message);
     }
   });
+
+  // Her 1 dakikada bir ses aktifliği kontrolü
+  setInterval(async () => {
+    if (global.SPAM_STOPPED) return;
+    try {
+      const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+      if (!guild) return;
+
+      const staffRoleIds = Object.values(ROLES);
+
+      // Sunucudaki tüm ses kanallarını gez
+      const voiceStates = guild.voiceStates.cache;
+      for (const [userId, voiceState] of voiceStates) {
+        // Eğer bir kanaldaysa, bot değilse ve staff rolü varsa
+        if (voiceState.channelId && !voiceState.member?.user.bot) {
+          const member = voiceState.member;
+          if (!member) continue;
+
+          const isStaff = staffRoleIds.some(rid =>
+            rid && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(rid)
+            && member.roles.cache.has(rid)
+          );
+
+          if (isStaff) {
+            // 1 dakika ses aktifliği ekle
+            await addVoiceMinutes(userId, 1, client).catch(err => {
+              console.error(`[staffSystem] addVoiceMinutes interval error for ${userId}:`, err.message);
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[staffSystem] Ses aktifliği interval hatası:', err.message);
+    }
+  }, 60000).unref();
 
   console.log('[staffSystem] Scheduler başlatıldı (09:00 / 12:00 / 13:00 / 17:00 / 19:00 / 23:30)');
 

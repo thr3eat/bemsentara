@@ -20,6 +20,7 @@ const staffProgressSchema = new mongoose.Schema({
   daily: {
     date: { type: String, default: '' },   // YYYY-MM-DD
     greeted: { type: Boolean, default: false },
+    greetCount: { type: Number, default: 0 },
     voiceMinutes: { type: Number, default: 0 },
     chosenTask: { type: String, default: '' },   // Seçilen görevin ID'si
     chosenTaskCompleted: { type: Boolean, default: false }, // Görev tamamlandı mı?
