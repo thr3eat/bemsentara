@@ -298,7 +298,7 @@ function getDailyTaskCompletionStats(progress) {
     totalPercent = Math.round(greetPercent * 0.5 + voicePercent * 0.5);
   }
 
-  const filledBars = Math.round(totalPercent / 10);
+  const filledBars = Math.min(10, totalPercent > 0 ? Math.max(1, Math.floor(totalPercent / 10)) : 0);
   const emptyBars = 10 - filledBars;
   const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
 

@@ -985,7 +985,7 @@ async function handleButtonInteraction(interaction) {
         const percentage = Math.min(100, Math.round((currentActions / requiredActions) * 100));
 
         // Build progress bar
-        const filled = Math.round(percentage / 10);
+        const filled = Math.min(10, percentage > 0 ? Math.max(1, Math.floor(percentage / 10)) : 0);
         const empty = 10 - filled;
         const progressBar = '█'.repeat(filled) + '░'.repeat(empty);
 

@@ -1802,10 +1802,21 @@ function initializeDiscordHandlers(client) {
             await recordChatMessage(message.author.id, client).catch(() => { });
           }
 
-          // 2) Selam verip vermediğini kontrol et
-          const greetWords = ['selam', 'merhaba', 'günaydın', 'iyi günler', 'hey', 'heyy', 'hello', 'hi'];
-          const lower = message.content.toLowerCase();
-          const isGreet = greetWords.some(w => lower.startsWith(w) || lower.includes(w));
+          // 2) Selam verip vermediğini kontrol et (Türkçe selam varyasyonlarını kapsar ve hatalı eşleşmeleri önler)
+          const cleanMessage = message.content.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+          const words = cleanMessage.split(/\s+/);
+          
+          const singleWordGreetings = [
+            'selam', 'merhaba', 'günaydın', 'tünaydın', 'hey', 'heyy', 'hello', 'hi',
+            'sa', 'slm', 'mrb', 'selamlar', 'merhabalar', 'günaydınlar'
+          ];
+          const phraseGreetings = [
+            'iyi günler', 'iyi akşamlar', 'iyi geceler', 'selamün aleyküm', 'selamun aleyküm', 's.a'
+          ];
+          
+          const isGreet = words.some(w => singleWordGreetings.includes(w)) || 
+                          phraseGreetings.some(phrase => cleanMessage.startsWith(phrase) || cleanMessage.includes(phrase));
+                          
           if (isGreet) {
             const { recordGreet } = require("../services/staffSystem");
             await recordGreet(message.author.id, client).catch(() => { });
