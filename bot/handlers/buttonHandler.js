@@ -163,6 +163,36 @@ async function handleButtonInteraction(interaction) {
     return startCoachSession(interaction);
   }
 
+  // ── Görev Başlat butonu ──────────────────────────────────────────────────
+  if (customId === "staff_start_task_1") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+    const embed = await generateMorningBriefingEmbed(p, interaction.client);
+    const components = await getMorningBriefingComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
+  // ── Görev İlerlemesini Güncelle butonu ────────────────────────────────────
+  if (customId === "staff_update_progress") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+    const embed = await generateMorningBriefingEmbed(p, interaction.client);
+    const components = await getMorningBriefingComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
   // ── Yoklama butonu ──────────────────────────────────────────────────────
   if (customId === "btn_rollcall_here") {
     return handleRollCallButton(interaction);

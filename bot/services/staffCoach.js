@@ -134,7 +134,14 @@ Görevin ve Roleplay Kuralların:
 - Sorularını sistem verilerini kullanarak tam isabetle cevapla (EkoCoin bakiyesi, terfi hedefleri vb.).
 - Ona moderasyon taktikleri ver (örn: "Provokatörlere karşı sakin kal, delil topla ve log kanalına bildir").
 - Cevaplarını Türkçe ve sürükleyici, gerçekçi bir roleplay tonuyla ver (max 450 karakter).
-- Cevabın sonunda disiplinli ama teşvik edici bir soru sor.`;
+- Cevabın sonunda disiplinli ama teşvik edici bir soru sor.
+- Özel İnteraktif Yetkiler (COACH_ACTION): Personeli motive etmek, ödüllendirmek veya hedeflerini hafifletmek için mesajının EN SONUNA (ayrı bir satırda) şu özel kodlardan birini ekleyerek doğrudan sistemde işlem yapabilirsin (bot bu kodları yakalayacak ve kullanıcıya göstermeden arka planda çalıştıracaktır):
+  * Personele EkoCoin hediye etmek için (maksimum 50 E.C.): [COACH_ACTION: GIVE_ECOCOINS: miktar]
+  * Personele XP hediye etmek için (maksimum 100 XP): [COACH_ACTION: GIVE_XP: miktar]
+  * Ek görev başlatmak için: [COACH_ACTION: START_EXTRA_TASK]
+  * Ek mesai başlatmak için: [COACH_ACTION: START_OVERTIME]
+  * Bugünkü görev hedeflerini hafifletmek/azaltmak için: [COACH_ACTION: REDUCE_TASK]
+  Hak ettiklerinde cömertçe kullan!`;
 }
 
 // ── /koc komutu çalıştığında ───────────────────────────────────────────────
@@ -264,12 +271,13 @@ async function handleCoachReply(message, client) {
     if (dmCh) await dmCh.sendTyping().catch(() => {});
 
     const reply = await chatWithAI(session.history, buildCoachSystem(session.progress));
-    session.history.push({ role: 'assistant', content: reply });
+    const { cleanReply, actionText } = await processCoachReplyAndActions(userId, reply, client);
+    session.history.push({ role: 'assistant', content: cleanReply });
 
     const embed = new EmbedBuilder()
       .setColor(0x7c6af7)
       .setAuthor({ name: '🤖 Koç', iconURL: client.user?.displayAvatarURL() })
-      .setDescription(reply)
+      .setDescription(cleanReply + (actionText ? `\n\n**🤖 Koç Eylemleri:**${actionText}` : ''))
       .setFooter({ text: 'AI Koç • /koc sıfırla ile oturumu yenile' });
 
     await message.author.send({ embeds: [embed] });
@@ -287,22 +295,8 @@ async function handleCoachButton(interaction, client) {
   if (!cid.startsWith('coach_')) return false;
 
   const userId = interaction.user.id;
-  const session = activeCoachSessions.get(userId);
 
-  if (cid.startsWith('coach_end_')) {
-    activeCoachSessions.delete(userId);
-    await interaction.update({
-      content: '👋 Koç oturumu kapatıldı. Görüşmek üzere!',
-      embeds: [], components: [],
-    }).catch(() => {});
-    return true;
-  }
-
-  if (!session) {
-    await interaction.reply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.', ephemeral: true }).catch(() => {});
-    return true;
-  }
-
+  // 🔧 Düzeltme: Sabah brifinginden gelen bağımsız butonlar aktif oturum gerektirmez!
   if (cid.startsWith('coach_ekgorev_') || cid.startsWith('coach_ekmesai_') || cid.startsWith('coach_eksilt_')) {
     await interaction.update({ components: [] }).catch(() => {});
     const { recordOvertimeTask, postponeDailyTask } = require('./staffSystem');
@@ -340,7 +334,7 @@ async function handleCoachButton(interaction, client) {
           const embed = new EmbedBuilder()
             .setColor(0xe74c3c)
             .setTitle('⏳ Görevler Hafifletildi!')
-            .setDescription(`Bugünkü görev hedefleriniz hafifletildi ve gününüz tamamlandı sayıldı!\n\n**Yarına Aktarılan Görevler:**\n${result.message}`)
+            .setDescription(`Bugünkü görev hedefleri hafifletildi ve gününüz tamamlandı sayıldı!\n\n**Yarına Aktarılan Görevler:**\n${result.message}`)
             .setFooter({ text: 'Eko Yıldız • Görev Erteleme Sistemi' })
             .setTimestamp();
           await interaction.user.send({ embeds: [embed] }).catch(() => {});
@@ -352,6 +346,22 @@ async function handleCoachButton(interaction, client) {
       console.error('[staffCoach] Button handling error:', err.message);
       await interaction.user.send('⚠️ İşlem gerçekleştirilirken teknik bir hata oluştu.').catch(() => {});
     }
+    return true;
+  }
+
+  const session = activeCoachSessions.get(userId);
+
+  if (cid.startsWith('coach_end_')) {
+    activeCoachSessions.delete(userId);
+    await interaction.update({
+      content: '👋 Koç oturumu kapatıldı. Görüşmek üzere!',
+      embeds: [], components: [],
+    }).catch(() => {});
+    return true;
+  }
+
+  if (!session) {
+    await interaction.reply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.', ephemeral: true }).catch(() => {});
     return true;
   }
 
@@ -374,12 +384,13 @@ async function handleCoachButton(interaction, client) {
     if (dmCh) await dmCh.sendTyping().catch(() => {});
 
     const reply = await chatWithAI(session.history, buildCoachSystem(session.progress));
-    session.history.push({ role: 'assistant', content: reply });
+    const { cleanReply, actionText } = await processCoachReplyAndActions(userId, reply, client);
+    session.history.push({ role: 'assistant', content: cleanReply });
 
     const embed = new EmbedBuilder()
       .setColor(0x7c6af7)
       .setAuthor({ name: '🤖 Koç', iconURL: client.user?.displayAvatarURL() })
-      .setDescription(reply)
+      .setDescription(cleanReply + (actionText ? `\n\n**🤖 Koç Eylemleri:**${actionText}` : ''))
       .setFooter({ text: 'AI Koç • Yazmaya devam et!' });
 
     await interaction.user.send({ embeds: [embed] });
@@ -388,6 +399,100 @@ async function handleCoachButton(interaction, client) {
   }
 
   return true;
+}
+
+// ── İnteraktif Koç Eylemleri İşleme Yardımcısı ──────────────────────────────────
+async function processCoachReplyAndActions(userId, reply, client) {
+  let actionText = '';
+  
+  const coinRegex = /\[COACH_ACTION:\s*GIVE_ECOCOINS:\s*(\d+)\]/i;
+  const xpRegex = /\[COACH_ACTION:\s*GIVE_XP:\s*(\d+)\]/i;
+  const extraTaskRegex = /\[COACH_ACTION:\s*START_EXTRA_TASK\]/i;
+  const overtimeRegex = /\[COACH_ACTION:\s*START_OVERTIME\]/i;
+  const reduceTaskRegex = /\[COACH_ACTION:\s*REDUCE_TASK\]/i;
+
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (p) {
+      // 1) EkoCoin
+      const coinMatch = reply.match(coinRegex);
+      if (coinMatch) {
+        const amount = Math.min(50, parseInt(coinMatch[1], 10));
+        if (amount > 0) {
+          p.gamification = p.gamification || {};
+          p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + amount;
+          actionText += `\n🪙 **+${amount} EkoCoin (E.C.)** cüzdanınıza eklendi!`;
+        }
+      }
+
+      // 2) XP
+      const xpMatch = reply.match(xpRegex);
+      if (xpMatch) {
+        const amount = Math.min(100, parseInt(xpMatch[1], 10));
+        if (amount > 0) {
+          p.gamification = p.gamification || {};
+          p.gamification.currentXP = (p.gamification.currentXP || 0) + amount;
+          actionText += `\n✨ **+${amount} XP** kazandınız!`;
+          
+          const { getXpForLevel } = require('./staffSystem');
+          const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+          if (p.gamification.currentXP >= nextLevelXp) {
+            p.gamification.level = (p.gamification.level || 1) + 1;
+            p.gamification.currentXP = 0;
+            actionText += `\n🎉 **XP Seviye Atladınız! (Yeni Seviye: ${p.gamification.level})**`;
+          }
+        }
+      }
+
+      // 3) Ek Görev
+      if (reply.match(extraTaskRegex)) {
+        const { recordOvertimeTask } = require('./staffSystem');
+        const res = await recordOvertimeTask(userId, 'ek_gorev', client).catch(() => null);
+        if (res && res.success) {
+          actionText += `\n💪 **Ek Görev Başlatıldı:** ${res.taskName}`;
+        }
+      }
+
+      // 4) Ek Mesai
+      if (reply.match(overtimeRegex)) {
+        const { recordOvertimeTask } = require('./staffSystem');
+        const res = await recordOvertimeTask(userId, 'ek_mesai', client).catch(() => null);
+        if (res && res.success) {
+          actionText += `\n⚡ **Ek Mesai Başlatıldı:** ${res.taskName}`;
+        }
+      }
+
+      // 5) Görev Hafifletme
+      if (reply.match(reduceTaskRegex)) {
+        const { postponeDailyTask } = require('./staffSystem');
+        const res = await postponeDailyTask(userId, client).catch(() => null);
+        if (res && res.success) {
+          actionText += `\n⏳ **Bugünkü Görevleriniz Hafifletildi!**`;
+        }
+      }
+
+      if (actionText) {
+        await p.save().catch(() => {});
+        const session = activeCoachSessions.get(userId);
+        if (session) {
+          session.progress = p;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[staffCoach] Action processing error:', err.message);
+  }
+
+  // Raw etiketleri temizle
+  const cleanReply = reply
+    .replace(coinRegex, '')
+    .replace(xpRegex, '')
+    .replace(extraTaskRegex, '')
+    .replace(overtimeRegex, '')
+    .replace(reduceTaskRegex, '')
+    .trim();
+
+  return { cleanReply, actionText };
 }
 
 // ── Oturumu sıfırla ───────────────────────────────────────────────────────

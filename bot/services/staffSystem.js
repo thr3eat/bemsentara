@@ -1375,11 +1375,62 @@ async function sendMorningBriefing(progress, client) {
     await progress.save().catch(() => { });
   }
 
+  // AI'dan kısa motivasyon mesajı al
+  let aiMessage = '';
+  try {
+    const prompt = `Sen Eko Yıldız sunucusunun AI Personel Koçusun.
+Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kısa (max 100 karakter), neşeli ve motive edici Türkçe bir karşılama yaz.`;
+    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+  } catch (_) { }
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    
+    const embed = new EmbedBuilder()
+      .setColor(0xff3e3e)
+      .setTitle('⚠️ GÖREVLERE HALA BAŞLAMADIN!')
+      .setDescription(
+        `Merhaba <@${progress.userId}>,\n\n` +
+        `Bugünkü günlük görevlerini henüz başlatmadın. Görevlerini aktif etmek, brifingini almak ve ilerleme takip panelini kurmak için aşağıdaki butona bas!\n\n` +
+        (aiMessage ? `🤖 **AI Koçun:** *"${aiMessage}"*` : '')
+      )
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`staff_start_task_1`)
+        .setLabel('🚀 1. GÖREVİ BAŞLAT')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('talk_to_coach')
+        .setLabel('💬 Koçla Konuş')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await user.send({ embeds: [embed], components: [row] });
+    console.log(`[staffSystem] Göreve başlamadı uyarısı gönderildi: ${progress.userId}`);
+  } catch (_) { }
+}
+
+async function generateMorningBriefingEmbed(progress, client) {
+  const StaffUnit = require('../../models/StaffUnit');
+  let userUnit = null;
+  try {
+    userUnit = await StaffUnit.findOne({ userId: progress.userId });
+  } catch (_) {}
+
+  resetDaily(progress);
+
   const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const nextReq = PROMOTION_REQUIREMENTS[progress.level];
-  const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
+  const MAX_WARNINGS = 3;
   const daysLeft = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
+
+  const stats = getDailyTaskCompletionStats(progress);
 
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
@@ -1390,46 +1441,41 @@ Bu personelin günlük brifingini yapıcı ve motive edici olacak şekilde yaz. 
 Seviyesi: ${ROLE_NAMES[progress.level]}
 Arka arkaya aktif gün: ${progress.stats?.consecutiveDays || 0}
 Uyarı sayısı: ${progress.warnings?.count || 0}/7
-${daysLeft !== null ? `Bu kişiye ${daysLeft} gün daha sabırla davran.` : ''}
 Bugünkü görevleri hatırlat ve cesaretlen.`;
-
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
-    .setTitle(`☀️ Günaydın! ${ROLE_NAMES[progress.level]} — Günlük Brifing`)
+    .setTitle(`☀️ Günlük Görev Brifingi & İlerleme`)
     .setDescription(
       (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
-      `Bugün yapacakların açık. Başlayabilirsin! 💪\n\n` +
-      `---\n**📋 Bugünün Zorunlu Görevleri:**`
+      `Bugünün görevleri aktif edildi! Sitede veya ses kanallarında aktif kalarak hedeflerini tamamla. 💪\n\n` +
+      `📊 **Genel Görev İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
+      `• **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'}\n` +
+      `• **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%)\n` +
+      (progress.daily?.chosenTask ? `• **Seçimli Görev:** ${CHOSEN_TASKS[progress.daily.chosenTask] || progress.daily.chosenTask} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}` : '')
     );
 
   const fields = [
     {
       name: '⚡ Yapman Gerekenler (Zorunlu)',
-      value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı\n\n💪 Kolay! Senin için cinayeti işlemesi!`,
+      value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı`,
       inline: false,
     }
   ];
 
-  try {
-    const StaffUnit = require('../../models/StaffUnit');
-    const userUnit = await StaffUnit.findOne({ userId: progress.userId });
-    if (userUnit && userUnit.unitName) {
-      const { UNIT_CONFIG } = require('./unitService');
-      const unitConf = UNIT_CONFIG[userUnit.unitName];
-      if (unitConf) {
-        fields.push({
-          name: `🛡️ ${unitConf.label} Günlük Görevi (Zorunlu)`,
-          value: `⚠️ **Görevin:** ${unitConf.tasks}\n*Birimdeki Rütben: Rütbe ${userUnit.rank || 1}*`,
-          inline: false
-        });
-      }
+  if (userUnit && userUnit.unitName) {
+    const { UNIT_CONFIG } = require('./unitService');
+    const unitConf = UNIT_CONFIG[userUnit.unitName];
+    if (unitConf) {
+      fields.push({
+        name: `🛡️ ${unitConf.label} Günlük Görevi (Zorunlu)`,
+        value: `⚠️ **Görevin:** ${unitConf.tasks}\n*Birimdeki Rütben: Rütbe ${userUnit.rank || 1}*`,
+        inline: false
+      });
     }
-  } catch (err) {
-    console.error('[staffSystem] sendMorningBriefing unit fetch error:', err.message);
   }
 
   fields.push(
@@ -1460,7 +1506,6 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     });
   }
 
-  // Terfi sayaçları — Rütbe Atlamaya Teşvik!
   if (nextReq) {
     const s = progress.stats || {};
     const ticketsNeeded = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
@@ -1470,7 +1515,6 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     const modsNeeded = Math.max(0, (nextReq.moderationActions || 0) - (s.moderationActions || 0));
     const reportsNeeded = Math.max(0, (nextReq.weeklyReports || 0) - (s.weeklyReports || 0));
 
-    // Terfi yüzdesi hesapla
     const maxTickets = nextReq.ticketsSolved || 1;
     const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
 
@@ -1489,54 +1533,59 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
 
   embed
     .addFields({ name: '💡 İpuçları', value: levelInfo.tips, inline: false })
-    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Başarılar! 🌟' })
     .setTimestamp();
 
-  try {
-    const user = await client.users.fetch(progress.userId);
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-    const rowButtons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('talk_to_coach')
-        .setLabel('💬 Koçla Konuş')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`coach_ekgorev_${progress.userId}`)
-        .setLabel('💪 Ek Görev Al')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`coach_ekmesai_${progress.userId}`)
-        .setLabel('⚡ Ek Mesai Yap')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`coach_eksilt_${progress.userId}`)
-        .setLabel('⏳ Görev Eksilt')
-        .setStyle(ButtonStyle.Danger)
-    );
-    const allOptions = [
-      {
-        label: '💬 Aktif Sohbetçi',
-        description: 'Sohbette en az 15 mesaj gönder',
-        value: 'task_chat'
-      },
-      {
-        label: '🎤 Ses Meraklısı',
-        description: 'Ses kanallarında fazladan 15 dakika geçir',
-        value: 'task_voice'
-      },
-      {
-        label: '🎫 Destekçi',
-        description: 'Bugün en az 1 ticket çöz',
-        value: 'task_ticket'
-      },
-      {
-        label: '🛡️ Koruyucu',
-        description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
-        value: 'task_mod'
-      }
-    ];
+  return embed;
+}
 
-    let options = allOptions;
+async function getMorningBriefingComponents(progress) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+  const rowButtons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_update_progress')
+      .setLabel('🔄 GÜNCELLE')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`coach_ekgorev_${progress.userId}`)
+      .setLabel('💪 Ek Görev Al')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`coach_ekmesai_${progress.userId}`)
+      .setLabel('⚡ Ek Mesai Yap')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`coach_eksilt_${progress.userId}`)
+      .setLabel('⏳ Görev Eksilt')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  const allOptions = [
+    {
+      label: '💬 Aktif Sohbetçi',
+      description: 'Sohbette en az 15 mesaj gönder',
+      value: 'task_chat'
+    },
+    {
+      label: '🎤 Ses Meraklısı',
+      description: 'Ses kanallarında fazladan 15 dakika geçir',
+      value: 'task_voice'
+    },
+    {
+      label: '🎫 Destekçi',
+      description: 'Bugün en az 1 ticket çöz',
+      value: 'task_ticket'
+    },
+    {
+      label: '🛡️ Koruyucu',
+      description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
+      value: 'task_mod'
+    }
+  ];
+
+  let options = allOptions;
+  try {
+    const StaffUnit = require('../../models/StaffUnit');
+    const userUnit = await StaffUnit.findOne({ userId: progress.userId });
     if (userUnit && userUnit.unitName) {
       if (userUnit.unitName === 'BAN_BIRIMI') {
         options = allOptions.filter(o => o.value === 'task_ticket' || o.value === 'task_mod');
@@ -1546,16 +1595,15 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
         options = allOptions.filter(o => o.value === 'task_chat');
       }
     }
+  } catch (_) {}
 
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('select_daily_task')
-      .setPlaceholder('🎯 Seçimli Görevi Değiştir')
-      .addOptions(options);
-    const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId('select_daily_task')
+    .setPlaceholder('🎯 Seçimli Görevi Değiştir')
+    .addOptions(options);
+  const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
-    await user.send({ embeds: [embed], components: [rowButtons, rowSelect] });
-    console.log(`[staffSystem] Sabah brifing gönderildi: ${progress.userId}`);
-  } catch (_) { }
+  return [rowButtons, rowSelect];
 }
 
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
@@ -3346,4 +3394,6 @@ module.exports = {
   completeOvertime,
   recordOvertimeTask,
   postponeDailyTask,
+  generateMorningBriefingEmbed,
+  getMorningBriefingComponents,
 };
