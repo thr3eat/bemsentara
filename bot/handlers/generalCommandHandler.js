@@ -558,7 +558,8 @@ async function handleGeneralCommand(interaction) {
       let robloxIslem = "Roblox hesabı bağlı olmadığı için gruptan atılamadı.";
       if (u && u.robloxId) {
         try {
-          const { noblox, ROBLOX } = require("../../config");
+          const noblox = require("noblox.js");
+          const { ROBLOX } = require("../services/staffAutomation");
           // EkoYıldız Moderatör Ekibi grubundan at
           await noblox.exile(ROBLOX.EKOYILDIZ_MOD, u.robloxId);
           robloxIslem = `Roblox Moderatör Ekibi grubundan başarıyla atıldı (\`${u.robloxId}\`).`;
