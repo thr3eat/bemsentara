@@ -1281,120 +1281,47 @@ async function handleGeneralCommand(interaction) {
       const today = new Date().toISOString().split('T')[0];
 
       if (tip === 'gunluk') {
-        const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+        if (!p.daily || !p.daily.startedToday) {
+          // AI'dan kısa motivasyon mesajı al
+          let aiMessage = '';
+          try {
+            const prompt = `Sen Eko Yıldız sunucusunun AI Personel Koçusun.
+Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kısa (max 100 karakter), neşeli ve motive edici Türkçe bir karşılama yaz.`;
+            aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+            aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+          } catch (_) { }
 
-        // AI Koç mesajı
-        let aiMessage = '';
-        try {
-          const prompt = `Sen Eko Yıldız Discord sunucusunun AI Personel Koçusun.
-          Bu personelin günlük durumunu değerlendirerek çok kısa (max 100 karakter), neşeli, Türkçe motive edici bir brifing mesajı yaz.
-          Personel: ${interaction.user.username}
-          Seviye: ${ROLE_NAMES[p.level]}
-          Mevcut aktiflik streak'i: ${p.stats?.consecutiveDays || 0} gün.`;
-          aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
-          aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
-        } catch (_) { }
+          const embed = new EmbedBuilder()
+            .setColor(0xff3e3e)
+            .setTitle('⚠️ GÖREVLERE HALA BAŞLAMADIN!')
+            .setDescription(
+              `Merhaba <@${p.userId}>,\n\n` +
+              `Bugünkü günlük görevlerini henüz başlatmadın. Görevlerini aktif etmek, brifingini almak ve ilerleme takip panelini kurmak için aşağıdaki butona bas!\n\n` +
+              (aiMessage ? `🤖 **AI Koçun:** *"${aiMessage}"*` : '')
+            )
+            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+            .setTimestamp();
 
-        const isToday = p.daily?.date === today;
-        const greetDone = isToday && p.daily?.greeted;
-        const voiceDone = isToday && (p.daily?.voiceMinutes || 0) >= req.voiceMinutes;
-
-        const { getDailyTaskCompletionStats } = require('../services/staffSystem');
-        const stats = getDailyTaskCompletionStats(p);
-
-        const embed = new EmbedBuilder()
-          .setColor(0x7c6af7)
-          .setTitle(`☀️ Günlük Brifing — ${ROLE_NAMES[p.level]}`)
-          .setThumbnail(interaction.user.displayAvatarURL())
-          .setDescription(
-            (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
-            `Bugündeki performans durumunuz ve görevleriniz aşağıdadır. Harika bir gün dileriz! 🌟\n\n` +
-            `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**`
-          )
-          .addFields(
-            {
-              name: '⚡ Günlük Zorunlu Görevler',
-              value: `${greetDone ? '✅' : '❌'} **Selamlaşma:** ${isToday && p.daily?.greeted ? 1 : 0}/${req.greets} selam (%${stats.greetPercent})\n` +
-                `${voiceDone ? '✅' : '❌'} **Ses Aktifliği:** ${isToday ? (p.daily?.voiceMinutes || 0) : 0}/${req.voiceMinutes} dk (%${stats.voicePercent})`,
-              inline: false
-            }
+          const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`staff_start_task_1`)
+              .setLabel('🚀 1. GÖREVİ BAŞLAT')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('talk_to_coach')
+              .setLabel('💬 Koçla Konuş')
+              .setStyle(ButtonStyle.Primary)
           );
 
-        // Birim görevi kontrolü
-        const userUnit = await StaffUnit.findOne({ userId: p.userId });
-        if (userUnit && userUnit.unitName) {
-          const unitConf = UNIT_CONFIG[userUnit.unitName];
-          if (unitConf) {
-            embed.addFields({
-              name: `🛡️ ${unitConf.label} Günlük Görevi`,
-              value: `⚠️ **Göreviniz:** ${unitConf.tasks}\n*Birim Rütbeniz: Rütbe ${userUnit.rank || 1}*`,
-              inline: false
-            });
-          }
+          return interaction.editReply({ embeds: [embed], components: [row] });
+        } else {
+          // Zaten başlatılmışsa, aktif takip embedini ve butonlarını gönder
+          const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
+          const embed = await generateMorningBriefingEmbed(p, interaction.client);
+          const components = await getMorningBriefingComponents(p);
+          return interaction.editReply({ embeds: [embed], components });
         }
-
-        // Seçimli görev kontrolü
-        if (p.daily?.chosenTask) {
-          const taskDesc = CHOSEN_TASKS[p.daily.chosenTask] || 'Rastgele Görev';
-          embed.addFields({
-            name: '🎯 Bugünün Seçimli Görevi',
-            value: `${taskDesc}\nDurum: ${p.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam ediyor...*'}`,
-            inline: false
-          });
-        }
-
-        // Streak & İpuçları
-        embed.addFields(
-          {
-            name: '🔥 Aktiflik & Puan Durumu',
-            value: `• **Arka Arkaya Aktif:** ${p.stats?.consecutiveDays || 0} gün\n• **Toplam Puan:** ${p.gamification?.totalPoints || 0}\n• **EkoCoin Bakiyesi:** ${p.gamification?.ecoCoins || 0} E.C.`,
-            inline: true
-          },
-          {
-            name: '⚠️ Uyarı Sayacı',
-            value: `• **Güncel Uyarılar:** ${p.warnings?.count || 0}/3`,
-            inline: true
-          }
-        );
-
-        embed.setFooter({ text: 'Eko Yıldız • Günlük Brifing | Başarılar! 🚀' }).setTimestamp();
-
-        // Butonlar ve Seçim Menüsü
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-        const rowButtons = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('talk_to_coach')
-            .setLabel('💬 Koçla Konuş')
-            .setStyle(ButtonStyle.Primary)
-        );
-
-        let allowedTasks = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
-        if (userUnit && userUnit.unitName) {
-          if (userUnit.unitName === 'BAN_BIRIMI') {
-            allowedTasks = ['task_ticket', 'task_mod'];
-          } else if (userUnit.unitName === 'SES_BIRIMI') {
-            allowedTasks = ['task_voice'];
-          } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
-            allowedTasks = ['task_chat'];
-          }
-        }
-
-        const allOptions = [
-          { label: '💬 Aktif Sohbetçi', description: 'Sohbette en az 15 mesaj gönder', value: 'task_chat' },
-          { label: '🎤 Ses Meraklısı', description: 'Ses kanallarında fazladan 15 dakika geçir', value: 'task_voice' },
-          { label: '🎫 Destekçi', description: 'Bugün en az 1 ticket çöz', value: 'task_ticket' },
-          { label: '🛡️ Koruyucu', description: 'Bugün en az 1 moderasyon işlemi gerçekleştir', value: 'task_mod' }
-        ];
-
-        const options = allOptions.filter(o => allowedTasks.includes(o.value));
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_daily_task')
-          .setPlaceholder('🎯 Seçimli Görevi Değiştir')
-          .addOptions(options);
-
-        const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
-
-        return interaction.editReply({ embeds: [embed], components: [rowButtons, rowSelect] });
       }
 
       if (tip === 'haftalik') {

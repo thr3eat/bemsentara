@@ -170,6 +170,10 @@ async function handleButtonInteraction(interaction) {
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
 
+    p.daily = p.daily || {};
+    p.daily.startedToday = true;
+    await p.save().catch(() => {});
+
     const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
     const embed = await generateMorningBriefingEmbed(p, interaction.client);
     const components = await getMorningBriefingComponents(p);

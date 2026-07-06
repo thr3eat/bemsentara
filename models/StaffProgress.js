@@ -19,6 +19,7 @@ const staffProgressSchema = new mongoose.Schema({
   // Günlük görev takibi
   daily: {
     date: { type: String, default: '' },   // YYYY-MM-DD
+    startedToday: { type: Boolean, default: false },
     greeted: { type: Boolean, default: false },
     greetCount: { type: Number, default: 0 },
     voiceMinutes: { type: Number, default: 0 },

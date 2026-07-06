@@ -370,6 +370,7 @@ function resetDaily(progress) {
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     progress.daily = {
       date: today,
+      startedToday: false,
       greeted: false,
       greetCount: 0,
       voiceMinutes: 0,
@@ -402,6 +403,7 @@ function resetDaily(progress) {
     const nextTransferredGreets = progress.daily.transferToTomorrowGreets || 0;
 
     progress.daily.date = today;
+    progress.daily.startedToday = false;
     progress.daily.greeted = false;
     progress.daily.greetCount = 0;
     progress.daily.voiceMinutes = 0;
