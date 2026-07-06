@@ -10,9 +10,13 @@ const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
 
 const CHOSEN_TASKS = {
   'task_chat': '💬 Aktif Sohbetçi: Sohbette en az 15 mesaj gönder.',
+  'task_double_chat': '💬 Çift Sohbet: Sohbette en az 30 mesaj gönder.',
   'task_voice': '🎤 Ses Meraklısı: Ses kanallarında fazladan 15 dakika geçir.',
+  'task_double_voice': '🎤 Ses Sever: Ses kanallarında fazladan 30 dakika geçir.',
   'task_ticket': '🎫 Destekçi: Bugün en az 1 ticket çöz.',
-  'task_mod': '🛡️ Koruyucu: Bugün en az 1 moderasyon işlemi gerçekleştir.'
+  'task_mod': '🛡️ Koruyucu: Bugün en az 1 moderasyon işlemi gerçekleştir.',
+  'task_greet': '👋 Hoş Geldin Elçisi: Bugün en az 5 yeni üyeye hoş geldin de.',
+  'task_double_greet': '👋 Hoş Geldin Lideri: Bugün en az 10 yeni üyeye hoş geldin de.'
 };
 
 const ROLES = {
@@ -415,7 +419,7 @@ function resetDaily(progress) {
 
   // 🔧 Güvenlik: daily objesi tanımlı değilse oluştur
   if (!progress.daily) {
-    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     progress.daily = {
       date: today,
@@ -447,7 +451,7 @@ function resetDaily(progress) {
     progress.stats = progress.stats || {};
     progress.stats.lastDayPostponed = !!progress.daily.postponedToday;
 
-    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     
     // Dünün ertelenen hedeflerini bugüne aktar
@@ -896,9 +900,18 @@ async function checkChosenTaskCompletion(progress, client) {
       if ((progress.daily.chatMessagesToday || 0) >= 15) {
         completed = true;
       }
+    } else if (task === 'task_double_chat') {
+      if ((progress.daily.chatMessagesToday || 0) >= 30) {
+        completed = true;
+      }
     } else if (task === 'task_voice') {
       const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
       if ((progress.daily.voiceMinutes || 0) >= req.voiceMinutes + 15) {
+        completed = true;
+      }
+    } else if (task === 'task_double_voice') {
+      const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
+      if ((progress.daily.voiceMinutes || 0) >= req.voiceMinutes + 30) {
         completed = true;
       }
     } else if (task === 'task_ticket') {
@@ -907,6 +920,14 @@ async function checkChosenTaskCompletion(progress, client) {
       }
     } else if (task === 'task_mod') {
       if ((progress.daily.moderationActionsToday || 0) >= 1) {
+        completed = true;
+      }
+    } else if (task === 'task_greet') {
+      if ((progress.daily.greetCount || 0) >= 5) {
+        completed = true;
+      }
+    } else if (task === 'task_double_greet') {
+      if ((progress.daily.greetCount || 0) >= 10) {
         completed = true;
       }
     }
@@ -1411,14 +1432,14 @@ async function sendMorningBriefing(progress, client) {
 
   resetDaily(progress);
 
-  let allowedTasks = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
+  let allowedTasks = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
   if (userUnit && userUnit.unitName) {
     if (userUnit.unitName === 'BAN_BIRIMI') {
       allowedTasks = ['task_ticket', 'task_mod'];
     } else if (userUnit.unitName === 'SES_BIRIMI') {
-      allowedTasks = ['task_voice'];
+      allowedTasks = ['task_voice', 'task_double_voice'];
     } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
-      allowedTasks = ['task_chat'];
+      allowedTasks = ['task_chat', 'task_double_chat', 'task_greet', 'task_double_greet'];
     }
   }
 
@@ -1469,6 +1490,58 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
   } catch (_) { }
 }
 
+async function ensureCoachQuestionsPool() {
+  try {
+    const CoachQuestion = require('../../models/CoachQuestion');
+    const count = await CoachQuestion.countDocuments().catch(() => 0);
+    if (count < 40) {
+      console.log(`[staffSystem] Coach questions count (${count}) is low. Generating new questions with AI...`);
+      const prompt = [
+        {
+          role: 'user',
+          content: `Sen EkoYıldız Discord sunucusunun AI Personel Koçusun.
+Moderatörlerimizi daha iyi tanımak, onlarla samimi bağ kurmak ve eğlenceli sohbetler başlatmak için kısa soru havuzu hazırlayacaksın.
+Sorular şunlar gibi olmalı: "En sevdiğin tatlı nedir?", "Boş zamanlarında ne yaparsın?", "Seni en çok ne güldürür?", "Moderatörlük yaparken en keyif aldığın an neydi?", "En sevdiğin film karakteri hangisi?" vb.
+Senden 30 adet benzersiz, samimi, eğlenceli ve yaratıcı Türkçe soru üretmeni istiyorum.
+Her soru için kısa, İngilizce/Türkçe karakter uyumlu benzersiz bir anahtar kelime (key) ve soru metni (question) belirle.
+Yanıtı SADECE geçerli bir JSON array formatında ver. Markdown, açıklama veya ek hiçbir metin ekleme.
+
+JSON formatı:
+[
+  { "key": "favorite_dessert", "question": "En sevdiğin tatlı nedir?" },
+  ...
+]`
+        }
+      ];
+
+      const aiResponse = await chatWithAI(prompt, 'Sen bir JSON üretecisin. Sadece geçerli JSON array döndür.').catch(() => '');
+      if (aiResponse) {
+        const cleaned = aiResponse.replace(/```json|```/gi, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          let added = 0;
+          for (const item of parsed) {
+            if (item.key && item.question) {
+              const exists = await CoachQuestion.findOne({ key: item.key });
+              if (!exists) {
+                await CoachQuestion.create({
+                  key: item.key,
+                  question: item.question,
+                  category: 'ai_generated'
+                }).catch(() => {});
+                added++;
+              }
+            }
+          }
+          console.log(`[staffSystem] AI generated and saved ${added} new coach questions to database.`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[staffSystem] ensureCoachQuestionsPool error:', err.message);
+  }
+}
+
 async function generateMorningBriefingEmbed(progress, client) {
   const StaffUnit = require('../../models/StaffUnit');
   let userUnit = null;
@@ -1486,18 +1559,25 @@ async function generateMorningBriefingEmbed(progress, client) {
 
   const stats = getDailyTaskCompletionStats(progress);
 
-  const PERSONAL_QUESTIONS = [
-    { question: "Hangi futbol takımını tutuyorsun?", key: "favorite_team" },
-    { question: "En çok hangi bilgisayar veya Roblox oyununu seversin?", key: "favorite_game" },
-    { question: "Şu an hangi şehirde yaşıyorsun?", key: "city" },
-    { question: "En sevdiğin yemek nedir?", key: "favorite_food" },
-    { question: "En büyük hobin nedir?", key: "hobby" },
-    { question: "En çok hangi müzik türünü dinlersin?", key: "favorite_music" }
-  ];
-
   if (!progress.currentQuestion) {
+    await ensureCoachQuestionsPool().catch(() => {});
+
     const memory = progress.coachMemory ? (progress.coachMemory instanceof Map ? Object.fromEntries(progress.coachMemory) : progress.coachMemory) : {};
-    const unanswered = PERSONAL_QUESTIONS.filter(q => !memory[q.key]);
+    const CoachQuestion = require('../../models/CoachQuestion');
+    const dbQuestions = await CoachQuestion.find({}).catch(() => []);
+
+    const DEFAULT_QUESTIONS = [
+      { question: "Hangi futbol takımını tutuyorsun?", key: "favorite_team" },
+      { question: "En çok hangi bilgisayar veya Roblox oyununu seversin?", key: "favorite_game" },
+      { question: "Şu an hangi şehirde yaşıyorsun?", key: "city" },
+      { question: "En sevdiğin yemek nedir?", key: "favorite_food" },
+      { question: "En büyük hobin nedir?", key: "hobby" },
+      { question: "En çok hangi müzik türünü dinlersin?", key: "favorite_music" }
+    ];
+
+    const pool = dbQuestions.length > 0 ? dbQuestions : DEFAULT_QUESTIONS;
+    const unanswered = pool.filter(q => !memory[q.key]);
+
     if (unanswered.length > 0) {
       if (Math.random() < 0.4) {
         const selected = unanswered[Math.floor(Math.random() * unanswered.length)];
