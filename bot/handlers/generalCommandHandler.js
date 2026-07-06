@@ -550,16 +550,28 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
       }
 
-      // 1. Veritabanından (StaffProgress & StaffUnit) sil
+      // 1. Veritabanından (StaffProgress & StaffUnit) sil ve User kaydını güncelle
       if (p) {
         await StaffProgress.deleteOne({ userId: targetUser.id }).catch(() => {});
       }
       await StaffUnit.deleteOne({ userId: targetUser.id }).catch(() => {});
 
+      if (u) {
+        u.isStaff = false;
+        u.isAdmin = false;
+        await u.save().catch(() => {});
+        try {
+          const { saveStoreNow } = require("../../models/Store");
+          saveStoreNow();
+        } catch (_) {}
+      }
+
       // 1.5. Discord Sunucusundan Yetki Rollerini Kaldır (Mükerrer kaydı önlemek için en önemlisi)
       let roleIslem = "Yetki rolleri bulunamadı veya kaldırılamadı.";
-      if (interaction.guild) {
-        const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+      const { GUILD_ID } = require("../services/staffSystem");
+      const staffGuild = await interaction.client.guilds.fetch(GUILD_ID).catch(() => null);
+      if (staffGuild) {
+        const member = await staffGuild.members.fetch(targetUser.id).catch(() => null);
         if (member) {
           const { ROLES } = require("../services/staffSystem");
           const staffRoleIds = Object.values(ROLES);
@@ -570,7 +582,7 @@ async function handleGeneralCommand(interaction) {
               removedCount++;
             }
           }
-          roleIslem = `Discord üzerinden ${removedCount} adet yetkili rolü başarıyla kaldırıldı.`;
+          roleIslem = `Discord (EkoYıldız) üzerinden ${removedCount} adet yetkili rolü başarıyla kaldırıldı.`;
         }
       }
 
