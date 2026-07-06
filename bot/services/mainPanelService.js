@@ -322,7 +322,12 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setCustomId("panel_staff_reward")
         .setLabel("🎁 Ödül Yönetimi")
         .setStyle(ButtonStyle.Success)
-        .setDisabled(!auth.isManager)
+        .setDisabled(!auth.isManager),
+      new ButtonBuilder()
+        .setCustomId("panel_staff_skip_exam_promote")
+        .setLabel("🎓 Sınavsız Terfi")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isAdmin)
     );
 
     // ROW 3: İzin ve Sayım
@@ -1133,6 +1138,31 @@ async function handlePanelButton(interaction) {
           .setLabel("Gerekçe / Açıklama")
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(true)
+      )
+    );
+    return showModalSafely(modal);
+  }
+
+  if (customId === "panel_staff_skip_exam_promote") {
+    const modal = new ModalBuilder()
+      .setCustomId("panel_modal_staff_skip_exam_promote")
+      .setTitle("🎓 Sınavsız Terfi (Sınav Atlama)");
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("kullanici")
+          .setLabel("Discord ID / Etiket / Kullanıcı Adı")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("Örn: ahmet123 veya 1031620522406072350")
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("sebep")
+          .setLabel("Terfi Gerekçesi / Açıklama")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setPlaceholder("Neden bu yetkili sınavsız terfi alıyor?")
       )
     );
     return showModalSafely(modal);
@@ -2020,6 +2050,96 @@ async function handlePanelModal(interaction) {
       return interaction.editReply(`❌ Personel silinemedi: ${e.message}`);
     }
     return;
+  }
+
+  // ── STAFF SKIP EXAM PROMOTE ─────────────────────────────────────────────────
+  if (customId === "panel_modal_staff_skip_exam_promote") {
+    const userVal = interaction.fields.getTextInputValue("kullanici").trim();
+    const reason = interaction.fields.getTextInputValue("sebep").trim();
+
+    let targetUser = null;
+    let targetUserId = userVal.replace(/[<@!>]/g, "");
+
+    if (isNaN(targetUserId)) {
+      try {
+        const members = await interaction.guild.members.fetch({ query: userVal, limit: 1 });
+        const member = members.first();
+        if (member) {
+          targetUser = member.user;
+          targetUserId = targetUser.id;
+        }
+      } catch (err) {
+        console.warn("[skip_exam_promote] Username lookup failed:", err.message);
+      }
+    } else {
+      targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    }
+
+    if (!targetUser) {
+      return interaction.editReply("❌ Belirtilen kullanıcı bulunamadı. Lütfen geçerli bir Discord ID, Etiket veya Kullanıcı Adı girin.");
+    }
+
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const { promote, ROLE_NAMES } = require("./staffSystem");
+
+      const progress = await StaffProgress.findOne({ userId: targetUserId });
+      if (!progress) {
+        return interaction.editReply("❌ Bu kullanıcı personel sisteminde kayıtlı değil.");
+      }
+
+      if (progress.status !== 'active') {
+        return interaction.editReply("❌ Bu personel aktif durumda değil.");
+      }
+
+      const oldLevel = progress.level || 1;
+      if (oldLevel >= 6) {
+        return interaction.editReply("❌ Bu personel zaten maksimum rütbeye ulaşmış.");
+      }
+
+      // Sınav durumunu sıfırla
+      progress.exam = {
+        status: 'none',
+        scheduledAt: null,
+        questions: [],
+        currentQuestionIndex: 0,
+        answers: [],
+        lastExamAttempt: progress.exam?.lastExamAttempt || null
+      };
+
+      await progress.save();
+
+      // Terfi ettir
+      await promote(progress, client);
+
+      const targetRoleName = ROLE_NAMES[oldLevel + 1] || `Seviye ${oldLevel + 1}`;
+
+      // Log gönder
+      try {
+        const staffLogChannelId = '1466945894250188912';
+        const logChannel = await client.channels.fetch(staffLogChannelId).catch(() => null);
+        if (logChannel) {
+          const logEmbed = new EmbedBuilder()
+            .setColor(0x00ff00)
+            .setTitle("🎓 Sınavsız Terfi İşlemi (Sınav Atlama)")
+            .setDescription(
+              `👤 **Personel:** <@${targetUserId}>\n` +
+              `👑 **Yönetici:** <@${interaction.user.id}>\n` +
+              `📈 **Rütbe:** ${ROLE_NAMES[oldLevel]} → **${targetRoleName}**\n` +
+              `📋 **Sebep:** ${reason}`
+            )
+            .setTimestamp();
+          await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+        }
+      } catch (logErr) {
+        console.error('[skip_exam_promote] Log error:', logErr.message);
+      }
+
+      return interaction.editReply(`✅ <@${targetUserId}> adlı personel **${targetRoleName}** rütbesine sınavsız olarak başarıyla terfi ettirildi!`);
+    } catch (e) {
+      console.error('[skip_exam_promote] Error:', e.message);
+      return interaction.editReply(`❌ Sınavsız terfi işlemi başarısız: ${e.message}`);
+    }
   }
 
   // ── STAFF PROMOTE / DEMOTE ─────────────────────────────────────────────────
