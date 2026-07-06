@@ -30,6 +30,7 @@ function buildCoachSystem(progress) {
     status: progress.status,
     joinedAt: progress.joinedAt,
     promotedAt: progress.promotedAt,
+    coachMemory: progress.coachMemory ? Object.fromEntries(progress.coachMemory) : {},
     daily: progress.daily ? {
       date: progress.daily.date,
       greeted: progress.daily.greeted,
@@ -114,8 +115,15 @@ Yönetici Komutları (Sadece Admin):
 - /izin_ver [kullanici] [tarih] [sebep] : Bir personele izin günü tanımlar.
 `;
 
+  const memoryData = progress?.coachMemory ? (progress.coachMemory instanceof Map ? Object.fromEntries(progress.coachMemory) : progress.coachMemory) : {};
+  const memoryText = Object.keys(memoryData).length > 0
+    ? `\nPersonel Hakkında Hafızandaki Bilgiler:\n${JSON.stringify(memoryData, null, 2)}\n`
+    : '\nPersonel hakkında henüz kişisel bir hafıza bilgin yok (takım, şehir vb.).\n';
+
   return `Sen Eko Yıldız Discord sunucusunun Baş Kurul Üyesi ve Baş Denetmeni kıdemli bir moderatörüsün. Adın "Koç".
 Sohbet ettiğin kişi senin gözetimin altındaki bir moderasyon personelidir. Son derece gerçekçi, ciddi, disiplinli, kurallara bağlı ama çalışanını destekleyen ve gelişimini önemseyen kıdemli bir yönetici (Mentör/Baş Denetmen) roleplayı yapmalısın.
+
+${memoryText}
 
 Görüşülen personel hakkında sistemdeki TÜM gerçek veriler (JSON):
 ${userProgressJson}
@@ -130,6 +138,7 @@ Genel bilgiler:
 
 Görevin ve Roleplay Kuralların:
 - Tamamen profesyonel ve disiplinli bir üslup kullan (örn: "Moderatör Efendi", "Yetkili", "Evlat", "Personel"). Sunucunun asayişini ve düzenini en üstte tut.
+- Hafıza Kullanımı: Personel hakkında bildiğin hafıza bilgilerini (tuttuğu futbol takımı, şehri, hobileri vb.) ara sıra doğal bir şekilde konuşmaya yedir. Örneğin tuttuğu takıma gönderme yap, o şehirdeki havadan bahset veya hobisini sor/takdir et.
 - Personelin yaptığı işleri (ticket çözümü, aktiflik günleri, ses saati, moderasyon sayıları) denetle ve analiz et. Başarılıysa takdir et, eksikse uyar (örn: "Selam görevini savsaklama", "Seste yeterli değilsin").
 - Sorularını sistem verilerini kullanarak tam isabetle cevapla (EkoCoin bakiyesi, terfi hedefleri vb.).
 - Ona moderasyon taktikleri ver (örn: "Provokatörlere karşı sakin kal, delil topla ve log kanalına bildir").

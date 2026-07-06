@@ -135,6 +135,11 @@ const staffProgressSchema = new mongoose.Schema({
   promotedAt: { type: Date, default: null },
   joinedAt: { type: Date, default: Date.now },
 
+  // Koç Belleği ve Soru Takibi
+  coachMemory: { type: Map, of: String, default: {} },
+  currentQuestion: { type: String, default: '' },
+  currentQuestionKey: { type: String, default: '' },
+
   // İstifa / Emeklilik / Kov
   status: { type: String, default: 'active', enum: ['active', 'resigned', 'retired', 'dismissed'] },
   resignedAt: { type: Date, default: null },

@@ -193,6 +193,35 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Cevapla Koçun Sorusunu Butonu ────────────────────────────────────────
+  if (customId === "staff_answer_coach_question") {
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p || !p.currentQuestion) {
+      return interaction.reply({ content: "❌ Şu anda aktif bir koç sorusu bulunmamaktadır.", ephemeral: true });
+    }
+
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_answer_coach')
+      .setTitle('Koçun Sorusu');
+
+    const cleanLabel = p.currentQuestion.length > 45 ? p.currentQuestion.slice(0, 42) + '...' : p.currentQuestion;
+
+    const answerInput = new TextInputBuilder()
+      .setCustomId('coach_answer_input')
+      .setLabel(cleanLabel)
+      .setStyle(TextInputStyle.Short)
+      .setMinLength(2)
+      .setMaxLength(100)
+      .setRequired(true)
+      .setPlaceholder('Cevabınızı yazın...');
+
+    modal.addComponents(new ActionRowBuilder().addComponents(answerInput));
+    await interaction.showModal(modal);
+    return;
+  }
+
   // ── Yoklama butonu ──────────────────────────────────────────────────────
   if (customId === "btn_rollcall_here") {
     return handleRollCallButton(interaction);

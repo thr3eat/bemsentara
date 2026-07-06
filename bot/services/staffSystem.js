@@ -1432,6 +1432,28 @@ async function generateMorningBriefingEmbed(progress, client) {
 
   const stats = getDailyTaskCompletionStats(progress);
 
+  const PERSONAL_QUESTIONS = [
+    { question: "Hangi futbol takımını tutuyorsun?", key: "favorite_team" },
+    { question: "En çok hangi bilgisayar veya Roblox oyununu seversin?", key: "favorite_game" },
+    { question: "Şu an hangi şehirde yaşıyorsun?", key: "city" },
+    { question: "En sevdiğin yemek nedir?", key: "favorite_food" },
+    { question: "En büyük hobin nedir?", key: "hobby" },
+    { question: "En çok hangi müzik türünü dinlersin?", key: "favorite_music" }
+  ];
+
+  if (!progress.currentQuestion) {
+    const memory = progress.coachMemory ? (progress.coachMemory instanceof Map ? Object.fromEntries(progress.coachMemory) : progress.coachMemory) : {};
+    const unanswered = PERSONAL_QUESTIONS.filter(q => !memory[q.key]);
+    if (unanswered.length > 0) {
+      if (Math.random() < 0.4) {
+        const selected = unanswered[Math.floor(Math.random() * unanswered.length)];
+        progress.currentQuestion = selected.question;
+        progress.currentQuestionKey = selected.key;
+        await progress.save().catch(() => {});
+      }
+    }
+  }
+
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
   try {
@@ -1476,6 +1498,13 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
         inline: false
       });
     }
+  }
+  if (progress.currentQuestion) {
+    fields.push({
+      name: '❓ Koçun Sorusu',
+      value: `*Koçunuz sizi daha yakından tanımak istiyor:*\n**"${progress.currentQuestion}"**\n\n*(Aşağıdaki butonla cevaplayabilirsiniz!)*`,
+      inline: false
+    });
   }
 
   fields.push(
@@ -1552,12 +1581,24 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId(`coach_ekmesai_${progress.userId}`)
       .setLabel('⚡ Ek Mesai Yap')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`coach_eksilt_${progress.userId}`)
-      .setLabel('⏳ Görev Eksilt')
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Success)
   );
+
+  if (progress.currentQuestion) {
+    rowButtons.addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_answer_coach_question')
+        .setLabel('❓ CEVAPLA')
+        .setStyle(ButtonStyle.Primary)
+    );
+  } else {
+    rowButtons.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`coach_eksilt_${progress.userId}`)
+        .setLabel('⏳ Görev Eksilt')
+        .setStyle(ButtonStyle.Danger)
+    );
+  }
 
   const allOptions = [
     {

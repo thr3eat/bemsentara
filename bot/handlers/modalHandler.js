@@ -16,6 +16,36 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  if (interaction.customId === 'modal_answer_coach') {
+    await interaction.deferUpdate().catch(() => {});
+    const answer = interaction.fields.getTextInputValue('coach_answer_input');
+
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p || !p.currentQuestion) return;
+
+    // Save answer to memory
+    p.coachMemory = p.coachMemory || new Map();
+    p.coachMemory.set(p.currentQuestionKey, answer);
+
+    // Clear current question
+    p.currentQuestion = '';
+    p.currentQuestionKey = '';
+    await p.save();
+
+    // Re-generate task embed and components
+    const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+    const embed = await generateMorningBriefingEmbed(p, interaction.client);
+    const components = await getMorningBriefingComponents(p);
+
+    // Edit message in-place
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    // Send DM confirmation from coach
+    await interaction.user.send(`🤖 **Koç:** *"Cevabını hafızama kaydettim: **${answer}**. Seni daha yakından tanımak güzel, moderatör efendi!"*`).catch(() => {});
+    return;
+  }
+
   if (interaction.customId.startsWith('setup_branch_modal_')) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const targetGuildId = interaction.customId.replace('setup_branch_modal_', '');
