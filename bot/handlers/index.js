@@ -555,12 +555,6 @@ function initializeDiscordHandlers(client) {
             console.error("[guildMemberAdd] Yavru Dinazor rolü verilirken hata:", err.message);
           });
         }
-
-        // Sunucu Etiketi (Clan Tag) Kontrolü
-        const { checkAndRewardTag } = require("../services/clanTagService");
-        await checkAndRewardTag(member).catch(err => {
-          console.error("[guildMemberAdd] checkAndRewardTag error:", err.message);
-        });
       }
     } catch (err) {
       console.error("guildMemberAdd hatası:", err);
@@ -654,12 +648,6 @@ function initializeDiscordHandlers(client) {
         const { logEkoMemberUpdate } = require("../services/ekoLogger");
         logEkoMemberUpdate(oldMember, newMember);
 
-        // Sunucu Etiketi (Clan Tag) Kontrolü
-        const { checkAndRewardTag } = require("../services/clanTagService");
-        await checkAndRewardTag(newMember).catch(err => {
-          console.error("[guildMemberUpdate] checkAndRewardTag error:", err.message);
-        });
-
         // Boost detection to reward server boosters
         const startedBoosting = !oldMember.premiumSince && newMember.premiumSince;
         if (startedBoosting) {
@@ -686,25 +674,6 @@ function initializeDiscordHandlers(client) {
       console.error("guildMemberUpdate hatası:", err);
     }
   });
-
-  client.on("userUpdate", async (oldUser, newUser) => {
-    try {
-      const { GUILD2_ID } = require("../../config");
-      const guild = client.guilds.cache.get(GUILD2_ID) || await client.guilds.fetch(GUILD2_ID).catch(() => null);
-      if (guild) {
-        const member = guild.members.cache.get(newUser.id) || await guild.members.fetch(newUser.id).catch(() => null);
-        if (member) {
-          const { checkAndRewardTag } = require("../services/clanTagService");
-          await checkAndRewardTag(member).catch(err => {
-            console.error("[userUpdate] checkAndRewardTag error:", err.message);
-          });
-        }
-      }
-    } catch (err) {
-      console.error("userUpdate hatası:", err);
-    }
-  });
-
   client.on("messageDelete", async (message) => {
     try {
       if (message.partial) return;
@@ -1028,11 +997,6 @@ function initializeDiscordHandlers(client) {
         }
         voiceSessions.set(userId, { joinedAt: Date.now(), guildId });
         if (guildId === FROG_GUILD_ID) onVoiceJoin(userId);
-
-        if (guildId === GUILD2_ID) {
-          const { checkAndRewardTag } = require("../services/clanTagService");
-          await checkAndRewardTag(member).catch(() => { });
-        }
 
         // ── Sabah Kuşu Başarımı (Ses) ──
         if (guildId === '1367646464804655104') {
@@ -1648,14 +1612,11 @@ function initializeDiscordHandlers(client) {
       if (handled) return;
     } catch (_) { }
 
-    // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) & Sunucu Etiketi Kontrolü ────
+    // ── Kurbağa XP (EkoYıldız'da mesaj yazınca) ────
     try {
       const { FROG_GUILD_ID, addMessageXP } = require("../services/frogLevel");
       if (message.guild.id === FROG_GUILD_ID) {
         await addMessageXP(message.member, client).catch(() => { });
-
-        const { checkAndRewardTag } = require("../services/clanTagService");
-        await checkAndRewardTag(message.member).catch(() => { });
       }
     } catch (_) { }
 

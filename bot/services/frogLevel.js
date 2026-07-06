@@ -150,13 +150,6 @@ async function addMessageXP(member, client) {
     xpGain = Math.ceil(xpGain * 2);
   }
 
-  // Guild/Clan Tag multiplier (1.5x XP -> +0.5x increase)
-  const { hasClanTagTextOrNative } = require('./clanTagService');
-  const hasTag = member.roles?.cache?.has("1518926498361376768") || hasClanTagTextOrNative(member);
-  if (hasTag) {
-    xpGain = Math.ceil(xpGain * 1.5);
-  }
-
   p.xp            += xpGain;
   p.totalMessages  = (p.totalMessages || 0) + 1;
   p.lastMessageAt   = new Date();
@@ -200,13 +193,6 @@ async function addVoiceXP(userId, minutes, client) {
     // Server booster multiplier (2x XP)
     if (member && member.premiumSince) {
       xpGain = Math.ceil(xpGain * 2);
-    }
-
-    // Guild/Clan Tag multiplier (1.5x XP -> +0.5x increase)
-    const { hasClanTagTextOrNative } = require('./clanTagService');
-    const hasTag = member && (member.roles?.cache?.has("1518926498361376768") || hasClanTagTextOrNative(member));
-    if (hasTag) {
-      xpGain = Math.ceil(xpGain * 1.5);
     }
 
     p.xp                += xpGain;
