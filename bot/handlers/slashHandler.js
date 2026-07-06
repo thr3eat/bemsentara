@@ -817,7 +817,7 @@ async function handleSlashCommand(interaction) {
     // YENİ KOMUTLAR İÇİN PLACEHOLDER HANDLERS
     // ─────────────────────────────────────────────────────────────────────
 
-    if (["mute", "unmute", "modaction", "bulk-delete", "ban", "unban", "karaliste",
+    if (["mute", "unmute", "modaction", "bulk-delete", "karaliste",
          "staff-report", "staff-setstats", "fire", "promote", "demote", "reward", "giveleave",
          "attendance-start", "attendance-stop", "toggle", "channel-perms", "otomod",
          "birim-alimi", "birim-tanitim", "xp-cekilis", "ai-konusma", "abuse-test",

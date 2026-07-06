@@ -63,6 +63,7 @@ const GENERAL_COMMANDS = new Set([
   "birimistifa",
   "birimtanitim",
   "abusetest",
+  "rowifi",
   // Panel command versions
   "staff-reward",
   "staff-giveleave",
@@ -1523,6 +1524,177 @@ async function handleGeneralCommand(interaction) {
     } catch (err) {
       console.error('[briefing] hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── rowifi ──────────────────────────────────────────────────────────────────
+  if (commandName === "rowifi") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+
+    try {
+      const subGroup = interaction.options.getSubcommandGroup(false);
+      const subCommand = interaction.options.getSubcommand();
+
+      const RowifiBind = require("../../models/RowifiBind");
+      const RowifiConfig = require("../../models/RowifiConfig");
+      const rowifiService = require("../services/rowifiService");
+
+      // 1. rankbind Subcommands
+      if (subGroup === "rankbind") {
+        if (subCommand === "add") {
+          const groupId = interaction.options.getInteger("group_id");
+          const rankId = interaction.options.getInteger("rank_id");
+          const role = interaction.options.getRole("role");
+          const template = interaction.options.getString("template") || "{roblox_username}";
+          const priority = interaction.options.getInteger("priority") || 1;
+
+          if (rankId < 0 || rankId > 255) {
+            return interaction.editReply("❌ Rütbe ID'si 0 ile 255 arasında olmalıdır.");
+          }
+
+          const bind = new RowifiBind({
+            guildId: interaction.guild.id,
+            type: "rank",
+            groupId,
+            rank: rankId,
+            roleId: role.id,
+            template,
+            priority
+          });
+          await bind.save();
+
+          return interaction.editReply(`✅ **Rankbind Başarıyla Eklendi!**\nGrup ID: \`${groupId}\`\nRütbe: \`${rankId}\`\nRol: ${role.toString()}\nŞablon: \`${template}\`\nÖncelik: \`${priority}\``);
+        }
+
+        if (subCommand === "list") {
+          const binds = await RowifiBind.find({ guildId: interaction.guild.id, type: "rank" });
+          if (binds.length === 0) {
+            return interaction.editReply("ℹ️ Bu sunucuda tanımlı rankbind bulunamadı.");
+          }
+
+          const embed = new EmbedBuilder()
+            .setTitle("📋 Sunucu Rankbind Listesi")
+            .setColor(0x3498db)
+            .setTimestamp();
+
+          let desc = "";
+          binds.forEach((b) => {
+            desc += `🆔 **ID:** \`${b._id}\`\n🏢 **Grup:** \`${b.groupId}\` | 🎖️ **Rütbe:** \`${b.rank}\`\n🎗️ **Rol:** <@&${b.roleId}>\n🎨 **Şablon:** \`${b.template}\` | ⚖️ **Öncelik:** \`${b.priority}\`\n\n`;
+          });
+          embed.setDescription(desc);
+
+          return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (subCommand === "delete") {
+          const id = interaction.options.getString("id").trim();
+          const deleted = await RowifiBind.findOneAndDelete({ _id: id, guildId: interaction.guild.id, type: "rank" });
+
+          if (!deleted) {
+            return interaction.editReply("❌ Belirtilen ID ile eşleşen bir rankbind bulunamadı.");
+          }
+          return interaction.editReply("✅ Rankbind başarıyla silindi.");
+        }
+      }
+
+      // 2. groupbind Subcommands
+      if (subGroup === "groupbind") {
+        if (subCommand === "add") {
+          const groupId = interaction.options.getInteger("group_id");
+          const role = interaction.options.getRole("role");
+          const template = interaction.options.getString("template") || "{roblox_username}";
+          const priority = interaction.options.getInteger("priority") || 1;
+
+          const bind = new RowifiBind({
+            guildId: interaction.guild.id,
+            type: "group",
+            groupId,
+            roleId: role.id,
+            template,
+            priority
+          });
+          await bind.save();
+
+          return interaction.editReply(`✅ **Groupbind Başarıyla Eklendi!**\nGrup ID: \`${groupId}\`\nRol: ${role.toString()}\nŞablon: \`${template}\`\nÖncelik: \`${priority}\``);
+        }
+
+        if (subCommand === "list") {
+          const binds = await RowifiBind.find({ guildId: interaction.guild.id, type: "group" });
+          if (binds.length === 0) {
+            return interaction.editReply("ℹ️ Bu sunucuda tanımlı groupbind bulunamadı.");
+          }
+
+          const embed = new EmbedBuilder()
+            .setTitle("📋 Sunucu Groupbind Listesi")
+            .setColor(0x2ecc71)
+            .setTimestamp();
+
+          let desc = "";
+          binds.forEach((b) => {
+            desc += `🆔 **ID:** \`${b._id}\`\n🏢 **Grup:** \`${b.groupId}\`\n🎗️ **Rol:** <@&${b.roleId}>\n🎨 **Şablon:** \`${b.template}\` | ⚖️ **Öncelik:** \`${b.priority}\`\n\n`;
+          });
+          embed.setDescription(desc);
+
+          return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (subCommand === "delete") {
+          const id = interaction.options.getString("id").trim();
+          const deleted = await RowifiBind.findOneAndDelete({ _id: id, guildId: interaction.guild.id, type: "group" });
+
+          if (!deleted) {
+            return interaction.editReply("❌ Belirtilen ID ile eşleşen bir groupbind bulunamadı.");
+          }
+          return interaction.editReply("✅ Groupbind başarıyla silindi.");
+        }
+      }
+
+      // 3. autodetect Subcommand
+      if (subCommand === "autodetect") {
+        const active = interaction.options.getBoolean("aktif");
+
+        await RowifiConfig.findOneAndUpdate(
+          { guildId: interaction.guild.id },
+          { autoDetection: active },
+          { upsert: true }
+        );
+
+        return interaction.editReply(`✅ **Auto Detection (Otomatik Senkronizasyon):** ${active ? "🟢 AKTİF EDİLDİ" : "🔴 DEVRE DIŞI BIRAKILDI"}\nSistem her 30 dakikada bir otomatik olarak tüm üyeleri tarayacaktır.`);
+      }
+
+      // 4. sync Subcommand
+      if (subCommand === "sync") {
+        await interaction.editReply("⏳ Sunucu üyeleri Roblox gruplarıyla senkronize ediliyor... Bu işlem sunucu büyüklüğüne göre biraz zaman alabilir.");
+        const res = await rowifiService.syncGuild(interaction.guild, interaction.client);
+        return interaction.editReply(`✅ **Senkronizasyon Tamamlandı!**\n🔄 **Güncellenen Üye:** \`${res.successCount}\`\n⏭️ **Atlanan/Hatalı Üye:** \`${res.skippedCount}\``);
+      }
+
+      // 5. status Subcommand
+      if (subCommand === "status") {
+        const config = await RowifiConfig.findOne({ guildId: interaction.guild.id });
+        const rankbindCount = await RowifiBind.countDocuments({ guildId: interaction.guild.id, type: "rank" });
+        const groupbindCount = await RowifiBind.countDocuments({ guildId: interaction.guild.id, type: "group" });
+
+        const embed = new EmbedBuilder()
+          .setTitle("⚙️ RoWifi Sistemi Durumu")
+          .setColor(0xe74c3c)
+          .addFields(
+            { name: "🤖 Auto Detection", value: config?.autoDetection ? "🟢 Aktif (30 dk)" : "🔴 Devre Dışı", inline: true },
+            { name: "📅 Son Senkronizasyon", value: config?.lastSync ? `<t:${Math.floor(config.lastSync.getTime() / 1000)}:R>` : "Hiç yapılmadı", inline: true },
+            { name: "\u200b", value: "\u200b", inline: false },
+            { name: "🎖️ Rankbind Sayısı", value: `\`${rankbindCount}\` adet`, inline: true },
+            { name: "🏢 Groupbind Sayısı", value: `\`${groupbindCount}\` adet`, inline: true }
+          )
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+    } catch (err) {
+      console.error("[rowifi command] Error:", err.message);
+      return interaction.editReply(`❌ Bir hata oluştu: ${err.message}`);
     }
   }
 

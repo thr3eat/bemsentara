@@ -217,8 +217,19 @@ async function handleModerationCommand(interaction) {
       return executeModAction(interaction, kullanici, sebep, kanit);
     }
 
-    if (commandName === "tamban") {
-      const inputId = interaction.options.getString("kullanici_id");
+    if (commandName === "tamban" || commandName === "ban") {
+      let inputId = "";
+      const targetUserOption = interaction.options.getUser("kullanici");
+      if (targetUserOption) {
+        inputId = targetUserOption.id;
+      } else {
+        inputId = interaction.options.getString("kullanici_id") || interaction.options.getString("kullanici");
+      }
+
+      if (!inputId) {
+        return interaction.editReply({ content: "❌ Lütfen geçerli bir kullanıcı belirtin." });
+      }
+
       let targetUserId = inputId.replace(/[<@!>]/g, "");
       const seviye = interaction.options.getString("seviye");
       const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
@@ -428,8 +439,19 @@ async function handleModerationCommand(interaction) {
       return interaction.editReply({ embeds: [resEmbed] });
     }
 
-    if (commandName === "tamban_kaldir") {
-      const inputId = interaction.options.getString("kullanici_id");
+    if (commandName === "tamban_kaldir" || commandName === "unban") {
+      let inputId = "";
+      const targetUserOption = interaction.options.getUser("kullanici");
+      if (targetUserOption) {
+        inputId = targetUserOption.id;
+      } else {
+        inputId = interaction.options.getString("kullanici_id") || interaction.options.getString("kullanici");
+      }
+
+      if (!inputId) {
+        return interaction.editReply({ content: "❌ Lütfen geçerli bir kullanıcı belirtin." });
+      }
+
       let targetUserId = inputId.replace(/[<@!>]/g, "");
       const sebep = interaction.options.getString("sebep") || "Belirtilmedi";
 

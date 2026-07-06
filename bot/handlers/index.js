@@ -135,6 +135,14 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // RoWifi Auto Detection Scheduler
+    try {
+      const { startAutoDetectionScheduler } = require("../services/rowifiService");
+      startAutoDetectionScheduler(client);
+    } catch (err) {
+      console.error("[rowifiScheduler] Scheduler baslatilamadi:", err.message);
+    }
+
     // Birim Rol Doğrulama (Bot restart'ta bir kere çalış)
     try {
       const { verifyAllUnitRoles } = require("../services/unitStartupVerifier");

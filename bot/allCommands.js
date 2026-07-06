@@ -524,6 +524,67 @@ const generalCommands = [
     .setDescription("⬆️ GrupÇekEko Geri Al - Panel")
     .addStringOption(o => o.setName("username").setDescription("Roblox kullanıcı adı").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("rowifi")
+    .setDescription("🤖 Gelişmiş Roblox Rol & Rütbe Eşleme Sistemi (RoWifi)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommandGroup(g =>
+      g.setName("rankbind")
+        .setDescription("Roblox rütbelerine göre Discord rolleri atayın")
+        .addSubcommand(s =>
+          s.setName("add")
+            .setDescription("Yeni bir rankbind (rütbe bağı) oluşturur")
+            .addIntegerOption(o => o.setName("group_id").setDescription("Roblox Grup ID'si").setRequired(true))
+            .addIntegerOption(o => o.setName("rank_id").setDescription("Grup Rütbe ID'si (0-255, 0=Konuk)").setRequired(true))
+            .addRoleOption(o => o.setName("role").setDescription("Verilecek Discord Rolü").setRequired(true))
+            .addStringOption(o => o.setName("template").setDescription("İsim şablonu (Örn: {roblox_username})").setRequired(false))
+            .addIntegerOption(o => o.setName("priority").setDescription("Öncelik sırası").setRequired(false))
+        )
+        .addSubcommand(s =>
+          s.setName("list")
+            .setDescription("Mevcut rankbind listesini gösterir")
+        )
+        .addSubcommand(s =>
+          s.setName("delete")
+            .setDescription("Bir rankbind kaydını siler")
+            .addStringOption(o => o.setName("id").setDescription("Silinecek bind ID'si").setRequired(true))
+        )
+    )
+    .addSubcommandGroup(g =>
+      g.setName("groupbind")
+        .setDescription("Roblox grubunda bulunmaya göre Discord rolleri atayın")
+        .addSubcommand(s =>
+          s.setName("add")
+            .setDescription("Yeni bir groupbind (grup varlığı bağı) oluşturur")
+            .addIntegerOption(o => o.setName("group_id").setDescription("Roblox Grup ID'si").setRequired(true))
+            .addRoleOption(o => o.setName("role").setDescription("Verilecek Discord Rolü").setRequired(true))
+            .addStringOption(o => o.setName("template").setDescription("İsim şablonu (Örn: {roblox_username})").setRequired(false))
+            .addIntegerOption(o => o.setName("priority").setDescription("Öncelik sırası").setRequired(false))
+        )
+        .addSubcommand(s =>
+          s.setName("list")
+            .setDescription("Mevcut groupbind listesini gösterir")
+        )
+        .addSubcommand(s =>
+          s.setName("delete")
+            .setDescription("Bir groupbind kaydını siler")
+            .addStringOption(o => o.setName("id").setDescription("Silinecek bind ID'si").setRequired(true))
+        )
+    )
+    .addSubcommand(s =>
+      s.setName("autodetect")
+        .setDescription("Otomatik senkronizasyon (Auto Detection) özelliğini açar/kapatır")
+        .addBooleanOption(o => o.setName("aktif").setDescription("Aktif etmek için True, kapatmak için False seçin").setRequired(true))
+    )
+    .addSubcommand(s =>
+      s.setName("sync")
+        .setDescription("Sunucu üyelerini Roblox gruplarıyla anlık olarak senkronize eder")
+    )
+    .addSubcommand(s =>
+      s.setName("status")
+        .setDescription("RoWifi sistemi durumunu ve yapılandırmasını gösterir")
+    ),
 ];
 
 const economyCommands = [
