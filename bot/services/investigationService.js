@@ -239,30 +239,69 @@ async function handleAgreement(interaction, channelId, accepted) {
     await interaction.update({ embeds: [acceptEmbed], components: [] }).catch(() => {});
   } else {
     // Target user rejected
-    invest.status = 'rejected';
+    invest.rejectCount = (invest.rejectCount || 0) + 1;
     await invest.save();
 
-    const rejectEmbed = new EmbedBuilder()
-      .setTitle("❌ Soruşturma Reddedildi")
-      .setDescription("Soruşturma talebini reddettiniz. Soruşturmayı reddetmek yasaktır. Sunucudan uzaklaştırılıyorsunuz.")
-      .setColor(0xe74c3c)
-      .setTimestamp();
-    await interaction.update({ embeds: [rejectEmbed], components: [] }).catch(() => {});
-
-    if (targetMember) {
-      await targetMember.send("❌ Soruşturmayı reddettiğiniz için sunucudan atıldınız. Soruşturma sonlandırıldı.").catch(() => {});
-      await targetMember.kick("Disiplin soruşturmasını reddettiği için otomatik olarak atıldı.").catch(err => {
-        console.error("[investigationService] Kick target failed:", err.message);
-      });
-    }
-
-    if (channel) {
-      const failEmbed = new EmbedBuilder()
-        .setTitle("❌ Soruşturma Reddedildi")
-        .setDescription("Kullanıcı soruşturma davetini reddetti ve sunucudan otomatik olarak atıldı. Soruşturma iptal edildi.")
+    if (invest.rejectCount < 3) {
+      // Prompt again
+      const warningEmbed = new EmbedBuilder()
+        .setTitle(`⚠️ SORUŞTURMAYI REDDETMEK YASAKTIR! (${invest.rejectCount}/3)`)
+        .setDescription(
+          `Disiplin soruşturmasını reddetme hakkınız bulunmamaktadır.\n\n` +
+          `Eğer **3 kez** reddederseniz, soruşturma **otomatik olarak kabul edilmiş** sayılacak ve yargılama süreci başlayacaktır.\n\n` +
+          `Lütfen aşağıdaki **Kabul Et** butonuna tıklayarak soruşturmayı onaylayın.`
+        )
         .setColor(0xe74c3c)
         .setTimestamp();
-      await channel.send({ embeds: [failEmbed] });
+
+      const agreementRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`invest_agree_${channelId}`)
+          .setLabel("✅ Kabul Et")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`invest_reject_${channelId}`)
+          .setLabel("❌ Reddet")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      await interaction.update({ embeds: [warningEmbed], components: [agreementRow] }).catch(() => {});
+
+      if (channel) {
+        await channel.send(`⚠️ Kullanıcı soruşturma davetini reddetti (Reddetme sayısı: **${invest.rejectCount}/3**). Tekrar onay kutusu gönderildi.`);
+      }
+    } else {
+      // Auto accept after 3 rejections
+      invest.status = 'ongoing';
+      await invest.save();
+
+      if (channel && targetMember) {
+        await channel.permissionOverwrites.create(targetMember, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true
+        }).catch(() => {});
+
+        const autoAcceptEmbed = new EmbedBuilder()
+          .setTitle("🚨 Otomatik Kabul Edildi")
+          .setDescription(`<@${invest.targetUserId}> soruşturmayı 3 kez reddettiği için süreç **OTOMATİK KABUL** edilerek başlatıldı.`)
+          .setColor(0xe74c3c)
+          .setTimestamp();
+        await channel.send({ embeds: [autoAcceptEmbed] });
+
+        // Assign Judge
+        await assignRandomJudge(guild, invest, channel);
+      }
+
+      const forceEmbed = new EmbedBuilder()
+        .setTitle("🚨 Soruşturma Otomatik Kabul Edildi")
+        .setDescription(
+          `Soruşturma davetini 3 kez reddettiğiniz için süreç **otomatik olarak kabul edildi**.\n\n` +
+          `Soruşturma kanalına dahil edildiniz.`
+        )
+        .setColor(0xe74c3c)
+        .setTimestamp();
+      await interaction.update({ embeds: [forceEmbed], components: [] }).catch(() => {});
     }
   }
 }
