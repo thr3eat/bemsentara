@@ -56,6 +56,7 @@ const staffProgressSchema = new mongoose.Schema({
     lastCompleteDay: { type: String, default: '' }, // Son tamamlanan gün
     dailyTicketsToday: { type: Number, default: 0 },
     breakCredits: { type: Number, default: 0 },  // İzin kredileri
+    lastDayPostponed: { type: Boolean, default: false },
   },
 
   // İzin Sistemi (Yeni)
@@ -140,6 +141,7 @@ const staffProgressSchema = new mongoose.Schema({
   coachMemory: { type: Map, of: String, default: {} },
   currentQuestion: { type: String, default: '' },
   currentQuestionKey: { type: String, default: '' },
+  postponeBlocked: { type: Boolean, default: false },
 
   // İstifa / Emeklilik / Kov
   status: { type: String, default: 'active', enum: ['active', 'resigned', 'retired', 'dismissed'] },

@@ -150,6 +150,8 @@ Görevin ve Roleplay Kuralların:
   * Ek görev başlatmak için: [COACH_ACTION: START_EXTRA_TASK]
   * Ek mesai başlatmak için: [COACH_ACTION: START_OVERTIME]
   * Bugünkü görev hedeflerini hafifletmek/azaltmak için: [COACH_ACTION: REDUCE_TASK]
+  * Görev eksiltme butonunu engellemek/kilitlemek için (suistimal tespitinde): [COACH_ACTION: BLOCK_REDUCE_TASK]
+  * Görev eksiltme engelini kaldırmak için: [COACH_ACTION: UNBLOCK_REDUCE_TASK]
   Hak ettiklerinde cömertçe kullan!`;
 }
 
@@ -419,6 +421,8 @@ async function processCoachReplyAndActions(userId, reply, client) {
   const extraTaskRegex = /\[COACH_ACTION:\s*START_EXTRA_TASK\]/i;
   const overtimeRegex = /\[COACH_ACTION:\s*START_OVERTIME\]/i;
   const reduceTaskRegex = /\[COACH_ACTION:\s*REDUCE_TASK\]/i;
+  const blockReduceRegex = /\[COACH_ACTION:\s*BLOCK_REDUCE_TASK\]/i;
+  const unblockReduceRegex = /\[COACH_ACTION:\s*UNBLOCK_REDUCE_TASK\]/i;
 
   try {
     const p = await StaffProgress.findOne({ userId });
@@ -480,6 +484,18 @@ async function processCoachReplyAndActions(userId, reply, client) {
         }
       }
 
+      // 6) Görev Eksiltme Engelle (AI Koç disiplini)
+      if (reply.match(blockReduceRegex)) {
+        p.postponeBlocked = true;
+        actionText += `\n🔒 **Görev Eksiltme hakkınız AI Koç tarafından askıya alındı!**`;
+      }
+
+      // 7) Görev Eksiltme Engeli Kaldır
+      if (reply.match(unblockReduceRegex)) {
+        p.postponeBlocked = false;
+        actionText += `\n🔓 **Görev Eksiltme hakkınız AI Koç tarafından tekrar aktif edildi!**`;
+      }
+
       if (actionText) {
         await p.save().catch(() => {});
         const session = activeCoachSessions.get(userId);
@@ -499,6 +515,8 @@ async function processCoachReplyAndActions(userId, reply, client) {
     .replace(extraTaskRegex, '')
     .replace(overtimeRegex, '')
     .replace(reduceTaskRegex, '')
+    .replace(blockReduceRegex, '')
+    .replace(unblockReduceRegex, '')
     .trim();
 
   return { cleanReply, actionText };

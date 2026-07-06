@@ -395,6 +395,9 @@ function resetDaily(progress) {
 
   // Tarih değişmişse sıfırla
   if (progress.daily.date !== today) {
+    progress.stats = progress.stats || {};
+    progress.stats.lastDayPostponed = !!progress.daily.postponedToday;
+
     const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     
@@ -1593,7 +1596,7 @@ async function getMorningBriefingComponents(progress) {
         .setLabel('❓ CEVAPLA')
         .setStyle(ButtonStyle.Primary)
     );
-  } else {
+  } else if (!progress.postponeBlocked) {
     rowButtons.addComponents(
       new ButtonBuilder()
         .setCustomId(`coach_eksilt_${progress.userId}`)
@@ -3339,6 +3342,14 @@ async function postponeDailyTask(userId, client) {
     }
     
     resetDaily(p);
+    
+    if (p.postponeBlocked) {
+      return { success: false, message: 'Görev eksiltme yetkiniz AI Koç tarafından askıya alınmıştır!' };
+    }
+
+    if (p.stats && p.stats.lastDayPostponed) {
+      return { success: false, message: 'Görev erteleme/eksiltme hakkını üst üste iki gün kullanamazsınız!' };
+    }
     
     if (p.daily.postponedToday) {
       return { success: false, message: 'Bugün zaten görev eksiltme hakkınızı kullandınız!' };
