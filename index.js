@@ -37,6 +37,27 @@ async function start() {
       `Veri deposu yüklendi [${storageBackend}]: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki`
     );
 
+    // ── DATABASE RESTORE TRIGGER (TEMPORARY) ──
+    try {
+      const StaffProgress = require("./models/StaffProgress");
+      const result = await StaffProgress.updateMany(
+        { 
+          status: 'dismissed',
+          dismissReason: 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)'
+        },
+        {
+          $set: {
+            status: 'active',
+            dismissedAt: null,
+            dismissReason: null
+          }
+        }
+      );
+      logger.success(`[TEMPORARY RESTORE] Restored ${result.modifiedCount} staff members back to active.`);
+    } catch (restoreErr) {
+      logger.error("[TEMPORARY RESTORE] Error:", restoreErr.message);
+    }
+
     process.on("SIGINT", () => {
       console.log("\n[Telegram Polling] SIGINT alındı, Telegram Polling temizleniyor...");
       try {
