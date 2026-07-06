@@ -424,13 +424,26 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Success)
     );
 
-    // ROW 3: MOD-ALIM ve Restart
+    // ROW 3: MOD-ALIM, AVUKAT ALIMI ve Restart
     const row3 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_mod_alim")
         .setLabel("🛡️ MOD-ALIM")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_avukat_alim")
+        .setLabel("⚖️ AVUKAT ALIMI")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_avukat_sinav_siz")
+        .setLabel("🎓 SINAVSIZ ALIM")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!auth.isAdmin)
+    );
+
+    const row4 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_sys_restart")
         .setLabel("🔄 Restart")
@@ -442,7 +455,7 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setStyle(ButtonStyle.Secondary)
     );
 
-    components.push(row1, row2, row3);
+    components.push(row1, row2, row3, row4);
   }
 
   else if (tabName === "toggles") {
@@ -770,7 +783,52 @@ async function handlePanelButton(interaction) {
     return renderPanel(interaction, subTabs[customId]);
   }
 
+  // ── AVUKAT ALIMI ──────────────────────────────────────────────────────────
+
+  if (customId === "panel_avukat_alim") {
+    const auth = await getAuth(interaction.member);
+    if (!auth.isAdmin) {
+      return interaction.reply({ content: '❌ Bu işlem için **Yönetici** yetkisi gereklidir.', ephemeral: true });
+    }
+    const modal = new ModalBuilder()
+      .setCustomId('panel_modal_avukat_alim')
+      .setTitle('⚖️ Avukat Alımı - AI Mülakat');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('target_user_id')
+          .setLabel("Adayın Discord Kullanıcı ID'si")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder('Örn: 123456789012345678')
+      )
+    );
+    return showModalSafely(modal);
+  }
+
+  if (customId === "panel_avukat_sinav_siz") {
+    const auth = await getAuth(interaction.member);
+    if (!auth.isAdmin) {
+      return interaction.reply({ content: '❌ Bu işlem için **Yönetici** yetkisi gereklidir.', ephemeral: true });
+    }
+    const modal = new ModalBuilder()
+      .setCustomId('panel_modal_avukat_sinav_siz')
+      .setTitle('⚖️ Sınavsız Avukat Alımı');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('target_user_id')
+          .setLabel("Adayın Discord Kullanıcı ID'si")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder('Örn: 123456789012345678')
+      )
+    );
+    return showModalSafely(modal);
+  }
+
   // ── MODERATION MODALS ──────────────────────────────────────────────────────
+
 
   if (customId === "panel_mod_bulk_delete") {
     try {
