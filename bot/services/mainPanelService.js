@@ -1712,12 +1712,17 @@ async function handlePanelSelect(interaction) {
  * after we have already deferred.
  */
 async function handlePanelModal(interaction) {
+  // Defer first to guarantee it is deferred within the 3-second limit
+  await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
   const customId = interaction.customId;
   const client = interaction.client;
-  const logChannel = await client.channels.fetch(BLACKLIST_LOG_CHANNEL_ID).catch(() => null);
 
-  // Defer first — all paths below must use editReply, never reply()
-  await interaction.deferReply({ ephemeral: true });
+  // Only fetch blacklist log channel if this is a blacklist modal
+  let logChannel = null;
+  if (customId.startsWith("panel_modal_bl_")) {
+    logChannel = await client.channels.fetch(BLACKLIST_LOG_CHANNEL_ID).catch(() => null);
+  }
 
   // ── BLACKLIST: Kişi Ekle ───────────────────────────────────────────────────
   if (customId === "panel_modal_bl_add_person") {
