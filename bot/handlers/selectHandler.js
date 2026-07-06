@@ -8,6 +8,57 @@ const {
 async function handleSelectInteraction(interaction) {
   const customId = interaction.customId;
 
+  // ── Soruşturma Sistemi Ceza Seçimi ──────────────────────────────────────────
+  if (customId.startsWith("invest_penalty_select_")) {
+    const { PermissionFlagsBits } = require("discord.js");
+    const channelId = customId.replace("invest_penalty_select_", "");
+    const penaltyType = interaction.values[0];
+
+    const Investigation = require("../../models/Investigation");
+    const invest = await Investigation.findOne({ channelId });
+    if (!invest) {
+      return interaction.reply({ content: "❌ Soruşturma bulunamadı.", ephemeral: true });
+    }
+
+    if (interaction.user.id !== invest.judgeId && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu kararı sadece soruşturmanın hakimi veya bir yönetici verebilir.", ephemeral: true });
+    }
+
+    if (penaltyType === 'CEZASIZ' || penaltyType === 'KICK') {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      const { resolveInvestigation } = require("../services/investigationService");
+      await resolveInvestigation(interaction, channelId, penaltyType, "");
+      return;
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(`invest_penalty_detail_modal_${channelId}_${penaltyType}`)
+      .setTitle("⚖️ Ceza Süresi Belirtin");
+
+    let labelText = "Süre";
+    let placeholderText = "Sayı olarak girin (Örn: 24)";
+    if (penaltyType === 'MUTE') {
+      labelText = "Mute Süresi (Saat Cinsinden)";
+      placeholderText = "Kaç saat susturulacak? (Örn: 24)";
+    } else if (penaltyType === 'BAN') {
+      labelText = "Ban Süresi (Gün Cinsinden)";
+      placeholderText = "Kaç gün yasaklanacak? (Örn: 7)";
+    } else if (penaltyType === 'HAPIS') {
+      labelText = "Hapis Süresi (Gün Cinsinden)";
+      placeholderText = "Kaç gün hapse atılacak? (Örn: 3)";
+    }
+
+    const durationInput = new TextInputBuilder()
+      .setCustomId("penalty_duration")
+      .setLabel(labelText)
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder(placeholderText)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(durationInput));
+    return interaction.showModal(modal);
+  }
+
   // ── Sunucu Kurulum Asistanı Select Menüleri ──────────────────────────────
   if (customId.startsWith("setup_select_")) {
     const parts = customId.split("_");

@@ -16,6 +16,46 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
+  if (interaction.customId === 'investigation_start_modal') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const name = interaction.fields.getTextInputValue('investigation_name');
+    const targetUserId = interaction.fields.getTextInputValue('investigation_target_id');
+    const reason = interaction.fields.getTextInputValue('investigation_reason');
+
+    const { startInvestigation } = require('../services/investigationService');
+    await startInvestigation(interaction, name, targetUserId, reason);
+    return;
+  }
+
+  if (interaction.customId.startsWith('invest_addmember_modal_')) {
+    const channelId = interaction.customId.replace('invest_addmember_modal_', '');
+    const userId = interaction.fields.getTextInputValue('member_id');
+    const { addMemberToInvestigation } = require('../services/investigationService');
+    await addMemberToInvestigation(interaction, channelId, userId);
+    return;
+  }
+
+  if (interaction.customId.startsWith('invest_removemember_modal_')) {
+    const channelId = interaction.customId.replace('invest_removemember_modal_', '');
+    const userId = interaction.fields.getTextInputValue('member_id');
+    const { removeMemberFromInvestigation } = require('../services/investigationService');
+    await removeMemberFromInvestigation(interaction, channelId, userId);
+    return;
+  }
+
+  if (interaction.customId.startsWith('invest_penalty_detail_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const parts = interaction.customId.replace('invest_penalty_detail_modal_', '').split('_');
+    const channelId = parts[0];
+    const penaltyType = parts[1];
+    const duration = interaction.fields.getTextInputValue('penalty_duration');
+
+    const { resolveInvestigation } = require('../services/investigationService');
+    await resolveInvestigation(interaction, channelId, penaltyType, duration);
+    return;
+  }
+
   if (interaction.customId === 'modal_answer_coach') {
     await interaction.deferUpdate().catch(() => {});
     const answer = interaction.fields.getTextInputValue('coach_answer_input');

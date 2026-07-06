@@ -135,6 +135,17 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Soruşturma Sistemi Başlangıç Ayarı ve Zamanlayıcısı
+    try {
+      const { setupTriggerButton, checkInactivityTimers } = require("../services/investigationService");
+      setupTriggerButton(client).catch(() => {});
+      setInterval(() => {
+        checkInactivityTimers(client).catch(() => {});
+      }, 60000);
+    } catch (err) {
+      console.error("[ready] Soruşturma sistemi başlatma hatası:", err.message);
+    }
+
     // RoWifi Auto Detection Scheduler
     try {
       const { startAutoDetectionScheduler } = require("../services/rowifiService");
@@ -1259,6 +1270,24 @@ function initializeDiscordHandlers(client) {
 
 
   client.on("messageCreate", async (message) => {
+    // ── Soruşturma Sistemi Kanal Mesajı Senkronizasyonu ───────────────────────
+    if (message.guild && !message.author.bot) {
+      try {
+        const Investigation = require("../../models/Investigation");
+        const activeInvest = await Investigation.findOne({
+          channelId: message.channel.id,
+          status: 'ongoing',
+          syncEnabled: true
+        });
+        if (activeInvest) {
+          const { handleMessageSync } = require("../services/investigationService");
+          await handleMessageSync(message);
+        }
+      } catch (err) {
+        console.error("[messageCreate] Investigation channel sync error:", err.message);
+      }
+    }
+
     // Bilmece kanalı mesaj kontrolü
     try {
       const { handleRiddleMessage } = require("../services/riddleService");
@@ -1572,6 +1601,24 @@ function initializeDiscordHandlers(client) {
     // ── DM mesajları ────────────────────────────────────────────────────────
     if (!message.guild && !message.author?.bot) {
       console.log(`[DM] ${message.author?.tag}: ${message.content?.slice(0, 50)}`);
+
+      // Soruşturma Sistemi DM senkronizasyonu
+      try {
+        const Investigation = require('../../models/Investigation');
+        const activeInvest = await Investigation.findOne({
+          targetUserId: message.author.id,
+          status: 'ongoing',
+          syncEnabled: true
+        });
+        if (activeInvest) {
+          const { handleMessageSync } = require('../services/investigationService');
+          await handleMessageSync(message);
+          return; // Diğer DM modüllerine gitmesin
+        }
+      } catch (err) {
+        console.error('[messageCreate] Investigation DM sync error:', err.message);
+      }
+
       // Anket cevabı mı?
       try {
         const { handleSurveyReply } = require('../services/surveyAI');

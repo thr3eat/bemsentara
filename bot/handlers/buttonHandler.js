@@ -97,6 +97,129 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  // ── Soruşturma Sistemi Butonları ───────────────────────────────────────────
+  if (customId === "investigation_start_trigger") {
+    const modal = new ModalBuilder()
+      .setCustomId("investigation_start_modal")
+      .setTitle("🔍 Soruşturma Başlat");
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId("investigation_name")
+      .setLabel("Soruşturma İsmi (Örn: Hakaret, Hırsızlık)")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const targetInput = new TextInputBuilder()
+      .setCustomId("investigation_target_id")
+      .setLabel("Soruşturulan Kullanıcı ID'si")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const reasonInput = new TextInputBuilder()
+      .setCustomId("investigation_reason")
+      .setLabel("Soruşturma Gerekçesi / Neden")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(nameInput),
+      new ActionRowBuilder().addComponents(targetInput),
+      new ActionRowBuilder().addComponents(reasonInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("invest_agree_")) {
+    const channelId = customId.replace("invest_agree_", "");
+    const { handleAgreement } = require("../services/investigationService");
+    return handleAgreement(interaction, channelId, true);
+  }
+
+  if (customId.startsWith("invest_reject_")) {
+    const channelId = customId.replace("invest_reject_", "");
+    const { handleAgreement } = require("../services/investigationService");
+    return handleAgreement(interaction, channelId, false);
+  }
+
+  if (customId.startsWith("invest_close_")) {
+    const channelId = customId.replace("invest_close_", "");
+    const { closeInvestigation } = require("../services/investigationService");
+    return closeInvestigation(interaction, channelId);
+  }
+
+  if (customId.startsWith("invest_resume_")) {
+    const channelId = customId.replace("invest_resume_", "");
+    const { resumeInvestigation } = require("../services/investigationService");
+    return resumeInvestigation(interaction, channelId);
+  }
+
+  if (customId.startsWith("invest_restart_")) {
+    const channelId = customId.replace("invest_restart_", "");
+    const { restartInvestigation } = require("../services/investigationService");
+    return restartInvestigation(interaction, channelId);
+  }
+
+  if (customId.startsWith("invest_addmember_")) {
+    const channelId = customId.replace("invest_addmember_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`invest_addmember_modal_${channelId}`)
+      .setTitle("👥 Soruşturmaya Kişi Ekle");
+
+    const input = new TextInputBuilder()
+      .setCustomId("member_id")
+      .setLabel("Eklenecek Yetkili/Üye ID'si")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("invest_removemember_")) {
+    const channelId = customId.replace("invest_removemember_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`invest_removemember_modal_${channelId}`)
+      .setTitle("👤 Soruşturmadan Kişi Çıkar");
+
+    const input = new TextInputBuilder()
+      .setCustomId("member_id")
+      .setLabel("Çıkarılacak Yetkili ID'si")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("invest_resolve_")) {
+    const channelId = customId.replace("invest_resolve_", "");
+    
+    const Investigation = require("../../models/Investigation");
+    const invest = await Investigation.findOne({ channelId });
+    if (!invest) {
+      return interaction.reply({ content: "❌ Soruşturma bulunamadı.", ephemeral: true });
+    }
+
+    if (interaction.user.id !== invest.judgeId && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu soruşturmayı sadece hakimi veya bir yönetici sonuçlandırabilir.", ephemeral: true });
+    }
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`invest_penalty_select_${channelId}`)
+      .setPlaceholder("Uygulanacak Ceza Türünü Seçin...")
+      .addOptions(
+        new StringSelectMenuOptionBuilder().setLabel("CEZASIZ").setValue("CEZASIZ").setDescription("Cezasız kapatılır."),
+        new StringSelectMenuOptionBuilder().setLabel("MUTE (Zamanaşımı)").setValue("MUTE").setDescription("Belirli saat boyunca mute uygulanır."),
+        new StringSelectMenuOptionBuilder().setLabel("KICK (At)").setValue("KICK").setDescription("Sunucudan atılır."),
+        new StringSelectMenuOptionBuilder().setLabel("BAN (Yasakla)").setValue("BAN").setDescription("Belirli gün boyunca yasaklanır."),
+        new StringSelectMenuOptionBuilder().setLabel("HAPİS (Jail)").setValue("HAPIS").setDescription("Belirli gün boyunca hapishaneye atılır.")
+      );
+
+    const row = new ActionRowBuilder().addComponents(select);
+    return interaction.reply({ content: "⚖️ **Lütfen uygulanacak disiplin cezasını seçin:**", components: [row] });
+  }
+
   // ── Hata Bildirim Butonu ──────────────────────────────────────────────────
   if (customId.startsWith("report_err_")) {
     const errorId = customId.replace("report_err_", "");
