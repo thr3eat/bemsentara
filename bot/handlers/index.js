@@ -1800,7 +1800,15 @@ function initializeDiscordHandlers(client) {
         const staffRoleIds = Object.values(ROLES).filter(id =>
           id && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(id)
         );
-        const isStaff = staffRoleIds.some(rid => message.member?.roles.cache.has(rid));
+        let isStaff = staffRoleIds.some(rid => message.member?.roles.cache.has(rid)) ||
+                      message.member?.permissions.has('Administrator');
+
+        if (!isStaff) {
+          const StaffProgress = require("../../models/StaffProgress");
+          const p = await StaffProgress.findOne({ userId: message.author.id, status: 'active' }).catch(() => null);
+          if (p) isStaff = true;
+        }
+
         if (isStaff) {
           // 1) Mesaj gönderdiğini (Sohbet istatistiği) kaydet
           if (message.content.length > 2) {
@@ -1814,7 +1822,8 @@ function initializeDiscordHandlers(client) {
           
           const singleWordGreetings = [
             'selam', 'merhaba', 'günaydın', 'tünaydın', 'hey', 'heyy', 'hello', 'hi',
-            'sa', 'slm', 'mrb', 'selamlar', 'merhabalar', 'günaydınlar', 'as'
+            'sa', 'slm', 'mrb', 'selamlar', 'merhabalar', 'günaydınlar', 'as',
+            'selamünaleyküm', 'selamunaleykum', 'selamun-aleykum', 'aleykümselam', 'aleykumselam'
           ];
           const phraseGreetings = [
             'iyi günler', 'iyi akşamlar', 'iyi geceler', 'selamün aleyküm', 'selamun aleyküm', 's.a', 'aleyküm selam', 'aleykum selam'
