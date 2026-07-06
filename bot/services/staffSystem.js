@@ -313,6 +313,12 @@ async function syncAndFilterActiveStaff(allProgress, client) {
     const isStillStaff = await verifyActiveStaffRole(p.userId, client);
     if (!isStillStaff) {
       console.log(`[staffSystem] Skipping user ${p.userId} in scheduled run due to missing roles or not in guild.`);
+      // Artık rolü yoksa — dismissed olarak işaretle ki bir daha DM gitmesin
+      try {
+        p.status = 'dismissed';
+        p.dismissedAt = new Date();
+        await p.save();
+      } catch (_) {}
       continue;
     }
     activeList.push(p);
@@ -374,6 +380,11 @@ async function getOrCreate(userId, guildId, client) {
   let p = await StaffProgress.findOne({ userId });
   
   if (p) {
+    // Kovulmuş/çıkarılmış kullanıcılar hiçbir zaman aktif edilmez
+    if (p.status === 'dismissed') {
+      console.log(`[staffSystem] getOrCreate: User ${userId} is dismissed, skipping.`);
+      return null;
+    }
     if (p.status !== 'active') {
       p.status = 'active';
       await p.save();
