@@ -28,23 +28,17 @@ router.get("/", (req, res) => {
 
 router.get("/dashboard", async (req, res) => {
   if (!req.user) return res.redirect("/login");
-  
+
   let staffProgress = null;
   if (req.user.isStaff || isSiteAdmin(req.user)) {
     try {
-      const { getOrCreate } = require("../../bot/services/staffSystem");
-      const { getDiscordClient } = require("../../bot/discordClient");
-      const client = getDiscordClient();
-      staffProgress = await getOrCreate(req.user.discordId, null, client);
+      const StaffProgress = require("../../models/StaffProgress");
+      staffProgress = await StaffProgress.findOne({ userId: req.user.discordId });
     } catch (err) {
       console.error("Dashboard router staff progress load error:", err.message);
-      try {
-        const StaffProgress = require("../../models/StaffProgress");
-        staffProgress = await StaffProgress.findOne({ userId: req.user.discordId });
-      } catch (_) {}
     }
   }
-  
+
   res.send(renderDashboard(req.user, staffProgress));
 });
 
@@ -139,77 +133,77 @@ router.get("/legal/tos", (req, res) => {
   const tr = `
     <p style="color:var(--muted);font-size:.85rem;margin-bottom:2rem;">Son güncelleme: 1 Haziran 2026 &nbsp;|&nbsp; <em>Last updated: June 1, 2026</em></p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">1. Kabul</h2>
-    <p>Sentara platformuna erişerek veya kullanarak bu Hizmet Koşullarını kabul etmiş sayılırsınız. Kabul etmiyorsanız platformu kullanmayınız.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">1. Kabul ve Onay</h2>
+    <p>Sentara platformuna erişim sağlayarak veya platformu kullanarak, işbu Hizmet Koşulları’nı tamamen okuduğunuzu, anladığınızı ve hukuki olarak bağlı kalmayı kabul ettiğinizi beyan edersiniz. Bu koşulları kabul etmiyorsanız, lütfen platformu ve sunduğu hizmetleri kullanmayınız.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">2. Hizmetin Kapsamı</h2>
-    <p>Sentara; Discord ve Roblox hesabı doğrulama, destek talebi (ticket) yönetimi, ekonomi sistemi, wiki ve topluluk araçları sunan bir platformdur. Hizmet "olduğu gibi" sunulmaktadır.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">2. Hizmet kapsamı ve Niteliği</h2>
+    <p>Sentara; Discord ve Roblox hesap doğrulama, destek talebi (bilet) yönetimi, sanal ekonomi sistemi, wiki (bilgi bankası) ve topluluk araçları sunan entegre bir platformdur. Hizmetler, "olduğu gibi" ve "mevcut haliyle" sunulmakta olup, kesintisizlik veya mutlak kusursuzluk taahhüdü barındırmaz.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">3. Hesap ve Kimlik Doğrulama</h2>
-    <p>Platforma erişmek için geçerli bir Discord hesabı zorunludur. Roblox hesabı bağlama isteğe bağlıdır ancak bazı özelliklerin kullanımı için gereklidir. Hesap bilgilerinizin güvenliğinden siz sorumlusunuz.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">3. Hesap Güvenliği ve Kimlik Doğrulama</h2>
+    <p>Platform üzerindeki hizmetlerden yararlanabilmek için geçerli bir Discord hesabına sahip olunması zorunludur. Roblox hesabının ilişkilendirilmesi isteğe bağlı olmakla birlikte, belirli gelişmiş özelliklerin aktif olarak kullanılabilmesi için gereklidir. Kullanıcılar, hesap erişim bilgilerinin ve kimlik doğrulamalarının güvenliğinden şahsen ve münhasıran sorumludur.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">4. Yasaklı Davranışlar</h2>
-    <p>Aşağıdaki eylemler kesinlikle yasaktır:</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">4. Yasaklı Eylemler ve Davranış Kuralları</h2>
+    <p>Platformun huzurunu ve güvenliğini korumak adına, aşağıdaki eylemlerin gerçekleştirilmesi kesinlikle yasaktır:</p>
     <ul style="margin:.75rem 0 .75rem 1.5rem;display:flex;flex-direction:column;gap:.4rem;">
-      <li>Spam, taciz veya rahatsız edici içerik paylaşımı</li>
-      <li>Başka kullanıcıların hesaplarına yetkisiz erişim girişimi</li>
-      <li>Sistemleri kötüye kullanmak, açık aramak veya saldırı düzenlemek</li>
-      <li>Roblox veya Discord Kullanım Koşullarını ihlal eden içerik</li>
-      <li>Sahte kimlik veya yanıltıcı bilgi kullanımı</li>
+      <li>Spam, taciz, tehdit, hakaret veya genel ahlaka aykırı içeriklerin paylaşılması,</li>
+      <li>Diğer kullanıcıların hesaplarına veya platform altyapısına yetkisiz erişim sağlama girişimleri (hacking vb.),</li>
+      <li>Sistemlerin kötüye kullanılması, teknik açıkların istismar edilmesi veya siber saldırı düzenlenmesi,</li>
+      <li>Roblox veya Discord Kullanım Koşulları’nı ve topluluk ilkelerini ihlal eden her türlü faaliyet,</li>
+      <li>Sahte kimlik kullanımı, yanıltıcı, aldatıcı veya asılsız beyanlarda bulunulması.</li>
     </ul>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">5. İçerik</h2>
-    <p>Platforma yüklediğiniz veya paylaştığınız içeriklerden tamamen siz sorumlusunuz. Sentara, uygunsuz içerikleri önceden bildirim yapmaksızın kaldırma hakkını saklı tutar.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">5. Kullanıcı İçerikleri ve Sorumluluk</h2>
+    <p>Platforma yüklediğiniz, ilettiğiniz veya paylaştığınız her türlü veri, metin ve içeriğin yasal sorumluluğu tamamen tarafınıza aittir. Sentara, topluluk kurallarına veya mevzuata aykırı gördüğü içerikleri, önceden herhangi bir bildirimde bulunmaksızın kaldırma hakkını saklı tutar.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">6. Hesap Askıya Alma ve Sonlandırma</h2>
-    <p>Bu koşulları ihlal eden hesaplar geçici veya kalıcı olarak askıya alınabilir. Önemli ihlallerde Discord'dan da yasaklanabilirsiniz.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">6. Hesap Kısıtlaması, Askıya Alma ve Fesih</h2>
+    <p>İşbu hizmet koşullarının veya yürürlükteki mevzuatın ihlal edilmesi durumunda, kullanıcı hesapları geçici veya kalıcı olarak askıya alınabilir. Ağır veya mükerrer ihlallerde, platform erişiminin engellenmesinin yanı sıra resmi Discord sunucusundan kalıcı olarak uzaklaştırılma (ban) yaptırımı uygulanabilir.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">7. Sorumluluk Sınırlaması</h2>
-    <p>Sentara, hizmet kesintileri, veri kayıpları veya platform kullanımından doğan dolaylı zararlardan sorumlu değildir. Platform "mevcut haliyle" sunulmaktadır.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">7. Sorumluluğun Sınırlandırılması</h2>
+    <p>Sentara yönetimi ve geliştiricileri; planlı veya plansız hizmet kesintilerinden, veri kayıplarından, teknik aksaklıklardan veya platformun kullanımından doğabilecek doğrudan ya da dolaylı hiçbir zarardan hukuki veya cezai olarak sorumlu tutulamaz. Platform "mevcut haliyle" (as-is) kullanıma sunulmuştur.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">8. Değişiklikler</h2>
-    <p>Bu koşullar zaman zaman güncellenebilir. Önemli değişlikler duyurulacaktır. Platformu kullanmaya devam etmeniz güncel koşulları kabul ettiğiniz anlamına gelir.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">8. Koşullarda Değişiklik Yapılması</h2>
+    <p>Sentara, işbu Hizmet Koşulları’nı gerek gördüğü takdirde zaman zaman güncelleme hakkını saklı tutar. Önemli ve esaslı değişiklikler platform kanalları üzerinden duyurulacaktır. Değişikliklerin ardından platformu kullanmaya devam etmeniz, güncel koşulları tamamen kabul ettiğiniz anlamına gelir.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">9. İletişim</h2>
-    <p>Sorularınız için Discord sunucumuzdan destek talebi oluşturabilirsiniz.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">9. İletişim ve Destek</h2>
+    <p>Bu koşullara dair her türlü soru, görüş veya geri bildiriminiz için resmi Discord sunucumuz üzerinden bir destek talebi (ticket) oluşturarak yetkililerle iletişime geçebilirsiniz.</p>
   `;
 
   const en = `
     <p style="color:var(--muted);font-size:.85rem;margin-bottom:2rem;">Last updated: June 1, 2026</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">1. Acceptance</h2>
-    <p>By accessing or using the Sentara platform, you agree to be bound by these Terms of Service. If you do not agree, please do not use the platform.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">1. Acceptance of Terms</h2>
+    <p>By accessing, browsing, or using the Sentara platform, you acknowledge that you have read, understood, and agree to be legally bound by these Terms of Service. If you do not agree with any part of these terms, please refrain from using the platform and its services.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">2. Description of Service</h2>
-    <p>Sentara is a platform providing Discord and Roblox account verification, support ticket management, economy system, wiki, and community tools. The service is provided "as is."</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">2. Description and Availability of Service</h2>
+    <p>Sentara is an integrated platform providing Discord and Roblox account verification, support ticket management, a virtual economy system, a wiki, and various community utilities. The service is provided on an "as is" and "as available" basis without warranties of any kind.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">3. Account & Authentication</h2>
-    <p>A valid Discord account is required to access the platform. Linking a Roblox account is optional but required for certain features. You are responsible for the security of your account credentials.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">3. Account Security & Authentication</h2>
+    <p>A valid Discord account is strictly required to access and utilize the platform. Linking a Roblox account is optional but mandatory to unlock and use specific advanced features. You bear sole and exclusive responsibility for maintaining the confidentiality and security of your account credentials.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">4. Prohibited Conduct</h2>
-    <p>The following actions are strictly prohibited:</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">4. Prohibited Conduct and User Guidelines</h2>
+    <p>To ensure a safe and secure environment, the following actions are strictly prohibited:</p>
     <ul style="margin:.75rem 0 .75rem 1.5rem;display:flex;flex-direction:column;gap:.4rem;">
-      <li>Spam, harassment, or sharing offensive content</li>
-      <li>Unauthorized access attempts to other users' accounts</li>
-      <li>Abusing, exploiting, or attacking platform systems</li>
-      <li>Content that violates Roblox or Discord Terms of Service</li>
-      <li>Using false identities or misleading information</li>
+      <li>Engaging in spam, harassment, threats, abuse, or sharing defamatory and offensive content.</li>
+      <li>Attempting unauthorized access to other users' accounts or the platform's core infrastructure.</li>
+      <li>Abusing, exploiting technical flaws, or executing malicious attacks against the systems.</li>
+      <li>Publishing or distributing content that violates the Roblox or Discord Terms of Service and Community Guidelines.</li>
+      <li>Using false identities, impersonation, or providing intentionally misleading information.</li>
     </ul>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">5. Content</h2>
-    <p>You are solely responsible for any content you upload or share on the platform. Sentara reserves the right to remove inappropriate content without prior notice.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">5. User-Generated Content</h2>
+    <p>You retain sole legal responsibility for any content, data, or information you upload, post, or share on the platform. Sentara reserves the right, at its absolute discretion, to remove any content deemed inappropriate or in violation of these terms without prior notice.</p>
 
     <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">6. Account Suspension & Termination</h2>
-    <p>Accounts that violate these terms may be temporarily or permanently suspended. In cases of serious violations, you may also be banned from the Discord server.</p>
+    <p>Failure to comply with these terms or applicable community guidelines may result in temporary or permanent suspension of your account. Severe or repeated violations may also lead to a permanent ban from our official Discord server.</p>
 
     <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">7. Limitation of Liability</h2>
-    <p>Sentara is not liable for service interruptions, data loss, or indirect damages arising from platform use. The platform is provided "as available."</p>
+    <p>To the maximum extent permitted by law, Sentara, its administrators, and developers shall not be liable for any service interruptions, data loss, system glitches, or any indirect, incidental, or consequential damages arising out of your use or inability to use the platform.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">8. Changes</h2>
-    <p>These terms may be updated from time to time. Significant changes will be announced. Continued use of the platform constitutes acceptance of the updated terms.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">8. Amendments to the Terms</h2>
+    <p>Sentara reserves the right to modify, update, or revise these Terms of Service at any time. Material changes will be announced through official platform channels. Your continued use of the platform following such updates constitutes your explicit acceptance of the revised terms.</p>
 
-    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">9. Contact</h2>
-    <p>For questions, please open a support ticket through our Discord server.</p>
+    <h2 style="color:var(--text);font-size:1.2rem;font-weight:800;margin:1.5rem 0 .75rem;">9. Contact and Support</h2>
+    <p>If you have any questions, concerns, or inquiries regarding these terms, please contact our team by opening a support ticket via our official Discord server.</p>
   `;
 
   const title = lang === 'en' ? 'Terms of Service' : 'Hizmet Koşulları';
@@ -357,7 +351,7 @@ router.get("/wiki/:id", (req, res) => {
   if (!req.session[viewKey]) {
     req.session[viewKey] = true;
     article.views = (article.views || 0) + 1;
-    article.save().catch(() => {});
+    article.save().catch(() => { });
   }
 
   res.send(renderWikiArticlePage(req.user, article, isSiteAdmin(req.user)));
