@@ -335,82 +335,14 @@ async function generateStoryEnding(existingStory) {
 }
 
 async function startStoryGame(channel) {
-  const state = getStoryGameState(channel.id);
-  const restored = await restoreStoryState(channel);
-  if (restored && state.active && state.story) {
-    await persistStoryState(channel.id, state);
-    return;
-  }
-
-  const opening = await generateStoryOpening();
-  state.active = true;
-  state.story = opening;
-  state.waitingForUser = true;
-  state.lastActor = 'bot';
-  state.lastUserId = null;
-  await persistStoryState(channel.id, state);
-
-  const intro = [
-    '🌟 Yeni bir hikaye başlıyor!',
-    '',
-    opening,
-    '',
-    'Hikayeye sen devam et. İstersen SON yazarak hikayeyi bitirebilirsin.'
-  ].join('\n');
-
-  await channel.send(intro).catch(() => {});
+  return null;
 }
 
 async function finishStoryGame(channel) {
-  const state = getStoryGameState(channel.id);
-  if (!state.active || !state.story) {
-    await channel.send('🏁 Hikaye zaten hazır değil. Yeni bir hikaye başlatmak için bir mesaj yazın.').catch(() => {});
-    return;
-  }
-
-  const ending = await generateStoryEnding(state.story);
-  await channel.send(`🏁 Hikaye sona erdi.\n\n${ending}`).catch(() => {});
-  state.active = false;
-  state.story = '';
-  state.waitingForUser = false;
-  state.lastActor = 'none';
-  state.lastUserId = null;
-  await persistStoryState(channel.id, state);
+  return null;
 }
 
 async function continueStoryGame(message, client) {
-  const state = getStoryGameState(message.channel.id);
-  const content = message.content.trim();
-
-  if (!state.active) {
-    await startStoryGame(message.channel);
-    return true;
-  }
-
-  if (state.lastActor === 'user' && state.lastUserId && state.lastUserId === message.author.id) {
-    await message.delete().catch(() => {});
-    const warning = await message.channel.send(`⏳ <@${message.author.id}> sıranı bekle, hikaye botun devam ettirmesinden sonra başka bir kullanıcı yazmalı.`).catch(() => null);
-    if (warning) setTimeout(() => warning.delete().catch(() => {}), 6000);
-    return true;
-  }
-
-  if (/^(son|bitir|bitti)$/i.test(content)) {
-    await finishStoryGame(message.channel);
-    await startStoryGame(message.channel);
-    return true;
-  }
-
-  state.lastActor = 'user';
-  state.lastUserId = message.author.id;
-
-  const continuation = await generateStoryContinuation(state.story, content);
-  state.story = `${state.story}\n\n${content}\n\n${continuation}`;
-  state.waitingForUser = true;
-  await message.channel.send(continuation).catch(() => {});
-  await awardGameXPForTurn(message, 'Hikaye Oyunu', 14, client);
-  state.lastActor = 'bot';
-  state.lastUserId = null;
-  await persistStoryState(message.channel.id, state);
   return true;
 }
 
