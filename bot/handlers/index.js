@@ -3064,7 +3064,25 @@ async function handleInteraction(interaction) {
       }
     }
 
-    let result = await handleGeneralCommand(interaction);
+    let cmdInteraction = interaction;
+    if (["fire", "promote", "demote", "staff-setstats"].includes(interaction.commandName)) {
+      const mappedName = {
+        "fire": "personelkov",
+        "promote": "promote",
+        "demote": "tenzilat",
+        "staff-setstats": "personelayarla"
+      }[interaction.commandName];
+
+      cmdInteraction = new Proxy(interaction, {
+        get(target, prop) {
+          if (prop === "commandName") return mappedName;
+          const val = target[prop];
+          return typeof val === 'function' ? val.bind(target) : val;
+        }
+      });
+    }
+
+    let result = await handleGeneralCommand(cmdInteraction);
     if (result !== null) return result;
 
     result = await handleEconomyCommand(interaction);

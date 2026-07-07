@@ -782,6 +782,71 @@ async function handleGeneralCommand(interaction) {
     }
   }
 
+  // ── promote: Personeli terfi et (promote) ──────────────────────────────
+  if (commandName === "promote" || commandName === "personelterfi") {
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
+    }
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
+    }
+    try {
+      const targetUser = interaction.options.getUser('kullanici');
+      const sebep = interaction.options.getString('sebep') || "Belirtilmedi";
+
+      const StaffProgress = require('../../models/StaffProgress');
+      const { promote, ROLE_NAMES } = require('../services/staffSystem');
+
+      const progress = await StaffProgress.findOne({ userId: targetUser.id });
+      if (!progress) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde bulunmuyor.` });
+      }
+
+      const oldLevel = progress.level || 1;
+      const newLevel = oldLevel + 1;
+
+      if (oldLevel >= 6) {
+        return interaction.editReply({ content: `❌ **${targetUser.username}** zaten en yüksek rütbede (Genel Koordinatör) olduğu için rütbesi daha fazla yükseltilemez.` });
+      }
+
+      // Gamification ödülü (Puan & XP)
+      progress.gamification = progress.gamification || {};
+      progress.gamification.totalPoints = (progress.gamification.totalPoints || 0) + 500;
+      progress.gamification.currentXP = (progress.gamification.currentXP || 0) + 500;
+      await progress.save();
+
+      let promoted = false;
+      if (oldLevel < 5) {
+        await promote(progress, interaction.client);
+        promoted = true;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle('🏆 Personel Terfi Ettirildi!')
+        .setThumbnail(targetUser.displayAvatarURL())
+        .setDescription(
+          `🌟 **${targetUser.username}** adlı personel terfi ettirildi!\n\n` +
+          `**Sebep:** ${sebep}\n\n` +
+          `💰 **Kazanılan Ödüller:**\n` +
+          `• **+500 Puan** ve **+500 XP** gamification profiline eklendi!\n` +
+          (promoted
+            ? `• 📈 Rütbesi **${ROLE_NAMES[oldLevel]}** seviyesinden **${ROLE_NAMES[newLevel]}** seviyesine yükseltildi! 🎉`
+            : `• *Kullanıcı zaten en üst düzey **Kıdemli Sekreter** rütbesinde (veya üstünde) olduğu için rütbe değişikliği yapılmadı. (Genel Koordinatör rütbesi için sınavı geçmesi gerekmektedir)*`)
+        )
+        .setTimestamp();
+
+      return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed] });
+    } catch (err) {
+      console.error('[promote] hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── tenzilat: Personelin rütbesini düşür (demote) ─────────────────────
   if (commandName === "tenzilat") {
     const { ADMIN_IDS } = require("../../config");

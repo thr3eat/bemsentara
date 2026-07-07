@@ -818,7 +818,7 @@ async function handleSlashCommand(interaction) {
     // ─────────────────────────────────────────────────────────────────────
 
     if (["mute", "unmute", "modaction", "bulk-delete", "karaliste",
-         "staff-report", "staff-setstats", "fire", "promote", "demote", "reward", "giveleave",
+         "staff-report", "reward", "giveleave",
          "attendance-start", "attendance-stop", "toggle", "channel-perms", "otomod",
          "birim-alimi", "birim-tanitim", "xp-cekilis", "ai-konusma", "abuse-test",
          "ekobang", "ekobangerial", "grupcekeko", "grupcekekogerial"].includes(commandName)) {
