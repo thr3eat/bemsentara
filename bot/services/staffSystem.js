@@ -1603,73 +1603,42 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
+  const nextLevelName = ROLE_NAMES[progress.level + 1] || 'Maksimum Seviye';
+
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
     .setTitle(`☀️ Günlük Görev Brifingi & İlerleme`)
     .setDescription(
       (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
-      `Bugünün görevleri aktif edildi! Sitede veya ses kanallarında aktif kalarak hedeflerini tamamla. 💪\n\n` +
-      `📊 **Genel Görev İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
-      `• **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'}\n` +
-      `• **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%)\n` +
-      (progress.daily?.chosenTask ? `• **Seçimli Görev:** ${CHOSEN_TASKS[progress.daily.chosenTask] || progress.daily.chosenTask} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}` : '')
+      `Bugünün görevleri aktif edildi! Sitede veya ses kanallarında aktif kalarak hedeflerini tamamla. 💪`
     );
 
-  const fields = [
-    {
-      name: '⚡ Yapman Gerekenler (Zorunlu)',
-      value: `✅ ${req.greets}x sohbete selam\n🎤 ${req.voiceMinutes} dk ses kanalı`,
-      inline: false,
-    }
-  ];
+  const fields = [];
 
+  // ── FIELD 1: BUGÜNKÜ GÖREVLER & İLERLEME ────────────────────────────────────
+  let tasksText = '';
+  tasksText += `💬 **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'} *(Gereken: ${req.greets}x selam)*\n`;
+  tasksText += `🎤 **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%) *(Gereken: ${req.voiceMinutes} dk)*\n`;
+  
+  if (progress.daily?.chosenTask) {
+    tasksText += `🎯 **Seçimli Görev:** ${CHOSEN_TASKS[progress.daily.chosenTask] || progress.daily.chosenTask} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}\n`;
+  }
+  
   if (userUnit && userUnit.unitName) {
     const { UNIT_CONFIG } = require('./unitService');
     const unitConf = UNIT_CONFIG[userUnit.unitName];
     if (unitConf) {
-      fields.push({
-        name: `🛡️ ${unitConf.label} Günlük Görevi (Zorunlu)`,
-        value: `⚠️ **Görevin:** ${unitConf.tasks}\n*Birimdeki Rütben: Rütbe ${userUnit.rank || 1}*`,
-        inline: false
-      });
+      tasksText += `🛡️ **Birim Görevi (${unitConf.label}):** ${unitConf.tasks} *(Birim Rütben: Rütbe ${userUnit.rank || 1})*\n`;
     }
   }
-  if (progress.currentQuestion) {
-    fields.push({
-      name: '❓ Koçun Sorusu',
-      value: `*Koçunuz sizi daha yakından tanımak istiyor:*\n**"${progress.currentQuestion}"**\n\n*(Aşağıdaki butonla cevaplayabilirsiniz!)*`,
-      inline: false
-    });
-  }
 
-  fields.push(
-    {
-      name: '🎯 Bugünün Seçimli Görevi',
-      value: `${CHOSEN_TASKS[progress.daily.chosenTask] || 'Rastgele Atanacak'}\nDurum: ${progress.daily.chosenTaskCompleted ? '**TAMAMLANDI! ✅**' : '*Devam Ediyor...*'}\n*(Aşağıdaki menüden değiştirebilirsiniz. Yapılması terfi hedeflerine %25 katkı sunar!)*`,
-      inline: false
-    },
-    {
-      name: '🎯 Ekstra Görevler (Öneri)',
-      value: levelInfo.dailyTasks.slice(2).join('\n') || '—',
-      inline: false,
-    },
-    {
-      name: '🏆 Ödülü',
-      value: levelInfo.rewards,
-      inline: false,
-    }
-  );
+  fields.push({
+    name: `📊 BUGÜNKÜ HEDEFLER & İLERLEME  [${stats.progressBar}] %${stats.totalPercent}`,
+    value: tasksText.trim() || '—',
+    inline: false
+  });
 
-  embed.addFields(fields);
-
-  if (daysLeft !== null && daysLeft > 0) {
-    embed.addFields({
-      name: '⏰ Dikkat',
-      value: `**${daysLeft} gün daha yapmazsan** rolün geçici olarak alınır. Ama endişelenme, geri gelmek kolay! 💪`,
-      inline: false,
-    });
-  }
-
+  // ── FIELD 2: TERFİ HEDEFLERİ ─────────────────────────────────────────────
   if (nextReq) {
     const s = progress.stats || {};
     const ticketsNeeded = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
@@ -1682,22 +1651,51 @@ Bugünkü görevleri hatırlat ve cesaretlen.`;
     const maxTickets = nextReq.ticketsSolved || 1;
     const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
 
-    embed.addFields({
-      name: '🚀 Rütbe Atlaması',
-      value:
-        `${progress.level < 4 ? `🎫 Ticket: ${s.ticketsSolved || 0}/${nextReq.ticketsSolved} ${ticketsNeeded > 0 ? `(${ticketsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `${nextReq.chatMessages ? `💬 Mesaj: ${s.chatMessages || 0}/${nextReq.chatMessages} ${chatNeeded > 0 ? `(${chatNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `📅 Aktif: ${s.activeDays || 0}/${nextReq.activeDays} gün ${daysNeeded > 0 ? `(${daysNeeded} gün kaldı!)` : '✅'}\n` +
-        `${nextReq.moderationActions ? `🛡️ Moderasyon: ${s.moderationActions || 0}/${nextReq.moderationActions} ${modsNeeded > 0 ? `(${modsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `${nextReq.weeklyReports ? `📋 Rapor: ${s.weeklyReports || 0}/${nextReq.weeklyReports} ${reportsNeeded > 0 ? `(${reportsNeeded} kaldı!)` : '✅'}\n` : ''}` +
-        `\n💪 **${Math.floor((100 - ticketProgress) * 0.5)}% daha çaba!** Başarabilirsin!`,
-      inline: false,
+    let promotionText = '';
+    if (progress.level < 4) {
+      promotionText += `• 🎫 **Ticket Çözümü:** \`${s.ticketsSolved || 0} / ${nextReq.ticketsSolved}\` ${ticketsNeeded > 0 ? `*(${ticketsNeeded} kaldı!)*` : '✅'}\n`;
+    }
+    if (nextReq.chatMessages) {
+      promotionText += `• 💬 **Mesaj Sayısı:** \`${s.chatMessages || 0} / ${nextReq.chatMessages}\` ${chatNeeded > 0 ? `*(${chatNeeded} kaldı!)*` : '✅'}\n`;
+    }
+    promotionText += `• 📅 **Aktif Gün Sayısı:** \`${s.activeDays || 0} / ${nextReq.activeDays} gün\` ${daysNeeded > 0 ? `*(${daysNeeded} gün kaldı!)*` : '✅'}\n`;
+    if (nextReq.moderationActions) {
+      promotionText += `• 🛡️ **Mod İşlemi:** \`${s.moderationActions || 0} / ${nextReq.moderationActions}\` ${modsNeeded > 0 ? `*(${modsNeeded} kaldı!)*` : '✅'}\n`;
+    }
+    if (nextReq.weeklyReports) {
+      promotionText += `• 📋 **Durum Raporu:** \`${s.weeklyReports || 0} / ${nextReq.weeklyReports}\` ${reportsNeeded > 0 ? `*(${reportsNeeded} kaldı!)*` : '✅'}\n`;
+    }
+
+    promotionText += `\n📈 **Atlama İlerlemesi:** %${ticketProgress} tamamlandı! *(Terfi için %${Math.floor((100 - ticketProgress) * 0.5)} daha çaba)*\n`;
+    promotionText += `🎁 **Terfi Ödülü:** ${levelInfo.rewards}\n`;
+    promotionText += `💡 **İpucu:** *${levelInfo.tips}*`;
+
+    fields.push({
+      name: `🚀 TERFİ YOLU (${ROLE_NAMES[progress.level]} ➔ ${nextLevelName})`,
+      value: promotionText.trim(),
+      inline: false
     });
   }
 
-  embed
-    .addFields({ name: '💡 İpuçları', value: levelInfo.tips, inline: false })
-    .setTimestamp();
+  // ── FIELD 3: KOÇUN SORUSU (Eğer Varsa) ────────────────────────────────────
+  if (progress.currentQuestion) {
+    fields.push({
+      name: '❓ KOÇUN SORUSU',
+      value: `> **"${progress.currentQuestion}"**\n*(Aşağıdaki butonla cevaplayabilirsiniz!)*`,
+      inline: false
+    });
+  }
+
+  // ── FIELD 4: DİKKAT / UYARI ────────────────────────────────────────────────
+  if (daysLeft !== null && daysLeft > 0) {
+    fields.push({
+      name: '⚠️ UYARI LİMİTİ',
+      value: `🚨 **Son ${daysLeft} aktif olmayan gün hakkınız kaldı!** Sonrasında rolünüz geçici olarak alınır. Aktif kalmaya özen gösterin.`,
+      inline: false
+    });
+  }
+
+  embed.addFields(fields).setTimestamp();
 
   return embed;
 }
