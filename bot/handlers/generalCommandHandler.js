@@ -145,7 +145,10 @@ async function handleGeneralCommand(interaction) {
 
   // ── personelayarla: Yetkili bilgilerini günceller (Yöneticiler) ──────────────────
   if (commandName === "personelayarla") {
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -313,7 +316,10 @@ async function handleGeneralCommand(interaction) {
 
   // ── personelrapor: Yetkili durum raporu (Yöneticiler) ──────────────────
   if (commandName === "personelrapor") {
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -399,7 +405,10 @@ async function handleGeneralCommand(interaction) {
 
   // ── seviyeayarla: Seviye ve XP bilgilerini günceller (Yöneticiler) ──────────────────
   if (commandName === "seviyeayarla") {
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -530,7 +539,10 @@ async function handleGeneralCommand(interaction) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
 
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
