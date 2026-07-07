@@ -68,10 +68,20 @@ function isStoryGameChannel(channelId) {
 }
 
 function sanitizeStoryText(text) {
-  return String(text || '')
+  const cleaned = String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[…]/g, '...')
+    .replace(/\uFFFD/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  if (!cleaned) return cleaned;
+  if (/[()]/.test(cleaned)) return cleaned;
+  return `${cleaned} (sorun var)`;
 }
 
 function getStoryGameState(channelId) {
@@ -118,7 +128,11 @@ async function generateStoryOpening() {
   const prompt = [
     'Discord hikaye oyununda kullanılacak, kısa, eğlenceli ve sürükleyici bir hikaye başlığı ve başlangıç cümlesi yaz.',
     '2-3 cümle uzunluğunda olsun.',
-    'Sadece hikaye metnini yaz. Başında “Hikaye:” ibaresi koyma.'
+    'Sadece hikaye metnini yaz.',
+    'Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
+    'Normal Türkçe karakterler ve standart noktalama kullan.',
+    'Metnin sonunda parantezli kısa bir ifade ekle, örnek: (sorun var).',
+    'Başında “Hikaye:” ibaresi koyma.'
   ].join(' ');
 
   try {
@@ -139,7 +153,9 @@ async function generateStoryContinuation(existingStory, userMessage) {
     'Kurallar:',
     '- 2 cümle kadar kısa ve akıcı olsun.',
     '- Eğlenceli, sürükleyici ve doğal bir devam olsun.',
-    '- Sadece hikaye metnini yaz.'
+    '- Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
+    '- Sadece hikaye metnini yaz.',
+    '- Metnin sonunda parantezli kısa bir ifade ekle, örnek: (sorun var).'
   ].join('\n');
 
   try {
@@ -155,7 +171,9 @@ async function generateStoryEnding(existingStory) {
   const prompt = [
     'Aşağıdaki hikayeyi kısa ve tatmin edici şekilde sonlandır.',
     'Hikaye:', existingStory,
-    'Sadece hikaye metnini yaz, açıklama ekleme.'
+    'Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
+    'Sadece hikaye metnini yaz, açıklama ekleme.',
+    'Metnin sonunda parantezli kısa bir ifade ekle, örnek: (sorun var).'
   ].join('\n');
 
   try {
