@@ -24,6 +24,8 @@ const investigationSchema = new mongoose.Schema({
   }],
   syncEnabled: { type: Boolean, default: true },
   lastMessageAt: { type: Date, default: Date.now },
+  lastMentionAt: { type: Date, default: null },
+  lastMentionReminderAt: { type: Date, default: null },
   penaltyApplied: { type: String, default: null },
   rejectCount: { type: Number, default: 0 }
 }, { timestamps: true });

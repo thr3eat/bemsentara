@@ -14,6 +14,55 @@ const { chatWithAI } = require('./aiService');
 const { ROLES } = require('./staffSystem');
 
 const STAFF_GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
+const pendingMentionReminders = new Map();
+
+async function scheduleMentionReminder(client, invest, channelId, targetUserId) {
+  const reminderKey = `${channelId}:${targetUserId}`;
+  if (pendingMentionReminders.has(reminderKey)) {
+    return;
+  }
+
+  pendingMentionReminders.set(reminderKey, true);
+
+  setTimeout(async () => {
+    try {
+      const freshInvest = await Investigation.findOne({
+        _id: invest._id,
+        status: { $in: ['ongoing', 'pending_agreement'] }
+      });
+
+      if (!freshInvest) {
+        pendingMentionReminders.delete(reminderKey);
+        return;
+      }
+
+      const mentionTime = freshInvest.lastMentionAt ? new Date(freshInvest.lastMentionAt).getTime() : 0;
+      const reminderSentAt = freshInvest.lastMentionReminderAt ? new Date(freshInvest.lastMentionReminderAt).getTime() : 0;
+      const latestTargetMessage = (freshInvest.messages || [])
+        .filter(message => message.senderId === freshInvest.targetUserId)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      const respondedAfterMention = latestTargetMessage && new Date(latestTargetMessage.timestamp).getTime() >= mentionTime;
+
+      if (!respondedAfterMention && (!reminderSentAt || (Date.now() - reminderSentAt) >= 60 * 1000)) {
+        const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+        if (targetUser) {
+          await targetUser.send(
+            '⚠️ **SORUŞTURMA KANALINA BAKIN!**\n\n' +
+            'Siz soruşturma kanalında etiketlendiniz ve 1 dakika içinde cevap vermediniz. ' +
+            'Lütfen soruşturma kanalına girip cevap verin.'
+          ).catch(() => {});
+
+          freshInvest.lastMentionReminderAt = new Date();
+          await freshInvest.save();
+        }
+      }
+    } catch (err) {
+      console.warn('[investigationService] mention reminder timer error:', err.message);
+    } finally {
+      pendingMentionReminders.delete(reminderKey);
+    }
+  }, 60 * 1000);
+}
 
 /**
  * Sets up the initial Soruşturma Başlat button in the config channel
@@ -430,6 +479,26 @@ async function handleMessageSync(message) {
   const client = message.client;
 
   if (message.author.bot) return;
+
+  // Investigation channel mention reminder logic
+  if (message.channel && message.channel.id && message.mentions && message.mentions.users && message.mentions.users.size > 0) {
+    try {
+      const mentionedUserIds = Array.from(message.mentions.users.keys());
+      const invest = await Investigation.findOne({
+        channelId: message.channel.id,
+        status: { $in: ['ongoing', 'pending_agreement'] },
+        targetUserId: { $in: mentionedUserIds }
+      });
+
+      if (invest && invest.targetUserId && message.author.id !== invest.targetUserId) {
+        invest.lastMentionAt = new Date();
+        await invest.save();
+        await scheduleMentionReminder(client, invest, message.channel.id, invest.targetUserId);
+      }
+    } catch (err) {
+      console.warn('[investigationService] mention reminder error:', err.message);
+    }
+  }
 
   // 1) DM -> Investigation Channel Sync
   if (message.channel.type === ChannelType.DM) {
