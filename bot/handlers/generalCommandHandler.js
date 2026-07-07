@@ -562,10 +562,13 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
       }
 
-      // 1. Veritabanından (StaffProgress) tam sil
+      // 1. Veritabanında personel kaydı dismissed olarak işaretlenir
       if (p) {
-        await StaffProgress.deleteOne({ userId: targetUser.id }).catch(() => {});
-        console.log(`[personelkov] ${targetUser.id} veritabanından tamamen silindi.`);
+        p.status = 'dismissed';
+        p.dismissedAt = new Date();
+        p.dismissReason = `Yönetici kararı: ${sebep}`;
+        await p.save().catch(() => {});
+        console.log(`[personelkov] ${targetUser.id} personel kaydı dismissed olarak işaretlendi.`);
       }
       await StaffUnit.deleteOne({ userId: targetUser.id }).catch(() => {});
 

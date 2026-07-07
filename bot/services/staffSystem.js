@@ -373,6 +373,11 @@ async function getOrCreate(userId, guildId, client) {
   let p = await StaffProgress.findOne({ userId });
 
   if (p) {
+    const terminalStatuses = ['dismissed', 'resigned', 'retired'];
+    if (terminalStatuses.includes(p.status)) {
+      return null;
+    }
+
     if (p.status !== 'active') {
       let hasStaffRole = false;
       if (client) {
@@ -2252,7 +2257,10 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   const levelName = ROLE_NAMES[p.level];
 
   // Kov kaydı
-  await p.deleteOne();
+  p.status = 'dismissed';
+  p.dismissedAt = new Date();
+  p.dismissReason = reason?.slice(0, 300) || 'Yönetici Kararı';
+  await p.save();
 
   // Rolleri kaldır
   const rolesToRemove = [
