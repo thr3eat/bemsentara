@@ -58,6 +58,9 @@ let needsGiris = true;
 let storySynced = false;
 const storyGameStates = new Map();
 const fastGameTurnTimestamps = new Map();
+const gameXpProgress = new Map();
+const GAME_XP_MIN_TURNS = 70;
+const GAME_XP_MAX_TURNS = 100;
 const STORY_GAME_CHANNEL_IDS = new Set([
   String(EKOYILDIZ_STORY_GAME_CHANNEL_ID || '').trim(),
   '1524056041158086767'
@@ -98,9 +101,26 @@ function isModeratorMember(member) {
   return roleNames.some(name => /(mod|moderator|yetkili|admin|owner|komutan|coordinator)/.test(name));
 }
 
+function getNextGameXpThreshold() {
+  return GAME_XP_MIN_TURNS + Math.floor(Math.random() * (GAME_XP_MAX_TURNS - GAME_XP_MIN_TURNS + 1));
+}
+
 async function awardGameXPForTurn(message, gameName, baseXP, client) {
   const member = message.member || await message.guild?.members?.fetch(message.author.id).catch(() => null);
   if (!member || member.user.bot) return null;
+
+  const progressKey = `${gameName}:${member.id}`;
+  const progress = gameXpProgress.get(progressKey) || { count: 0, needed: getNextGameXpThreshold() };
+  progress.count += 1;
+
+  if (progress.count < progress.needed) {
+    gameXpProgress.set(progressKey, progress);
+    return null;
+  }
+
+  progress.count = 0;
+  progress.needed = getNextGameXpThreshold();
+  gameXpProgress.set(progressKey, progress);
 
   const now = message.createdTimestamp;
   const lastTurnAt = fastGameTurnTimestamps.get(message.channel.id) || 0;
