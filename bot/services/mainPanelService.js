@@ -1213,34 +1213,23 @@ async function handlePanelButton(interaction) {
   if (customId === "panel_staff_attendance_start") {
     await interaction.deferReply({ ephemeral: true });
     try {
-      const { handleAttendanceStart } = require("./staffSystem");
-      const success = await handleAttendanceStart(client);
-      return interaction.editReply(
-        success
-          ? "🟢 Yeni personel sayımı (yoklama) başarıyla başlatıldı!"
-          : "❌ Aktif bir sayım zaten bulunuyor."
-      );
+      const { startRollCall } = require("./rollCallService");
+      await startRollCall(client, interaction);
     } catch (e) {
       return interaction.editReply(`❌ Yoklama başlatılamadı: ${e.message}`);
     }
+    return;
   }
 
   if (customId === "panel_staff_attendance_stop") {
     await interaction.deferReply({ ephemeral: true });
     try {
-      const { handleAttendanceStop } = require("./staffSystem");
-      const resultsEmbed = await handleAttendanceStop(client);
-      if (resultsEmbed) {
-        return interaction.editReply({
-          content: "🔴 Yoklama başarıyla bitirildi.",
-          embeds: [resultsEmbed]
-        });
-      } else {
-        return interaction.editReply("❌ Sonlandırılacak aktif bir sayım bulunamadı.");
-      }
+      const { endRollCall } = require("./rollCallService");
+      await endRollCall(client, interaction);
     } catch (e) {
       return interaction.editReply(`❌ Yoklama bitirilemedi: ${e.message}`);
     }
+    return;
   }
 
   // ── SYSTEM TOGGLES ─────────────────────────────────────────────────────────
@@ -1666,11 +1655,8 @@ async function handlePanelSelect(interaction) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
 
     try {
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
-      const proxy = buildProxy(interaction, "birimalimi", {
-        getString: () => birimKey
-      });
-      await handleGeneralCommand(proxy);
+      const { startBirimAlimi } = require("./unitService");
+      await startBirimAlimi(interaction, client, birimKey);
     } catch (e) {
       if (!interaction.replied && !interaction.deferred) {
         return interaction.reply({ content: `❌ Birim alımı başlatılamadı: ${e.message}`, ephemeral: true });
