@@ -374,15 +374,35 @@ async function getOrCreate(userId, guildId, client) {
 
   if (p) {
     if (p.status !== 'active') {
-      p.status = 'active';
-      p.dismissedAt = null;
-      p.dismissReason = null;
-      await p.save();
+      let hasStaffRole = false;
+      if (client) {
+        try {
+          const targetGuildId = guildId || GUILD_ID;
+          const guild = await client.guilds.fetch(targetGuildId).catch(() => null);
+          if (guild) {
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (member) {
+              const staffRoleIds = Object.values(ROLES);
+              hasStaffRole = member.permissions.has('Administrator') || staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (hasStaffRole) {
+        p.status = 'active';
+        p.dismissedAt = null;
+        p.dismissReason = null;
+        await p.save();
+      } else {
+        return null;
+      }
     }
     return p;
   }
 
-  let initialLevel = 1;
+  let initialLevel = null;
+  let hasStaffRole = false;
   if (client) {
     try {
       const targetGuildId = guildId || GUILD_ID;
@@ -395,8 +415,13 @@ async function getOrCreate(userId, guildId, client) {
             const roleId = ROLES[lvl];
             if (roleId && member.roles.cache.has(roleId)) {
               initialLevel = lvl;
+              hasStaffRole = true;
               break;
             }
+          }
+          if (member.permissions.has('Administrator')) {
+            hasStaffRole = true;
+            if (!initialLevel) initialLevel = 1;
           }
         }
       }
@@ -405,10 +430,14 @@ async function getOrCreate(userId, guildId, client) {
     }
   }
 
+  if (!hasStaffRole) {
+    return null;
+  }
+
   p = new StaffProgress({
     userId,
     guildId: guildId || GUILD_ID,
-    level: initialLevel,
+    level: initialLevel || 1,
     status: 'active'
   });
   await p.save();
