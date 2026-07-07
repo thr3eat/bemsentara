@@ -160,16 +160,18 @@ async function handleAvukatDMReply(message, client) {
   if (!message.guild && !message.author.bot) {
     const userId = message.author.id;
     const listeners = client._avukatListeners;
-    if (!listeners || !listeners.has(userId)) return;
+    if (!listeners || !listeners.has(userId)) return false;
 
     const session = activeSessions.get(userId);
     if (!session) {
       listeners.delete(userId);
-      return;
+      return false;
     }
 
     await processInterviewReply(userId, message.content, client, message.channel);
+    return true;
   }
+  return false;
 }
 
 async function processInterviewReply(userId, userText, client, dmChannel) {

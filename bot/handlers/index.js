@@ -1602,6 +1602,15 @@ function initializeDiscordHandlers(client) {
         console.error('[messageCreate] Investigation DM sync error:', err.message);
       }
 
+      // Avukat Mülakatı cevabı mı?
+      try {
+        const { handleAvukatDMReply } = require('../services/avukatService');
+        const handled = await handleAvukatDMReply(message, client);
+        if (handled) return;
+      } catch (err) {
+        console.error('[messageCreate] Avukat DM reply error:', err.message);
+      }
+
       // Anket cevabı mı?
       try {
         const { handleSurveyReply } = require('../services/surveyAI');
