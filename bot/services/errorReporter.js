@@ -24,6 +24,48 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
     // Save to errorReports
     const ErrorReportModel = require("../../models/ErrorReport");
     await ErrorReportModel.create(errorData);
+
+    // Send DM to developer
+    const { getDiscordClient } = require("../discordClient");
+    const client = getDiscordClient();
+    if (client) {
+      try {
+        const devUser = await client.users.fetch("1031620522406072350").catch(() => null);
+        if (devUser) {
+          let system = "Bilinmeyen Sistem";
+          let command = "Bilinmeyen Komut";
+          if (context && context.includes(":")) {
+            const parts = context.split(":");
+            system = parts[0].trim();
+            command = parts[1].trim();
+          } else if (context) {
+            system = context;
+            command = context;
+          }
+
+          const embed = new EmbedBuilder()
+            .setTitle("🚨 BİR HATA OLUŞTU")
+            .setColor(0xe74c3c)
+            .addFields(
+              { name: "HATA", value: `\`\`\`js\n${error.message || String(error)}\n\`\`\`` },
+              { name: "HANGİ SİSTEMDE", value: system },
+              { name: "HANGİ KOMUTTA", value: command }
+            )
+            .setTimestamp();
+
+          const ackRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`error_ack_${errorId}`)
+              .setLabel("TAMAMDIR")
+              .setStyle(ButtonStyle.Success)
+          );
+
+          await devUser.send({ embeds: [embed], components: [ackRow] }).catch(() => {});
+        }
+      } catch (dmErr) {
+        console.error("[ErrorReporter] DM notification error:", dmErr.message);
+      }
+    }
     
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
