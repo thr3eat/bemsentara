@@ -978,9 +978,8 @@ async function handleButtonInteraction(interaction) {
       await interaction.deferReply({ ephemeral: true }).catch(() => { });
     }
     try {
-      const StaffProgress = require("../../models/StaffProgress");
-      const { getXpForLevel } = require("../services/staffSystem");
-      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      const { getXpForLevel, getOrCreate } = require("../services/staffSystem");
+      const p = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
       if (!p || p.status !== 'active') {
         return interaction.editReply("❌ Sadece aktif personel bu güncelleme ödülünü alabilir.");
       }

@@ -12,14 +12,16 @@ async function handleStaffChat(interaction) {
     const targetUser = interaction.options.getUser('personel');
     const message = interaction.options.getString('mesaj');
 
+    const { getOrCreate } = require('./staffSystem');
+
     // Etkileşim yapan kullanıcıyı kontrol et
-    const senderStaff = await StaffProgress.findOne({ userId: interaction.user.id });
+    const senderStaff = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
     if (!senderStaff || senderStaff.status !== 'active') {
       return interaction.reply({ content: '❌ Sadece aktif personeller bu özelliği kullanabilir.', ephemeral: true });
     }
 
     // Hedef personeli kontrol et
-    const recipientStaff = await StaffProgress.findOne({ userId: targetUser.id });
+    const recipientStaff = await getOrCreate(targetUser.id, interaction.guildId, interaction.client);
     if (!recipientStaff || recipientStaff.status !== 'active') {
       return interaction.reply({ content: '❌ Hedef personel aktif değil veya sistem kayıtlı değil.', ephemeral: true });
     }

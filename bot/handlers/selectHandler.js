@@ -212,10 +212,9 @@ async function handleSelectInteraction(interaction) {
 
   if (interaction.customId === "select_daily_task") {
     const selectedTask = interaction.values[0];
-    const StaffProgress = require("../../models/StaffProgress");
-    const { CHOSEN_TASKS, checkChosenTaskCompletion } = require("../services/staffSystem");
+    const { CHOSEN_TASKS, checkChosenTaskCompletion, getOrCreate } = require("../services/staffSystem");
 
-    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    const p = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
     if (!p || p.status !== 'active') {
       return interaction.reply({ content: '❌ Aktif personel kaydınız bulunamadı.', ephemeral: true });
     }

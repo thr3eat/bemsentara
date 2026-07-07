@@ -1327,8 +1327,13 @@ router.post("/api/admin/action", async (req, res) => {
         let staffRecord = await StaffProgress.findOne({ userId: targetUserId });
         if (!staffRecord) {
           staffRecord = new StaffProgress({ userId: targetUserId, guildId: MOD_GUILD_ID, level: 1 });
-        } else if (staffRecord.level < 1) {
-          staffRecord.level = 1;
+        } else {
+          if (staffRecord.level < 1) {
+            staffRecord.level = 1;
+          }
+          staffRecord.status = 'active';
+          staffRecord.dismissedAt = null;
+          staffRecord.dismissReason = null;
         }
         await staffRecord.save();
 

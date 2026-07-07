@@ -32,10 +32,16 @@ router.get("/dashboard", async (req, res) => {
   let staffProgress = null;
   if (req.user.isStaff || isSiteAdmin(req.user)) {
     try {
-      const StaffProgress = require("../../models/StaffProgress");
-      staffProgress = await StaffProgress.findOne({ userId: req.user.discordId });
+      const { getOrCreate } = require("../../bot/services/staffSystem");
+      const { getDiscordClient } = require("../../bot/discordClient");
+      const client = getDiscordClient();
+      staffProgress = await getOrCreate(req.user.discordId, null, client);
     } catch (err) {
       console.error("Dashboard router staff progress load error:", err.message);
+      try {
+        const StaffProgress = require("../../models/StaffProgress");
+        staffProgress = await StaffProgress.findOne({ userId: req.user.discordId });
+      } catch (_) {}
     }
   }
   

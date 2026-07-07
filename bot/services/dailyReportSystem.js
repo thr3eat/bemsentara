@@ -13,7 +13,8 @@ async function handleDailyReport(interaction) {
     const reportText = interaction.options.getString('rapor');
 
     // Gönderici kontrol
-    const staff = await StaffProgress.findOne({ userId: interaction.user.id });
+    const { getOrCreate } = require('./staffSystem');
+    const staff = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
     if (!staff || staff.status !== 'active') {
       return interaction.reply({ content: '❌ Sadece aktif personeller rapor girebilir.', ephemeral: true });
     }

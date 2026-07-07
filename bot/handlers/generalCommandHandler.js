@@ -160,9 +160,9 @@ async function handleGeneralCommand(interaction) {
 
       const StaffProgress = require("../../models/StaffProgress");
       const staffAutomation = require("../services/staffAutomation");
-      const { ROLE_NAMES, GUILD_ID, ROLES } = require("../services/staffSystem");
+      const { ROLE_NAMES, GUILD_ID, ROLES, getOrCreate } = require("../services/staffSystem");
 
-      let progress = await StaffProgress.findOne({ userId: targetUser.id });
+      let progress = await getOrCreate(targetUser.id, interaction.guildId, interaction.client);
       if (!progress) {
         return interaction.editReply({ content: `❌ **${targetUser.username}** personel sisteminde kayıtlı değil.` });
       }
@@ -583,9 +583,16 @@ async function handleGeneralCommand(interaction) {
         const member = await staffGuild.members.fetch(targetUser.id).catch(() => null);
         if (member) {
           const { ROLES } = require("../services/staffSystem");
-          const staffRoleIds = Object.values(ROLES);
+          const rolesToRemove = [
+            ...Object.values(ROLES),
+            '1518709348506013706', // Kıdemli Sekreter (Level 5)
+            '1518692389169135666', // Moderatör Ekibi
+            '1518708137920823327', // modizm
+            '1518707673846251691', // adminizm
+            '1518692384928567456'  // Kaptan
+          ];
           let removedCount = 0;
-          for (const roleId of staffRoleIds) {
+          for (const roleId of rolesToRemove) {
             if (roleId && member.roles.cache.has(roleId)) {
               await member.roles.remove(roleId).catch(() => {});
               removedCount++;
@@ -1127,16 +1134,16 @@ async function handleGeneralCommand(interaction) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
     try {
-      const StaffProgress = require('../../models/StaffProgress');
+      const { getOrCreate } = require('../services/staffSystem');
       const target = interaction.options.getUser('kullanici') || interaction.user;
 
       // Sadece staff görebilir
-      const requestorStaff = await StaffProgress.findOne({ userId: interaction.user.id });
+      const requestorStaff = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
       if (!requestorStaff || requestorStaff.status !== 'active') {
         return interaction.editReply({ content: '❌ Sadece aktif personel bu komutu kullanabilir.' });
       }
 
-      const targetStaff = await StaffProgress.findOne({ userId: target.id });
+      const targetStaff = await getOrCreate(target.id, interaction.guildId, interaction.client);
       if (!targetStaff) {
         return interaction.editReply({ content: `❌ **${target.username}** personel verisi bulunamadı.` });
       }
@@ -1316,7 +1323,7 @@ async function handleGeneralCommand(interaction) {
       const { UNIT_CONFIG } = require('../services/unitService');
       const { chatWithAI } = require('../services/aiService');
 
-      let p = await StaffProgress.findOne({ userId: interaction.user.id });
+      let p = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
       if (!p || p.status !== 'active') {
         return interaction.editReply({ content: '❌ Sadece aktif personel brifing sistemine erişebilir.' });
       }
