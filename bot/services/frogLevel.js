@@ -650,17 +650,6 @@ async function awardGameXP(member, client, { amount, reason, details = '', multi
     if (staffBonus > 0) rewardText.push(`• Yetkili bonusu: +${staffBonus} XP`);
     if (details) rewardText.push(`• ${details}`);
 
-    try {
-      await member.user.send({
-        embeds: [new EmbedBuilder()
-          .setColor(0x22c55e)
-          .setTitle('🎮 Oyun XP Kazanıldı')
-          .setDescription(rewardText.join('\n'))
-          .setFooter({ text: 'Eko Yıldız • Frog Level' })
-          .setTimestamp()]
-      }).catch(() => {});
-    } catch (_) {}
-
     return { amount: Number(amount || 0), multiplier, staffBonus, reason };
   } catch (err) {
     console.error('[frogLevel] awardGameXP fatal error:', err.message);
