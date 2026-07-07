@@ -690,40 +690,6 @@ function initializeDiscordHandlers(client) {
           await enforceRoleDividers(newMember).catch(err => {
             console.error("[guildMemberUpdate] enforceRoleDividers error:", err.message);
           });
-
-          // Yetki rollerini kaybetme kontrolü (Senkronizasyon)
-          const StaffProgress = require("../../models/StaffProgress");
-          const p = await StaffProgress.findOne({ userId: newMember.id, status: "active" }).catch(() => null);
-          if (p) {
-            const { ROLES } = require("../services/staffSystem");
-            const staffRoleIds = Object.values(ROLES);
-            const stillHasRole = staffRoleIds.some(roleId => roleId && newMember.roles.cache.has(roleId)) ||
-                                 newMember.permissions.has('Administrator');
-            if (!stillHasRole) {
-              setTimeout(async () => {
-                try {
-                  const guild = newMember.guild;
-                  const freshMember = await guild.members.fetch(newMember.id).catch(() => null);
-                  if (freshMember) {
-                    const freshStillHasRole = staffRoleIds.some(roleId => roleId && freshMember.roles.cache.has(roleId)) ||
-                                              freshMember.permissions.has('Administrator');
-                    if (!freshStillHasRole) {
-                      const freshP = await StaffProgress.findOne({ userId: freshMember.id, status: "active" }).catch(() => null);
-                      if (freshP) {
-                        freshP.status = 'dismissed';
-                        freshP.dismissedAt = new Date();
-                        freshP.dismissReason = 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)';
-                        await freshP.save().catch(() => {});
-                        console.log(`[staffSystem] Auto-dismissed user ${freshMember.id} after delay due to missing staff roles.`);
-                      }
-                    }
-                  }
-                } catch (err) {
-                  console.error("[staffSystem] Auto-dismiss delay check error:", err.message);
-                }
-              }, 10000);
-            }
-          }
         }
       }
     } catch (err) {

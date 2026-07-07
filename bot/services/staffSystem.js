@@ -309,22 +309,7 @@ async function verifyActiveStaffRole(userId, client, guildId) {
 }
 
 async function syncAndFilterActiveStaff(allProgress, client) {
-  const activeList = [];
-  for (const p of allProgress) {
-    const isStillStaff = await verifyActiveStaffRole(p.userId, client, p.guildId);
-    if (!isStillStaff) {
-      console.log(`[staffSystem] Skipping user ${p.userId} in scheduled run due to missing roles or not in guild.`);
-      // Artık rolü yoksa — dismissed olarak işaretle ki bir daha DM gitmesin
-      try {
-        p.status = 'dismissed';
-        p.dismissedAt = new Date();
-        await p.save();
-      } catch (_) { }
-      continue;
-    }
-    activeList.push(p);
-  }
-  return activeList;
+  return allProgress;
 }
 
 function getDailyTaskCompletionStats(progress) {
@@ -388,25 +373,10 @@ async function getOrCreate(userId, guildId, client) {
   let p = await StaffProgress.findOne({ userId });
 
   if (p) {
-    // Kovulmuş/çıkarılmış kullanıcılar hiçbir zaman aktif edilmez (Unless they have active roles in Discord now)
-    if (p.status === 'dismissed') {
-      let isStillStaff = false;
-      if (client) {
-        isStillStaff = await verifyActiveStaffRole(userId, client, guildId || p.guildId);
-      }
-      if (!isStillStaff) {
-        console.log(`[staffSystem] getOrCreate: User ${userId} is dismissed, skipping.`);
-        return null;
-      }
-      // Reactivate them!
-      console.log(`[staffSystem] getOrCreate: User ${userId} was dismissed but has staff roles on Discord. Reactivated to active.`);
-      p.status = 'active';
-      p.dismissedAt = null;
-      p.dismissReason = '';
-      await p.save();
-    }
     if (p.status !== 'active') {
       p.status = 'active';
+      p.dismissedAt = null;
+      p.dismissReason = null;
       await p.save();
     }
     return p;
@@ -2255,10 +2225,7 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
   const levelName = ROLE_NAMES[p.level];
 
   // Kov kaydı
-  p.status = 'dismissed';
-  p.dismissedAt = new Date();
-  p.dismissReason = reason?.slice(0, 300) || 'Belirtilmedi';
-  await p.save();
+  await p.deleteOne();
 
   // Rolleri kaldır
   const rolesToRemove = [

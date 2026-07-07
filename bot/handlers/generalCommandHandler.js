@@ -562,18 +562,10 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: `❌ Belirtilen kullanıcı personel sisteminde bulunamadı.` });
       }
 
-      // 1. Veritabanından (StaffProgress) tam sil — yoksa dismissed olarak işaretle
+      // 1. Veritabanından (StaffProgress) tam sil
       if (p) {
-        // Kalıcı olarak 'dismissed' yaparak getOrCreate tarafından yeniden oluşturulmasını engelle
-        p.status = 'dismissed';
-        p.dismissedAt = new Date();
-        p.dismissReason = sebep;
-        // Günlük görev döngüsünü durdur: daily sıfırla
-        p.daily = {};
-        p.currentQuestion = '';
-        p.currentQuestionKey = '';
-        await p.save().catch(() => {});
-        console.log(`[personelkov] ${targetUser.id} dismissed edildi, status=dismissed.`);
+        await StaffProgress.deleteOne({ userId: targetUser.id }).catch(() => {});
+        console.log(`[personelkov] ${targetUser.id} veritabanından tamamen silindi.`);
       }
       await StaffUnit.deleteOne({ userId: targetUser.id }).catch(() => {});
 
