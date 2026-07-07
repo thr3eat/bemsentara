@@ -625,6 +625,49 @@ async function addXPDirectly(member, xpAmount, client) {
   }
 }
 
+async function awardGameXP(member, client, { amount, reason, details = '', multiplier = 1, staffBonus = 0 }) {
+  try {
+    if (!member || !member.user || member.user.bot) return null;
+
+    const p = await getOrCreate(member.id);
+    if (!p) return null;
+
+    p.xp = (p.xp || 0) + Number(amount || 0);
+    await p.save().catch(err => {
+      console.error('[frogLevel] awardGameXP save error:', err.message);
+      throw err;
+    });
+
+    await checkLevelUp(p, member, client).catch(err => {
+      console.error('[frogLevel] awardGameXP level check error:', err.message);
+    });
+
+    const rewardText = [
+      `🎮 ${reason} için Frog XP kazandın!`,
+      `• Toplam: +${Number(amount || 0)} XP`,
+    ];
+    if (multiplier > 1) rewardText.push(`• Hız bonusu: x${multiplier.toFixed(1)}`);
+    if (staffBonus > 0) rewardText.push(`• Yetkili bonusu: +${staffBonus} XP`);
+    if (details) rewardText.push(`• ${details}`);
+
+    try {
+      await member.user.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x22c55e)
+          .setTitle('🎮 Oyun XP Kazanıldı')
+          .setDescription(rewardText.join('\n'))
+          .setFooter({ text: 'Eko Yıldız • Frog Level' })
+          .setTimestamp()]
+      }).catch(() => {});
+    } catch (_) {}
+
+    return { amount: Number(amount || 0), multiplier, staffBonus, reason };
+  } catch (err) {
+    console.error('[frogLevel] awardGameXP fatal error:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   addMessageXP,
   addVoiceXP,
@@ -640,5 +683,6 @@ module.exports = {
   enforceFrogRoles,
   handleBoosterReward,
   addXPDirectly,
+  awardGameXP,
 };
 

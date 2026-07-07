@@ -6,6 +6,7 @@ const {
   EKOYILDIZ_STORY_GAME_CHANNEL_ID
 } = require("../../config");
 const { chatWithAI } = require('./aiService');
+const { awardGameXP } = require('./frogLevel');
 
 // --- In-Memory States for EkoYıldız Games ---
 
@@ -56,6 +57,7 @@ let lastStoryUser = null;
 let needsGiris = true;
 let storySynced = false;
 const storyGameStates = new Map();
+const fastGameTurnTimestamps = new Map();
 const STORY_GAME_CHANNEL_IDS = new Set([
   String(EKOYILDIZ_STORY_GAME_CHANNEL_ID || '').trim(),
   '1524056041158086767'
@@ -77,6 +79,39 @@ function getStoryGameState(channelId) {
     storyGameStates.set(channelId, { active: false, story: '', waitingForUser: false, lastActor: 'none', lastUserId: null });
   }
   return storyGameStates.get(channelId);
+}
+
+function isModeratorMember(member) {
+  if (!member) return false;
+  if (member.permissions?.has?.(1 << 13) || member.permissions?.has?.(1 << 5)) return true;
+  const roleNames = (member.roles?.cache?.map(r => String(r.name || '').toLowerCase()) || []);
+  return roleNames.some(name => /(mod|moderator|yetkili|admin|owner|komutan|coordinator)/.test(name));
+}
+
+async function awardGameXPForTurn(message, gameName, baseXP, client) {
+  const member = message.member || await message.guild?.members?.fetch(message.author.id).catch(() => null);
+  if (!member || member.user.bot) return null;
+
+  const now = message.createdTimestamp;
+  const lastTurnAt = fastGameTurnTimestamps.get(message.channel.id) || 0;
+  const isFast = Boolean(lastTurnAt && (now - lastTurnAt) <= 10000);
+  fastGameTurnTimestamps.set(message.channel.id, now);
+
+  const staffBonus = isModeratorMember(member) ? 8 : 0;
+  const multiplier = isFast ? 1.6 : 1;
+  const totalXp = Math.round(baseXP * multiplier) + staffBonus;
+
+  const details = [];
+  if (isFast) details.push('⚡ Hızlı oyun bonusu');
+  if (staffBonus > 0) details.push('🛡️ Yetkili bonusu');
+
+  return awardGameXP(member, client, {
+    amount: totalXp,
+    reason: `${gameName} oyunu`,
+    details: details.join(' • ') || 'Normal oyun başarısı',
+    multiplier,
+    staffBonus,
+  });
 }
 
 async function generateStoryOpening() {
@@ -168,7 +203,7 @@ async function finishStoryGame(channel) {
   state.lastUserId = null;
 }
 
-async function continueStoryGame(message) {
+async function continueStoryGame(message, client) {
   const state = getStoryGameState(message.channel.id);
   const content = message.content.trim();
 
@@ -197,6 +232,7 @@ async function continueStoryGame(message) {
   state.story = `${state.story}\n\n${content}\n\n${continuation}`;
   state.waitingForUser = true;
   await message.channel.send(continuation).catch(() => {});
+  await awardGameXPForTurn(message, 'Hikaye Oyunu', 14, client);
   state.lastActor = 'bot';
   state.lastUserId = null;
   return true;
@@ -368,7 +404,7 @@ async function syncWordFromHistory(channel, currentMsgId) {
 /**
  * Sayı Saymaca Oyunu Mantığı
  */
-async function runCountingGame(message) {
+async function runCountingGame(message, client) {
   await syncCountingFromHistory(message.channel, message.id);
 
   const content = message.content.toLowerCase().trim();
@@ -386,6 +422,7 @@ async function runCountingGame(message) {
     currentCountingNumber++;
     lastCountingUser = message.author.id;
     getStats(message.author.id, 'Sayı Saymaca').dogru++;
+    await awardGameXPForTurn(message, 'Sayı Saymaca', 18, client);
   } else {
     await message.delete().catch(() => {});
     await showYanlisBildirim(message, 'Sayı Saymaca', `hatalı giriş! **${currentCountingNumber}** demen gerekiyordu. Oyun kaldığı yerden devam ediyor.`);
@@ -396,7 +433,7 @@ async function runCountingGame(message) {
 /**
  * Bom Oyunu Mantığı
  */
-async function runBomGame(message) {
+async function runBomGame(message, client) {
   await syncBomFromHistory(message.channel, message.id);
 
   const content = message.content.toLowerCase().trim();
@@ -421,6 +458,7 @@ async function runBomGame(message) {
     currentBomNumber++;
     lastBomUser = message.author.id;
     getStats(message.author.id, 'Bom Oyunu').dogru++;
+    await awardGameXPForTurn(message, 'Bom Oyunu', 24, client);
   } else {
     await message.delete().catch(() => {});
     const expected = isMultipleOfFive ? '**bom**' : `**${currentBomNumber}**`;
@@ -432,7 +470,7 @@ async function runBomGame(message) {
 /**
  * Kelime Oyunu Mantığı
  */
-async function runWordGame(message) {
+async function runWordGame(message, client) {
   await syncWordFromHistory(message.channel, message.id);
 
   if (message.author.id === lastWordUser && lastWordLetter !== null) {
@@ -455,6 +493,7 @@ async function runWordGame(message) {
     usedWords.add(word);
     await message.react('✅').catch(() => {});
     getStats(message.author.id, 'Kelime Oyunu').dogru++;
+    await awardGameXPForTurn(message, 'Kelime Oyunu', 16, client);
 
     if (CIKMAZHARF.has(sonHarf)) {
       // Çıkmaz harf bonusu
@@ -489,6 +528,7 @@ async function runWordGame(message) {
         usedWords.add(word);
         await message.react('✅').catch(() => {});
         getStats(message.author.id, 'Kelime Oyunu').dogru++;
+        await awardGameXPForTurn(message, 'Kelime Oyunu', 16, client);
 
         if (CIKMAZHARF.has(sonHarf)) {
           // Çıkmaz harf bonusu
@@ -648,19 +688,19 @@ async function handleEkoGames(message, client) {
   }
 
   if (channelId === EKOYILDIZ_SAYI_SAYMACA_CHANNEL_ID) {
-    return await runCountingGame(message);
+    return await runCountingGame(message, client);
   }
 
   if (channelId === EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID) {
-    return await runWordGame(message);
+    return await runWordGame(message, client);
   }
 
   if (channelId === EKOYILDIZ_BOM_CHANNEL_ID) {
-    return await runBomGame(message);
+    return await runBomGame(message, client);
   }
 
   if (isStoryGameChannel(channelId)) {
-    return await continueStoryGame(message);
+    return await continueStoryGame(message, client);
   }
 
   return false;
