@@ -101,7 +101,7 @@ const EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID = process.env.EKOYILDIZ_KELIME_OYUNU_CHA
 /** EkoYıldız Bom Oyunu Kanalı */
 const EKOYILDIZ_BOM_CHANNEL_ID = process.env.EKOYILDIZ_BOM_CHANNEL_ID || "1518692510384521226";
 /** EkoYıldız Hikaye Oyunu Kanalı */
-const EKOYILDIZ_STORY_GAME_CHANNEL_ID = process.env.EKOYILDIZ_STORY_GAME_CHANNEL_ID || "1521486905924124672";
+const EKOYILDIZ_STORY_GAME_CHANNEL_ID = process.env.EKOYILDIZ_STORY_GAME_CHANNEL_ID || "1524056041158086767";
 
 // ── Sunucu Davet Linkleri (Gece Ban Sistemi İçin) ──────────────────────────────
 const SERVER_INVITE_LINKS = {

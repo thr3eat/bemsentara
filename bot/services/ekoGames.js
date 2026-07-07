@@ -5,6 +5,7 @@ const {
   EKOYILDIZ_BOM_CHANNEL_ID,
   EKOYILDIZ_STORY_GAME_CHANNEL_ID
 } = require("../../config");
+const { chatWithAI } = require('./aiService');
 
 // --- In-Memory States for EkoYıldız Games ---
 
@@ -54,6 +55,152 @@ function getWordScore(userId) {
 let lastStoryUser = null;
 let needsGiris = true;
 let storySynced = false;
+const storyGameStates = new Map();
+const STORY_GAME_CHANNEL_IDS = new Set([
+  String(EKOYILDIZ_STORY_GAME_CHANNEL_ID || '').trim(),
+  '1524056041158086767'
+].filter(Boolean));
+
+function isStoryGameChannel(channelId) {
+  return STORY_GAME_CHANNEL_IDS.has(String(channelId || '').trim());
+}
+
+function sanitizeStoryText(text) {
+  return String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getStoryGameState(channelId) {
+  if (!storyGameStates.has(channelId)) {
+    storyGameStates.set(channelId, { active: false, story: '', waitingForUser: false, lastActor: 'none', lastUserId: null });
+  }
+  return storyGameStates.get(channelId);
+}
+
+async function generateStoryOpening() {
+  const prompt = [
+    'Discord hikaye oyununda kullanılacak, kısa, eğlenceli ve sürükleyici bir hikaye başlığı ve başlangıç cümlesi yaz.',
+    '2-3 cümle uzunluğunda olsun.',
+    'Sadece hikaye metnini yaz. Başında “Hikaye:” ibaresi koyma.'
+  ].join(' ');
+
+  try {
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    const cleaned = sanitizeStoryText(reply);
+    return cleaned || 'Bir gece, sokak lambalarının altında garip bir ses duyuldu ve dünya bir anda hiç beklemediği bir şekilde değişmeye başladı.';
+  } catch (err) {
+    console.warn('[ekoGames] Hikaye başlangıcı üretilemedi:', err.message);
+    return 'Bir gece, sokak lambalarının altında garip bir ses duyuldu ve dünya bir anda hiç beklemediği bir şekilde değişmeye başladı.';
+  }
+}
+
+async function generateStoryContinuation(existingStory, userMessage) {
+  const prompt = [
+    'Aşağıdaki hikayeyi, kullanıcı katkısına göre devam ettir.',
+    'Kullanıcı katkısı:', userMessage,
+    'Hikaye:', existingStory,
+    'Kurallar:',
+    '- 2 cümle kadar kısa ve akıcı olsun.',
+    '- Eğlenceli, sürükleyici ve doğal bir devam olsun.',
+    '- Sadece hikaye metnini yaz.'
+  ].join('\n');
+
+  try {
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    return sanitizeStoryText(reply) || 'İşin içinden çıkmak için birdenbire kapı aralandı ve herkes donup kaldı.';
+  } catch (err) {
+    console.warn('[ekoGames] Hikaye devamı üretilemedi:', err.message);
+    return 'İşin içinden çıkmak için birdenbire kapı aralandı ve herkes donup kaldı.';
+  }
+}
+
+async function generateStoryEnding(existingStory) {
+  const prompt = [
+    'Aşağıdaki hikayeyi kısa ve tatmin edici şekilde sonlandır.',
+    'Hikaye:', existingStory,
+    'Sadece hikaye metnini yaz, açıklama ekleme.'
+  ].join('\n');
+
+  try {
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    return sanitizeStoryText(reply) || 'Ve böylece o gece, herkesin unutamayacağı bir anı olarak hafızalara kazındı.';
+  } catch (err) {
+    console.warn('[ekoGames] Hikaye bitişi üretilemedi:', err.message);
+    return 'Ve böylece o gece, herkesin unutamayacağı bir anı olarak hafızalara kazındı.';
+  }
+}
+
+async function startStoryGame(channel) {
+  const state = getStoryGameState(channel.id);
+  const opening = await generateStoryOpening();
+  state.active = true;
+  state.story = opening;
+  state.waitingForUser = true;
+  state.lastActor = 'bot';
+  state.lastUserId = null;
+
+  const intro = [
+    '🌟 Yeni bir hikaye başlıyor!',
+    '',
+    opening,
+    '',
+    'Hikayeye sen devam et. İstersen SON yazarak hikayeyi bitirebilirsin.'
+  ].join('\n');
+
+  await channel.send(intro).catch(() => {});
+}
+
+async function finishStoryGame(channel) {
+  const state = getStoryGameState(channel.id);
+  if (!state.active || !state.story) {
+    await channel.send('🏁 Hikaye zaten hazır değil. Yeni bir hikaye başlatmak için bir mesaj yazın.').catch(() => {});
+    return;
+  }
+
+  const ending = await generateStoryEnding(state.story);
+  await channel.send(`🏁 Hikaye sona erdi.\n\n${ending}`).catch(() => {});
+  state.active = false;
+  state.story = '';
+  state.waitingForUser = false;
+  state.lastActor = 'none';
+  state.lastUserId = null;
+}
+
+async function continueStoryGame(message) {
+  const state = getStoryGameState(message.channel.id);
+  const content = message.content.trim();
+
+  if (!state.active) {
+    await startStoryGame(message.channel);
+    return true;
+  }
+
+  if (state.lastActor === 'user' && state.lastUserId && state.lastUserId === message.author.id) {
+    await message.delete().catch(() => {});
+    const warning = await message.channel.send(`⏳ <@${message.author.id}> sıranı bekle, hikaye botun devam ettirmesinden sonra başka bir kullanıcı yazmalı.`).catch(() => null);
+    if (warning) setTimeout(() => warning.delete().catch(() => {}), 6000);
+    return true;
+  }
+
+  if (/^(son|bitir|bitti)$/i.test(content)) {
+    await finishStoryGame(message.channel);
+    await startStoryGame(message.channel);
+    return true;
+  }
+
+  state.lastActor = 'user';
+  state.lastUserId = message.author.id;
+
+  const continuation = await generateStoryContinuation(state.story, content);
+  state.story = `${state.story}\n\n${content}\n\n${continuation}`;
+  state.waitingForUser = true;
+  await message.channel.send(continuation).catch(() => {});
+  state.lastActor = 'bot';
+  state.lastUserId = null;
+  return true;
+}
 
 // ─── Kullanıcı İstatistikleri (oyun türü bazlı) ───────────────────────────────
 // yapı: { doğru: number, yanlış: number }
@@ -512,8 +659,8 @@ async function handleEkoGames(message, client) {
     return await runBomGame(message);
   }
 
-  if (channelId === EKOYILDIZ_STORY_GAME_CHANNEL_ID) {
-    return await runStoryGame(message);
+  if (isStoryGameChannel(channelId)) {
+    return await continueStoryGame(message);
   }
 
   return false;
