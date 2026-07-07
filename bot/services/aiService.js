@@ -19,7 +19,7 @@ const MODELS = process.env.AI_MODEL
       'deepseek-r1-distill-qwen-32b'
     ];
 
-const SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
+const TICKET_SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
 Kurallar:
 - Türkçe konuş, samimi ve yardımsever ol.
@@ -28,6 +28,16 @@ Kurallar:
 - Asla kendin çözüm üretme, yetkililere ilet.
 - Kısa ve net mesajlar yaz (max 200 karakter).
 - Eğer kullanıcı selamlama mesajı atmışsa nazikçe karşıla ve ne konuda yardım istediğini sor.`;
+
+const STORY_SYSTEM_PROMPT = `Sen bir Discord hikaye oyunu AI'sın.
+Görevin: Hikaye akışını mantıklı, akıcı ve bağlama uygun sürdürmek.
+Kurallar:
+- Türkçe yaz.
+- Her cevap sadece hikaye metni olsun, başlık, emoji, liste, açıklama veya not ekleme.
+- Önceki cümleler ve karakterlerle tutarlı kal.
+- Saçma, kopuk veya anlamsız cümleler üretme.
+- Kısa ve doğal devamlar yaz.
+- Eğer kullanıcı katkısı zayıfsa bile hikayeyi bağlamlı bir şekilde ilerlet.`;
 
 /**
  * Tek bir modele istek at
@@ -163,8 +173,8 @@ function requestModel(model, messages, systemContent) {
  * @param {Array} messages - [{role, content}]
  * @param {string} [customSystemPrompt] - Özel system prompt (opsiyonel)
  */
-async function chatWithAI(messages, customSystemPrompt) {
-  const systemContent = customSystemPrompt || SYSTEM_PROMPT;
+async function chatWithAI(messages, customSystemPrompt, mode = 'ticket') {
+  const systemContent = customSystemPrompt || (mode === 'story' ? STORY_SYSTEM_PROMPT : TICKET_SYSTEM_PROMPT);
   let msgArray = messages;
   if (typeof messages === 'string') {
     msgArray = [{ role: 'user', content: messages }];
@@ -184,4 +194,4 @@ async function chatWithAI(messages, customSystemPrompt) {
   throw lastErr || new Error('Tüm AI modelleri başarısız oldu');
 }
 
-module.exports = { chatWithAI };
+module.exports = { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT };

@@ -85,7 +85,10 @@ function sanitizeStoryText(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  return cleaned;
+  return cleaned
+    .replace(/\((?:sorun\s+var|problem|hata|not)\)/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function isMeaningfulStoryText(text) {
@@ -93,7 +96,8 @@ function isMeaningfulStoryText(text) {
   if (!cleaned) return false;
   const letters = (cleaned.match(/[a-zA-ZğĞüÜşŞıİöÖçÇ]/g) || []).length;
   const punctuation = (cleaned.match(/[.!?]/g) || []).length;
-  return letters >= 10 && punctuation >= 1;
+  const nonsense = /(?:sorun var|problem|hata|saçma|anlamsız|bozuk|\?\?\?)/i.test(cleaned);
+  return letters >= 10 && punctuation >= 1 && !nonsense;
 }
 
 function buildFallbackStoryContinuation(existingStory, userMessage) {
@@ -262,13 +266,14 @@ async function generateStoryOpening() {
     '1-2 cümle uzunluğunda olsun.',
     'Kullanıcı katkısı için uygun bir başlangıç noktası olsun.',
     'Sadece hikaye metnini yaz.',
+    'Hiçbir başlık, emoji, liste, açıklama veya parantezli not ekleme.',
     'Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
     'Normal Türkçe karakterler ve standart noktalama kullan.',
-    'Açıkça saçma ve kopuk bir metin üretme.'
+    'Açıkça saçma, kopuk veya anlamsız bir metin üretme.'
   ].join(' ');
 
   try {
-    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '', 'story');
     const cleaned = sanitizeStoryText(reply);
     return isMeaningfulStoryText(cleaned)
       ? cleaned
@@ -287,14 +292,16 @@ async function generateStoryContinuation(existingStory, userMessage) {
     'Kurallar:',
     '- 1-2 cümle kadar kısa ve akıcı olsun.',
     '- Hikayenin bağlamını koru ve önceki cümlelerle bağlantılı olsun.',
+    '- Karakterleri, mekânı ve olay akışını tutarlı tut.',
     '- Eğlenceli, sürükleyici ve doğal bir devam olsun.',
     '- Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
     '- Sadece hikaye metnini yaz.',
+    '- Hiçbir başlık, emoji, liste, açıklama veya parantezli not ekleme.',
     '- Saçma, kopuk veya anlamsız cümleler üretme.'
   ].join('\n');
 
   try {
-    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '', 'story');
     const cleaned = sanitizeStoryText(reply);
     return isMeaningfulStoryText(cleaned)
       ? cleaned
@@ -311,11 +318,12 @@ async function generateStoryEnding(existingStory) {
     'Hikaye:', existingStory,
     'Bozuk Unicode karakter, garip sembol veya anlamsız soru işareti kullanma.',
     'Sadece hikaye metnini yaz, açıklama ekleme.',
+    'Hiçbir başlık, emoji, liste, açıklama veya parantezli not ekleme.',
     'Saçma ve kopuk bir sonuç üretme.'
   ].join('\n');
 
   try {
-    const reply = await chatWithAI([{ role: 'user', content: prompt }], '');
+    const reply = await chatWithAI([{ role: 'user', content: prompt }], '', 'story');
     const cleaned = sanitizeStoryText(reply);
     return isMeaningfulStoryText(cleaned)
       ? cleaned
