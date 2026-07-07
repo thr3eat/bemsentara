@@ -97,33 +97,39 @@ async function addMessageXP(member, client) {
   if (!p) return;
 
   // Check if they qualify for the x2 XP boost:
-  // - at least 30 messages in the last 15 minutes
-  // - the duration of activity (difference between first and last message in history) is at least 10 minutes
+  // - at least 50 messages in the last 15 minutes
+  // - the duration of activity is at least 12 minutes
+  // - enough time has passed since the last boost notification to avoid spam
   const oldest = history[0];
-  if (history.length >= 30 && oldest && (now - oldest) >= 10 * 60 * 1000) {
-    const boostUntil = new Date(now + 15 * 60 * 1000);
-    // Only set/update if not already active
-    const isBoostActive = p.doubleXpUntil && new Date(p.doubleXpUntil).getTime() > now;
-    if (!isBoostActive) {
-      p.doubleXpUntil = boostUntil;
-      await p.save();
+  const boostWindowMs = 15 * 60 * 1000;
+  const minimumMessages = 50;
+  const minimumActivityMs = 12 * 60 * 1000;
+  const notificationCooldownMs = 2 * 60 * 60 * 1000;
+  const isBoostActive = p.doubleXpUntil && new Date(p.doubleXpUntil).getTime() > now;
+  const lastNotificationAt = p.lastBoostNotificationAt ? new Date(p.lastBoostNotificationAt).getTime() : 0;
+  const canSendNotification = !isBoostActive && (!lastNotificationAt || (now - lastNotificationAt) >= notificationCooldownMs);
 
-      // Send DM notification
-      try {
-        const boostEmbed = new EmbedBuilder()
-          .setColor(0xf1c40f)
-          .setTitle('⚡ HIZLI YAZICI BOOSTU AKTİF! (x2 XP)')
-          .setDescription(
-            `Harika! Sohbet kanallarında oldukça hızlı ve aktif yazıyorsun! 🚀\n\n` +
-            `Önümüzdeki **15 dakika boyunca** kazanacağın tüm Kurbağa/Dinazor XP'leri **2 katına** çıkarıldı! 🔥\n\n` +
-            `Bitiş Zamanı: <t:${Math.floor(boostUntil.getTime() / 1000)}:T>`
-          )
-          .setFooter({ text: 'Eko Yıldız • Hızlı Yazıcı Bonusu' })
-          .setTimestamp();
-        await member.user.send({ embeds: [boostEmbed] }).catch(() => {});
-      } catch (dmErr) {
-        console.warn(`[frogLevel] Failed to send boost DM to ${member.id}:`, dmErr.message);
-      }
+  if (history.length >= minimumMessages && oldest && (now - oldest) >= minimumActivityMs && canSendNotification) {
+    const boostUntil = new Date(now + boostWindowMs);
+    p.doubleXpUntil = boostUntil;
+    p.lastBoostNotificationAt = new Date(now);
+    await p.save();
+
+    // Send DM notification
+    try {
+      const boostEmbed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('⚡ HIZLI YAZICI BOOSTU AKTİF! (x2 XP)')
+        .setDescription(
+          `Harika! Sohbet kanallarında oldukça hızlı ve aktif yazıyorsun! 🚀\n\n` +
+          `Önümüzdeki **15 dakika boyunca** kazanacağın tüm Kurbağa/Dinazor XP'leri **2 katına** çıkarıldı! 🔥\n\n` +
+          `Bitiş Zamanı: <t:${Math.floor(boostUntil.getTime() / 1000)}:T>`
+        )
+        .setFooter({ text: 'Eko Yıldız • Hızlı Yazıcı Bonusu' })
+        .setTimestamp();
+      await member.user.send({ embeds: [boostEmbed] }).catch(() => {});
+    } catch (dmErr) {
+      console.warn(`[frogLevel] Failed to send boost DM to ${member.id}:`, dmErr.message);
     }
   }
 

@@ -18,6 +18,7 @@ const frogLevelSchema = new mongoose.Schema({
 
   // XP Boost
   doubleXpUntil: { type: Date, default: null },
+  lastBoostNotificationAt: { type: Date, default: null },
 
   // İstatistikler
   totalMessages:    { type: Number, default: 0 },
