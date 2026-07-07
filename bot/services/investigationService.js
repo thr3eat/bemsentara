@@ -197,7 +197,7 @@ async function handleAgreement(interaction, channelId, accepted) {
   }
 
   if (invest.status !== 'pending_agreement') {
-    return interaction.reply({ content: "❌ Bu soruşturmanın onay süreci zaten tamamlanmış.", ephemeral: true });
+    return interaction.reply({ content: "❌ Bu soruşturmanın onay süreci zaten tamamlenmiş.", ephemeral: true });
   }
 
   const guild = client.guilds.cache.get(STAFF_GUILD_ID);
@@ -209,6 +209,7 @@ async function handleAgreement(interaction, channelId, accepted) {
     invest.status = 'ongoing';
     await invest.save();
 
+    if (channel) {
       // Post status update to channel
       const startEmbed = new EmbedBuilder()
         .setTitle("✅ Soruşturma Başladı")
