@@ -64,14 +64,8 @@ async function startInvestigation(interaction, name, targetUserId, reason) {
     return interaction.editReply({ content: "❌ Girdiğiniz kullanıcı ID'si sunucuda bulunamadı. Lütfen geçerli bir ID girin." });
   }
 
-  // Find or create category SORUŞTURMALAR
-  let category = guild.channels.cache.find(c => c.name === "SORUŞTURMALAR" && c.type === ChannelType.GuildCategory);
-  if (!category) {
-    category = await guild.channels.create({
-      name: "SORUŞTURMALAR",
-      type: ChannelType.GuildCategory
-    }).catch(() => null);
-  }
+  // Soruşturma kanalları kategorisi (1523809020115419147)
+  const categoryId = "1523809020115419147";
 
   // Build permissions
   const staffRoleIds = Object.values(ROLES).filter(Boolean);
@@ -82,6 +76,10 @@ async function startInvestigation(interaction, name, targetUserId, reason) {
     },
     {
       id: interaction.user.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+    },
+    {
+      id: "1518692386836971610", // Bu rol soruşturmaları görebilsin
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
     }
   ];
@@ -98,7 +96,7 @@ async function startInvestigation(interaction, name, targetUserId, reason) {
   const channel = await guild.channels.create({
     name: cleanName,
     type: ChannelType.GuildText,
-    parent: category ? category.id : null,
+    parent: categoryId,
     permissionOverwrites
   }).catch(err => {
     console.error("[investigationService] Channel creation failed:", err.message);
@@ -211,18 +209,10 @@ async function handleAgreement(interaction, channelId, accepted) {
     invest.status = 'ongoing';
     await invest.save();
 
-    // Give view permission on the channel
-    if (channel && targetMember) {
-      await channel.permissionOverwrites.create(targetMember, {
-        ViewChannel: true,
-        SendMessages: true,
-        ReadMessageHistory: true
-      }).catch(() => {});
-
       // Post status update to channel
       const startEmbed = new EmbedBuilder()
         .setTitle("✅ Soruşturma Başladı")
-        .setDescription(`<@${invest.targetUserId}> soruşturmayı kabul etti ve kanal erişimi açıldı. Soruşturma süreci başladı!`)
+        .setDescription(`<@${invest.targetUserId}> soruşturmayı kabul etti. DM üzerinden soruşturma süreci başladı!`)
         .setColor(0x2ecc71)
         .setTimestamp();
       await channel.send({ embeds: [startEmbed] });
@@ -233,7 +223,7 @@ async function handleAgreement(interaction, channelId, accepted) {
 
     const acceptEmbed = new EmbedBuilder()
       .setTitle("✅ Soruşturma Kabul Edildi")
-      .setDescription("Soruşturma talebini onayladınız. Soruşturma kanalına dahil edildiniz. Buradan veya oradan mesaj yazarak sürece başlayabilirsiniz.")
+      .setDescription("Soruşturma talebini onayladınız. Bot aracılığıyla bu DM üzerinden savunmanızı gönderebilirsiniz. Gönderdiğiniz mesajlar soruşturma kanalına ve yetkililere iletilecektir.")
       .setColor(0x2ecc71)
       .setTimestamp();
     await interaction.update({ embeds: [acceptEmbed], components: [] }).catch(() => {});
@@ -275,13 +265,7 @@ async function handleAgreement(interaction, channelId, accepted) {
       invest.status = 'ongoing';
       await invest.save();
 
-      if (channel && targetMember) {
-        await channel.permissionOverwrites.create(targetMember, {
-          ViewChannel: true,
-          SendMessages: true,
-          ReadMessageHistory: true
-        }).catch(() => {});
-
+      if (channel) {
         const autoAcceptEmbed = new EmbedBuilder()
           .setTitle("🚨 Otomatik Kabul Edildi")
           .setDescription(`<@${invest.targetUserId}> soruşturmayı 3 kez reddettiği için süreç **OTOMATİK KABUL** edilerek başlatıldı.`)
@@ -297,7 +281,7 @@ async function handleAgreement(interaction, channelId, accepted) {
         .setTitle("🚨 Soruşturma Otomatik Kabul Edildi")
         .setDescription(
           `Soruşturma davetini 3 kez reddettiğiniz için süreç **otomatik olarak kabul edildi**.\n\n` +
-          `Soruşturma kanalına dahil edildiniz.`
+          `Lütfen bu DM üzerinden savunmanızı ve mesajlarınızı göndermeye başlayın.`
         )
         .setColor(0xe74c3c)
         .setTimestamp();
@@ -332,6 +316,24 @@ async function assignRandomJudge(guild, invest, channel) {
       : staffMembers[Math.floor(Math.random() * staffMembers.length)];
 
     invest.judgeId = selectedJudge.id;
+
+    // Fetch and assign random Lawyer (AVUKAT_ROLE_ID = '1523819093948633288')
+    const AVUKAT_ROLE_ID = '1523819093948633288';
+    const lawyerMembers = Array.from(members.values()).filter(m => {
+      if (m.user.bot || m.id === invest.targetUserId || m.id === invest.creatorId || m.id === selectedJudge.id) return false;
+      return m.roles.cache.has(AVUKAT_ROLE_ID);
+    });
+
+    let selectedLawyer = null;
+    if (lawyerMembers.length > 0) {
+      const activeLawyers = lawyerMembers.filter(m => m.presence && ['online', 'idle', 'dnd'].includes(m.presence.status));
+      selectedLawyer = activeLawyers.length > 0
+        ? activeLawyers[Math.floor(Math.random() * activeLawyers.length)]
+        : lawyerMembers[Math.floor(Math.random() * lawyerMembers.length)];
+
+      invest.lawyerId = selectedLawyer.id;
+    }
+
     await invest.save();
 
     // Allow judge permission in channel
@@ -340,6 +342,15 @@ async function assignRandomJudge(guild, invest, channel) {
       SendMessages: true,
       ReadMessageHistory: true
     }).catch(() => {});
+
+    // Allow lawyer permission in channel if selected
+    if (selectedLawyer) {
+      await channel.permissionOverwrites.create(selectedLawyer, {
+        ViewChannel: true,
+        SendMessages: true,
+        ReadMessageHistory: true
+      }).catch(() => {});
+    }
 
     // Notify judge in DM with premium embed
     const judgeEmbed = new EmbedBuilder()
@@ -355,16 +366,34 @@ async function assignRandomJudge(guild, invest, channel) {
         `Lütfen soruşturma kanalına giderek adil ve tarafsız bir şekilde süreci yönetin: ${channel.toString()}`
       )
       .setTimestamp();
-    
     await selectedJudge.send({ embeds: [judgeEmbed] }).catch(() => {});
+
+    // Notify lawyer in DM
+    if (selectedLawyer) {
+      const lawyerEmbed = new EmbedBuilder()
+        .setTitle("⚖️ SORUŞTURMA AVUKATI ATANDINIZ!")
+        .setColor(0x2ecc71)
+        .setDescription(
+          `Sayın avukat,\n\n` +
+          `**Eko Yıldız** Soruşturma Yönetim Sistemi tarafından aşağıdaki soruşturmaya **Avukat** olarak atandınız:\n\n` +
+          `📂 **Soruşturma Başlığı:** \`${invest.name}\`\n` +
+          `👤 **Soruşturulan Kullanıcı:** <@${invest.targetUserId}>\n` +
+          `⚖️ **Hakim:** <@${selectedJudge.id}>\n\n` +
+          `Lütfen soruşturma kanalına giderek savunma sürecini başlatın: ${channel.toString()}`
+        )
+        .setTimestamp();
+      await selectedLawyer.send({ embeds: [lawyerEmbed] }).catch(() => {});
+    }
 
     // Alert in channel
     const alertEmbed = new EmbedBuilder()
-      .setTitle("⚖️ Hakim Atandı")
-      .setDescription(`Bu soruşturmanın hakimi olarak <@${selectedJudge.id}> atanmıştır.`)
+      .setTitle("⚖️ Hakim ve Avukat Atandı")
+      .setDescription(
+        `• **Soruşturma Hakimi:** <@${selectedJudge.id}>\n` +
+        `• **Soruşturma Avukatı:** ${selectedLawyer ? `<@${selectedLawyer.id}>` : '*Sistemde uygun avukat bulunamadı.*'}`
+      )
       .setColor(0x3498db)
       .setTimestamp();
-    
     await channel.send({ embeds: [alertEmbed] });
 
     // Update controls row in the channel to show management options
@@ -739,24 +768,15 @@ async function resolveInvestigation(interaction, channelId, penaltyType, penalty
 
   const buffer = Buffer.from(transcript, 'utf-8');
 
-  // Archive Channel
-  let archiveCategory = guild.channels.cache.find(c => c.name === "SORUŞTURMA ARŞİVİ" && c.type === ChannelType.GuildCategory);
-  if (!archiveCategory) {
-    archiveCategory = await guild.channels.create({
-      name: "SORUŞTURMA ARŞİVİ",
-      type: ChannelType.GuildCategory
-    }).catch(() => null);
-  }
-
-  if (archiveCategory) {
-    await interaction.channel.setParent(archiveCategory.id, { lockPermissions: false }).catch(() => {});
-  }
+  // Archive Channel (1523040513626865965)
+  const archiveCategoryId = "1523040513626865965";
+  await interaction.channel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
 
   // Deny target user and judge permissions to prevent further typing
   if (targetMember) {
     await interaction.channel.permissionOverwrites.create(targetMember, {
       SendMessages: false,
-      ViewChannel: true
+      ViewChannel: false
     }).catch(() => {});
   }
   const judgeMember = await guild.members.fetch(invest.judgeId).catch(() => null);

@@ -2632,6 +2632,10 @@ function renderAdminPage(user) {
         style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
         📋 Panel Formları
       </button>
+      <button class="adm-tab" onclick="admTab('automation',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        🤖 Otomasyon
+      </button>
     </div>
 
     <!-- Kullanıcı yönetimi -->
@@ -2711,6 +2715,25 @@ function renderAdminPage(user) {
       <div id="ban-list"><div style="color:var(--muted);text-align:center;padding:2rem;">Yükleniyor...</div></div>
     </div>
 
+    <!-- Otomasyon / Alımlar -->
+    <div id="adm-automation" class="card" style="display:none;">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">🤖 Otomasyon & Alımlar</h1>
+      <p class="text-muted mb-3">Sınavlı (AI) veya sınavsız olarak avukat alımı gerçekleştirin.</p>
+
+      <div style="background:rgba(124,106,247,0.04);border:1px solid rgba(124,106,247,0.12);border-radius:16px;padding:1.5rem;margin-bottom:2rem;backdrop-filter:blur(8px);">
+        <h3 style="font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:1rem;">⚖️ Avukat Alım Sistemi</h3>
+        <div style="margin-bottom:1rem;">
+          <label style="display:block;margin-bottom:0.5rem;font-weight:700;">Discord Kullanıcı ID'si</label>
+          <input type="text" id="avukat-discord-id" placeholder="Örn: 1444656401216442497" style="width:100%;margin-bottom:0;">
+        </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <button class="btn" style="background:var(--accent);color:#fff;" onclick="startAvukatAI()">🧠 AI AVUKAT ALIMI BAŞLAT</button>
+          <button class="btn btn-ghost" style="border-color:#2ecc71;color:#2ecc71;" onclick="startAvukatDirect()">⚖️ SINAVSIZ ALIM (Rol Ver)</button>
+        </div>
+        <div id="avukat-result" style="margin-top:1.5rem;font-weight:700;display:none;padding:1rem;border-radius:8px;"></div>
+      </div>
+    </div>
+
     <!-- Panel Formları -->
     <div id="adm-forms" class="card" style="display:none;">
       <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">📋 Panel Formları</h1>
@@ -2746,6 +2769,7 @@ function renderAdminPage(user) {
         document.getElementById('adm-coins').style.display  = name === 'coins'  ? '' : 'none';
         document.getElementById('adm-bans').style.display   = name === 'bans'   ? '' : 'none';
         document.getElementById('adm-forms').style.display  = name === 'forms'  ? '' : 'none';
+        document.getElementById('adm-automation').style.display = name === 'automation' ? '' : 'none';
         document.querySelectorAll('.adm-tab').forEach(t => {
           t.style.borderBottomColor = 'transparent';
           t.style.color = 'var(--muted)';
@@ -2753,6 +2777,76 @@ function renderAdminPage(user) {
         btn.style.borderBottomColor = 'var(--accent)';
         btn.style.color = 'var(--text)';
         if (name === 'bans') loadBans();
+      }
+
+      async function startAvukatAI() {
+        const discordId = document.getElementById('avukat-discord-id').value.trim();
+        const resDiv = document.getElementById('avukat-result');
+        if (!discordId) {
+          alert('Lütfen geçerli bir Discord ID girin.');
+          return;
+        }
+        resDiv.style.display = 'block';
+        resDiv.style.background = 'rgba(255,255,255,0.05)';
+        resDiv.style.color = 'var(--text)';
+        resDiv.innerText = '⏳ AI Mülakatı başlatılıyor...';
+
+        try {
+          const res = await fetch('/api/avukat/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discordId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            resDiv.style.background = 'rgba(46,204,113,0.1)';
+            resDiv.style.color = '#2ecc71';
+            resDiv.innerText = '✅ Başarılı: ' + data.message;
+          } else {
+            resDiv.style.background = 'rgba(231,76,60,0.1)';
+            resDiv.style.color = '#e74c3c';
+            resDiv.innerText = '❌ Hata: ' + (data.error || 'Bilinmeyen hata');
+          }
+        } catch (err) {
+          resDiv.style.background = 'rgba(231,76,60,0.1)';
+          resDiv.style.color = '#e74c3c';
+          resDiv.innerText = '❌ İstek hatası: ' + err.message;
+        }
+      }
+
+      async function startAvukatDirect() {
+        const discordId = document.getElementById('avukat-discord-id').value.trim();
+        const resDiv = document.getElementById('avukat-result');
+        if (!discordId) {
+          alert('Lütfen geçerli bir Discord ID girin.');
+          return;
+        }
+        resDiv.style.display = 'block';
+        resDiv.style.background = 'rgba(255,255,255,0.05)';
+        resDiv.style.color = 'var(--text)';
+        resDiv.innerText = '⏳ Avukat rolü tanımlanıyor...';
+
+        try {
+          const res = await fetch('/api/avukat/direct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discordId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            resDiv.style.background = 'rgba(46,204,113,0.1)';
+            resDiv.style.color = '#2ecc71';
+            resDiv.innerText = '✅ Başarılı: ' + data.message;
+          } else {
+            resDiv.style.background = 'rgba(231,76,60,0.1)';
+            resDiv.style.color = '#e74c3c';
+            resDiv.innerText = '❌ Hata: ' + (data.error || 'Bilinmeyen hata');
+          }
+        } catch (err) {
+          resDiv.style.background = 'rgba(231,76,60,0.1)';
+          resDiv.style.color = '#e74c3c';
+          resDiv.innerText = '❌ İstek hatası: ' + err.message;
+        }
       }
 
       // ── Panel Formları Mantığı ───────────────────────────────────────────

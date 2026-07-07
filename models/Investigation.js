@@ -9,6 +9,7 @@ const investigationSchema = new mongoose.Schema({
   reason: { type: String, required: true },
   creatorId: { type: String, required: true },
   judgeId: { type: String, default: null },
+  lawyerId: { type: String, default: null },
   status: { 
     type: String, 
     default: 'pending_agreement', 

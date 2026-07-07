@@ -7,20 +7,13 @@ const {
   ButtonStyle
 } = require('discord.js');
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { chatWithAI } = require('./aiService');
 
 const EKOYILDIZ_GUILD_ID = '1367646464804655104';
 const AVUKAT_ROLE_ID     = '1523819093948633288';
 
 // Active sessions keyed by userId → { stage, messages[], channelId }
 const activeSessions = new Map();
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function buildAI() {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-}
 
 const SYSTEM_PROMPT = `Sen EkoYıldız Discord sunucusunun avukat alım mülakatçısısın. 
 Görevin adayları disiplin sistemi ve soruşturma süreçleri hakkında değerlendirmek.
@@ -109,20 +102,14 @@ async function startAvukatInterview(interaction, targetUserId) {
     });
 
     // Ask AI for opening message
-    const model = buildAI();
-    const chat = model.startChat({
-      history: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT }] }]
-    });
-
-    const result = await chat.sendMessage('Mülakate başla. Hoş geldin mesajı ver ve ilk soruyu sor.');
-    const aiText = result.response.text();
+    const startMsg = 'Mülakata başla. Hoş geldin mesajı ver ve ilk soruyu sor.';
+    const aiText = await chatWithAI([{ role: 'user', content: startMsg }], SYSTEM_PROMPT);
 
     // Store chat in session
     const session = activeSessions.get(targetUserId);
     session.chatHistory = [
-      { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
-      { role: 'user', parts: [{ text: 'Mülakate başla. Hoş geldin mesajı ver ve ilk soruyu sor.' }] },
-      { role: 'model', parts: [{ text: aiText }] }
+      { role: 'user', content: startMsg },
+      { role: 'assistant', content: aiText }
     ];
 
     // Send opening DM to target
@@ -190,17 +177,12 @@ async function processInterviewReply(userId, userText, client, dmChannel) {
   if (!session) return;
 
   try {
-    const model = buildAI();
-    const chat = model.startChat({ history: session.chatHistory });
+    session.chatHistory.push({ role: 'user', content: userText });
 
-    const result = await chat.sendMessage(userText);
-    const aiText = result.response.text();
+    const aiText = await chatWithAI(session.chatHistory, SYSTEM_PROMPT);
 
     // Update history
-    session.chatHistory.push(
-      { role: 'user', parts: [{ text: userText }] },
-      { role: 'model', parts: [{ text: aiText }] }
-    );
+    session.chatHistory.push({ role: 'assistant', content: aiText });
 
     // Check for decision
     const kabul = aiText.includes('[KARAR:KABUL]');

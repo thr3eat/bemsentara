@@ -2386,12 +2386,68 @@ router.post("/api/auth/roblox/friend-verify", async (req, res) => {
   }
 });
 
-// OPTIONS preflight (CORS)
-router.options("/api/webhook/proxy", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Webhook-Secret");
-  res.sendStatus(204);
+router.post("/api/avukat/ai", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { discordId } = req.body;
+  if (!discordId) return res.status(400).json({ error: "Discord ID girilmelidir." });
+
+  try {
+    const { startAvukatInterview } = require("../../bot/services/avukatService");
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (!client || !client.isReady()) {
+      return res.status(503).json({ error: "Discord botu aktif değil." });
+    }
+
+    // Mock an interaction
+    let responseContent = "";
+    const mockInteraction = {
+      client,
+      user: { id: req.user.discordId },
+      deferReply: async () => {},
+      editReply: async (payload) => {
+        responseContent = payload.content || (payload.embeds && payload.embeds[0]?.data?.description) || JSON.stringify(payload);
+      }
+    };
+
+    await startAvukatInterview(mockInteraction, discordId);
+    return res.json({ success: true, message: responseContent || "AI Mülakatı başlatıldı." });
+  } catch (err) {
+    console.error("AI Avukat Alım Hatası:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/avukat/direct", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { discordId } = req.body;
+  if (!discordId) return res.status(400).json({ error: "Discord ID girilmelidir." });
+
+  try {
+    const { hireAvukatDirect } = require("../../bot/services/avukatService");
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (!client || !client.isReady()) {
+      return res.status(503).json({ error: "Discord botu aktif değil." });
+    }
+
+    // Mock an interaction
+    let responseContent = "";
+    const mockInteraction = {
+      client,
+      user: { id: req.user.discordId },
+      deferReply: async () => {},
+      editReply: async (payload) => {
+        responseContent = payload.content || (payload.embeds && payload.embeds[0]?.data?.description) || JSON.stringify(payload);
+      }
+    };
+
+    await hireAvukatDirect(mockInteraction, discordId);
+    return res.json({ success: true, message: responseContent || "Sınavsız avukat alımı gerçekleştirildi." });
+  } catch (err) {
+    console.error("Sınavsız Avukat Alım Hatası:", err);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

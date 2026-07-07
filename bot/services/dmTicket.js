@@ -26,11 +26,14 @@ Görevin sunucuda istila (raid), yetki suistimali (abuse), saldırganlık yapanl
 
 KULLANICI TALEP AKIŞLARI:
 
-1. İstilacı/Abuseci Bildirme:
+1. İstilacı/Abuseci/Saldırgan Bildirme & Müdahale:
 - Kullanıcıdan şüpheli kişinin Discord ID'sini veya tam kullanıcı adını iste.
 - Kullanıcıdan KANIT iste (kanıt olarak mesaj eki, ekran görüntüsü yüklemesi ZORUNLUDUR).
-- Kullanıcı kanıt yüklediğinde (resim/dosya) ve ID/username paylaştığında, güvenliği sağlamak için hemen [BAN_EMERGENCY] <kullanıcı_id> komutunu tetikle.
-- Örnek yanıt: "Kanıt alındı ve analiz edildi. Sunucu emniyeti için kullanıcı yasaklanıyor. [BAN_EMERGENCY] 123456789012345678"
+- Kullanıcı kanıt yüklediğinde (resim/dosya) ve ID/username paylaştığında, duruma göre şu acil komutlardan uygun olanını tetikle:
+  - Kalıcı olarak engellemek/yasaklamak için: [BAN_EMERGENCY] <kullanıcı_id>
+  - Sunucudan atmak için: [KICK_EMERGENCY] <kullanıcı_id>
+  - Geçici olarak susturmak (timeout) için: [MUTE_EMERGENCY] <kullanıcı_id> <süre> (Örn: 1d, 12h, 30m - varsayılan belirtilmezse 1d'dir)
+- Örnek yanıt: "Kanıt analiz edildi. Güvenlik gerekçesiyle işlem uygulanıyor. [BAN_EMERGENCY] 1444656401216442497"
 
 2. Botun Spam Yapmasını Durdurma:
 - Eğer kullanıcı botun bildirim/DM spamladığını söylerse ("bot spam atıyor", "bildirimleri durdur", "spamı engelle" vb.), hemen bu duruma müdahale et.
@@ -39,7 +42,7 @@ KULLANICI TALEP AKIŞLARI:
 
 Kurallar:
 - Türkçe konuş. Son derece ciddi, otoriter, resmi ve emniyet gücü gibi davran.
-- Köşeli parantez [ ] karakterlerini yalnızca yukarıdaki komutlar ([BAN_EMERGENCY] veya [STOP_SPAM]) için kullan.`;
+- Köşeli parantez [ ] karakterlerini yalnızca yukarıdaki komutlar ([BAN_EMERGENCY], [KICK_EMERGENCY], [MUTE_EMERGENCY] veya [STOP_SPAM]) için kullan.`;
 
 const DM_SYSTEM_PROMPT = `Sen Sentara/EkoYıldız Discord sunucusunun resmi destek yapay zeka asistanısın. 
 Adın EkoBot. Kullanıcıyla doğal, samimi ama profesyonel bir dille konuş. 
@@ -295,20 +298,83 @@ async function continueAIConversation(message, client) {
       const match = aiReply.match(/\[BAN_EMERGENCY\]\s*(\d+)/);
       const targetId = match ? match[1] : null;
       if (targetId) {
-        try {
-          // TARGET_GUILD_ID'den banla
-          const guild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
-          if (guild) {
+        let successCount = 0;
+        for (const [guildId, guild] of client.guilds.cache) {
+          try {
             await guild.members.ban(targetId, { reason: `Acil AI Emniyet Raporu: İstilacı/Abuseci (Raporlayan: ${message.author.username})` });
-            aiReply += `\n\n⚡ **[SİSTEM MESAJI]** <@${targetId}> (${targetId}) kullanıcısı sunucudan başarıyla yasaklandı.`;
+            successCount++;
+          } catch (err) {
+            console.warn(`[BAN_EMERGENCY] Failed in guild ${guild.name}:`, err.message);
           }
-        } catch (err) {
-          aiReply += `\n\n❌ **[SİSTEM MESAJI]** Yasaklama işlemi başarısız: ${err.message}`;
+        }
+        if (successCount > 0) {
+          aiReply += `\n\n⚡ **[SİSTEM MESAJI]** <@${targetId}> (${targetId}) kullanıcısı ${successCount} sunucudan başarıyla yasaklandı.`;
+        } else {
+          aiReply += `\n\n❌ **[SİSTEM MESAJI]** Yasaklama işlemi tüm sunucularda başarısız oldu (Yetki yetersiz veya kullanıcı bulunamadı).`;
         }
       }
     }
 
-    // 2. Spam Durdurma Komutu
+    // 2. Acil Kick Komutu
+    if (aiReply.includes('[KICK_EMERGENCY]')) {
+      const match = aiReply.match(/\[KICK_EMERGENCY\]\s*(\d+)/);
+      const targetId = match ? match[1] : null;
+      if (targetId) {
+        let successCount = 0;
+        for (const [guildId, guild] of client.guilds.cache) {
+          try {
+            const member = await guild.members.fetch(targetId).catch(() => null);
+            if (member) {
+              await member.kick(`Acil AI Emniyet Raporu: İstilacı/Abuseci (Raporlayan: ${message.author.username})`);
+              successCount++;
+            }
+          } catch (err) {
+            console.warn(`[KICK_EMERGENCY] Failed in guild ${guild.name}:`, err.message);
+          }
+        }
+        if (successCount > 0) {
+          aiReply += `\n\n⚡ **[SİSTEM MESAJI]** <@${targetId}> (${targetId}) kullanıcısı ${successCount} sunucudan başarıyla atıldı.`;
+        } else {
+          aiReply += `\n\n❌ **[SİSTEM MESAJI]** Atma işlemi tüm sunucularda başarısız oldu.`;
+        }
+      }
+    }
+
+    // 3. Acil Mute (Timeout) Komutu
+    if (aiReply.includes('[MUTE_EMERGENCY]')) {
+      const match = aiReply.match(/\[MUTE_EMERGENCY\]\s*(\d+)\s*(\w+)?/);
+      const targetId = match ? match[1] : null;
+      const durationStr = match && match[2] ? match[2] : "1d";
+      if (targetId) {
+        const parseDuration = (timeStr) => {
+          const unitMap = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
+          const matches = [...timeStr.matchAll(/(\d+)([smhd])/g)];
+          if (!matches.length) return 24 * 60 * 60 * 1000;
+          return matches.reduce((total, match) => total + parseInt(match[1]) * (unitMap[match[2]] || 1000), 0);
+        };
+        const durationMs = parseDuration(durationStr);
+
+        let successCount = 0;
+        for (const [guildId, guild] of client.guilds.cache) {
+          try {
+            const member = await guild.members.fetch(targetId).catch(() => null);
+            if (member) {
+              await member.timeout(durationMs, `Acil AI Emniyet Raporu: İstilacı/Abuseci (Raporlayan: ${message.author.username})`);
+              successCount++;
+            }
+          } catch (err) {
+            console.warn(`[MUTE_EMERGENCY] Failed in guild ${guild.name}:`, err.message);
+          }
+        }
+        if (successCount > 0) {
+          aiReply += `\n\n⚡ **[SİSTEM MESAJI]** <@${targetId}> (${targetId}) kullanıcısı ${successCount} sunucuda ${durationStr} süreyle susturuldu.`;
+        } else {
+          aiReply += `\n\n❌ **[SİSTEM MESAJI]** Susturma işlemi tüm sunucularda başarısız oldu.`;
+        }
+      }
+    }
+
+    // 4. Spam Durdurma Komutu
     if (aiReply.includes('[STOP_SPAM]')) {
       global.SPAM_STOPPED = true;
       aiReply += `\n\n⚡ **[SİSTEM MESAJI]** Güvenlik Protokolü aktifleşti. Botun tüm bildirim planlayıcıları başarıyla durduruldu.`;
