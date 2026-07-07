@@ -271,11 +271,12 @@ async function hasInactivityRole(userId, client) {
   }
 }
 
-async function verifyActiveStaffRole(userId, client) {
+async function verifyActiveStaffRole(userId, client, guildId) {
   try {
-    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const targetGuildId = guildId || GUILD_ID;
+    const guild = await client.guilds.fetch(targetGuildId).catch(() => null);
     if (!guild) {
-      console.warn(`[staffSystem] verifyActiveStaffRole: Guild ${GUILD_ID} not found. Defaulting to true.`);
+      console.warn(`[staffSystem] verifyActiveStaffRole: Guild ${targetGuildId} not found. Defaulting to true.`);
       return true; // Safety fallback
     }
 
@@ -310,7 +311,7 @@ async function verifyActiveStaffRole(userId, client) {
 async function syncAndFilterActiveStaff(allProgress, client) {
   const activeList = [];
   for (const p of allProgress) {
-    const isStillStaff = await verifyActiveStaffRole(p.userId, client);
+    const isStillStaff = await verifyActiveStaffRole(p.userId, client, p.guildId);
     if (!isStillStaff) {
       console.log(`[staffSystem] Skipping user ${p.userId} in scheduled run due to missing roles or not in guild.`);
       // Artık rolü yoksa — dismissed olarak işaretle ki bir daha DM gitmesin
@@ -391,7 +392,7 @@ async function getOrCreate(userId, guildId, client) {
     if (p.status === 'dismissed') {
       let isStillStaff = false;
       if (client) {
-        isStillStaff = await verifyActiveStaffRole(userId, client);
+        isStillStaff = await verifyActiveStaffRole(userId, client, guildId || p.guildId);
       }
       if (!isStillStaff) {
         console.log(`[staffSystem] getOrCreate: User ${userId} is dismissed, skipping.`);
