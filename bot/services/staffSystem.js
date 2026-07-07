@@ -377,13 +377,32 @@ function getDailyTaskCompletionStats(progress) {
 
 // ── Kullanıcı al/oluştur ──────────────────────────────────────────────────
 async function getOrCreate(userId, guildId, client) {
+  if (!client) {
+    try {
+      const { getDiscordClient } = require('../discordClient');
+      client = getDiscordClient();
+    } catch (_) {}
+  }
+
   let p = await StaffProgress.findOne({ userId });
 
   if (p) {
-    // Kovulmuş/çıkarılmış kullanıcılar hiçbir zaman aktif edilmez
+    // Kovulmuş/çıkarılmış kullanıcılar hiçbir zaman aktif edilmez (Unless they have active roles in Discord now)
     if (p.status === 'dismissed') {
-      console.log(`[staffSystem] getOrCreate: User ${userId} is dismissed, skipping.`);
-      return null;
+      let isStillStaff = false;
+      if (client) {
+        isStillStaff = await verifyActiveStaffRole(userId, client);
+      }
+      if (!isStillStaff) {
+        console.log(`[staffSystem] getOrCreate: User ${userId} is dismissed, skipping.`);
+        return null;
+      }
+      // Reactivate them!
+      console.log(`[staffSystem] getOrCreate: User ${userId} was dismissed but has staff roles on Discord. Reactivated to active.`);
+      p.status = 'active';
+      p.dismissedAt = null;
+      p.dismissReason = '';
+      await p.save();
     }
     if (p.status !== 'active') {
       p.status = 'active';
