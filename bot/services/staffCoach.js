@@ -155,6 +155,13 @@ Görevin ve Roleplay Kuralların:
   Hak ettiklerinde cömertçe kullan!`;
 }
 
+function safeCoachReply(interaction, payload) {
+  if (interaction.deferred || interaction.replied) {
+    return interaction.editReply(payload).catch(() => null);
+  }
+  return interaction.reply({ ...payload, ephemeral: true }).catch(() => null);
+}
+
 // ── /koc komutu çalıştığında ───────────────────────────────────────────────
 async function startCoachSession(interaction) {
   if (!interaction.deferred && !interaction.replied) {
@@ -166,7 +173,7 @@ async function startCoachSession(interaction) {
   // Personel mi kontrol et
   const progress = await StaffProgress.findOne({ userId }).catch(() => null);
   if (!progress || progress.status === 'resigned' || progress.status === 'retired' || progress.status === 'dismissed') {
-    return interaction.editReply({
+    return safeCoachReply(interaction, {
       content: '❌ Koç hizmeti sadece aktif personele açıktır. Personel sistemine kayıtlı değilsin.',
     });
   }
@@ -176,7 +183,7 @@ async function startCoachSession(interaction) {
   if (existing) {
     const inactiveSince = Date.now() - existing.lastActivity;
     if (inactiveSince < SESSION_TIMEOUT_MS) {
-      return interaction.editReply({
+      return safeCoachReply(interaction, {
         content: '💬 Zaten açık bir koç sohbeti var! DM\'ine gidin ve Koç\'a yazın.\n\nSohbeti sıfırlamak için `/koc sıfırla` komutunu kullanın.',
       });
     }
@@ -241,10 +248,10 @@ async function startCoachSession(interaction) {
     );
 
     await interaction.user.send({ embeds: [embed], components: [row1, row2] });
-    return interaction.editReply({ content: '✅ Koçun DM\'ine gönderildi! DM\'ini aç.' });
+    return safeCoachReply(interaction, { content: '✅ Koçun DM\'ine gönderildi! DM\'ini aç.' });
   } catch (err) {
     activeCoachSessions.delete(userId);
-    return interaction.editReply({
+    return safeCoachReply(interaction, {
       content: '❌ DM gönderilemedi. DM\'lerin açık olduğundan emin ol.',
     });
   }
@@ -372,7 +379,11 @@ async function handleCoachButton(interaction, client) {
   }
 
   if (!session) {
-    await interaction.reply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.', ephemeral: true }).catch(() => {});
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.' }).catch(() => {});
+    } else {
+      await interaction.reply({ content: '❌ Aktif oturum yok. `/koc` ile yeni başlat.', ephemeral: true }).catch(() => {});
+    }
     return true;
   }
 
