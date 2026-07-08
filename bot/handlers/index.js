@@ -2755,6 +2755,7 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("interactionCreate", async (interaction) => {
+    global.lastInteraction = interaction;
     try {
       // ── Hata onay butonu (TAMAMDIR) ──────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('error_ack_')) {

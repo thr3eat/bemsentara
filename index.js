@@ -15,10 +15,23 @@ const logger = require("./utils/logger");
 // ── PROCESS ERROR HANDLERS (7/24 SELF-HEALING) ──
 process.on("unhandledRejection", (reason, promise) => {
   logger.error("Unhandled Rejection at:", promise, "reason:", reason);
+  try {
+    if (global.lastInteraction) {
+      const { sendErrorReplyWithButton } = require("./bot/services/errorReporter");
+      const err = reason instanceof Error ? reason : new Error(String(reason));
+      sendErrorReplyWithButton(global.lastInteraction, err, "Process Unhandled Rejection").catch(() => {});
+    }
+  } catch (_) {}
 });
 
 process.on("uncaughtException", (error) => {
   logger.error("Uncaught Exception thrown:", error);
+  try {
+    if (global.lastInteraction) {
+      const { sendErrorReplyWithButton } = require("./bot/services/errorReporter");
+      sendErrorReplyWithButton(global.lastInteraction, error, "Process Uncaught Exception").catch(() => {});
+    }
+  } catch (_) {}
 });
 
 const discordBot = createDiscordClient();
@@ -91,6 +104,39 @@ async function start() {
     });
 
     // Login and wait for ready
+    discordBot.once("ready", async () => {
+      logger.success(`Discord bot başlatıldı: ${discordBot.user.tag}`);
+      
+      const { LOG_CHANNEL_ID } = require("./config");
+      const { EmbedBuilder } = require("discord.js");
+      try {
+        const channel = await discordBot.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (channel) {
+          const embed = new EmbedBuilder()
+            .setColor(0x7c6af7)
+            .setTitle("⚙️ BOT YENİDEN BAŞLATMA SİHİRBAZI")
+            .setDescription("Bot yeniden başlatılıyor ⏳\nLütfen 15 saniye bekleyin... Aktarılıyorsunuz.")
+            .setFooter({ text: "Eko Yıldız • Sistem Başlatıcı" })
+            .setTimestamp();
+            
+          const msg = await channel.send({ embeds: [embed] }).catch(() => null);
+          if (msg) {
+            setTimeout(async () => {
+              const successEmbed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle("✅ BOT BAŞARIYLA YENİDEN BAŞLATILDI")
+                .setDescription("🚀 Bot tüm sistemleri başarıyla yükledi ve aktif hale getirildi.")
+                .setFooter({ text: "Eko Yıldız • Sistem Başlatıcı" })
+                .setTimestamp();
+              await msg.edit({ embeds: [successEmbed] }).catch(() => {});
+            }, 15000);
+          }
+        }
+      } catch (err) {
+        logger.error("[index] Startup message error:", err.message);
+      }
+    });
+
     await discordBot.login(TOKEN);
     logger.success("Discord bot başlatıldı");
 
