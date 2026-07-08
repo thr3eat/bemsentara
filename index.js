@@ -13,7 +13,7 @@ const axios = require("axios");
 const logger = require("./utils/logger");
 
 const discordBot = createDiscordClient();
-const { setDiscordClient } = require("./bot/discofffffrdClient");
+const { setDiscordClient } = require("./bot/discordClient");
 setDiscordClient(discordBot);
 initializeDiscordHandlers(discordBot);
 
