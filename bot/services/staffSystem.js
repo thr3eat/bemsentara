@@ -327,21 +327,7 @@ function getDailyTaskCompletionStats(progress) {
   const greetPercent = targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100;
   const voicePercent = targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100;
 
-  let totalPercent = 0;
-  let hasChosenTask = false;
-  let chosenTaskDone = false;
-
-  if (progress.daily?.chosenTask) {
-    hasChosenTask = true;
-    chosenTaskDone = isToday && progress.daily?.chosenTaskCompleted;
-  }
-
-  if (hasChosenTask) {
-    const chosenPercent = chosenTaskDone ? 100 : 0;
-    totalPercent = Math.round(greetPercent * 0.4 + voicePercent * 0.4 + chosenPercent * 0.2);
-  } else {
-    totalPercent = Math.round(greetPercent * 0.5 + voicePercent * 0.5);
-  }
+  const totalPercent = Math.round(greetPercent * 0.5 + voicePercent * 0.5);
 
   const filledBars = Math.min(10, totalPercent > 0 ? Math.max(1, Math.floor(totalPercent / 10)) : 0);
   const emptyBars = 10 - filledBars;
@@ -2159,10 +2145,10 @@ async function sendMidDayReminder(progress, client) {
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
   const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
 
-  const missing = [];
-  const greetsSent = progress.daily?.greetCount || 0;
+  const greetsSent = progress.daily?.date === today ? (progress.daily?.greetCount || 0) : 0;
+  const voiceMinutes = progress.daily?.date === today ? (progress.daily?.voiceMinutes || 0) : 0;
   if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets - greetsSent}x daha selam ver (Gereken: ${req.greets})`);
-  if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)`);
+  if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - voiceMinutes} dk daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)`);
 
   if (missing.length === 0) return; // Zaten tamamlamış
 
@@ -2179,7 +2165,7 @@ async function sendMidDayReminder(progress, client) {
     )
     .addFields(
       { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
-      { name: '🎤 Ses (bugün)', value: `${progress.daily?.voiceMinutes || 0}/${req.voiceMinutes} dk`, inline: true },
+      { name: '🎤 Ses (bugün)', value: `${voiceMinutes}/${req.voiceMinutes} dk`, inline: true },
     )
     .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz!' })
     .setTimestamp();
@@ -2219,6 +2205,9 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
     aiMsg = aiMsg?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
+  const greetsSent = progress.daily?.date === today ? (progress.daily?.greetCount || 0) : 0;
+  const voiceMinutes = progress.daily?.date === today ? (progress.daily?.voiceMinutes || 0) : 0;
+
   const embed = new EmbedBuilder()
     .setColor(0xff9500)
     .setTitle('🌙 Akşam Son Uyarısı (19:00)')
@@ -2227,8 +2216,8 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
       `**Gece 23:30'a kadar** görevlerini tamamlamazsan yarın uyarı sayacın artacak!\n\n` +
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Yapman gerekenler:**\n` +
-      (!isGreetDone ? `• ✅ Sohbete **${req.greets - (progress.daily?.greetCount || 0)}x** daha selam ver (Gereken: ${req.greets})\n` : '') +
-      (!voiceDone ? `• 🎤 **${req.voiceMinutes - (progress.daily?.voiceMinutes || 0)} dk** daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)\n` : '') +
+      (!isGreetDone ? `• ✅ Sohbete **${req.greets - greetsSent}x** daha selam ver (Gereken: ${req.greets})\n` : '') +
+      (!voiceDone ? `• 🎤 **${req.voiceMinutes - voiceMinutes} dk** daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)\n` : '') +
       `\n🕐 **${7 - warnCount} uyarı hakkın kaldı.** (Sonra rol geçici olarak alınır)\n\n` +
       `Meşgulsen, yapabilecekten bile yararlı! Kısmi tamamlama da iyi!`
     )
@@ -2717,7 +2706,15 @@ function startStaffScheduler(client) {
           await user.send({ embeds: [embed] });
         } catch (_) { }
       } else {
+        const today = todayStr();
         const stats = getDailyTaskCompletionStats(p);
+        const targetVoice = req.voiceMinutes + (p.daily?.date === today ? (p.daily?.transferredVoiceMinutes || 0) : 0);
+        const targetGreets = req.greets + (p.daily?.date === today ? (p.daily?.transferredGreets || 0) : 0);
+
+        const isGreetDone = p.daily?.date === today && p.daily?.greeted;
+        const greetsSent = p.daily?.date === today ? (p.daily?.greetCount || 0) : 0;
+        const voiceMinutes = p.daily?.date === today ? (p.daily?.voiceMinutes || 0) : 0;
+
         const embed = new EmbedBuilder()
           .setColor(0xff3333)
           .setTitle('🚨 SON ÇAĞRI: Günlük Görevler İçin Son 2.5 Saat!')
@@ -2726,8 +2723,8 @@ function startStaffScheduler(client) {
             `Görevin gece **23:30'da** sıfırlanacak ve kontrol edilecektir. Haklarının yanmaması için lütfen kalan hedeflerini tamamla!\n\n` +
             `📊 **Mevcut İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
             `📋 **Kalan Görevlerin:**\n` +
-            (!p.daily?.greeted ? `• ✅ Sohbete **${req.greets - (p.daily?.greetCount || 0)}x** daha selam ver (Gereken: ${req.greets})\n` : '') +
-            ((p.daily?.voiceMinutes || 0) < targetVoice ? `• 🎤 **${targetVoice - (p.daily?.voiceMinutes || 0)} dk** daha ses kanalında kal (Gereken: ${targetVoice} dk)\n` : '') +
+            (!isGreetDone ? `• 👋 **${targetGreets - greetsSent}x** daha yeni üyeye hoş geldin de (Gereken: ${targetGreets}x)\n` : '') +
+            (voiceMinutes < targetVoice ? `• 🎤 **${targetVoice - voiceMinutes} dk** daha ses kanalında kal (Gereken: ${targetVoice} dk)\n` : '') +
             (p.daily?.chosenTask && !p.daily?.chosenTaskCompleted ? `• 🎯 Seçmeli Görev: **${CHOSEN_TASKS[p.daily.chosenTask] || p.daily.chosenTask}**\n` : '') +
             `\n⚠️ **Unutma:** Görevleri tamamlamazsan uyarı alabilirsin. Şu anki ardışık günlerin: **${p.stats?.consecutiveDays || 0} gün**.`
           )

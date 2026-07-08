@@ -21,7 +21,7 @@ const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1504201250160246886"
 const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || "1505511498095788063";
 
 // ── İkinci sunucu (EKOYILDIZ) ────────────────────────────────────────────────
-const GUILD2_ID = process.env.GUILD2_ID || "1367646464804655104";
+const GUILD2_ID = process.env.GUILD2_ID || "1367646464804655104"; // EKO YILDIZ SUNUCU ID
 /** Ticket kanallarının açılacağı kategori */
 const GUILD2_TICKET_CATEGORY_ID = process.env.GUILD2_TICKET_CATEGORY_ID || "1518716275239551046";
 /** Ticket log kanalı (isteğe bağlı, boş bırakılabilir) */
@@ -101,7 +101,7 @@ const EKOYILDIZ_KELIME_OYUNU_CHANNEL_ID = process.env.EKOYILDIZ_KELIME_OYUNU_CHA
 /** EkoYıldız Bom Oyunu Kanalı */
 const EKOYILDIZ_BOM_CHANNEL_ID = process.env.EKOYILDIZ_BOM_CHANNEL_ID || "1518692510384521226";
 /** EkoYıldız Hikaye Oyunu Kanalı */
-const EKOYILDIZ_STORY_GAME_CHANNEL_ID = process.env.EKOYILDIZ_STORY_GAME_CHANNEL_ID || "1524056041158086767";
+const EKOYILDIZ_STORY_GAME_CHANNEL_ID = process.env.EKOYILDIZ_STORY_GAME_CHANNEL_ID || "1521486905924124672";
 
 // ── Sunucu Davet Linkleri (Gece Ban Sistemi İçin) ──────────────────────────────
 const SERVER_INVITE_LINKS = {
