@@ -199,14 +199,16 @@ async function migrateFileToMongo() {
   }
 }
 
-function saveStoreNow() {
+async function saveStoreNow() {
   // Her iki sisteme de yaz
   flushSave(collections);
   if (db.isMongoActive()) {
     const colNames = ["users", "tickets", "economies", "wikiArticles"];
-    for (const name of colNames) {
-      db.saveCollectionToMongo(name, collections[name].data).catch(() => {});
-    }
+    const promises = colNames.map(name => 
+      db.saveCollectionToMongo(name, collections[name].data)
+        .catch(err => console.error(`[Store] Toplu kayıt hatası (${name}):`, err.message))
+    );
+    await Promise.all(promises);
   }
 }
 

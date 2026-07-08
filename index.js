@@ -82,7 +82,8 @@ async function shutdown(signal) {
 
   try {
     const { saveStoreNow } = require("./models/Store");
-    saveStoreNow();
+    await saveStoreNow();
+    console.log("[Store] Tüm veriler başarıyla kaydedildi.");
   } catch (err) {
     console.error("[Store] Kaydetme hatası:", err.message);
   }
