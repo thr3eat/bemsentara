@@ -19,7 +19,7 @@ const recordSchema = new mongoose.Schema(
     collection: { type: String, required: true, index: true },
     data: { type: mongoose.Schema.Types.Mixed, required: true },
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 recordSchema.index({ collection: 1, _storeId: 1 }, { unique: true });
 
