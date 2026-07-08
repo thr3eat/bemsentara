@@ -18,7 +18,9 @@ const logger = require("./utils/logger");
 const discordBot = createDiscordClient();
 
 discordBot.on("debug", (info) => {
-  // Tüm debug mesajlarını logla (gateway bağlantı sorununu bulmak için)
+  // Normal Heartbeat acknowledged gibi sık tekrar eden gateway debug mesajlarını sessize al
+  if (typeof info === 'string' && info.includes('Heartbeat acknowledged')) return;
+  if (typeof info === 'string' && info.includes('WS => Shard')) return;
   logger.info(`[Discord Debug] ${info}`);
 });
 discordBot.on("warn", (info) => {
