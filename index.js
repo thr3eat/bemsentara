@@ -11,7 +11,7 @@ const cron = require("node-cron");
 const axios = require("axios");
 
 const logger = require("./utils/logger");
-asd
+
 // ── PROCESS ERROR HANDLERS (7/24 SELF-HEALING) ──
 process.on("unhandledRejection", (reason, promise) => {
   logger.error("Unhandled Rejection at:", promise, "reason:", reason);
