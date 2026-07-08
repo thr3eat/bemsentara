@@ -23,6 +23,7 @@ const GENERAL_COMMANDS = new Set([
   "otomod",
   "yardim",
   "ping",
+  "bakim",
   "stats",
   "personeldurum",
   "seviye",
@@ -663,6 +664,31 @@ async function handleGeneralCommand(interaction) {
       console.error('[personelkov] hata:', err.message);
       return interaction.editReply({ content: `❌ Beklenmedik bir hata oluştu: ${err.message}` });
     }
+  }
+
+  // ── bakim: Sistem Bakım Modunu Aç/Kapat (Yöneticiler) ────────────────────
+  if (commandName === "bakim") {
+    const { ADMIN_IDS } = require("../../config");
+    const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isYonetici) {
+      return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
+    }
+
+    global.maintenanceMode = !global.maintenanceMode;
+
+    const embed = new EmbedBuilder()
+      .setColor(global.maintenanceMode ? 0xe67e22 : 0x2ecc71)
+      .setTitle("⚙️ SİSTEM BAKIM MODU GÜNCELLEMESİ")
+      .setDescription(
+        `Sistem bakım modu başarıyla değiştirildi.\n\n` +
+        `📊 **Güncel Durum:** ${global.maintenanceMode ? "🟢 **ETKİN (Bakım Modunda)**" : "🔴 **DEVRE DIŞI (Normal Çalışma Modu)**"}`
+      )
+      .setFooter({ text: "Eko Yıldız • Bakım Modu" })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
   // ── sayim: Aylık yoklama sistemi (Yöneticiler) ───────────────────────────

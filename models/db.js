@@ -81,7 +81,7 @@ async function upsertRecord(collectionName, storeId, data) {
     await Record.findOneAndUpdate(
       { collection: collectionName, _storeId: storeId },
       { $set: { data: clean } },
-      { upsert: true, new: true }
+      { upsert: true, new: true, session: null }
     );
   } catch (err) {
     console.error(`[db] Kayıt güncellenemedi (${collectionName}/${storeId}):`, err.message);
@@ -106,7 +106,7 @@ async function saveCollectionToMongo(collectionName, map) {
       });
     }
     if (ops.length > 0) {
-      await Record.bulkWrite(ops, { ordered: false });
+      await Record.bulkWrite(ops, { ordered: false, session: null });
     }
   } catch (err) {
     console.error(`[db] Toplu kayıt hatası (${collectionName}):`, err.message);

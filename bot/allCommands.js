@@ -585,6 +585,11 @@ const generalCommands = [
       s.setName("status")
         .setDescription("RoWifi sistemi durumunu ve yapılandırmasını gösterir")
     ),
+
+  new SlashCommandBuilder()
+    .setName("bakim")
+    .setDescription("⚙️ Sistem Otomatik Bakım Modunu Aç/Kapat")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ];
 
 const economyCommands = [

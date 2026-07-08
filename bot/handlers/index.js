@@ -2756,6 +2756,43 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     global.lastInteraction = interaction;
+
+    // ── BAKIM MODU ENGELLEYİCİ KONTROL ──
+    const fs = require("fs");
+    const path = require("path");
+    let isMaintenance = false;
+    try {
+      const maintPath = path.join(__dirname, "../../maintenance.json");
+      if (fs.existsSync(maintPath)) {
+        const data = JSON.parse(fs.readFileSync(maintPath, "utf8"));
+        isMaintenance = !!data.active;
+      }
+    } catch (_) {}
+
+    if (isMaintenance) {
+      const { ADMIN_IDS } = require("../../config");
+      const { PermissionFlagsBits, EmbedBuilder } = require("discord.js");
+      const isDev = ADMIN_IDS.includes(interaction.user.id) ||
+                    interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+      if (!isDev) {
+        const maintenanceEmbed = new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setTitle("⚙️ OTOMATİK SİSTEM BAKIM MODU")
+          .setDescription(
+            `⚠️ **Dikkat Yetkililer ve Kullanıcılar!**\n\n` +
+            `Sistemde kritik bir çalışma zamanı hatası veya kararsızlık algılandığı için bot otomatik olarak **Bakım Modu**'na geçiş yapmıştır.\n\n` +
+            `🛠️ *Geliştiriciler ve teknik ekip şu anda sistemi stabilize etmeye çalışmaktadır. Tüm komutlar ve fonksiyonlar geçici olarak askıya alınmıştır.*`
+          )
+          .setFooter({ text: "Eko Yıldız • Bakım Modu" })
+          .setTimestamp();
+
+        if (interaction.isRepliable()) {
+          return interaction.reply({ embeds: [maintenanceEmbed], ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
+    }
+
     try {
       // ── Hata onay butonu (TAMAMDIR) ──────────────────────────────────────────
       if (interaction.isButton() && interaction.customId?.startsWith('error_ack_')) {

@@ -42,6 +42,21 @@ process.on("unhandledRejection", (reason, promise) => {
 
 process.on("uncaughtException", (error) => {
   logger.error("Uncaught Exception thrown:", error);
+
+  // Otomatik Bakım Modunu Etkinleştir (Kritik Çökme)
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    fs.writeFileSync(
+      path.join(__dirname, "maintenance.json"), 
+      JSON.stringify({ active: true, reason: error.message, timestamp: new Date() }), 
+      "utf8"
+    );
+    logger.warn("[index] Otomatik Bakım Modu kritik çökme nedeniyle ETKİNLEŞTİRİLDİ.");
+  } catch (err) {
+    logger.error("[index] Bakım modu dosyası yazılamadı:", err.message);
+  }
+
   try {
     if (global.lastInteraction) {
       const { sendErrorReplyWithButton } = require("./bot/services/errorReporter");

@@ -20,13 +20,13 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
       reported: false,
       timestamp: new Date()
     };
-    
+
     // Save to errorReports
     const ErrorReportModel = require("../../models/ErrorReport");
     await ErrorReportModel.create(errorData);
 
     // Send DM to developer
-    const { getDiscordClient } = require("../discordClient");
+    const { getDiscordCli ent } = require("../discordClient");
     const client = getDiscordClient();
     if (client) {
       try {
@@ -60,20 +60,20 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
               .setStyle(ButtonStyle.Success)
           );
 
-          await devUser.send({ embeds: [embed], components: [ackRow] }).catch(() => {});
+          await devUser.send({ embeds: [embed], components: [ackRow] }).catch(() => { });
         }
       } catch (dmErr) {
         console.error("[ErrorReporter] DM notification error:", dmErr.message);
       }
     }
-    
+
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`report_err_${errorId}`)
         .setLabel("⚠️ BU HATAYI GERİ BİLDİR")
         .setStyle(ButtonStyle.Danger)
     );
-    
+
     return { errorId, row };
   } catch (err) {
     console.error("[ErrorReporter] saveErrorAndGetButton error:", err.message);
@@ -88,9 +88,9 @@ async function sendErrorReplyWithButton(interaction, error, context) {
   try {
     const guildId = interaction.guild?.id || null;
     const userId = interaction.user?.id || interaction.author?.id || null;
-    
+
     const result = await saveErrorAndGetButton(error, context, guildId, userId);
-    
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle("🔧 OTOMATİK HATA DÜZELTME SİHİRBAZI")
@@ -102,17 +102,17 @@ async function sendErrorReplyWithButton(interaction, error, context) {
       )
       .setFooter({ text: "Eko Yıldız • Self-Healing V5.1" })
       .setTimestamp();
-    
+
     if (interaction.replied || interaction.deferred) {
-      await interaction.editReply({ content: "", embeds: [embed], components: result ? [result.row] : [] }).catch(() => {});
+      await interaction.editReply({ content: "", embeds: [embed], components: result ? [result.row] : [] }).catch(() => { });
     } else {
       const payload = { embeds: [embed], ephemeral: true };
       if (result) payload.components = [result.row];
-      
+
       if (typeof interaction.reply === "function") {
-        await interaction.reply(payload).catch(() => {});
+        await interaction.reply(payload).catch(() => { });
       } else if (interaction.channel && typeof interaction.channel.send === "function") {
-        await interaction.channel.send({ embeds: [embed], components: result ? [result.row] : [] }).catch(() => {});
+        await interaction.channel.send({ embeds: [embed], components: result ? [result.row] : [] }).catch(() => { });
       }
     }
 
@@ -130,9 +130,9 @@ async function sendErrorReplyWithButton(interaction, error, context) {
           )
           .setFooter({ text: "Eko Yıldız • Self-Healing V5.1" })
           .setTimestamp();
-          
+
         if (interaction.replied || interaction.deferred) {
-          await interaction.editReply({ embeds: [recoveryEmbed], components: [] }).catch(() => {});
+          await interaction.editReply({ embeds: [recoveryEmbed], components: [] }).catch(() => { });
         }
       } catch (recoveryErr) {
         console.error("[ErrorReporter] Auto recovery update failed:", recoveryErr.message);
