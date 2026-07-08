@@ -239,7 +239,7 @@ async function giveAvukatRole(userId, client) {
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
 async function getAuth(interaction) {
-  return interaction.member?.permissions.has('Administrator') ||
+  return interaction.member?.permissions?.has('Administrator') ||
          interaction.user.id === '1031620522406072350';
 }
 

@@ -152,8 +152,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "personelayarla") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -323,8 +323,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "personelrapor") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -412,8 +412,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "seviyeayarla") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -546,8 +546,8 @@ async function handleGeneralCommand(interaction) {
 
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
@@ -670,8 +670,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "bakim") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
     }
@@ -697,7 +697,7 @@ async function handleGeneralCommand(interaction) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
 
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+    const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
@@ -717,8 +717,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "konus") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
@@ -738,8 +738,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "odulver") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
@@ -823,8 +823,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "promote" || commandName === "personelterfi") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
@@ -888,8 +888,8 @@ async function handleGeneralCommand(interaction) {
   if (commandName === "tenzilat") {
     const { ADMIN_IDS } = require("../../config");
     const isYonetici = ADMIN_IDS.includes(interaction.user.id) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
     if (!isYonetici) {
       return interaction.reply({ content: '❌ Bu komut sadece yöneticiler tarafından kullanılabilir.', ephemeral: true });
     }
@@ -2807,8 +2807,8 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
     }
 
     if (commandName === "birimalimi" || commandName === "birim-alimi") {
-      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+      const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
         interaction.guild?.ownerId === interaction.user.id ||
         interaction.user.id === "1031620522406072350";
       if (!isYonetici) {
@@ -2830,8 +2830,8 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
     }
 
     if (commandName === "birimtanitim" || commandName === "birim-tanitim") {
-      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+      const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
         interaction.guild?.ownerId === interaction.user.id ||
         interaction.user.id === "1031620522406072350";
       if (!isYonetici) {
@@ -2998,8 +2998,8 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
     }
 
     if (commandName === "abusetest") {
-      const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
-        interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild);
+      const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
       if (!isYonetici) {
         return interaction.reply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.', ephemeral: true });
       }
@@ -3160,8 +3160,8 @@ async function handlePanelCommand(interaction) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
 
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+    const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
@@ -3184,8 +3184,8 @@ async function handlePanelCommand(interaction) {
       await interaction.deferReply({ ephemeral: false }).catch(() => { });
     }
 
-    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
-      interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+    const isYonetici = interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+      interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
     if (!isYonetici) {
       return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }

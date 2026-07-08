@@ -2773,7 +2773,7 @@ function initializeDiscordHandlers(client) {
       const { ADMIN_IDS } = require("../../config");
       const { PermissionFlagsBits, EmbedBuilder } = require("discord.js");
       const isDev = ADMIN_IDS.includes(interaction.user.id) ||
-                    interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+                    interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
       if (!isDev) {
         const maintenanceEmbed = new EmbedBuilder()
           .setColor(0xe67e22)

@@ -253,9 +253,9 @@ async function handleUserMessage(message, client) {
     let isModerator = false;
 
     try {
-      if (message.member?.permissions.has('ManageMessages') ||
-          message.member?.permissions.has('ModerateMembers') ||
-          message.member?.permissions.has('ManageChannels')) {
+      if (message.member?.permissions?.has('ManageMessages') ||
+          message.member?.permissions?.has('ModerateMembers') ||
+          message.member?.permissions?.has('ManageChannels')) {
         isModerator = true;
       }
       if (!isModerator) {
