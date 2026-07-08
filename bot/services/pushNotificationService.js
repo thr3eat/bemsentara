@@ -1,8 +1,8 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const PUSH_API_URL = process.env.PUSH_API_URL || 'https://docs.push.techulus.com/api-documentation'; // placeholder
-const PUSH_API_KEY = process.env.PUSH_API_KEY || 'YOUR_API_KEY_HERE';
+const PUSH_API_URL = process.env.PUSH_API_URL; // placeholder
+const PUSH_API_KEY = process.env.PUSH_API_KEY;
 
 /**
  * Sends a push notification via the external Push Techulus API.
