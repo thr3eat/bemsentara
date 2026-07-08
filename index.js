@@ -105,8 +105,28 @@ async function start() {
     // 2. Discord login ve komut kaydını arka planda (asenkron) başlat
     logger.info(`Node.js version: ${process.version}`);
     logger.info(`TOKEN exists: ${!!TOKEN}, length: ${TOKEN?.length}`);
-    
-    discordBot.login(TOKEN)
+
+    // Pre-login: Discord REST erişilebilirlik testi
+    (async () => {
+      try {
+        const testRes = await axios.get("https://discord.com/api/v10/gateway", { timeout: 10000 });
+        logger.info(`[Discord REST Test] discord.com/api/v10/gateway: ${testRes.status} - url: ${testRes.data?.url}`);
+      } catch (e) {
+        logger.error(`[Discord REST Test] Discord API'ye ulaşılamadı: ${e.message}`);
+      }
+    })();
+
+    // 30 saniye timeout ile login — takılırsa açık hata verir
+    const loginWithTimeout = (token, timeoutMs = 30000) => {
+      return Promise.race([
+        discordBot.login(token),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Discord login ${timeoutMs / 1000}s içinde tamamlanamadı (gateway timeout)`)), timeoutMs)
+        )
+      ]);
+    };
+
+    loginWithTimeout(TOKEN)
       .then(async () => {
         logger.success("Discord bot giriş isteği başarılı ve aktif.");
         
