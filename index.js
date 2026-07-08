@@ -106,18 +106,8 @@ async function start() {
     logger.info(`Node.js version: ${process.version}`);
     logger.info(`TOKEN exists: ${!!TOKEN}, length: ${TOKEN?.length}`);
 
-    // Pre-login: Discord REST erişilebilirlik testi
-    (async () => {
-      try {
-        const testRes = await axios.get("https://discord.com/api/v10/gateway", { timeout: 10000 });
-        logger.info(`[Discord REST Test] discord.com/api/v10/gateway: ${testRes.status} - url: ${testRes.data?.url}`);
-      } catch (e) {
-        logger.error(`[Discord REST Test] Discord API'ye ulaşılamadı: ${e.message}`);
-      }
-    })();
-
-    // 30 saniye timeout ile login — takılırsa açık hata verir
-    const loginWithTimeout = (token, timeoutMs = 30000) => {
+    // 45 saniye timeout ile login — takılırsa açık hata verir
+    const loginWithTimeout = (token, timeoutMs = 45000) => {
       return Promise.race([
         discordBot.login(token),
         new Promise((_, reject) =>
@@ -129,7 +119,7 @@ async function start() {
     loginWithTimeout(TOKEN)
       .then(async () => {
         logger.success("Discord bot giriş isteği başarılı ve aktif.");
-        
+
         // Small delay to ensure bot is fully initialized
         await new Promise(r => setTimeout(r, 1000));
 
@@ -137,8 +127,13 @@ async function start() {
         await registerAllCommands();
       })
       .catch((err) => {
-        logger.error("Discord login veya başlatma hatası:", err.message || err);
-        logger.error("Full stack:", err.stack);
+        if (err.status === 429 || err.message?.includes('429') || err.message?.includes('rate limit')) {
+          logger.error("Discord login BAŞARISIZ: Render IP'si Discord tarafından rate limit'e alındı (429).");
+          logger.error("Çözüm: Birkaç dakika bekleyip tekrar deploy edin veya Discord Developer Portal'dan token yenileyin.");
+        } else {
+          logger.error("Discord login veya başlatma hatası:", err.message || err);
+          logger.error("Full stack:", err.stack);
+        }
         // Not calling process.exit(1) here so that the dashboard server stays running for diagnostics.
       });
   } catch (err) {

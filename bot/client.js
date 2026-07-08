@@ -18,6 +18,10 @@ function createDiscordClient() {
       Partials.Message,
       Partials.User,
     ],
+    rest: {
+      // Rate limit alınırsa beklemek yerine hemen hata fırlat (discord.js v14+)
+      rejectOnRateLimit: () => true,
+    },
   });
 }
 
