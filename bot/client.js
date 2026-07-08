@@ -1,11 +1,10 @@
 const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const https = require("https");
-const http = require("http");
 
 function createDiscordClient() {
-  // Force IPv4 agent to prevent gateway hangs on Render (IPv6 timeout issue)
+  // Force IPv4 agent to prevent REST API hangs on Render (IPv6 timeout issue)
+  // WebSocket gateway IPv4 is handled by dns.setDefaultResultOrder("ipv4first") in index.js
   const ipv4HttpsAgent = new https.Agent({ family: 4, keepAlive: true });
-  const ipv4HttpAgent = new http.Agent({ family: 4, keepAlive: true });
 
   return new Client({
     intents: [
@@ -26,10 +25,6 @@ function createDiscordClient() {
     ],
     // Force IPv4 for REST API calls
     rest: {
-      agent: ipv4HttpsAgent,
-    },
-    // Force IPv4 for WebSocket gateway connection
-    ws: {
       agent: ipv4HttpsAgent,
     },
   });
