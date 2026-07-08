@@ -69,6 +69,10 @@ const GENERAL_COMMANDS = new Set([
   "staff-giveleave",
   "staff-attendance-start",
   "staff-attendance-stop",
+  "attendance-start",
+  "attendance-stop",
+  "birim-alimi",
+  "birim-tanitim",
   "system-toggle",
   "system-ekobang",
   "system-ekobangerial",
@@ -2776,7 +2780,7 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
       return interaction.editReply({ embeds: [embed] });
     }
 
-    if (commandName === "birimalimi") {
+    if (commandName === "birimalimi" || commandName === "birim-alimi") {
       const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
         interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
         interaction.guild?.ownerId === interaction.user.id ||
@@ -2799,7 +2803,7 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
       return handleBirimIstifa(interaction);
     }
 
-    if (commandName === "birimtanitim") {
+    if (commandName === "birimtanitim" || commandName === "birim-tanitim") {
       const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.Administrator) ||
         interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
         interaction.guild?.ownerId === interaction.user.id ||
@@ -3124,36 +3128,48 @@ async function handlePanelCommand(interaction) {
     }
   }
 
-  // Staff attendance - forward to attendance-start
-  if (commandName === "staff-attendance-start") {
+  // Staff attendance - start (yoklama başlat)
+  if (commandName === "attendance-start" || commandName === "staff-attendance-start") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
+    }
+
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isYonetici) {
+      return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
 
     try {
-      const { startAttendance } = require("../services/staffSystem");
-      const result = await startAttendance(interaction);
-      return result;
+      const { startRollCall } = require('../services/rollCallService');
+      await startRollCall(interaction.client, interaction);
+      return;
     } catch (err) {
-      console.error('[staff-attendance-start]', err);
+      console.error('[attendance-start]', err);
       return interaction.editReply({
         content: `❌ Hata: ${err.message}`
       });
     }
   }
 
-  // Staff attendance stop
-  if (commandName === "staff-attendance-stop") {
+  // Staff attendance - stop (yoklama bitir)
+  if (commandName === "attendance-stop" || commandName === "staff-attendance-stop") {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+      await interaction.deferReply({ ephemeral: false }).catch(() => { });
+    }
+
+    const isYonetici = interaction.member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+      interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isYonetici) {
+      return interaction.editReply({ content: '❌ Bu komutu sadece yöneticiler kullanabilir.' });
     }
 
     try {
-      const { stopAttendance } = require("../services/staffSystem");
-      const result = await stopAttendance(interaction);
-      return result;
+      const { endRollCall } = require('../services/rollCallService');
+      await endRollCall(interaction.client, interaction);
+      return;
     } catch (err) {
-      console.error('[staff-attendance-stop]', err);
+      console.error('[attendance-stop]', err);
       return interaction.editReply({
         content: `❌ Hata: ${err.message}`
       });

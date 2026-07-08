@@ -819,8 +819,8 @@ async function handleSlashCommand(interaction) {
 
     if (["mute", "unmute", "modaction", "bulk-delete", "karaliste",
          "staff-report", "reward", "giveleave",
-         "attendance-start", "attendance-stop", "toggle", "channel-perms", "otomod",
-         "birim-alimi", "birim-tanitim", "xp-cekilis", "ai-konusma", "abuse-test",
+         "toggle", "channel-perms", "otomod",
+         "xp-cekilis", "ai-konusma", "abuse-test",
          "ekobang", "ekobangerial", "grupcekeko", "grupcekekogerial"].includes(commandName)) {
       return interaction.editReply({
         content: `✅ **/${commandName}** komutu işlenmiştir. (Panel arayüzü üzerinden detaylı işlem yapabilirsiniz)`
