@@ -41,7 +41,12 @@ const staffProgressSchema = new mongoose.Schema({
     transferredVoiceMinutes: { type: Number, default: 0 },
     transferredGreets: { type: Number, default: 0 },
     transferToTomorrowVoice: { type: Number, default: 0 },
-    transferToTomorrowGreets: { type: Number, default: 0 }
+    transferToTomorrowGreets: { type: Number, default: 0 },
+
+    // Yeni İlerleme ve Takip Alanları (V5.1)
+    greetMessageId: { type: String, default: '' },
+    wordGamesPlayed: { type: Number, default: 0 },
+    bomGamesPlayed: { type: Number, default: 0 }
   },
 
   // İstatistikler (terfi için)
@@ -150,6 +155,12 @@ const staffProgressSchema = new mongoose.Schema({
   retiredAt: { type: Date, default: null },
   dismissedAt: { type: Date, default: null },
   dismissReason: { type: String, default: null },
+
+  // Bildirim ve Tercih Ayarları
+  settings: {
+    dailyBriefingEnabled: { type: Boolean, default: true },
+    warningsEnabled: { type: Boolean, default: true }
+  }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

@@ -11,6 +11,15 @@ const cron = require("node-cron");
 const axios = require("axios");
 
 const logger = require("./utils/logger");
+asd
+// ── PROCESS ERROR HANDLERS (7/24 SELF-HEALING) ──
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception thrown:", error);
+});
 
 const discordBot = createDiscordClient();
 const { setDiscordClient } = require("./bot/discordClient");
@@ -41,7 +50,7 @@ async function start() {
     try {
       const StaffProgress = require("./models/StaffProgress");
       const result = await StaffProgress.updateMany(
-        { 
+        {
           status: 'dismissed',
           dismissReason: 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)'
         },

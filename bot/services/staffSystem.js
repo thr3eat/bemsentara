@@ -16,7 +16,10 @@ const CHOSEN_TASKS = {
   'task_ticket': '🎫 Destekçi: Bugün en az 1 ticket çöz.',
   'task_mod': '🛡️ Koruyucu: Bugün en az 1 moderasyon işlemi gerçekleştir.',
   'task_greet': '👋 Hoş Geldin Elçisi: Bugün en az 5 yeni üyeye hoş geldin de.',
-  'task_double_greet': '👋 Hoş Geldin Lideri: Bugün en az 10 yeni üyeye hoş geldin de.'
+  'task_double_greet': '👋 Hoş Geldin Lideri: Bugün en az 10 yeni üyeye hoş geldin de.',
+  'task_word_game': '🔤 Kelime Avcısı: Kelime oyununda en az 5 doğru kelime yaz.',
+  'task_bom_game': '💣 BOM Ustası: BOM oyununda en az 5 doğru sayı/bom yaz.',
+  'task_chat_with_people': '💬 Sohbet Dostu: Sohbette insanlarla aktif olarak 20 mesaj yazış.'
 };
 
 const ROLES = {
@@ -146,6 +149,10 @@ function getDailyRequirements(level, consecutiveDays = 0) {
 
 // ── Aktif gün az uyarı (< 2 gün) ──────────────────────────────────────────
 async function checkLowActivityWarning(progress, client) {
+  if (progress.settings?.warningsEnabled === false) {
+    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
   const activeDays = progress.stats?.activeDays || 0;
   const level = progress.level || 1;
 
@@ -440,7 +447,7 @@ function resetDaily(progress) {
 
   // 🔧 Güvenlik: daily objesi tanımlı değilse oluştur
   if (!progress.daily) {
-    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
+    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet', 'task_word_game', 'task_bom_game', 'task_chat_with_people'];
     const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
     progress.daily = {
       date: today,
@@ -462,7 +469,10 @@ function resetDaily(progress) {
       transferredVoiceMinutes: 0,
       transferredGreets: 0,
       transferToTomorrowVoice: 0,
-      transferToTomorrowGreets: 0
+      transferToTomorrowGreets: 0,
+      greetMessageId: '',
+      wordGamesPlayed: 0,
+      bomGamesPlayed: 0
     };
     return;
   }
@@ -472,8 +482,16 @@ function resetDaily(progress) {
     progress.stats = progress.stats || {};
     progress.stats.lastDayPostponed = !!progress.daily.postponedToday;
 
-    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
-    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
+    const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet', 'task_word_game', 'task_bom_game', 'task_chat_with_people'];
+    
+    // Filtrele: Dünün göreviyle aynı olmasın
+    const prevTask = progress.daily.chosenTask;
+    let filteredKeys = taskKeys;
+    if (prevTask) {
+      filteredKeys = taskKeys.filter(k => k !== prevTask);
+    }
+    if (filteredKeys.length === 0) filteredKeys = taskKeys;
+    const randomTask = filteredKeys[Math.floor(Math.random() * filteredKeys.length)];
 
     // Dünün ertelenen hedeflerini bugüne aktar
     const nextTransferredVoice = progress.daily.transferToTomorrowVoice || 0;
@@ -503,6 +521,11 @@ function resetDaily(progress) {
     progress.daily.transferredGreets = nextTransferredGreets;
     progress.daily.transferToTomorrowVoice = 0;
     progress.daily.transferToTomorrowGreets = 0;
+    
+    // İlerleme ve Takip Alanlarını Sıfırla
+    progress.daily.greetMessageId = '';
+    progress.daily.wordGamesPlayed = 0;
+    progress.daily.bomGamesPlayed = 0;
   }
 }
 
@@ -592,26 +615,22 @@ async function recordGreet(userId, client, guildId = null) {
         console.error('[staffSystem] Save failed in recordGreet progress:', err.message);
       });
 
-      // Send a DM notification updating the user on their greet progress
-      try {
-        const discordUser = await client.users.fetch(userId).catch(() => null);
-        if (discordUser) {
-          const stats = getDailyTaskCompletionStats(p);
-          const embed = new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle('🌅 Selamlaşma İlerlemesi')
-            .setDescription(
-              `Merhaba <@${userId}>,\n\n` +
-              `Grupta selam verdin! Selamlaşma görevi ilerlemen: **${p.daily.greetCount}/${targetGreets}**\n\n` +
-              `📊 **Genel Görev İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**`
-            )
-            .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
-            .setTimestamp();
-
-          await discordUser.send({ embeds: [embed] }).catch(() => { });
+      // Send a DM notification updating the user on their greet progress (Only ONCE!)
+      if (!p.daily.greetMessageId) {
+        try {
+          const discordUser = await client.users.fetch(userId).catch(() => null);
+          if (discordUser) {
+            const embed = generateGreetProgressEmbed(p);
+            const components = getGreetProgressComponents();
+            const sentMsg = await discordUser.send({ embeds: [embed], components }).catch(() => null);
+            if (sentMsg) {
+              p.daily.greetMessageId = sentMsg.id;
+              await p.save().catch(() => {});
+            }
+          }
+        } catch (dmErr) {
+          console.warn(`[staffSystem] Greet progress DM error:`, dmErr.message);
         }
-      } catch (dmErr) {
-        console.warn(`[staffSystem] Greet progress DM error:`, dmErr.message);
       }
     }
   } catch (err) {
@@ -949,6 +968,18 @@ async function checkChosenTaskCompletion(progress, client) {
       }
     } else if (task === 'task_double_greet') {
       if ((progress.daily.greetCount || 0) >= 10) {
+        completed = true;
+      }
+    } else if (task === 'task_word_game') {
+      if ((progress.daily.wordGamesPlayed || 0) >= 5) {
+        completed = true;
+      }
+    } else if (task === 'task_bom_game') {
+      if ((progress.daily.bomGamesPlayed || 0) >= 5) {
+        completed = true;
+      }
+    } else if (task === 'task_chat_with_people') {
+      if ((progress.daily.chatMessagesToday || 0) >= 20) {
         completed = true;
       }
     }
@@ -1441,6 +1472,10 @@ function getNextRequirementsText(level) {
 
 // ── AI Sabah Brifing DM'i ─────────────────────────────────────────────────
 async function sendMorningBriefing(progress, client) {
+  if (progress.settings?.dailyBriefingEnabled === false) {
+    console.log(`[staffSystem] Daily briefing disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
   if (await hasInactivityRole(progress.userId, client)) return;
 
   const StaffUnit = require('../../models/StaffUnit');
@@ -1453,19 +1488,26 @@ async function sendMorningBriefing(progress, client) {
 
   resetDaily(progress);
 
-  let allowedTasks = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet'];
+  let allowedTasks = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet', 'task_word_game', 'task_bom_game', 'task_chat_with_people'];
   if (userUnit && userUnit.unitName) {
     if (userUnit.unitName === 'BAN_BIRIMI') {
       allowedTasks = ['task_ticket', 'task_mod'];
     } else if (userUnit.unitName === 'SES_BIRIMI') {
       allowedTasks = ['task_voice', 'task_double_voice'];
     } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
-      allowedTasks = ['task_chat', 'task_double_chat', 'task_greet', 'task_double_greet'];
+      allowedTasks = ['task_chat', 'task_double_chat', 'task_greet', 'task_double_greet', 'task_word_game', 'task_bom_game', 'task_chat_with_people'];
     }
   }
 
   if (!progress.daily.chosenTask || !allowedTasks.includes(progress.daily.chosenTask)) {
-    const randomTask = allowedTasks[Math.floor(Math.random() * allowedTasks.length)];
+    const prevTask = progress.daily.chosenTask;
+    let filteredTasks = allowedTasks;
+    if (prevTask) {
+      filteredTasks = allowedTasks.filter(t => t !== prevTask);
+    }
+    if (filteredTasks.length === 0) filteredTasks = allowedTasks;
+    
+    const randomTask = filteredTasks[Math.floor(Math.random() * filteredTasks.length)];
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
     await progress.save().catch(() => { });
@@ -1773,6 +1815,21 @@ async function getMorningBriefingComponents(progress) {
       label: '🛡️ Koruyucu',
       description: 'Bugün en az 1 moderasyon işlemi gerçekleştir',
       value: 'task_mod'
+    },
+    {
+      label: '🔤 Kelime Avcısı',
+      description: 'Kelime oyununda en az 5 doğru kelime yaz',
+      value: 'task_word_game'
+    },
+    {
+      label: '💣 BOM Ustası',
+      description: 'BOM oyununda en az 5 doğru sayı/bom yaz',
+      value: 'task_bom_game'
+    },
+    {
+      label: '💬 Sohbet Dostu',
+      description: 'Sohbette insanlarla aktif olarak 20 mesaj yazış',
+      value: 'task_chat_with_people'
     }
   ];
 
@@ -1786,7 +1843,7 @@ async function getMorningBriefingComponents(progress) {
       } else if (userUnit.unitName === 'SES_BIRIMI') {
         options = allOptions.filter(o => o.value === 'task_voice');
       } else if (userUnit.unitName === 'SOHBET_BIRIMI') {
-        options = allOptions.filter(o => o.value === 'task_chat');
+        options = allOptions.filter(o => o.value === 'task_chat' || o.value === 'task_word_game' || o.value === 'task_bom_game' || o.value === 'task_chat_with_people');
       }
     }
   } catch (_) { }
@@ -1797,11 +1854,22 @@ async function getMorningBriefingComponents(progress) {
     .addOptions(options);
   const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
-  return [rowButtons, rowSelect];
+  const rowSettings = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_settings')
+      .setLabel('⚙️ Ayarlar')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  return [rowButtons, rowSelect, rowSettings];
 }
 
 // ── Uyarı DM ──────────────────────────────────────────────────────────────
 async function sendWarningDM(progress, client) {
+  if (progress.settings?.warningsEnabled === false) {
+    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
   if (await hasInactivityRole(progress.userId, client)) return;
 
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
@@ -2139,6 +2207,10 @@ async function removeRole(progress, client) {
 
 // ── Öğlen hatırlatma (13:00) ──────────────────────────────────────────────
 async function sendMidDayReminder(progress, client) {
+  if (progress.settings?.warningsEnabled === false) {
+    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
   if (await hasInactivityRole(progress.userId, client)) return;
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
@@ -2147,6 +2219,8 @@ async function sendMidDayReminder(progress, client) {
 
   const greetsSent = progress.daily?.date === today ? (progress.daily?.greetCount || 0) : 0;
   const voiceMinutes = progress.daily?.date === today ? (progress.daily?.voiceMinutes || 0) : 0;
+  
+  const missing = [];
   if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets - greetsSent}x daha selam ver (Gereken: ${req.greets})`);
   if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - voiceMinutes} dk daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)`);
 
@@ -2185,6 +2259,10 @@ async function sendMidDayReminder(progress, client) {
 
 // ── Akşam son uyarı (19:00) ───────────────────────────────────────────────
 async function sendEveningWarning(progress, client) {
+  if (progress.settings?.warningsEnabled === false) {
+    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
   if (await hasInactivityRole(progress.userId, client)) return;
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
@@ -3603,6 +3681,112 @@ async function postponeDailyTask(userId, client) {
   }
 }
 
+// ── V5.1 HATA GIDERME VE AYARLAR YENILIKLERI ──
+
+function generateGreetProgressEmbed(progress) {
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const targetGreets = req.greets + (progress.daily?.transferredGreets || 0);
+  const stats = getDailyTaskCompletionStats(progress);
+  
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle('🌅 Selamlaşma İlerlemesi')
+    .setDescription(
+      `Merhaba <@${progress.userId}>,\n\n` +
+      `Grupta selam verdin! Selamlaşma görevi ilerlemen: **${progress.daily.greetCount}/${targetGreets}**\n\n` +
+      `📊 **Genel Görev İlerlemen:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**`
+    )
+    .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+    .setTimestamp();
+}
+
+function getGreetProgressComponents() {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_update_greet_progress')
+      .setLabel('🔄 Güncelle')
+      .setStyle(ButtonStyle.Primary)
+  );
+  return [row];
+}
+
+function generateSettingsEmbed(progress) {
+  const briefingStatus = progress.settings?.dailyBriefingEnabled !== false ? '🟢 Açık' : '🔴 Kapalı';
+  const warningsStatus = progress.settings?.warningsEnabled !== false ? '🟢 Açık' : '🔴 Kapalı';
+  
+  return new EmbedBuilder()
+    .setColor(0x7c6af7)
+    .setTitle('⚙️ Personel Bildirim & Görev Ayarları')
+    .setDescription(
+      `Buradan bot bildirimlerinizi ve ayarlarınızı yapılandırabilirsiniz.\n\n` +
+      `📅 **Sabah Brifingi:** Günlük görevlerinizin başladığını hatırlatan sabah mesajları.\n` +
+      `⚠️ **Uyarı Bildirimleri:** Görevlerinizi yapmadığınızda gelen hatırlatma ve uyarı mesajları.`
+    )
+    .addFields(
+      { name: 'Sabah Brifingi', value: briefingStatus, inline: true },
+      { name: 'Uyarı Bildirimleri', value: warningsStatus, inline: true }
+    )
+    .setFooter({ text: 'Eko Yıldız • Ayarlar' })
+    .setTimestamp();
+}
+
+function getSettingsComponents(progress) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  
+  const briefingLabel = progress.settings?.dailyBriefingEnabled !== false 
+    ? '📅 Sabah Brifingi: Kapat' 
+    : '📅 Sabah Brifingi: Aç';
+  const briefingStyle = progress.settings?.dailyBriefingEnabled !== false 
+    ? ButtonStyle.Danger 
+    : ButtonStyle.Success;
+
+  const warningsLabel = progress.settings?.warningsEnabled !== false 
+    ? '⚠️ Uyarılar: Kapat' 
+    : '⚠️ Uyarılar: Aç';
+  const warningsStyle = progress.settings?.warningsEnabled !== false 
+    ? ButtonStyle.Danger 
+    : ButtonStyle.Success;
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_toggle_briefing')
+      .setLabel(briefingLabel)
+      .setStyle(briefingStyle),
+    new ButtonBuilder()
+      .setCustomId('staff_toggle_warnings')
+      .setLabel(warningsLabel)
+      .setStyle(warningsStyle),
+    new ButtonBuilder()
+      .setCustomId('staff_settings_back')
+      .setLabel('◀️ Geri Dön')
+      .setStyle(ButtonStyle.Secondary)
+  );
+  
+  return [row];
+}
+
+async function recordGamePlay(userId, gameType, client) {
+  try {
+    if (!userId) return;
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    if (!p || p.status !== 'active') return;
+
+    resetDaily(p);
+
+    if (gameType === 'word') {
+      p.daily.wordGamesPlayed = (p.daily.wordGamesPlayed || 0) + 1;
+    } else if (gameType === 'bom') {
+      p.daily.bomGamesPlayed = (p.daily.bomGamesPlayed || 0) + 1;
+    }
+
+    await p.save().catch(() => {});
+    await checkChosenTaskCompletion(p, client).catch(() => {});
+  } catch (err) {
+    console.error('[staffSystem] recordGamePlay error:', err.message);
+  }
+}
+
 module.exports = {
   getOrCreate,
   recordGreet,
@@ -3654,4 +3838,9 @@ module.exports = {
   postponeDailyTask,
   generateMorningBriefingEmbed,
   getMorningBriefingComponents,
+  generateGreetProgressEmbed,
+  getGreetProgressComponents,
+  generateSettingsEmbed,
+  getSettingsComponents,
+  recordGamePlay,
 };

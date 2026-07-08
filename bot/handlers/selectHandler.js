@@ -225,7 +225,7 @@ async function handleSelectInteraction(interaction) {
       let allowed = false;
       if (userUnit.unitName === 'BAN_BIRIMI' && (selectedTask === 'task_ticket' || selectedTask === 'task_mod')) allowed = true;
       if (userUnit.unitName === 'SES_BIRIMI' && selectedTask === 'task_voice') allowed = true;
-      if (userUnit.unitName === 'SOHBET_BIRIMI' && selectedTask === 'task_chat') allowed = true;
+      if (userUnit.unitName === 'SOHBET_BIRIMI' && (selectedTask === 'task_chat' || selectedTask === 'task_word_game' || selectedTask === 'task_bom_game' || selectedTask === 'task_chat_with_people')) allowed = true;
       if (!allowed) {
         return interaction.reply({ content: '❌ Bulunduğunuz birim dışındaki bir görevi seçemezsiniz!', ephemeral: true });
       }

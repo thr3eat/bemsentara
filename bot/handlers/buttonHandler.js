@@ -320,6 +320,89 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Ayarlar Butonu ────────────────────────────────────────────────────────
+  if (customId === "staff_settings") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
+    const embed = generateSettingsEmbed(p);
+    const components = getSettingsComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
+  // ── Sabah Brifingi Aç/Kapat Butonu ────────────────────────────────────────
+  if (customId === "staff_toggle_briefing") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    p.settings = p.settings || {};
+    p.settings.dailyBriefingEnabled = p.settings.dailyBriefingEnabled !== false ? false : true;
+    await p.save().catch(() => {});
+
+    const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
+    const embed = generateSettingsEmbed(p);
+    const components = getSettingsComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
+  // ── Uyarı Bildirimleri Aç/Kapat Butonu ────────────────────────────────────
+  if (customId === "staff_toggle_warnings") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    p.settings = p.settings || {};
+    p.settings.warningsEnabled = p.settings.warningsEnabled !== false ? false : true;
+    await p.save().catch(() => {});
+
+    const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
+    const embed = generateSettingsEmbed(p);
+    const components = getSettingsComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
+  // ── Ayarlar Geri Dön Butonu ────────────────────────────────────────────────
+  if (customId === "staff_settings_back") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+    const embed = await generateMorningBriefingEmbed(p, interaction.client);
+    const components = await getMorningBriefingComponents(p);
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
+  // ── Selamlaşma İlerlemesini Güncelle Butonu ───────────────────────────────
+  if (customId === "staff_update_greet_progress") {
+    await interaction.deferUpdate().catch(() => {});
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return;
+
+    const { generateGreetProgressEmbed, getGreetProgressComponents } = require("../services/staffSystem");
+    const embed = generateGreetProgressEmbed(p);
+    const components = getGreetProgressComponents();
+    
+    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+    return;
+  }
+
   // ── Cevapla Koçun Sorusunu Butonu ────────────────────────────────────────
   if (customId === "staff_answer_coach_question") {
     const StaffProgress = require("../../models/StaffProgress");

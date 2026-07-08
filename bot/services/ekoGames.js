@@ -567,6 +567,12 @@ async function runBomGame(message, client) {
     lastBomUser = message.author.id;
     getStats(message.author.id, 'Bom Oyunu').dogru++;
     await awardGameXPForTurn(message, 'Bom Oyunu', 24, client);
+    try {
+      const { recordGamePlay } = require('./staffSystem');
+      await recordGamePlay(message.author.id, 'bom', client).catch(() => {});
+    } catch (err) {
+      console.error('[ekoGames] Error recording BOM game play:', err.message);
+    }
   } else {
     await message.delete().catch(() => {});
     const expected = isMultipleOfFive ? '**bom**' : `**${currentBomNumber}**`;
@@ -602,6 +608,12 @@ async function runWordGame(message, client) {
     await message.react('✅').catch(() => {});
     getStats(message.author.id, 'Kelime Oyunu').dogru++;
     await awardGameXPForTurn(message, 'Kelime Oyunu', 16, client);
+    try {
+      const { recordGamePlay } = require('./staffSystem');
+      await recordGamePlay(message.author.id, 'word', client).catch(() => {});
+    } catch (err) {
+      console.error('[ekoGames] Error recording Word game play:', err.message);
+    }
 
     if (CIKMAZHARF.has(sonHarf)) {
       // Çıkmaz harf bonusu
@@ -637,6 +649,12 @@ async function runWordGame(message, client) {
         await message.react('✅').catch(() => {});
         getStats(message.author.id, 'Kelime Oyunu').dogru++;
         await awardGameXPForTurn(message, 'Kelime Oyunu', 16, client);
+        try {
+          const { recordGamePlay } = require('./staffSystem');
+          await recordGamePlay(message.author.id, 'word', client).catch(() => {});
+        } catch (err) {
+          console.error('[ekoGames] Error recording Word game play:', err.message);
+        }
 
         if (CIKMAZHARF.has(sonHarf)) {
           // Çıkmaz harf bonusu
