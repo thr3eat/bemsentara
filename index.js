@@ -68,6 +68,14 @@ process.on("uncaughtException", (error) => {
 });
 
 const discordBot = createDiscordClient();
+
+// Discord gateway hata tespiti için debug logları
+discordBot.on("debug", (info) => {
+  if (info.includes("Gateway") || info.includes("connect") || info.includes("Rate limit") || info.includes("session")) {
+    logger.info(`[Discord Debug] ${info}`);
+  }
+});
+
 const { setDiscordClient } = require("./bot/discordClient");
 setDiscordClient(discordBot);
 initializeDiscordHandlers(discordBot);
