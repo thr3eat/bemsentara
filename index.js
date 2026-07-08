@@ -103,6 +103,9 @@ async function start() {
     });
 
     // 2. Discord login ve komut kaydını arka planda (asenkron) başlat
+    logger.info(`Node.js version: ${process.version}`);
+    logger.info(`TOKEN exists: ${!!TOKEN}, length: ${TOKEN?.length}`);
+    
     discordBot.login(TOKEN)
       .then(async () => {
         logger.success("Discord bot giriş isteği başarılı ve aktif.");
@@ -115,6 +118,7 @@ async function start() {
       })
       .catch((err) => {
         logger.error("Discord login veya başlatma hatası:", err.message || err);
+        logger.error("Full stack:", err.stack);
         // Not calling process.exit(1) here so that the dashboard server stays running for diagnostics.
       });
   } catch (err) {
