@@ -102,40 +102,42 @@ async function start() {
       logger.info(`Ticket Sistemi Aktif ve Port ${PORT} dinleniyor`);
     });
 
-    // 2. Discord login ve komut kaydını arka planda (asenkron) başlat
+    // 2. Discord login — Rate limit durumunda otomatik bekle ve yeniden dene
     logger.info(`Node.js version: ${process.version}`);
     logger.info(`TOKEN exists: ${!!TOKEN}, length: ${TOKEN?.length}`);
 
-    // 45 saniye timeout ile login — takılırsa açık hata verir
-    const loginWithTimeout = (token, timeoutMs = 45000) => {
-      return Promise.race([
-        discordBot.login(token),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Discord login ${timeoutMs / 1000}s içinde tamamlanamadı (gateway timeout)`)), timeoutMs)
-        )
-      ]);
+    const connectDiscord = async () => {
+      const MAX_RETRIES = 5;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          logger.info(`[Discord] Bağlantı denemesi ${attempt}/${MAX_RETRIES}...`);
+          await discordBot.login(TOKEN);
+          logger.success("Discord bot giriş isteği başarılı ve aktif.");
+          await new Promise(r => setTimeout(r, 1000));
+          await registerAllCommands();
+          return; // başarılı → çık
+        } catch (err) {
+          // Rate limit hatası — retryAfter ms bekle
+          const retryAfterMs = err.retryAfter ?? err.sublimitTimeout ?? null;
+          if (retryAfterMs && attempt < MAX_RETRIES) {
+            const waitSec = Math.ceil(retryAfterMs / 1000);
+            logger.warn(`[Discord] Rate limit: ${waitSec} saniye bekleniyor (deneme ${attempt}/${MAX_RETRIES})...`);
+            await new Promise(r => setTimeout(r, retryAfterMs + 2000)); // +2s tampon
+            // Yeniden bağlanmak için yeni client oluştur (destroy sonrası gerekli)
+            discordBot.destroy().catch(() => {});
+            await new Promise(r => setTimeout(r, 500));
+          } else {
+            logger.error(`[Discord] Login başarısız (deneme ${attempt}/${MAX_RETRIES}):`, err.message);
+            logger.error("Full stack:", err.stack);
+            if (attempt >= MAX_RETRIES) {
+              logger.error("[Discord] Maksimum deneme sayısına ulaşıldı. Web sunucusu aktif kalmaya devam ediyor.");
+            }
+          }
+        }
+      }
     };
 
-    loginWithTimeout(TOKEN)
-      .then(async () => {
-        logger.success("Discord bot giriş isteği başarılı ve aktif.");
-
-        // Small delay to ensure bot is fully initialized
-        await new Promise(r => setTimeout(r, 1000));
-
-        // Then register commands
-        await registerAllCommands();
-      })
-      .catch((err) => {
-        if (err.status === 429 || err.message?.includes('429') || err.message?.includes('rate limit')) {
-          logger.error("Discord login BAŞARISIZ: Render IP'si Discord tarafından rate limit'e alındı (429).");
-          logger.error("Çözüm: Birkaç dakika bekleyip tekrar deploy edin veya Discord Developer Portal'dan token yenileyin.");
-        } else {
-          logger.error("Discord login veya başlatma hatası:", err.message || err);
-          logger.error("Full stack:", err.stack);
-        }
-        // Not calling process.exit(1) here so that the dashboard server stays running for diagnostics.
-      });
+    connectDiscord();
   } catch (err) {
     logger.error("Başlatma hatası:", err);
     process.exit(1);
