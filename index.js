@@ -81,20 +81,27 @@ async function start() {
       process.exit(0);
     });
 
-    // Login and wait for ready
-    await discordBot.login(TOKEN);
-    logger.success("Discord bot başlatıldı");
-
-    // Small delay to ensure bot is fully initialized
-    await new Promise(r => setTimeout(r, 1000));
-
-    // Then register commands
-    await registerAllCommands();
-
+    // 1. Express sunucusunu hemen başlat (Render port binding algılaması için)
     app.listen(PORT, () => {
       logger.info(`Server: ${BASE_URL}`);
-      logger.info(`Ticket Sistemi Aktif`);
+      logger.info(`Ticket Sistemi Aktif ve Port ${PORT} dinleniyor`);
     });
+
+    // 2. Discord login ve komut kaydını arka planda (asenkron) başlat
+    discordBot.login(TOKEN)
+      .then(async () => {
+        logger.success("Discord bot giriş isteği başarılı ve aktif.");
+        
+        // Small delay to ensure bot is fully initialized
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Then register commands
+        await registerAllCommands();
+      })
+      .catch((err) => {
+        logger.error("Discord login veya başlatma hatası:", err.message || err);
+        // Not calling process.exit(1) here so that the dashboard server stays running for diagnostics.
+      });
   } catch (err) {
     logger.error("Başlatma hatası:", err);
     process.exit(1);

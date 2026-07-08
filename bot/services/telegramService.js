@@ -256,7 +256,7 @@ let isAttemptingRecovery = false;
 async function startTelegramPolling(client) {
   if (isPollingActive) return;
   
-  const pollingEnabled = process.env.TELEGRAM_POLLING_ENABLED !== "false";
+  const pollingEnabled = process.env.TELEGRAM_POLLING_ENABLED?.toLowerCase() !== "false";
   if (!pollingEnabled) {
     console.log("[Telegram Polling] Telegram polling .env veya ortam değişkenleri üzerinden devre dışı bırakıldı.");
     return;
