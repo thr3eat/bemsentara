@@ -26,7 +26,7 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
     await ErrorReportModel.create(errorData);
 
     // Send DM to developer
-    const { getDiscordCli ent } = require("../discordClient");
+    const { getDiscordClient } = require("../discordClient");
     const client = getDiscordClient();
     if (client) {
       try {

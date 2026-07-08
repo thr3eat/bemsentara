@@ -1,8 +1,3 @@
-const dns = require("dns");
-if (typeof dns.setDefaultResultOrder === "function") {
-  dns.setDefaultResultOrder("ipv4first");
-}
-
 const mongoose = require("mongoose");
 mongoose.set("bufferCommands", false);
 
@@ -17,126 +12,23 @@ const axios = require("axios");
 
 const logger = require("./utils/logger");
 
-// ── ORTAM DEĞİŞKENİ DOĞRULAMASI ──
-// Eksik bir config değeri yüzünden ileride belirsiz bir hatayla
-// karşılaşmak yerine, en baştan net bir mesajla süreci durduruyoruz.
-function validateEnv() {
-  const missing = [];
-  if (!TOKEN) missing.push("TOKEN");
-  if (!BASE_URL) missing.push("BASE_URL");
-  if (!PORT) missing.push("PORT");
-
-  if (missing.length) {
-    logger.error(`Eksik ortam değişkeni: ${missing.join(", ")}. Süreç başlatılamıyor.`);
-    process.exit(1);
-  }
-}
-validateEnv();
-
-// ── PROCESS ERROR HANDLERS (7/24 SELF-HEALING) ──
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at:", promise, "reason:", reason);
-  try {
-    if (global.lastInteraction) {
-      const { sendErrorReplyWithButton } = require("./bot/services/errorReporter");
-      const err = reason instanceof Error ? reason : new Error(String(reason));
-      sendErrorReplyWithButton(global.lastInteraction, err, "Process Unhandled Rejection").catch(() => { });
-    }
-  } catch (_) { }
-});
-
-process.on("uncaughtException", (error) => {
-  logger.error("Uncaught Exception thrown:", error);
-
-  // Otomatik Bakım Modunu Etkinleştir (Kritik Çökme)
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    fs.writeFileSync(
-      path.join(__dirname, "maintenance.json"), 
-      JSON.stringify({ active: true, reason: error.message, timestamp: new Date() }), 
-      "utf8"
-    );
-    logger.warn("[index] Otomatik Bakım Modu kritik çökme nedeniyle ETKİNLEŞTİRİLDİ.");
-  } catch (err) {
-    logger.error("[index] Bakım modu dosyası yazılamadı:", err.message);
-  }
-
-  try {
-    if (global.lastInteraction) {
-      const { sendErrorReplyWithButton } = require("./bot/services/errorReporter");
-      sendErrorReplyWithButton(global.lastInteraction, error, "Process Uncaught Exception").catch(() => { });
-    }
-  } catch (_) { }
-
-  // UncaughtException durumunda botu yeniden başlatmıyoruz, süreci ayakta tutuyoruz.
-});
-
 const discordBot = createDiscordClient();
-
-// Discord gateway hata tespiti için debug logları
-discordBot.on("debug", (info) => {
-  if (info.includes("Gateway") || info.includes("connect") || info.includes("Rate limit") || info.includes("session")) {
-    logger.info(`[Discord Debug] ${info}`);
-  }
-});
-
-const { setDiscordClient } = require("./bot/discordClient");
+const { setDiscordClient } = require("./bot/discofffffrdClient");
 setDiscordClient(discordBot);
 initializeDiscordHandlers(discordBot);
 
-let selfPingTask = null;
-
-// ── GRACEFUL SHUTDOWN (ortak fonksiyon, kod tekrarını önler) ──
-async function shutdown(signal) {
-  console.log(`\n[Shutdown] ${signal} alındı, temizlik yapılıyor...`);
-
+cron.schedule("*/14 * * * *", async () => {
   try {
-    if (selfPingTask) selfPingTask.stop();
-  } catch (_) { }
-
-  try {
-    const { stopTelegramPolling } = require("./bot/services/telegramService");
-    stopTelegramPolling();
-  } catch (err) {
-    console.error("[Telegram Polling] Cleanup hatası:", err.message);
+    await axios.get(`${BASE_URL}/api/health`);
+    logger.info(`Self-ping OK`);
+  } catch (e) {
+    logger.warn("Self-ping failed:", e.message);
   }
-
-  try {
-    const { saveStoreNow } = require("./models/Store");
-    await saveStoreNow();
-    console.log("[Store] Tüm veriler başarıyla kaydedildi.");
-  } catch (err) {
-    console.error("[Store] Kaydetme hatası:", err.message);
-  }
-
-  try {
-    if (discordBot && discordBot.destroy) {
-      await discordBot.destroy();
-      console.log("[Discord] Bağlantı düzgün şekilde kapatıldı.");
-    }
-  } catch (err) {
-    console.error("[Discord] Kapatma hatası:", err.message);
-  }
-
-  try {
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
-      console.log("[MongoDB] Bağlantı kapatıldı.");
-    }
-  } catch (err) {
-    console.error("[MongoDB] Kapatma hatası:", err.message);
-  }
-
-  process.exit(0);
-}
-
-// process.on("SIGINT", () => shutdown("SIGINT"));
-// process.on("SIGTERM", () => shutdown("SIGTERM"));
+});
 
 async function start() {
   try {
-    const { initStore } = require("./models/Store");
+    const { initStore, saveStoreNow } = require("./models/Store");
     const counts = await initStore();
     const { STORE_FILE } = require("./models/persistence");
     const { isMongoActive } = require("./models/db");
@@ -146,100 +38,63 @@ async function start() {
     );
 
     // ── DATABASE RESTORE TRIGGER (TEMPORARY) ──
-    // Sadece RUN_STAFF_RESTORE=true olduğunda çalışır, böylece bu tek
-    // seferlik düzeltme her yeniden başlatmada (deploy, crash restart vb.)
-    // sessizce tekrar tekrar tetiklenmez. İşlem bittikten sonra bu bloğu
-    // ve ortam değişkenini kaldırabilirsin.
-    if (process.env.RUN_STAFF_RESTORE === "true") {
-      try {
-        const StaffProgress = require("./models/StaffProgress");
-        const result = await StaffProgress.updateMany(
-          {
-            status: "dismissed",
-            dismissReason:
-              "Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)",
-          },
-          {
-            $set: {
-              status: "active",
-              dismissedAt: null,
-              dismissReason: null,
-            },
+    try {
+      const StaffProgress = require("./models/StaffProgress");
+      const result = await StaffProgress.updateMany(
+        {
+          status: 'dismissed',
+          dismissReason: 'Discord üzerinde yetkili rolünün bulunmaması veya sunucudan çıkılması (Otomatik Senkronizasyon)'
+        },
+        {
+          $set: {
+            status: 'active',
+            dismissedAt: null,
+            dismissReason: null
           }
-        );
-        logger.success(`[TEMPORARY RESTORE] Restored ${result.modifiedCount} staff members back to active.`);
-      } catch (restoreErr) {
-        logger.error("[TEMPORARY RESTORE] Error:", restoreErr.message);
-      }
+        }
+      );
+      logger.success(`[TEMPORARY RESTORE] Restored ${result.modifiedCount} staff members back to active.`);
+    } catch (restoreErr) {
+      logger.error("[TEMPORARY RESTORE] Error:", restoreErr.message);
     }
 
-    // Express sunucusunu hemen başlat (Render port binding için)
+    process.on("SIGINT", () => {
+      console.log("\n[Telegram Polling] SIGINT alındı, Telegram Polling temizleniyor...");
+      try {
+        const { stopTelegramPolling } = require("./bot/services/telegramService");
+        stopTelegramPolling();
+      } catch (err) {
+        console.error("[Telegram Polling] Cleanup hatası:", err.message);
+      }
+      saveStoreNow();
+      process.exit(0);
+    });
+    process.on("SIGTERM", () => {
+      console.log("[Telegram Polling] SIGTERM alındı, Telegram Polling temizleniyor...");
+      try {
+        const { stopTelegramPolling } = require("./bot/services/telegramService");
+        stopTelegramPolling();
+      } catch (err) {
+        console.error("[Telegram Polling] Cleanup hatası:", err.message);
+      }
+      saveStoreNow();
+      process.exit(0);
+    });
+
+    // Login and wait for ready
+    await discordBot.login(TOKEN);
+    logger.success("Discord bot başlatıldı");
+
+    // Small delay to ensure bot is fully initialized
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Then register commands
+    await registerAllCommands();
+
     app.listen(PORT, () => {
       logger.info(`Server: ${BASE_URL}`);
-      logger.info(`Ticket Sistemi Aktif ve Port ${PORT} dinleniyor`);
-
-      // Self-ping cron'u ancak sunucu gerçekten dinlemeye başladıktan
-      // sonra kuruyoruz; böylece ilk taramalarda boşuna "failed" uyarısı
-      // görmüyoruz.
-      selfPingTask = cron.schedule("*/14 * * * *", async () => {
-        try {
-          await axios.get(`${BASE_URL}/api/health`);
-          logger.info(`Self-ping OK`);
-        } catch (e) {
-          logger.warn("Self-ping failed:", e.message);
-        }
-      });
+      logger.info(`Ticket Sistemi Aktif`);
     });
-
-    // Discord bot hazır olduğunda
-    discordBot.once("ready", async () => {
-      logger.success(`Discord bot başlatıldı: ${discordBot.user.tag}`);
-
-      // Bot hazır olduğunda slash komutları dinamik olarak kaydet
-      try {
-        await registerAllCommands(discordBot.user.id);
-      } catch (cmdErr) {
-        logger.error("Komut kaydı hatası:", cmdErr.message);
-      }
-
-      const { LOG_CHANNEL_ID } = require("./config");
-      const { EmbedBuilder } = require("discord.js");
-      try {
-        const channel = await discordBot.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (channel) {
-          const embed = new EmbedBuilder()
-            .setColor(0x7c6af7)
-            .setTitle("⚙️ BOT YENİDEN BAŞLATMA SİHİRBAZI")
-            .setDescription("Bot yeniden başlatılıyor ⏳\nLütfen 15 saniye bekleyin... Aktarılıyorsunuz.")
-            .setFooter({ text: "Eko Yıldız • Sistem Başlatıcı" })
-            .setTimestamp();
-
-          const msg = await channel.send({ embeds: [embed] }).catch(() => null);
-          if (msg) {
-            setTimeout(async () => {
-              const successEmbed = new EmbedBuilder()
-                .setColor(0x2ecc71)
-                .setTitle("✅ BOT BAŞARIYLA YENİDEN BAŞLATILDI")
-                .setDescription("🚀 Bot tüm sistemleri başarıyla yükledi ve aktif hale getirildi.")
-                .setFooter({ text: "Eko Yıldız • Sistem Başlatıcı" })
-                .setTimestamp();
-              await msg.edit({ embeds: [successEmbed] }).catch(() => { });
-            }, 15000);
-          }
-        }
-      } catch (err) {
-        logger.error("[index] Startup message error:", err.message);
-      }
-    });
-
-    // Discord login'i arka planda tek bir kez başlat
-    discordBot.login(TOKEN)
-      .then(() => {
-        logger.success("Discord bot giriş isteği başarılı.");
-      })
-      .catch((err) => {
-        logger.error("Discord login hatası:", err.message);
-      });
   } catch (err) {
     logger.error("Başlatma hatası:", err);
     process.exit(1);
