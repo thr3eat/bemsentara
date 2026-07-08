@@ -18,9 +18,8 @@ const logger = require("./utils/logger");
 const discordBot = createDiscordClient();
 
 discordBot.on("debug", (info) => {
-  if (info.includes("Gateway") || info.includes("connect") || info.includes("Rate limit") || info.includes("session") || info.includes("interaction")) {
-    logger.info(`[Discord Debug] ${info}`);
-  }
+  // Tüm debug mesajlarını logla (gateway bağlantı sorununu bulmak için)
+  logger.info(`[Discord Debug] ${info}`);
 });
 discordBot.on("warn", (info) => {
   logger.warn(`[Discord Warn] ${info}`);
