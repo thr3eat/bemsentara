@@ -64,13 +64,7 @@ process.on("uncaughtException", (error) => {
     }
   } catch (_) { }
 
-  // Node'un kendi tavsiyesi: uncaughtException sonrası process state'i
-  // güvenilmez hale gelmiş olabilir. Hatayı raporladıktan sonra süreci
-  // temiz şekilde kapatıp Render/PM2 gibi bir process manager'ın
-  // botu yeniden ayağa kaldırmasına izin veriyoruz. Böylece "self-healing"
-  // gerçek anlamda sağlanmış oluyor; bozuk state ile sonsuza dek
-  // yaşamaya devam etmiyoruz.
-  setTimeout(() => process.exit(1), 1000);
+  // UncaughtException durumunda botu yeniden başlatmıyoruz, süreci ayakta tutuyoruz.
 });
 
 const discordBot = createDiscordClient();
