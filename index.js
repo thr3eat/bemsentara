@@ -172,6 +172,13 @@ async function start() {
     discordBot.once("ready", async () => {
       logger.success(`Discord bot başlatıldı: ${discordBot.user.tag}`);
 
+      // Bot hazır olduğunda slash komutları dinamik olarak kaydet
+      try {
+        await registerAllCommands(discordBot.user.id);
+      } catch (cmdErr) {
+        logger.error("Komut kaydı hatası:", cmdErr.message);
+      }
+
       const { LOG_CHANNEL_ID } = require("./config");
       const { EmbedBuilder } = require("discord.js");
       try {
@@ -202,29 +209,14 @@ async function start() {
       }
     });
 
-    // Discord login'i arka planda, retry mantığıyla dene
-    async function loginWithRetry(retries = 3, delayMs = 5000) {
-      for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-          await discordBot.login(TOKEN);
-          logger.success("Discord bot giriş isteği başarılı.");
-          await new Promise((r) => setTimeout(r, 1000));
-          await registerAllCommands().catch((err) => {
-            logger.error("Komut kaydı hatası:", err.message);
-          });
-          return;
-        } catch (err) {
-          logger.error(`Discord login hatası (deneme ${attempt}/${retries}):`, err.message);
-          if (attempt < retries) {
-            await new Promise((r) => setTimeout(r, delayMs));
-          } else {
-            logger.error("Discord login tüm denemeler başarısız oldu. Sunucu yine de ayakta kalacak.");
-          }
-        }
-      }
-    }
-
-    loginWithRetry();
+    // Discord login'i arka planda tek bir kez başlat
+    discordBot.login(TOKEN)
+      .then(() => {
+        logger.success("Discord bot giriş isteği başarılı.");
+      })
+      .catch((err) => {
+        logger.error("Discord login hatası:", err.message);
+      });
   } catch (err) {
     logger.error("Başlatma hatası:", err);
     process.exit(1);
