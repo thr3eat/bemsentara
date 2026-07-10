@@ -569,6 +569,47 @@ async function handleButtonInteraction(interaction) {
     return interaction.update({ embeds: [rejEmbed], components: [] });
   }
 
+  // ── Kullanıcı 5 dk DM hatırlatmasındaki "Tamam" butonu ───────────────────
+  if (customId.startsWith("user_dm_ok_")) {
+    return interaction.update({ content: "👍 Anlaşıldı! Kanala geri dönebilirsiniz.", embeds: [], components: [] });
+  }
+
+  // ── Kullanıcı 5 dk DM hatırlatmasındaki "Sorunum Çözüldü — Kapat" butonu ─
+  if (customId.startsWith("user_dm_close_")) {
+    const ticketId = customId.replace("user_dm_close_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket || ticket.status !== "open") {
+      return interaction.update({ content: "ℹ️ Bu ticket zaten kapalı.", embeds: [], components: [] });
+    }
+    // Kapatma işlemini tetikle
+    try {
+      const { archiveEkoYildizTicket } = require("../services/epostaTicketService");
+      ticket.status = "closed";
+      ticket.closedAt = new Date();
+      ticket.closeReason = "Kullanıcı: Sorunum çözüldü";
+      ticket.closedBy = interaction.user.id;
+      ticket.closedByName = interaction.user.username;
+      await ticket.save();
+      // Timers temizle
+      try {
+        const { pendingUserReplyTimers } = require("../services/epostaTicketService");
+        if (pendingUserReplyTimers?.has(ticketId)) {
+          clearTimeout(pendingUserReplyTimers.get(ticketId));
+          pendingUserReplyTimers.delete(ticketId);
+        }
+      } catch (_) {}
+      await archiveEkoYildizTicket(ticket, interaction, "Kullanıcı: Sorunum çözüldü");
+    } catch (err) {
+      console.error("[user_dm_close] Error:", err.message);
+    }
+    return interaction.update({
+      content: "✅ **Ticket kapatıldı.** Destek talebiniz arşive taşındı. İyi günler!",
+      embeds: [],
+      components: []
+    });
+  }
+
   if (customId.startsWith("ekoyildiz_eposta_form_button_")) {
     const category = customId.replace("ekoyildiz_eposta_form_button_", "");
     const { triggerEpostaFormModal } = require("../services/epostaTicketService");

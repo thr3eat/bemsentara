@@ -10,6 +10,12 @@ const { GUILD2_ID, GUILD2_TICKET_CATEGORY_ID } = require('../../config');
 const { ROLES } = require('./staffSystem');
 const { startTicketClaimRouting } = require('./reklamTicketService');
 
+// Map<ticketId, timeoutId> — 5 dk kullanıcı cevap vermezse DM gönder
+const pendingUserReplyTimers = new Map();
+
+// Map<ticketId, timeoutId> — 3 dk yetkili yazmadıysa claim routing başlat
+const pendingModReplyTimers = new Map();
+
 /**
  * Handles support category select menu interception for kullanici_destek and diger_destek on Eko Yildiz
  */
@@ -231,10 +237,8 @@ async function handleEpostaModalSubmit(interaction, category) {
 
     await channelB.send({ embeds: [modEmbed], components: [rowMod] });
 
-    // Start claim routing for active staff members
-    await startTicketClaimRouting(ticket, targetGuild, interaction.client).catch(err => {
-      console.error("[epostaTicketService] Claim routing failed:", err.message);
-    });
+    // Yetkili 3 dk içinde cevap vermezse claim routing DM'i gönder (direk değil, gecikmeli)
+    _scheduleModReplyTimer(ticket, interaction.client);
 
   } catch (err) {
     console.error("[epostaTicketService] Support setup failed:", err.message);
@@ -243,11 +247,26 @@ async function handleEpostaModalSubmit(interaction, category) {
 
 /**
  * Forwards user message in their eposta channel to the moderation channel (SADE İLETİM)
+ * Also cancels the 5-min "mod cevap verdi" DM timer since user is active
  */
 async function forwardUserToModChannel(message, client) {
   const channelId = message.channel.id;
   const ticket = await Ticket.findOne({ userChannelId: channelId, status: 'open' });
   if (!ticket) return false;
+
+  // Kullanıcı yazdı — 5 dk DM timer'ını iptal et
+  if (pendingUserReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingUserReplyTimers.get(ticket.ticketId));
+    pendingUserReplyTimers.delete(ticket.ticketId);
+  }
+
+  // Kullanıcı yazdı — 3 dk yetkili bekleme timer'ını iptal et (yetkili henüz cevap vermemişse)
+  if (pendingModReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingModReplyTimers.get(ticket.ticketId));
+    pendingModReplyTimers.delete(ticket.ticketId);
+    // Yeniden başlat: kullanıcı yeni mesaj attı, 3 dk içinde mod cevap vermezse routing devreye girer
+    _scheduleModReplyTimer(ticket, client);
+  }
 
   const targetChannel = await client.channels.fetch(ticket.channelId).catch(() => null);
   if (!targetChannel) return false;
@@ -282,12 +301,78 @@ async function forwardUserToModChannel(message, client) {
 }
 
 /**
+ * Internal: 3 dakika içinde mod cevap vermezse claim routing başlat
+ */
+function _scheduleModReplyTimer(ticket, client) {
+  if (pendingModReplyTimers.has(ticket.ticketId)) return; // Zaten çalışıyor
+  const THREE_MIN = 3 * 60 * 1000;
+  const tid = setTimeout(async () => {
+    pendingModReplyTimers.delete(ticket.ticketId);
+    // Hâlâ açık mı kontrol et
+    const fresh = await Ticket.findOne({ ticketId: ticket.ticketId, status: 'open' }).catch(() => null);
+    if (!fresh) return;
+    // Yetkili kanalına son mesaj zamanına bak; eğer sistemin başlangıç mesajından sonra hiç insan yazmadıysa routing yap
+    try {
+      const { guilds } = require('discord.js');
+      const { Client } = require('discord.js');
+      // client üzerinden guild çek
+      const guild = client.guilds.cache.get(fresh.guildId);
+      if (!guild) return;
+      const modChan = guild.channels.cache.get(fresh.channelId);
+      if (!modChan) return;
+
+      const msgs = await modChan.messages.fetch({ limit: 20 });
+      const hasHumanMessage = msgs.some(m => !m.author.bot);
+      if (hasHumanMessage) return; // Yetkili zaten yazmış
+
+      console.log(`[EpostaService] 3 dk geçti, yetkili yazmadı — claim routing başlatılıyor: ${fresh.ticketId}`);
+      await startTicketClaimRouting(fresh, guild, client);
+    } catch (e) {
+      console.warn('[EpostaService] _scheduleModReplyTimer error:', e.message);
+    }
+  }, THREE_MIN);
+  pendingModReplyTimers.set(ticket.ticketId, tid);
+}
+
+/**
  * Forwards moderator message in moderator channel to user eposta channel (SADE İLETİM)
+ * 1) İlk mod mesajında ticket.claimedBy set edilir (personel sistemi)
+ * 2) 5 dk sonra kullanıcı cevap vermezse kullanıcıya DM gönderilir
+ * 3) 3 dk mod bekleme timer'ı iptal edilir
  */
 async function forwardModToUserChannel(message, client) {
   const channelId = message.channel.id;
   const ticket = await Ticket.findOne({ channelId, status: 'open' });
   if (!ticket || !ticket.userChannelId) return false;
+
+  // ── 3 dk yetkili bekleme timer'ını iptal et ──
+  if (pendingModReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingModReplyTimers.get(ticket.ticketId));
+    pendingModReplyTimers.delete(ticket.ticketId);
+  }
+
+  // ── İlk yetkili mesajı → ticket'ı üstlen (claimedBy) ──
+  if (!ticket.claimedBy) {
+    ticket.claimedBy = message.author.id;
+    ticket.claimedByName = message.author.displayName || message.author.username;
+    ticket.claimedAt = new Date();
+    await ticket.save();
+    // Personel istatistiğine kaydet
+    try {
+      const { recordTicketClaimed } = require('./staffSystem');
+      if (typeof recordTicketClaimed === 'function') {
+        await recordTicketClaimed(message.author.id, client).catch(() => {});
+      }
+    } catch (_) {}
+    // Yetkili kanalına bilgi embed'i gönder
+    await message.channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setDescription(`✅ **${message.author.displayName}** bu ticket'ı üstlendi.`)
+        .setTimestamp()
+      ]
+    }).catch(() => {});
+  }
 
   const targetChannel = await client.channels.fetch(ticket.userChannelId).catch(() => null);
   if (!targetChannel) return false;
@@ -318,6 +403,51 @@ async function forwardModToUserChannel(message, client) {
 
   await targetChannel.send(sendOpts).catch(() => { });
   await message.react('✅').catch(() => { });
+
+  // ── 5 dk sonra kullanıcı cevap vermezse DM gönder ──
+  // Varsa önceki timer'ı sıfırla
+  if (pendingUserReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingUserReplyTimers.get(ticket.ticketId));
+  }
+  const FIVE_MIN = 5 * 60 * 1000;
+  const tid = setTimeout(async () => {
+    pendingUserReplyTimers.delete(ticket.ticketId);
+    // Hâlâ açık mı?
+    const fresh = await Ticket.findOne({ ticketId: ticket.ticketId, status: 'open' }).catch(() => null);
+    if (!fresh) return;
+    // Kullanıcıya DM gönder
+    try {
+      const ticketOwner = await client.users.fetch(fresh.userId).catch(() => null);
+      if (!ticketOwner) return;
+      // Kullanıcı kanalı linki
+      const chanLink = fresh.userChannelId ? `https://discord.com/channels/${fresh.guildId}/${fresh.userChannelId}` : null;
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0xf39c12)
+        .setTitle('📬 Destek Talebinizde Cevap Var!')
+        .setDescription(
+          `Destek talebinize yetkili cevap verdi, kanala geri dönün:\n\n` +
+          (chanLink ? `👉 **[Kanala Git](${chanLink})**\n\n` : '') +
+          `Ticket ID: \`${fresh.ticketId}\``
+        )
+        .setFooter({ text: 'Eko Yıldız Destek Sistemi' })
+        .setTimestamp();
+      const dmRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`user_dm_ok_${fresh.ticketId}`)
+          .setLabel('Tamam')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`user_dm_close_${fresh.ticketId}`)
+          .setLabel('✅ Sorunum Çözüldü — Kapat')
+          .setStyle(ButtonStyle.Success)
+      );
+      await ticketOwner.send({ embeds: [dmEmbed], components: [dmRow] }).catch(() => {});
+    } catch (e) {
+      console.warn('[EpostaService] 5 dk DM gönderilemedi:', e.message);
+    }
+  }, FIVE_MIN);
+  pendingUserReplyTimers.set(ticket.ticketId, tid);
+
   return true;
 }
 
@@ -325,6 +455,16 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
   const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
   const guild = await interaction.client.guilds.fetch(ticket.guildId);
   const archiveCategoryId = "1525218080068730991";
+
+  // Timer'ları temizle — ticket kapandı, stale DM gönderilmesin
+  if (pendingUserReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingUserReplyTimers.get(ticket.ticketId));
+    pendingUserReplyTimers.delete(ticket.ticketId);
+  }
+  if (pendingModReplyTimers.has(ticket.ticketId)) {
+    clearTimeout(pendingModReplyTimers.get(ticket.ticketId));
+    pendingModReplyTimers.delete(ticket.ticketId);
+  }
 
   /**
    * Locks a channel completely: deny @everyone ViewChannel, remove all existing overwrites,
@@ -559,5 +699,7 @@ module.exports = {
   forwardUserToModChannel,
   forwardModToUserChannel,
   archiveEkoYildizTicket,
-  reopenEkoYildizTicket
+  reopenEkoYildizTicket,
+  pendingUserReplyTimers,
+  pendingModReplyTimers,
 };
