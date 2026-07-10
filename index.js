@@ -18,10 +18,18 @@ const logger = require("./utils/logger");
 const discordBot = createDiscordClient();
 
 discordBot.on("debug", (info) => {
-  // Normal Heartbeat acknowledged gibi sık tekrar eden gateway debug mesajlarını sessize al
-  if (typeof info === 'string' && info.includes('Heartbeat acknowledged')) return;
-  if (typeof info === 'string' && info.includes('WS => Shard')) return;
-  logger.info(`[Discord Debug] ${info}`);
+  if (typeof info === 'string') {
+    if (
+      info.includes('Heartbeat acknowledged') ||
+      info.includes('WS => Shard') ||
+      info.includes('WS => Manager') ||
+      info.includes('Session Limit Information') ||
+      info.includes('Fetched Gateway Information')
+    ) {
+      return;
+    }
+  }
+  logger.info(`[Discord] ${info}`);
 });
 discordBot.on("warn", (info) => {
   logger.warn(`[Discord Warn] ${info}`);
@@ -45,13 +53,18 @@ cron.schedule("*/14 * * * *", async () => {
 
 async function start() {
   try {
+    logger.section("BOT STARTUP");
+    logger.step(`Node.js sürümü: ${process.version}`);
+    logger.step(`Token hazır: ${!!TOKEN}`);
+
     const { initStore, saveStoreNow } = require("./models/Store");
+    logger.step("Veri deposu yükleniyor...");
     const counts = await initStore();
     const { STORE_FILE } = require("./models/persistence");
     const { isMongoActive } = require("./models/db");
     const storageBackend = isMongoActive() ? "MongoDB" : `Dosya → ${STORE_FILE}`;
     logger.success(
-      `Veri deposu yüklendi [${storageBackend}]: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki`
+      `Veri deposu hazır [${storageBackend}]: ${counts.users} kullanıcı, ${counts.tickets} ticket, ${counts.wikiArticles} wiki`
     );
 
     // ── DATABASE RESTORE TRIGGER (TEMPORARY) ──
@@ -70,7 +83,7 @@ async function start() {
           }
         }
       );
-      logger.success(`[TEMPORARY RESTORE] Restored ${result.modifiedCount} staff members back to active.`);
+      logger.success(`[TEMPORARY RESTORE] ${result.modifiedCount} personel tekrar aktif duruma getirildi.`);
     } catch (restoreErr) {
       logger.error("[TEMPORARY RESTORE] Error:", restoreErr.message);
     }
@@ -99,22 +112,21 @@ async function start() {
     });
 
     // 1. Express sunucusunu hemen başlat (Render port binding algılaması için)
+    logger.section("WEB SERVER");
     app.listen(PORT, () => {
-      logger.info(`Server: ${BASE_URL}`);
-      logger.info(`Ticket Sistemi Aktif ve Port ${PORT} dinleniyor`);
+      logger.success(`Sunucu hazır: ${BASE_URL}`);
+      logger.info(`Ticket sistemi port ${PORT} üzerinde dinleniyor`);
     });
 
-    // 2. Discord login — Rate limit durumunda otomatik bekle ve yeniden dene
-    logger.info(`Node.js version: ${process.version}`);
-    logger.info(`TOKEN exists: ${!!TOKEN}, length: ${TOKEN?.length}`);
+    logger.section("DISCORD CONNECTION");
 
     const connectDiscord = async () => {
       const MAX_RETRIES = 5;
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          logger.info(`[Discord] Bağlantı denemesi ${attempt}/${MAX_RETRIES}...`);
+          logger.step(`[Discord] Deneme ${attempt}/${MAX_RETRIES}`);
           await discordBot.login(TOKEN);
-          logger.success("Discord bot giriş isteği başarılı ve aktif.");
+          logger.success("Discord bot bağlandı ve aktif.");
           await new Promise(r => setTimeout(r, 1000));
           await registerAllCommands();
           return; // başarılı → çık

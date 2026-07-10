@@ -21,6 +21,7 @@ const { handleModActionApproval } = require("../services/modActionService");
 const { handleStartTrigger, handleAnswerInteraction } = require('../services/aiExamService');
 const { handleVoiceButton, handleVoiceSelect, handleVoiceModal } = require("./voiceButtonHandler");
 const StaffProgress = require("../../models/StaffProgress");
+const logger = require("../../utils/logger");
 
 const nightChatTracker = new Map();
 const dailyChatTracker = new Map();
@@ -90,6 +91,9 @@ function initializeDiscordHandlers(client) {
   setupCentralAuditHandler(client);
 
   client.once("ready", async () => {
+    logger.section("READY INITIALIZATION");
+    logger.info("Bot hazır, servisler başlatılıyor...");
+
     const { ensureVerifyHelpMessage } = require("../services/verifyHelpMessage");
     const { ensureVoicePanelMessage } = require("../services/voicePanelMessage");
     const { ensureTMTVerifyHelpMessage } = require("../services/tmtVerifyHelpMessage");
@@ -180,7 +184,7 @@ function initializeDiscordHandlers(client) {
         await ensureBanBirimRoles(guild, 1);
         // Sezon 2 rollerini de oluştur (hazır olması için)
         await ensureBanBirimRoles(guild, 2);
-        console.log('[banBirimRanks] ✅ Ban Birimi rütbe sistem rolleri başlatıldı');
+        logger.success('[banBirimRanks] Ban Birimi rütbe sistem rolleri başlatıldı');
       }
     } catch (err) {
       console.error("[banBirimRanks] Başlatma hatası:", err.message);
@@ -191,7 +195,7 @@ function initializeDiscordHandlers(client) {
       const { sendCoachWelcomeOnStartup } = require("../services/coachWelcomeService");
       sendCoachWelcomeOnStartup(client).then(result => {
         if (result.success) {
-          console.log(`[coachWelcome] ✅ ${result.sentCount} koça hoşgeldin mesajı gönderildi`);
+          logger.success(`[coachWelcome] ${result.sentCount} koça hoşgeldin mesajı gönderildi`);
         }
       }).catch(err => {
         console.error("[coachWelcome] Hata:", err.message);
