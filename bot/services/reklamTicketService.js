@@ -331,6 +331,19 @@ async function sendReklamPrices(interaction, ticketId) {
   );
 
   await interaction.reply({ embeds: [pricesEmbed], components: [row] });
+
+  // DM the prices directly to the user (ad owner)
+  try {
+    const ticket = await Ticket.findOne({ ticketId });
+    if (ticket) {
+      const user = await interaction.client.users.fetch(ticket.userId).catch(() => null);
+      if (user) {
+        await user.send({ embeds: [pricesEmbed], components: [row] }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn("[reklamTicketService] Failed to send prices embed via DM:", err.message);
+  }
 }
 
 /**
