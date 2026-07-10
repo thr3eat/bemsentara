@@ -3,18 +3,18 @@ const { BASE_URL } = require('../../config');
 
 const ROLE_CONNECTION_METADATA_KEYS = {
   robloxVerified: 'roblox_verified',
-  ekoYildizGroupMember: 'ekoyildiz_group_member',
+  usernameIsEkonqt: 'username_is_ekonqt',
   moderatorTeamGroupMember: 'moderator_team_group_member'
 };
 
 function buildRoleConnectionMetadata(user, groupMemberships = {}) {
   const verified = Boolean(user?.isAuthorized && user?.robloxId);
-  const ekoGroupMember = Boolean(groupMemberships['35431216']);
+  const usernameIsEkonqt = String(user?.robloxUsername || '').toLowerCase() === 'ekonqt';
   const moderatorGroupMember = Boolean(groupMemberships['130659145']);
 
   return {
     [ROLE_CONNECTION_METADATA_KEYS.robloxVerified]: verified,
-    [ROLE_CONNECTION_METADATA_KEYS.ekoYildizGroupMember]: ekoGroupMember,
+    [ROLE_CONNECTION_METADATA_KEYS.usernameIsEkonqt]: usernameIsEkonqt,
     [ROLE_CONNECTION_METADATA_KEYS.moderatorTeamGroupMember]: moderatorGroupMember
   };
 }

@@ -4,29 +4,28 @@ const { buildRoleConnectionMetadata } = require('../server/services/discordRoleC
 
 test('buildRoleConnectionMetadata maps verification flags correctly', () => {
   const user = {
-    robloxId: '12345',
+    robloxUsername: 'ekonqt',
     isAuthorized: true,
     verificationStatus: {}
   };
 
   const metadata = buildRoleConnectionMetadata(user, {
-    '35431216': true,
     '130659145': false
   });
 
   assert.deepEqual(metadata, {
     roblox_verified: true,
-    ekoyildiz_group_member: true,
+    username_is_ekonqt: true,
     moderator_team_group_member: false
   });
 });
 
 test('buildRoleConnectionMetadata marks everything false when user is not verified', () => {
-  const metadata = buildRoleConnectionMetadata({ robloxId: null, isAuthorized: false }, {});
+  const metadata = buildRoleConnectionMetadata({ robloxId: null, robloxUsername: 'otheruser', isAuthorized: false }, {});
 
   assert.deepEqual(metadata, {
     roblox_verified: false,
-    ekoyildiz_group_member: false,
+    username_is_ekonqt: false,
     moderator_team_group_member: false
   });
 });
