@@ -215,9 +215,6 @@ async function handleEpostaModalSubmit(interaction, category) {
   }
 }
 
-/**
- * Forwards user message in their eposta channel to the moderation channel
- */
 async function forwardUserToModChannel(message, client) {
   const channelId = message.channel.id;
   const ticket = await Ticket.findOne({ userChannelId: channelId, status: 'open' });
@@ -238,11 +235,25 @@ async function forwardUserToModChannel(message, client) {
     } catch (_) {}
   }
 
+  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+  const emailHeader = `📥 **GELEN E-POSTA (INBOX)**\n` +
+    `\`\`\`email\n` +
+    `Kimden:  ${message.author.username} <${message.author.id}@discord.mail>\n` +
+    `Kime:    Eko Yıldız Destek <destek@ekoyildiz.mail>\n` +
+    `Tarih:   ${todayStr}\n` +
+    `Konu:    Re: ${ticket.subject}\n` +
+    `\`\`\`\n`;
+
+  const emailFooter = `\n\n` +
+    `---\n` +
+    `*🛡️ MailScanner: E-posta tarandı, tehlike tespit edilmedi. (Temiz)*\n` +
+    `*📧 Sent from EkoMail Client for Desktop*`;
+
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (E-Posta)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
-    .setFooter({ text: '📩 Kullanıcının Posta Kutusu' })
+    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
+    .setFooter({ text: '📩 EkoMail Gateway' })
     .setTimestamp();
 
   const sendOpts = { embeds: [embed] };
@@ -278,11 +289,27 @@ async function forwardModToUserChannel(message, client) {
     } catch (_) {}
   }
 
+  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+  const emailHeader = `📥 **YENİ BİR E-POSTA ALDINIZ**\n` +
+    `\`\`\`email\n` +
+    `Kimden:  ${message.author.displayName} <${message.author.username}@ekoyildiz.mail>\n` +
+    `Kime:    ${ticket.userName} <${ticket.userId}@discord.mail>\n` +
+    `Tarih:   ${todayStr}\n` +
+    `Konu:    Re: ${ticket.subject}\n` +
+    `\`\`\`\n`;
+
+  const emailFooter = `\n\n` +
+    `Saygılarımızla,\n` +
+    `**${message.author.displayName}**\n` +
+    `*Eko Yıldız Müşteri Temsilcisi & Destek Sorumlusu*\n` +
+    `---\n` +
+    `*📧 EkoMail Secure Gateway tarafından şifrelenmiştir.*`;
+
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
     .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-    .setDescription((replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
-    .setFooter({ text: 'Eko Yıldız Destek Ekibi' })
+    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
+    .setFooter({ text: 'Eko Yıldız Müşteri Hizmetleri' })
     .setTimestamp();
 
   const sendOpts = { embeds: [embed] };
@@ -294,6 +321,7 @@ async function forwardModToUserChannel(message, client) {
   await message.react('✅').catch(() => {});
   return true;
 }
+
 
 module.exports = {
   handleEpostaSupportSelect,

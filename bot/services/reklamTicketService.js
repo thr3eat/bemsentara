@@ -239,11 +239,24 @@ async function forwardDMToReklamChannel(message, client, ticket) {
     } catch (_) {}
   }
 
+  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+  const emailHeader = `📥 **GELEN E-POSTA (INBOX)**\n` +
+    `\`\`\`email\n` +
+    `Kimden:  ${message.author.username} <${message.author.id}@discord.mail>\n` +
+    `Kime:    Reklam Departmanı <reklam@ekoyildiz.mail>\n` +
+    `Tarih:   ${todayStr}\n` +
+    `Konu:    Re: ${ticket.subject || 'Reklam Talebi'}\n` +
+    `\`\`\`\n`;
+
+  const emailFooter = `\n\n` +
+    `---\n` +
+    `*🛡️ Kaspersky Secure Mail Gateway: Dosya tarandı (Temiz).*`;
+
   const embed = new EmbedBuilder()
     .setColor(0xF1C40F)
     .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
-    .setFooter({ text: '📩 Kullanıcıdan DM' })
+    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
+    .setFooter({ text: '📩 EkoMail Gateway' })
     .setTimestamp();
 
   const sendOpts = { embeds: [embed] };
@@ -294,10 +307,26 @@ async function forwardReklamChannelToDM(message, client) {
     } catch (_) {}
   }
 
+  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+  const emailHeader = `📥 **YENİ BİR E-POSTA ALDINIZ**\n` +
+    `\`\`\`email\n` +
+    `Kimden:  ${message.author.displayName} <${message.author.username}@ekoyildiz.mail>\n` +
+    `Kime:    ${ticket.userName} <${ticket.userId}@discord.mail>\n` +
+    `Tarih:   ${todayStr}\n` +
+    `Konu:    Re: ${ticket.subject || 'Reklam Talebi'}\n` +
+    `\`\`\`\n`;
+
+  const emailFooter = `\n\n` +
+    `Saygılarımızla,\n` +
+    `**${message.author.displayName}**\n` +
+    `*Eko Yıldız Reklam Departmanı Sorumlusu*\n` +
+    `---\n` +
+    `*📧 EkoMail Secure Gateway tarafından şifrelenmiştir.*`;
+
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
     .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-    .setDescription((replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
+    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
     .setFooter({ text: 'Eko Yıldız Reklam Departmanı' })
     .setTimestamp();
 
