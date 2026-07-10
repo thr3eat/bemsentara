@@ -677,24 +677,11 @@ async function forwardDMToChannel(message, client) {
     } catch (_) {}
   }
 
-  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
-  const emailHeader = `📥 **GELEN E-POSTA (INBOX)**\n` +
-    `\`\`\`email\n` +
-    `Kimden:  ${message.author.username} <${message.author.id}@discord.mail>\n` +
-    `Kime:    Sentara Destek <destek@sentara.mail>\n` +
-    `Tarih:   ${todayStr}\n` +
-    `Konu:    Re: Destek Talebi\n` +
-    `\`\`\`\n`;
-
-  const emailFooter = `\n\n` +
-    `---\n` +
-    `*🛡️ MailScanner: E-posta tarandı, tehdit bulunmadı.*`;
-
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
-    .setFooter({ text: '📩 EkoMail Gateway' })
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
+    .setFooter({ text: '📩 Kullanıcıdan DM' })
     .setTimestamp();
 
   const sendOpts = { embeds: [embed] };
@@ -739,27 +726,11 @@ async function forwardChannelToDM(message, client) {
     } catch (_) {}
   }
 
-  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
-  const emailHeader = `📥 **YENİ BİR E-POSTA ALDINIZ**\n` +
-    `\`\`\`email\n` +
-    `Kimden:  ${message.author.displayName} <${message.author.username}@sentara.mail>\n` +
-    `Kime:    ${user.username} <${user.id}@discord.mail>\n` +
-    `Tarih:   ${todayStr}\n` +
-    `Konu:    Re: Destek Talebi\n` +
-    `\`\`\`\n`;
-
-  const emailFooter = `\n\n` +
-    `Saygılarımızla,\n` +
-    `**${message.author.displayName}**\n` +
-    `*Sentara Destek Ekibi Sorumlusu*\n` +
-    `---\n` +
-    `*📧 EkoMail Secure Gateway ile koruma altındadır.*`;
-
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
     .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
-    .setFooter({ text: 'Sentara Destek Servisi' })
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
+    .setFooter({ text: 'Sentara Destek • Yetkili mesajı' })
     .setTimestamp();
 
   await user.send({ embeds: [embed] }).catch(() => {});

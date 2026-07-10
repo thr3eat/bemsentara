@@ -163,7 +163,7 @@ async function handleEpostaModalSubmit(interaction, category) {
         `🔹 **Açıklama:** ${description}\n\n` +
         `💬 **Nasıl Çalışır?**\n` +
         `Bu kanala yazdığınız her şey doğrudan destek ekibimize iletilir. Yetkililerimizin cevapları da buraya e-posta biçiminde düşer.\n\n` +
-        `Talebi kapatmak isterseniz aşağıdaki butonu kullanabilirsiniz.`
+        `İşlemleri yönetmek için aşağıdaki gerçekçi butonları kullanabilirsiniz.`
       )
       .setColor(0x3498DB)
       .setTimestamp();
@@ -171,8 +171,16 @@ async function handleEpostaModalSubmit(interaction, category) {
     const rowUser = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`close_ticket_${ticketId}`)
-        .setLabel("E-POSTA TALEBİNİ KAPAT")
-        .setStyle(ButtonStyle.Danger)
+        .setLabel("🔒 E-Postayı Arşivle (Kapat)")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`eposta_scan_${ticketId}`)
+        .setLabel("🛡️ Güvenlik Taraması")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`eposta_print_${ticketId}`)
+        .setLabel("🖨️ Yazıcıdan Çıkart")
+        .setStyle(ButtonStyle.Secondary)
     );
 
     await channelA.send({ embeds: [userEmbed], components: [rowUser] });
@@ -187,7 +195,7 @@ async function handleEpostaModalSubmit(interaction, category) {
         `📌 **Yetkili Paneli:**\n` +
         `• Bu kanala yazacağınız her mesaj kullanıcının özel e-posta kanalına iletilir.\n` +
         `• Kullanıcının kendi kanalına yazdığı mesajlar buraya düşer.\n` +
-        `• Ticket'ı üstlenmek için aşağıdaki butona basın.`
+        `• Ticket'ı yönetmek için aşağıdaki RP paneli butonlarını kullanabilirsiniz.`
       )
       .setColor(0xF1C40F)
       .setTimestamp();
@@ -195,12 +203,20 @@ async function handleEpostaModalSubmit(interaction, category) {
     const rowMod = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`close_ticket_${ticketId}`)
-        .setLabel("🔒 Ticket'ı Kapat")
+        .setLabel("📦 Arşive Taşı (Kapat)")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId(`claim_ticket_${ticketId}`)
         .setLabel("🙋‍♂️ Üstlen")
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`eposta_print_${ticketId}`)
+        .setLabel("🖨️ E-Postayı Yazdır")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`eposta_spam_${ticketId}`)
+        .setLabel("⚠️ Spam Rapor Et")
+        .setStyle(ButtonStyle.Secondary)
     );
 
     await channelB.send({ embeds: [modEmbed], components: [rowMod] });
@@ -215,6 +231,9 @@ async function handleEpostaModalSubmit(interaction, category) {
   }
 }
 
+/**
+ * Forwards user message in their eposta channel to the moderation channel (SADE İLETİM)
+ */
 async function forwardUserToModChannel(message, client) {
   const channelId = message.channel.id;
   const ticket = await Ticket.findOne({ userChannelId: channelId, status: 'open' });
@@ -235,24 +254,10 @@ async function forwardUserToModChannel(message, client) {
     } catch (_) {}
   }
 
-  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
-  const emailHeader = `📥 **GELEN E-POSTA (INBOX)**\n` +
-    `\`\`\`email\n` +
-    `Kimden:  ${message.author.username} <${message.author.id}@discord.mail>\n` +
-    `Kime:    Eko Yıldız Destek <destek@ekoyildiz.mail>\n` +
-    `Tarih:   ${todayStr}\n` +
-    `Konu:    Re: ${ticket.subject}\n` +
-    `\`\`\`\n`;
-
-  const emailFooter = `\n\n` +
-    `---\n` +
-    `*🛡️ MailScanner: E-posta tarandı, tehlike tespit edilmedi. (Temiz)*\n` +
-    `*📧 Sent from EkoMail Client for Desktop*`;
-
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (E-Posta)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
     .setFooter({ text: '📩 EkoMail Gateway' })
     .setTimestamp();
 
@@ -267,7 +272,7 @@ async function forwardUserToModChannel(message, client) {
 }
 
 /**
- * Forwards moderator message in moderator channel to user eposta channel
+ * Forwards moderator message in moderator channel to user eposta channel (SADE İLETİM)
  */
 async function forwardModToUserChannel(message, client) {
   const channelId = message.channel.id;
@@ -289,26 +294,10 @@ async function forwardModToUserChannel(message, client) {
     } catch (_) {}
   }
 
-  const todayStr = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
-  const emailHeader = `📥 **YENİ BİR E-POSTA ALDINIZ**\n` +
-    `\`\`\`email\n` +
-    `Kimden:  ${message.author.displayName} <${message.author.username}@ekoyildiz.mail>\n` +
-    `Kime:    ${ticket.userName} <${ticket.userId}@discord.mail>\n` +
-    `Tarih:   ${todayStr}\n` +
-    `Konu:    Re: ${ticket.subject}\n` +
-    `\`\`\`\n`;
-
-  const emailFooter = `\n\n` +
-    `Saygılarımızla,\n` +
-    `**${message.author.displayName}**\n` +
-    `*Eko Yıldız Müşteri Temsilcisi & Destek Sorumlusu*\n` +
-    `---\n` +
-    `*📧 EkoMail Secure Gateway tarafından şifrelenmiştir.*`;
-
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
     .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(emailHeader + (replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*') + emailFooter)
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
     .setFooter({ text: 'Eko Yıldız Müşteri Hizmetleri' })
     .setTimestamp();
 
@@ -321,7 +310,6 @@ async function forwardModToUserChannel(message, client) {
   await message.react('✅').catch(() => {});
   return true;
 }
-
 
 module.exports = {
   handleEpostaSupportSelect,

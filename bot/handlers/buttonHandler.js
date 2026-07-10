@@ -201,6 +201,62 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId.startsWith("eposta_scan_")) {
+    return interaction.reply({
+      content: 
+        `🛡️ **EkoMail Secure Gateway - Antivirus & Phishing Scanner**\n` +
+        `\`\`\`\n` +
+        `[TARAMA] E-posta ekleri ve bağlantıları analiz ediliyor...\n` +
+        `[ANALİZ] Kaspersky Secure Mail Gateway: Dosya tarandı (TEMİZ).\n` +
+        `[SONUÇ] Herhangi bir virüs, phishing bağlantısı veya şüpheli hareket tespit edilmedi.\n` +
+        `\`\`\``,
+      ephemeral: true
+    });
+  }
+
+  if (customId.startsWith("eposta_print_")) {
+    const ticketId = customId.replace("eposta_print_", "");
+    const Ticket = require("../../models/Ticket");
+    const { EmbedBuilder } = require("discord.js");
+    
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) {
+      return interaction.reply({ content: "❌ Hata: E-posta bulunamadı.", ephemeral: true });
+    }
+
+    const printDate = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+    const printEmbed = new EmbedBuilder()
+      .setTitle("🖨️ EkoMail Gateway - Yazıcı Çıktısı")
+      .setDescription(
+        `\`\`\`text\n` +
+        `==================================================\n` +
+        `               EKO YILDIZ MAIL CLIENT             \n` +
+        `==================================================\n` +
+        `YAZDIRMA TARİHİ: ${printDate}\n` +
+        `TICKET ID:       ${ticket.ticketId}\n` +
+        `GÖNDEREN:        ${ticket.userName} (${ticket.userId})\n` +
+        `DEPARTMAN:       E-Posta Destek Gateway\n` +
+        `KONU:            ${ticket.subject}\n` +
+        `--------------------------------------------------\n` +
+        `İÇERİK:\n` +
+        `${ticket.description}\n` +
+        `==================================================\n` +
+        `\`\`\``
+      )
+      .setColor(0x7f8c8d);
+
+    return interaction.reply({ embeds: [printEmbed], ephemeral: true });
+  }
+
+  if (customId.startsWith("eposta_spam_")) {
+    return interaction.reply({
+      content: 
+        `⚠️ **EkoMail Spam Raporlama**\n` +
+        `Bu e-posta adresi spam listesine eklenmek üzere güvenlik merkezine bildirildi.`,
+      ephemeral: true
+    });
+  }
+
   if (customId.startsWith("ekoyildiz_eposta_form_button_")) {
     const category = customId.replace("ekoyildiz_eposta_form_button_", "");
     const { triggerEpostaFormModal } = require("../services/epostaTicketService");
