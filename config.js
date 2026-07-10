@@ -29,7 +29,7 @@ const GUILD2_TICKET_LOG_ID = process.env.GUILD2_TICKET_LOG_ID || "14128289862409
 /** Join-to-create ses kanalı */
 const GUILD2_VOICE_JOIN_ID = process.env.GUILD2_VOICE_JOIN_ID || "1518715842227863552";
 /** Ses kanallarının oluşturulacağı kategori (join kanalıyla aynı kategori kullanılır) */
-const GUILD2_VOICE_CATEGORY_ID = process.env.GUILD2_VOICE_CATEGORY_ID || "1460284319183536190";
+const GUILD2_VOICE_CATEGORY_ID = process.env.GUILD2_VOICE_CATEGORY_ID || "1518692429841043750";
 /** Ses sistemi panel kanalı */
 const GUILD2_VOICE_PANEL_ID = process.env.GUILD2_VOICE_PANEL_ID || "1518716065872609490";
 
