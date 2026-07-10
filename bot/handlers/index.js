@@ -516,6 +516,7 @@ function initializeDiscordHandlers(client) {
 
   client.on("guildMemberAdd", async (member) => {
     try {
+      if (member.user.bot) return;
       // 1. Veritabanı Ban Kontrolü ve Otomatik Cezalandırma
       const User = require("../../models/User");
       const dbUser = await User.findOne({ discordId: member.id });

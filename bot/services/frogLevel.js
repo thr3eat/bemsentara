@@ -319,6 +319,7 @@ async function syncRolesFromLevel(member, level, client) {
 // ── Kurbağa seviye ve aile rolleri koruma/senkronize etme ───────────────────
 async function enforceFrogRoles(member) {
   try {
+    if (member.user.bot) return;
     const currentRoles = member.roles.cache.map(r => r.id);
     const level0RoleId = '1518692402884378825';
 
