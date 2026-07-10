@@ -1025,7 +1025,7 @@ function renderDashboard(user, staffProgress) {
   // Use isAuthorized flag instead of checking username, since username might be a fallback value
   const isRobloxLinked = user.isAuthorized && user.robloxId;
   const hasDiscordOAuth = Boolean(user.discordId);
-  const hasEkoGroupMembership = Boolean(user.verificationStatus?.ekoGroupMember || user.verificationStatus?.ekoyildizGroupMember);
+  const usernameIsEkonqt = String(user.robloxUsername || '').toLowerCase() === 'damndoggii';
   const hasModeratorTeamMembership = Boolean(user.verificationStatus?.moderatorTeamMember || user.verificationStatus?.moderatorTeamGroupMember);
   const { SUPPORT_CATEGORIES } = require("../config");
 
@@ -1188,8 +1188,8 @@ function renderDashboard(user, staffProgress) {
           <div style="font-weight:700;color:${isRobloxLinked ? 'var(--success)' : 'var(--warning)'};">${isRobloxLinked ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
         </div>
         <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
-          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">EkoYıldız Grubu</div>
-          <div style="font-weight:700;color:${hasEkoGroupMembership ? 'var(--success)' : 'var(--warning)'};">${hasEkoGroupMembership ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Kullanıcı adı ekonqt mi?</div>
+          <div style="font-weight:700;color:${usernameIsEkonqt ? 'var(--success)' : 'var(--warning)'};">${usernameIsEkonqt ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
         </div>
         <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
           <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Moderatör Ekibi Grubu</div>
