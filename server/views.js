@@ -1188,12 +1188,8 @@ function renderDashboard(user, staffProgress) {
           <div style="font-weight:700;color:${isRobloxLinked ? 'var(--success)' : 'var(--warning)'};">${isRobloxLinked ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
         </div>
         <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
-          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Kullanıcı adı ekonqt mi?</div>
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Kullanıcı adı damndoggii mi?</div>
           <div style="font-weight:700;color:${usernameIsEkonqt ? 'var(--success)' : 'var(--warning)'};">${usernameIsEkonqt ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
-        </div>
-        <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
-          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Moderatör Ekibi Grubu</div>
-          <div style="font-weight:700;color:${hasModeratorTeamMembership ? 'var(--success)' : 'var(--warning)'};">${hasModeratorTeamMembership ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
         </div>
       </div>
     </div>
