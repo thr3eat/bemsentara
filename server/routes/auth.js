@@ -12,23 +12,7 @@ async function syncLinkedRoleMetadata(user, session = null) {
   const applicationId = process.env.DISCORD_ROLE_CONNECTION_APPLICATION_ID;
   if (!accessToken || !applicationId) return;
 
-  const groupMemberships = {};
-  try {
-    const { getDiscordClient } = require("../../bot/discordClient");
-    const client = getDiscordClient();
-    const guild = client?.isReady() ? await client.guilds.fetch("1367646464804655104").catch(() => null) : null;
-    if (guild && user.discordId) {
-      const member = await guild.members.fetch(user.discordId).catch(() => null);
-      if (member) {
-        groupMemberships["35431216"] = member.roles.cache.has("35431216");
-        groupMemberships["130659145"] = member.roles.cache.has("130659145");
-      }
-    }
-  } catch (err) {
-    console.warn("[auth] Group membership lookup failed:", err.message);
-  }
-
-  await syncRoleConnectionForUser(user, accessToken, applicationId, groupMemberships);
+  await syncRoleConnectionForUser(user, accessToken, applicationId, {});
 }
 
 const router = express.Router();

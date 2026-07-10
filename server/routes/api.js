@@ -2389,18 +2389,7 @@ router.post("/api/auth/roblox/friend-verify", async (req, res) => {
       const accessToken = dbUser.discordAccessToken || req.session?.discordAccessToken;
       const applicationId = process.env.DISCORD_ROLE_CONNECTION_APPLICATION_ID;
       if (applicationId && accessToken) {
-        const groupMemberships = {};
-        const { getDiscordClient } = require("../../bot/discordClient");
-        const client = getDiscordClient();
-        const guild = client?.isReady() ? await client.guilds.fetch("1367646464804655104").catch(() => null) : null;
-        if (guild && dbUser.discordId) {
-          const member = await guild.members.fetch(dbUser.discordId).catch(() => null);
-          if (member) {
-            groupMemberships['35431216'] = member.roles.cache.has('35431216');
-            groupMemberships['130659145'] = member.roles.cache.has('130659145');
-          }
-        }
-        await syncRoleConnectionForUser(dbUser, accessToken, applicationId, groupMemberships);
+        await syncRoleConnectionForUser(dbUser, accessToken, applicationId, {});
       }
     } catch (syncErr) {
       console.warn("[api] Discord role connection sync failed after verification:", syncErr.message);
