@@ -143,7 +143,7 @@ async function handleButtonInteraction(interaction) {
         const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
         if (channel) {
           await channel.send(`🙋‍♂️ <@${interaction.user.id}> bu talebi DM üzerinden gelen bildirimle üstlendi.`);
-          
+
           // Try to update channel welcome message claim button
           // Find welcome message in channel history
           const messages = await channel.messages.fetch({ limit: 20 }).catch(() => []);
@@ -169,7 +169,7 @@ async function handleButtonInteraction(interaction) {
               });
               newComponents.push(updatedRow);
             }
-            await welcomeMsg.edit({ components: newComponents }).catch(() => {});
+            await welcomeMsg.edit({ components: newComponents }).catch(() => { });
           }
         }
       }
@@ -303,7 +303,7 @@ async function handleButtonInteraction(interaction) {
           const chanId = ticket.additionalChannels[idx];
           if (chanId) {
             const ch = await guild.channels.fetch(chanId).catch(() => null);
-            if (ch) await ch.delete("Gruptan ayrıldı").catch(() => {});
+            if (ch) await ch.delete("Gruptan ayrıldı").catch(() => { });
           }
           ticket.additionalUsers.splice(idx, 1);
           ticket.additionalChannels.splice(idx, 1);
@@ -363,8 +363,8 @@ async function handleButtonInteraction(interaction) {
     if (interaction.channel) {
       await interaction.reply({ content: "🔄 Destek talebi yeniden açıldı!", ephemeral: true });
       try {
-        await interaction.message.delete().catch(() => {});
-      } catch (_) {}
+        await interaction.message.delete().catch(() => { });
+      } catch (_) { }
     } else {
       await interaction.reply({ content: "🔄 Destek talebi yeniden açıldı!", ephemeral: true });
     }
@@ -432,8 +432,8 @@ async function handleButtonInteraction(interaction) {
 
   if (customId.startsWith("eposta_scan_")) {
     return interaction.reply({
-      content: 
-        `🛡️ **EkoMail Secure Gateway - Antivirus & Phishing Scanner**\n` +
+      content:
+        `🛡️ **EkoYıldız Destek SistemiSecure Gateway - Antivirus & Phishing Scanner**\n` +
         `\`\`\`\n` +
         `[TARAMA] E-posta ekleri ve bağlantıları analiz ediliyor...\n` +
         `[ANALİZ] Kaspersky Secure Mail Gateway: Dosya tarandı (TEMİZ).\n` +
@@ -447,7 +447,7 @@ async function handleButtonInteraction(interaction) {
     const ticketId = customId.replace("eposta_print_", "");
     const Ticket = require("../../models/Ticket");
     const { EmbedBuilder } = require("discord.js");
-    
+
     const ticket = await Ticket.findOne({ ticketId });
     if (!ticket) {
       return interaction.reply({ content: "❌ Hata: E-posta bulunamadı.", ephemeral: true });
@@ -455,7 +455,7 @@ async function handleButtonInteraction(interaction) {
 
     const printDate = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
     const printEmbed = new EmbedBuilder()
-      .setTitle("🖨️ EkoMail Gateway - Yazıcı Çıktısı")
+      .setTitle("🖨️ EkoYıldız Destek Sistemi - Yazıcı Çıktısı")
       .setDescription(
         `\`\`\`text\n` +
         `==================================================\n` +
@@ -479,8 +479,8 @@ async function handleButtonInteraction(interaction) {
 
   if (customId.startsWith("eposta_spam_")) {
     return interaction.reply({
-      content: 
-        `⚠️ **EkoMail Spam Raporlama**\n` +
+      content:
+        `⚠️ **EkoYıldız Destek Sistemi Spam Raporlama**\n` +
         `Bu e-posta adresi spam listesine eklenmek üzere güvenlik merkezine bildirildi.`,
       ephemeral: true
     });
@@ -607,7 +607,7 @@ async function handleButtonInteraction(interaction) {
           });
           newComponents.push(updatedRow);
         }
-        await currentMessage.edit({ components: newComponents }).catch(() => {});
+        await currentMessage.edit({ components: newComponents }).catch(() => { });
       }
     } catch (editErr) {
       console.warn("Failed to edit welcome message components on claim:", editErr.message);
@@ -712,7 +712,7 @@ async function handleButtonInteraction(interaction) {
 
   if (customId.startsWith("invest_resolve_")) {
     const channelId = customId.replace("invest_resolve_", "");
-    
+
     const Investigation = require("../../models/Investigation");
     const invest = await Investigation.findOne({ channelId });
     if (!invest) {
@@ -741,7 +741,7 @@ async function handleButtonInteraction(interaction) {
   // ── Hata Bildirim Butonu ──────────────────────────────────────────────────
   if (customId.startsWith("report_err_")) {
     const errorId = customId.replace("report_err_", "");
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
 
     try {
       const ErrorReportModel = require("../../models/ErrorReport");
@@ -762,24 +762,24 @@ async function handleButtonInteraction(interaction) {
         if (interaction.message.embeds && interaction.message.embeds.length > 0) {
           payload.embeds = [interaction.message.embeds[0]];
         }
-        await interaction.editReply(payload).catch(() => {});
+        await interaction.editReply(payload).catch(() => { });
 
         await interaction.followUp({
           content: "✅ **Hata başarıyla geliştirici ekibine bildirildi.** Teşekkür ederiz!",
           ephemeral: true
-        }).catch(() => {});
+        }).catch(() => { });
       } else {
         await interaction.followUp({
           content: "❌ Hata raporu veri tabanında bulunamadı veya silinmiş olabilir.",
           ephemeral: true
-        }).catch(() => {});
+        }).catch(() => { });
       }
     } catch (err) {
       console.error("[report_err] Button click handle error:", err.message);
       await interaction.followUp({
         content: "❌ Hata bildirilirken beklenmedik bir sorun oluştu.",
         ephemeral: true
-      }).catch(() => {});
+      }).catch(() => { });
     }
     return;
   }
@@ -806,26 +806,26 @@ async function handleButtonInteraction(interaction) {
 
   // ── Görev Başlat butonu ──────────────────────────────────────────────────
   if (customId === "staff_start_task_1") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
 
     p.daily = p.daily || {};
     p.daily.startedToday = true;
-    await p.save().catch(() => {});
+    await p.save().catch(() => { });
 
     const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
     const embed = await generateMorningBriefingEmbed(p, interaction.client);
     const components = await getMorningBriefingComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Görev İlerlemesini Güncelle butonu ────────────────────────────────────
   if (customId === "staff_update_progress") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
@@ -833,14 +833,14 @@ async function handleButtonInteraction(interaction) {
     const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
     const embed = await generateMorningBriefingEmbed(p, interaction.client);
     const components = await getMorningBriefingComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Ayarlar Butonu ────────────────────────────────────────────────────────
   if (customId === "staff_settings") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
@@ -848,52 +848,52 @@ async function handleButtonInteraction(interaction) {
     const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
     const embed = generateSettingsEmbed(p);
     const components = getSettingsComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Sabah Brifingi Aç/Kapat Butonu ────────────────────────────────────────
   if (customId === "staff_toggle_briefing") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
 
     p.settings = p.settings || {};
     p.settings.dailyBriefingEnabled = p.settings.dailyBriefingEnabled !== false ? false : true;
-    await p.save().catch(() => {});
+    await p.save().catch(() => { });
 
     const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
     const embed = generateSettingsEmbed(p);
     const components = getSettingsComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Uyarı Bildirimleri Aç/Kapat Butonu ────────────────────────────────────
   if (customId === "staff_toggle_warnings") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
 
     p.settings = p.settings || {};
     p.settings.warningsEnabled = p.settings.warningsEnabled !== false ? false : true;
-    await p.save().catch(() => {});
+    await p.save().catch(() => { });
 
     const { generateSettingsEmbed, getSettingsComponents } = require("../services/staffSystem");
     const embed = generateSettingsEmbed(p);
     const components = getSettingsComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Ayarlar Geri Dön Butonu ────────────────────────────────────────────────
   if (customId === "staff_settings_back") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
@@ -901,14 +901,14 @@ async function handleButtonInteraction(interaction) {
     const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
     const embed = await generateMorningBriefingEmbed(p, interaction.client);
     const components = await getMorningBriefingComponents(p);
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
   // ── Selamlaşma İlerlemesini Güncelle Butonu ───────────────────────────────
   if (customId === "staff_update_greet_progress") {
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
@@ -916,8 +916,8 @@ async function handleButtonInteraction(interaction) {
     const { generateGreetProgressEmbed, getGreetProgressComponents } = require("../services/staffSystem");
     const embed = generateGreetProgressEmbed(p);
     const components = getGreetProgressComponents();
-    
-    await interaction.editReply({ embeds: [embed], components }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
   }
 
@@ -1467,7 +1467,7 @@ async function handleButtonInteraction(interaction) {
         // Pagination butonları - önceki kategoriyı bul
         const parts = customId.split("_");
         category = parts[2] || 'points';
-        
+
         if (customId.startsWith("lb_next_")) {
           page = parseInt(interaction.message.embeds[0]?.footer?.text?.split(" ")[1] || 0) || 0;
           page++;
@@ -1496,7 +1496,7 @@ async function handleButtonInteraction(interaction) {
       for (const p of pageItems) {
         const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `${p.rank}.`;
         const premium = p.isPremium ? '⭐ ' : '';
-        
+
         let stat = '';
         if (category === 'xp') {
           stat = `XP: ${p.xp}`;
@@ -1592,7 +1592,7 @@ async function handleButtonInteraction(interaction) {
       p.gamification = p.gamification || {};
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 300;
       p.gamification.totalPoints = (p.gamification.totalPoints || 0) + 100;
-      
+
       // XP & Level up handle
       p.gamification.currentXP = (p.gamification.currentXP || 0) + 800;
       let levelUp = false;
@@ -1645,7 +1645,7 @@ async function handleButtonInteraction(interaction) {
     const targetUserId = customId.replace(isBanAction ? "incele_ban_" : "incele_unban_", "");
 
     // Defer update so discord doesn't time out
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
 
     const User = require("../../models/User");
     let dbUser = await User.findOne({ discordId: targetUserId });
@@ -1685,7 +1685,7 @@ async function handleButtonInteraction(interaction) {
       // Discord Sunucularından Banla (Botun bulunduğu tüm sunuculardan)
       for (const guild of interaction.client.guilds.cache.values()) {
         try {
-          await guild.bans.create(targetUserId, { reason: `Yasaklama (İnceleme Paneli): ${banReason}` }).catch(() => {});
+          await guild.bans.create(targetUserId, { reason: `Yasaklama (İnceleme Paneli): ${banReason}` }).catch(() => { });
         } catch (err) {
           console.warn(`[incele_ban] Guild ban error for ${guild.name}:`, err.message);
         }
@@ -1706,7 +1706,7 @@ async function handleButtonInteraction(interaction) {
         try {
           const ban = await guild.bans.fetch(targetUserId).catch(() => null);
           if (ban) {
-            await guild.bans.remove(targetUserId, "Yasaklama Kaldırıldı (İnceleme Paneli)").catch(() => {});
+            await guild.bans.remove(targetUserId, "Yasaklama Kaldırıldı (İnceleme Paneli)").catch(() => { });
           }
         } catch (err) {
           console.warn(`[incele_unban] Guild unban error for ${guild.name}:`, err.message);
@@ -1717,10 +1717,10 @@ async function handleButtonInteraction(interaction) {
     // Embed'i güncelle
     const targetMemberObj = await interaction.guild.members.fetch(targetUserId).catch(() => null);
     const { generateInceleData } = require("./generalCommandHandler");
-    
+
     const dummyUser = targetUserObj || { id: targetUserId, tag: dbUser?.discordUsername || "Bilinmiyor", displayAvatarURL: () => "" };
     const response = await generateInceleData(interaction.guild, dummyUser, targetMemberObj);
-    
+
     await interaction.editReply(response).catch((err) => console.error("EditReply error:", err));
     return;
   }
@@ -1735,7 +1735,7 @@ async function handleButtonInteraction(interaction) {
     const targetMsgId = parts[5];
     const duration = parts[6] ? parseInt(parts[6], 10) : 10; // Default 10 mins
 
-    await interaction.deferUpdate().catch(() => {});
+    await interaction.deferUpdate().catch(() => { });
 
     let targetGuild = interaction.client.guilds.cache.get(guildId)
       || await interaction.client.guilds.fetch(guildId).catch(() => null);
@@ -1776,9 +1776,9 @@ async function handleButtonInteraction(interaction) {
         const progressBar = '█'.repeat(filled) + '░'.repeat(empty);
 
         resultText += `\n\n📈 **Terfi İlerlemeniz (Mod. Eylemi):**\n` +
-                      `• Rütbe: **${ROLE_NAMES[currentLevel]}**\n` +
-                      `• İlerleme: \`[${progressBar}]\` **${percentage}%**\n` +
-                      `• Yapılan Eylem: **${currentActions} / ${requiredActions}** (Terfi için)`;
+          `• Rütbe: **${ROLE_NAMES[currentLevel]}**\n` +
+          `• İlerleme: \`[${progressBar}]\` **${percentage}%**\n` +
+          `• Yapılan Eylem: **${currentActions} / ${requiredActions}** (Terfi için)`;
       }
     }
 
@@ -1797,7 +1797,7 @@ async function handleButtonInteraction(interaction) {
           `**Sebep:** Küfür / Uygunsuz içerik tespiti.\n` +
           `**Uyarı Sayınız:** ${dbUser.warnCount}/3\n` +
           `Uyarı sayınız 3'ü geçerse otomatik olarak hapishaneye gönderileceksiniz.`
-        ).catch(() => {});
+        ).catch(() => { });
       }
 
       if (dbUser.warnCount >= 3) {
@@ -1860,7 +1860,7 @@ async function handleButtonInteraction(interaction) {
         if (channel && channel.isTextBased()) {
           const msgToDelete = await channel.messages.fetch(targetMsgId).catch(() => null);
           if (msgToDelete && msgToDelete.deletable) {
-            await msgToDelete.delete().catch(() => {});
+            await msgToDelete.delete().catch(() => { });
           }
         }
       } catch (err) {
@@ -1925,7 +1925,7 @@ async function handleButtonInteraction(interaction) {
         .setDisabled(true)
     );
 
-    await interaction.editReply({ embeds: [updatedEmbed], components: [disabledRow] }).catch(() => {});
+    await interaction.editReply({ embeds: [updatedEmbed], components: [disabledRow] }).catch(() => { });
     return;
   }
 
@@ -1946,7 +1946,7 @@ async function handleButtonInteraction(interaction) {
     const firstActionRow = new ActionRowBuilder().addComponents(amountInput);
     modal.addComponents(firstActionRow);
 
-    await interaction.showModal(modal).catch(() => {});
+    await interaction.showModal(modal).catch(() => { });
     return;
   }
 
@@ -1954,7 +1954,7 @@ async function handleButtonInteraction(interaction) {
   if (customId.startsWith("setup_")) {
     const parts = customId.split("_");
     const action = parts[1]; // correct | incorrect | edit | confirm
-    
+
     let targetGuildId = "";
     if (action === "confirm") {
       targetGuildId = parts[3]; // setup_confirm_channels_${guildId} or setup_confirm_chefs_${guildId}
@@ -1971,23 +1971,23 @@ async function handleButtonInteraction(interaction) {
     }
 
     if (action === "correct") {
-      await interaction.deferUpdate().catch(() => {});
+      await interaction.deferUpdate().catch(() => { });
       await renderChannelSelectionPanel(interaction, setupDoc);
       return;
     }
 
     if (action === "incorrect") {
-      await interaction.deferUpdate().catch(() => {});
+      await interaction.deferUpdate().catch(() => { });
       await renderRoleCustomizationPanel(interaction, setupDoc);
       return;
     }
 
     if (action === "edit") {
-      await interaction.deferUpdate().catch(() => {});
-      
+      await interaction.deferUpdate().catch(() => { });
+
       const noblox = require("noblox.js");
       const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
-      
+
       const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
       let mappedText = "";
       for (const r of rbxRoles) {
@@ -2008,7 +2008,7 @@ async function handleButtonInteraction(interaction) {
         }
         mappedText += `• **Rank ${r.rank} (${r.name}):** ${roleDisplay}\n`;
       }
-      
+
       const setupEmbed = new EmbedBuilder()
         .setTitle("🤖 Yapay Zeka Rol Eşleştirmesi")
         .setColor(0x3498db)
@@ -2018,7 +2018,7 @@ async function handleButtonInteraction(interaction) {
           `\nBu eşleştirme doğru mu?`
         )
         .setTimestamp();
-        
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`setup_correct_${setupDoc.guildId}`)
@@ -2029,14 +2029,14 @@ async function handleButtonInteraction(interaction) {
           .setLabel("DOĞRU DEĞİL DÜZENLEMEK İSTİYORUM")
           .setStyle(ButtonStyle.Danger)
       );
-      
-      await interaction.editReply({ embeds: [setupEmbed], components: [row] }).catch(() => {});
+
+      await interaction.editReply({ embeds: [setupEmbed], components: [row] }).catch(() => { });
       return;
     }
 
     if (action === "confirm") {
       const type = parts[2]; // channels | chefs
-      await interaction.deferUpdate().catch(() => {});
+      await interaction.deferUpdate().catch(() => { });
 
       if (type === "channels") {
         await renderChefsSelectionPanel(interaction, setupDoc);
@@ -2048,12 +2048,12 @@ async function handleButtonInteraction(interaction) {
           const { ChannelType, EmbedBuilder, StringSelectMenuBuilder } = require("discord.js");
           const centralGuild = interaction.client.guilds.cache.get("1483482948320891074")
             || await interaction.client.guilds.fetch("1483482948320891074").catch(() => null);
-            
+
           let archiveChannelId = "";
           if (centralGuild) {
             const sanitizedGuildName = setupDoc.guildName.toLowerCase().replace(/[^a-z0-9]/g, "-");
             const channelName = `${sanitizedGuildName}-arsiv`;
-            
+
             const newChan = await centralGuild.channels.create({
               name: channelName,
               type: ChannelType.GuildText,
@@ -2082,8 +2082,8 @@ async function handleButtonInteraction(interaction) {
               )
               .setTimestamp()
               .setFooter({ text: "TMT Yönetim Departmanı" });
-              
-            await rulesChan.send({ embeds: [rulesEmbed] }).catch(() => {});
+
+            await rulesChan.send({ embeds: [rulesEmbed] }).catch(() => { });
           }
 
           setupDoc.status = "active";
@@ -2094,7 +2094,7 @@ async function handleButtonInteraction(interaction) {
               || await centralGuild.channels.fetch("1521516376831823973").catch(() => null);
             if (listChan && listChan.isTextBased()) {
               const activeSetups = await ServerSetup.find({ status: "active" });
-              
+
               const listEmbed = new EmbedBuilder()
                 .setTitle("🏢 KURULAN BRANŞ SUNUCULARI LİSTESİ")
                 .setColor(0x1abc9c)
@@ -2103,7 +2103,7 @@ async function handleButtonInteraction(interaction) {
                   activeSetups.map(s => `• **${s.guildName}** (Grup: \`${s.robloxGroupName}\`)\n  > Şef: ${s.branchChef ? `<@${s.branchChef}>` : "Yok"}\n  > Yardımcı: ${s.branchChefAssistant ? `<@${s.branchChefAssistant}>` : "Yok"}`).join("\n\n")
                 )
                 .setTimestamp();
-                
+
               const options = activeSetups.map(s => ({
                 label: s.guildName,
                 description: `${s.robloxGroupName} Grubu Sunucusu`,
@@ -2125,9 +2125,9 @@ async function handleButtonInteraction(interaction) {
               const msgs = await listChan.messages.fetch({ limit: 50 }).catch(() => []);
               const botMsg = msgs.find(m => m.author.id === interaction.client.user.id && m.embeds[0]?.title?.includes("KURULAN BRANŞ SUNUCULARI"));
               if (botMsg) {
-                await botMsg.edit({ embeds: [listEmbed], components: listComponents }).catch(() => {});
+                await botMsg.edit({ embeds: [listEmbed], components: listComponents }).catch(() => { });
               } else {
-                await listChan.send({ embeds: [listEmbed], components: listComponents }).catch(() => {});
+                await listChan.send({ embeds: [listEmbed], components: listComponents }).catch(() => { });
               }
             }
           }
@@ -2143,10 +2143,10 @@ async function handleButtonInteraction(interaction) {
             )
             .setTimestamp();
 
-          await interaction.editReply({ embeds: [completeEmbed], components: [] }).catch(() => {});
+          await interaction.editReply({ embeds: [completeEmbed], components: [] }).catch(() => { });
         } catch (setupErr) {
           console.error("[SunucuKurma] Final setup error:", setupErr);
-          await interaction.followUp({ content: `❌ Kurulum tamamlanırken hata oluştu: ${setupErr.message}`, ephemeral: true }).catch(() => {});
+          await interaction.followUp({ content: `❌ Kurulum tamamlanırken hata oluştu: ${setupErr.message}`, ephemeral: true }).catch(() => { });
         }
       }
     }
@@ -2158,7 +2158,7 @@ async function handleButtonInteraction(interaction) {
 // ── Sunucu Kurulumu Panel Yardımcı Fonksiyonları ───────────────────────────
 async function renderChannelSelectionPanel(interaction, setupDoc) {
   const { EmbedBuilder, ActionRowBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChannelType } = require("discord.js");
-  
+
   const embed = new EmbedBuilder()
     .setTitle("📂 Sunucu Kurulumu - Kanal Seçimleri")
     .setColor(0xf1c40f)
@@ -2200,7 +2200,7 @@ async function renderChannelSelectionPanel(interaction, setupDoc) {
       .setDisabled(!isProceedEnabled)
   );
 
-  await interaction.editReply({ embeds: [embed], components: [adminRow, verifyRow, rulesRow, buttonRow] }).catch(() => {});
+  await interaction.editReply({ embeds: [embed], components: [adminRow, verifyRow, rulesRow, buttonRow] }).catch(() => { });
 }
 
 async function renderChefsSelectionPanel(interaction, setupDoc) {
@@ -2237,15 +2237,15 @@ async function renderChefsSelectionPanel(interaction, setupDoc) {
       .setDisabled(!isProceedEnabled)
   );
 
-  await interaction.editReply({ embeds: [embed], components: [chefRow, assistantRow, buttonRow] }).catch(() => {});
+  await interaction.editReply({ embeds: [embed], components: [chefRow, assistantRow, buttonRow] }).catch(() => { });
 }
 
 async function renderRoleCustomizationPanel(interaction, setupDoc) {
   const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-  
+
   const noblox = require("noblox.js");
   const rbxRoles = await noblox.getRoles(setupDoc.robloxGroupId).catch(() => []);
-  
+
   if (!rbxRoles || rbxRoles.length === 0) {
     const embed = new EmbedBuilder()
       .setTitle("⚠️ Hata: Rütbeler Alınamadı")
@@ -2255,7 +2255,7 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
         `Roblox API hatası veya geçici bir kesinti olabilir. Lütfen daha sonra tekrar deneyin.`
       )
       .setTimestamp();
-      
+
     const retryRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`setup_incorrect_${setupDoc.guildId}`)
@@ -2266,8 +2266,8 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
         .setLabel("GERİ DÖN")
         .setStyle(ButtonStyle.Secondary)
     );
-    
-    await interaction.editReply({ embeds: [embed], components: [retryRow] }).catch(() => {});
+
+    await interaction.editReply({ embeds: [embed], components: [retryRow] }).catch(() => { });
     return;
   }
 
@@ -2312,7 +2312,7 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
       .setStyle(ButtonStyle.Primary)
   );
 
-  await interaction.editReply({ embeds: [embed], components: [rankMenu, saveRow] }).catch(() => {});
+  await interaction.editReply({ embeds: [embed], components: [rankMenu, saveRow] }).catch(() => { });
 }
 
 module.exports = {

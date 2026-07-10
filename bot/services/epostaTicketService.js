@@ -251,14 +251,14 @@ async function forwardUserToModChannel(message, client) {
         const content = embed ? (embed.description || embed.title) : refMsg.content;
         replyText = content ? (content.length > 100 ? content.slice(0, 100) + '...' : content) : '*(ek dosya)*';
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (E-Posta)`, iconURL: message.author.displayAvatarURL() })
     .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
-    .setFooter({ text: '📩 EkoMail Gateway' })
+    .setFooter({ text: '📩 EkoYıldız Destek Sistemi' })
     .setTimestamp();
 
   const sendOpts = { embeds: [embed] };
@@ -266,8 +266,8 @@ async function forwardUserToModChannel(message, client) {
     sendOpts.files = [...message.attachments.values()].map(a => a.url).slice(0, 5);
   }
 
-  await targetChannel.send(sendOpts).catch(() => {});
-  await message.react('✅').catch(() => {});
+  await targetChannel.send(sendOpts).catch(() => { });
+  await message.react('✅').catch(() => { });
   return true;
 }
 
@@ -291,7 +291,7 @@ async function forwardModToUserChannel(message, client) {
         const content = embed ? (embed.description || embed.title) : refMsg.content;
         replyText = content ? (content.length > 100 ? (content.includes('Cevaplanan Mesaj:') ? content.split('\n\n').slice(1).join('\n\n') : content).slice(0, 100) + '...' : content) : '*(ek dosya)*';
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const embed = new EmbedBuilder()
@@ -306,8 +306,8 @@ async function forwardModToUserChannel(message, client) {
     sendOpts.files = [...message.attachments.values()].map(a => a.url).slice(0, 5);
   }
 
-  await targetChannel.send(sendOpts).catch(() => {});
-  await message.react('✅').catch(() => {});
+  await targetChannel.send(sendOpts).catch(() => { });
+  await message.react('✅').catch(() => { });
   return true;
 }
 
@@ -319,8 +319,8 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
   // 1. Archive Moderator Channel (ticket-)
   const modChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
   if (modChannel) {
-    await modChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
-    
+    await modChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
+
     const modClosedEmbed = new EmbedBuilder()
       .setTitle("📦 Ticket Arşive Taşındı")
       .setDescription(
@@ -351,20 +351,20 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
   if (ticket.userChannelId) {
     const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
     if (userChannel) {
-      await userChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
-      
+      await userChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
+
       // Make channel read-only for user
       await userChannel.permissionOverwrites.edit(ticket.userId, {
         ViewChannel: true,
         SendMessages: false,
-      }).catch(() => {});
+      }).catch(() => { });
 
       if (ticket.additionalUsers) {
         for (const addUserId of ticket.additionalUsers) {
           await userChannel.permissionOverwrites.edit(addUserId, {
             ViewChannel: true,
             SendMessages: false,
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     }
@@ -375,7 +375,7 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
     for (const chanId of ticket.additionalChannels) {
       const extraChan = await guild.channels.fetch(chanId).catch(() => null);
       if (extraChan) {
-        await extraChan.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+        await extraChan.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
         // Get username from channel name
         const match = extraChan.name.match(/eposta-(.+)/);
         if (match) {
@@ -384,7 +384,7 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
             await extraChan.permissionOverwrites.edit(targetMember.id, {
               ViewChannel: true,
               SendMessages: false,
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       }
@@ -420,12 +420,12 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
   if (ticket.category === 'reklam_destek') {
     const reklamChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
     if (reklamChannel) {
-      await reklamChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
-      
+      await reklamChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
+
       await reklamChannel.permissionOverwrites.edit(ticket.userId, {
         ViewChannel: true,
         SendMessages: false,
-      }).catch(() => {});
+      }).catch(() => { });
 
       const reklamClosedEmbed = new EmbedBuilder()
         .setTitle("🔒 Reklam Talebi Arşivlendi")
@@ -457,20 +457,20 @@ async function reopenEkoYildizTicket(ticket, interaction) {
   if (ticket.userChannelId) {
     const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
     if (userChannel) {
-      await userChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
-      
+      await userChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => { });
+
       // Allow user to send messages again
       await userChannel.permissionOverwrites.edit(ticket.userId, {
         ViewChannel: true,
         SendMessages: true,
-      }).catch(() => {});
+      }).catch(() => { });
 
       if (ticket.additionalUsers) {
         for (const addUserId of ticket.additionalUsers) {
           await userChannel.permissionOverwrites.edit(addUserId, {
             ViewChannel: true,
             SendMessages: true,
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
@@ -483,7 +483,7 @@ async function reopenEkoYildizTicket(ticket, interaction) {
     for (const chanId of ticket.additionalChannels) {
       const extraChan = await guild.channels.fetch(chanId).catch(() => null);
       if (extraChan) {
-        await extraChan.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+        await extraChan.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => { });
         const match = extraChan.name.match(/eposta-(.+)/);
         if (match) {
           const targetMember = guild.members.cache.find(m => m.user.username.toLowerCase() === match[1]);
@@ -491,7 +491,7 @@ async function reopenEkoYildizTicket(ticket, interaction) {
             await extraChan.permissionOverwrites.edit(targetMember.id, {
               ViewChannel: true,
               SendMessages: true,
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
         await extraChan.send("🔄 **E-Posta Talebi Yeniden Açıldı.** Artık yazmaya devam edebilirsiniz.");
@@ -502,7 +502,7 @@ async function reopenEkoYildizTicket(ticket, interaction) {
   // Reopen Mod/Staff Channel
   const modChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
   if (modChannel) {
-    await modChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+    await modChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => { });
     await modChannel.send(`🔄 **Ticket Yeniden Açıldı.** (Açan: ${interaction.user.username})`);
   }
 
@@ -510,11 +510,11 @@ async function reopenEkoYildizTicket(ticket, interaction) {
   if (ticket.category === 'reklam_destek') {
     const reklamChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
     if (reklamChannel) {
-      await reklamChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+      await reklamChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => { });
       await reklamChannel.permissionOverwrites.edit(ticket.userId, {
         ViewChannel: true,
         SendMessages: true,
-      }).catch(() => {});
+      }).catch(() => { });
       await reklamChannel.send("🔄 **Reklam Talebi Yeniden Açıldı.** Artık yazmaya devam edebilirsiniz.");
     }
   }
