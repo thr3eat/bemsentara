@@ -201,6 +201,12 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId.startsWith("ekoyildiz_eposta_form_button_")) {
+    const category = customId.replace("ekoyildiz_eposta_form_button_", "");
+    const { triggerEpostaFormModal } = require("../services/epostaTicketService");
+    return triggerEpostaFormModal(interaction, category);
+  }
+
   if (customId === "ekoyildiz_reklam_form_button") {
     const { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require("discord.js");
     const modal = new ModalBuilder()

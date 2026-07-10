@@ -2684,7 +2684,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       await sendMorningBriefing(p, client).catch(() => { });
     }
@@ -2697,7 +2697,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
@@ -2715,7 +2715,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
@@ -2733,7 +2733,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       // %50 şansla motivasyon gönder (tüm gruba yazarsak spam olur)
       if (Math.random() > 0.5) {
@@ -2749,7 +2749,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       // %60 şansla eğlenceli mesaj gönder
       if (Math.random() > 0.4) {
@@ -2765,7 +2765,7 @@ function startStaffScheduler(client) {
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
     for (const p of allProgress) {
-      const isOnLeave = p.leaves?.usedDays?.includes(today);
+      const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);

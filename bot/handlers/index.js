@@ -1269,15 +1269,37 @@ function initializeDiscordHandlers(client) {
           }
         }
       } 
-      // Case B: Moderator/Staff is typing in ticket or reklam channel
+      // Case B: In-guild typing events (User typing in private eposta channel, or moderator typing in ticket/reklam channel)
       else {
         const channelName = typing.channel.name;
-        if (channelName && (channelName.startsWith('ticket-') || channelName.startsWith('reklam-'))) {
+        if (!channelName) return;
+
+        // User is typing in their private eposta channel
+        if (channelName.startsWith('eposta-')) {
+          const activeTicket = await Ticket.findOne({ userChannelId: typing.channel.id, status: 'open' });
+          if (activeTicket && activeTicket.channelId) {
+            const channel = await client.channels.fetch(activeTicket.channelId).catch(() => null);
+            if (channel && channel.isTextBased()) {
+              await channel.sendTyping().catch(() => {});
+            }
+          }
+        }
+        // Moderator/Staff is typing in ticket or reklam channel
+        else if (channelName.startsWith('ticket-') || channelName.startsWith('reklam-')) {
           const activeTicket = await Ticket.findOne({ channelId: typing.channel.id, status: 'open' });
           if (activeTicket) {
-            const user = await client.users.fetch(activeTicket.userId).catch(() => null);
-            if (user) {
-              await user.sendTyping().catch(() => {});
+            // If it's an eposta ticket, forward typing to userChannelId
+            if (activeTicket.userChannelId) {
+              const uChannel = await client.channels.fetch(activeTicket.userChannelId).catch(() => null);
+              if (uChannel && uChannel.isTextBased()) {
+                await uChannel.sendTyping().catch(() => {});
+              }
+            } else {
+              // Otherwise forward to DM
+              const user = await client.users.fetch(activeTicket.userId).catch(() => null);
+              if (user) {
+                await user.sendTyping().catch(() => {});
+              }
             }
           }
         }
@@ -1955,6 +1977,28 @@ function initializeDiscordHandlers(client) {
         }
       } catch (err) {
         console.warn('[messageCreate] forwardReklamChannelToDM veya transfer kontrol hata:', err.message);
+      }
+    }
+
+    // ── eposta- kanalından kullanıcının mesajını yetkili kanalına ilet ──
+    if (message.channel.name?.startsWith('eposta-') && !message.author.bot) {
+      try {
+        const { forwardUserToModChannel } = require('../services/epostaTicketService');
+        const forwarded = await forwardUserToModChannel(message, client);
+        if (forwarded) return;
+      } catch (err) {
+        console.warn('[messageCreate] forwardUserToModChannel hata:', err.message);
+      }
+    }
+
+    // ── ticket- kanalından yetkili mesajını kullanıcının e-posta kanalına ilet ──
+    if (message.channel.name?.startsWith('ticket-') && !message.author.bot) {
+      try {
+        const { forwardModToUserChannel } = require('../services/epostaTicketService');
+        const forwarded = await forwardModToUserChannel(message, client);
+        if (forwarded) return;
+      } catch (err) {
+        console.warn('[messageCreate] forwardModToUserChannel hata:', err.message);
       }
     }
 

@@ -244,6 +244,12 @@ async function handleModalSubmit(interaction) {
     return handleReklamModalSubmit(interaction);
   }
 
+  if (interaction.customId.startsWith("ekoyildiz_eposta_form_modal_")) {
+    const category = interaction.customId.replace("ekoyildiz_eposta_form_modal_", "");
+    const { handleEpostaModalSubmit } = require("../services/epostaTicketService");
+    return handleEpostaModalSubmit(interaction, category);
+  }
+
   if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_") || interaction.customId.startsWith("ekoyildiz_support_modal_")) {
     return handleSupportModal(interaction);
   }

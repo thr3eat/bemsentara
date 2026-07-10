@@ -284,6 +284,11 @@ async function handleSelectInteraction(interaction) {
     return interaction.reply({ embeds: [mailEmbed], components: [row], ephemeral: true });
   }
 
+  if (isEko && (category === "kullanici_destek" || category === "diger_destek")) {
+    const { handleEpostaSupportSelect } = require("../services/epostaTicketService");
+    return handleEpostaSupportSelect(interaction, category);
+  }
+
   // Kategori bazlı başlık ve placeholder
   const categoryTitles = {
     ban:       'Ban / Şikayet Talebi',

@@ -359,6 +359,18 @@ async function deleteTicketChannel(ticketId) {
       }
     }
 
+    if (ticket.userChannelId) {
+      try {
+        const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+        if (userChannel) {
+          await userChannel.delete(`Ticket ${ticketId} — 2 dakika içinde yeniden açılmadı`);
+          console.log(`[ticketCleanup] ${ticketId} → kullanıcı özel e-posta kanalı da silindi.`);
+        }
+      } catch (chErr) {
+        console.error(`[ticketCleanup] ${ticketId} → Kullanıcı kanalı silme hatası:`, chErr.message);
+      }
+    }
+
     // Ticket'ı güncelle
     ticket.channelDeleted = true;
     ticket.channelDeletedAt = new Date();
