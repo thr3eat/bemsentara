@@ -312,14 +312,36 @@ async function forwardModToUserChannel(message, client) {
 }
 
 async function archiveEkoYildizTicket(ticket, interaction, reason) {
-  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
   const guild = await interaction.client.guilds.fetch(ticket.guildId);
   const archiveCategoryId = "1525218080068730991";
 
-  // 1. Archive Moderator Channel (ticket-)
+  /**
+   * Locks a channel completely: deny @everyone ViewChannel, remove all existing overwrites,
+   * only keep the provided allowedIds with view-only access
+   */
+  async function lockChannelForArchive(channel, viewOnlyUserIds = []) {
+    // Build fresh overwrites: deny everyone
+    const overwrites = [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }
+    ];
+    // Allow specific users view-only (no send)
+    for (const uid of viewOnlyUserIds) {
+      overwrites.push({
+        id: uid,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages]
+      });
+    }
+    // Set parent and lock permissions
+    await channel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+    await channel.permissionOverwrites.set(overwrites).catch(() => {});
+  }
+
+  // 1. Archive Moderator Channel (ticket-) — deny everyone including mods
   const modChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
   if (modChannel) {
-    await modChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
+    await lockChannelForArchive(modChannel, []);
 
     const modClosedEmbed = new EmbedBuilder()
       .setTitle("📦 Ticket Arşive Taşındı")
@@ -344,57 +366,16 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await modChannel.send({ embeds: [modClosedEmbed], components: [rowMod] });
+    await modChannel.send({ embeds: [modClosedEmbed], components: [rowMod] }).catch(() => {});
   }
 
-  // 2. Archive User Channel (eposta-)
+  // 2. Archive User Channel (eposta-) — deny everyone, user view-only
   if (ticket.userChannelId) {
     const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
     if (userChannel) {
-      await userChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
+      const viewIds = [ticket.userId, ...(ticket.additionalUsers || [])];
+      await lockChannelForArchive(userChannel, viewIds);
 
-      // Make channel read-only for user
-      await userChannel.permissionOverwrites.edit(ticket.userId, {
-        ViewChannel: true,
-        SendMessages: false,
-      }).catch(() => { });
-
-      if (ticket.additionalUsers) {
-        for (const addUserId of ticket.additionalUsers) {
-          await userChannel.permissionOverwrites.edit(addUserId, {
-            ViewChannel: true,
-            SendMessages: false,
-          }).catch(() => { });
-        }
-      }
-    }
-  }
-
-  // 3. Archive additional users private channels if they exist
-  if (ticket.additionalChannels) {
-    for (const chanId of ticket.additionalChannels) {
-      const extraChan = await guild.channels.fetch(chanId).catch(() => null);
-      if (extraChan) {
-        await extraChan.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
-        // Get username from channel name
-        const match = extraChan.name.match(/eposta-(.+)/);
-        if (match) {
-          const targetMember = guild.members.cache.find(m => m.user.username.toLowerCase() === match[1]);
-          if (targetMember) {
-            await extraChan.permissionOverwrites.edit(targetMember.id, {
-              ViewChannel: true,
-              SendMessages: false,
-            }).catch(() => { });
-          }
-        }
-      }
-    }
-  }
-
-  // Welcomes reopen embed in User Channel (Channel A)
-  if (ticket.userChannelId) {
-    const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
-    if (userChannel) {
       const userClosedEmbed = new EmbedBuilder()
         .setTitle("🔒 E-Posta Talebiniz Arşivlendi")
         .setDescription(
@@ -412,20 +393,28 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
           .setStyle(ButtonStyle.Primary)
       );
 
-      await userChannel.send({ embeds: [userClosedEmbed], components: [rowUser] });
+      await userChannel.send({ embeds: [userClosedEmbed], components: [rowUser] }).catch(() => {});
     }
   }
 
-  // For Reklam tickets:
+  // 3. Archive additional users' private channels — view-only for each
+  if (ticket.additionalChannels) {
+    for (let i = 0; i < ticket.additionalChannels.length; i++) {
+      const chanId = ticket.additionalChannels[i];
+      const addUserId = ticket.additionalUsers?.[i];
+      const extraChan = await guild.channels.fetch(chanId).catch(() => null);
+      if (extraChan) {
+        await lockChannelForArchive(extraChan, addUserId ? [addUserId] : []);
+        await extraChan.send("🔒 **Destek talebi arşivlendi.** Bu kanal artık salt okunur modundadır.").catch(() => {});
+      }
+    }
+  }
+
+  // 4. Archive Reklam ticket channel — deny user send too
   if (ticket.category === 'reklam_destek') {
     const reklamChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
     if (reklamChannel) {
-      await reklamChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => { });
-
-      await reklamChannel.permissionOverwrites.edit(ticket.userId, {
-        ViewChannel: true,
-        SendMessages: false,
-      }).catch(() => { });
+      await lockChannelForArchive(reklamChannel, [ticket.userId]);
 
       const reklamClosedEmbed = new EmbedBuilder()
         .setTitle("🔒 Reklam Talebi Arşivlendi")
@@ -443,8 +432,35 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
           .setStyle(ButtonStyle.Primary)
       );
 
-      await reklamChannel.send({ embeds: [reklamClosedEmbed], components: [rowReklam] });
+      await reklamChannel.send({ embeds: [reklamClosedEmbed], components: [rowReklam] }).catch(() => {});
     }
+  }
+
+  // 5. Send DM rating/close notification to ticket owner
+  try {
+    const ticketOwner = await interaction.client.users.fetch(ticket.userId).catch(() => null);
+    if (ticketOwner) {
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle("🔒 Ticket'ınız Kapatıldı")
+        .setDescription(
+          `Destek talebiniz **${interaction.user.username}** tarafından kapatıldı.\n\n` +
+          `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
+          `Destek talebini yeniden açmak veya ekibimizi değerlendirmek için kanalınızdaki "Yeniden Aç" butonunu kullanabilirsiniz.`
+        )
+        .addFields(
+          { name: "🎫 Ticket ID", value: `\`${ticket.ticketId}\``, inline: true },
+          { name: "📋 Konu", value: ticket.subject || 'Belirtilmedi', inline: true }
+        )
+        .setFooter({ text: "Eko Yıldız Destek • Gizlilik politikamız gereği değerlendirme notunuz anonim tutulur." })
+        .setTimestamp();
+
+      const { buildReopenAndRateRow } = require("../embeds");
+      const dmButtons = buildReopenAndRateRow(ticket.ticketId);
+      await ticketOwner.send({ embeds: [dmEmbed], components: [dmButtons] }).catch(() => {});
+    }
+  } catch (dmErr) {
+    console.warn("[archiveEkoYildizTicket] DM gönderilemedi:", dmErr.message);
   }
 }
 
