@@ -665,10 +665,22 @@ async function forwardDMToChannel(message, client) {
     return;
   }
 
+  let replyText = null;
+  if (message.reference && message.reference.messageId) {
+    try {
+      const refMsg = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+      if (refMsg) {
+        const embed = refMsg.embeds?.[0];
+        const content = embed ? (embed.description || embed.title) : refMsg.content;
+        replyText = content ? (content.length > 100 ? content.slice(0, 100) + '...' : content) : '*(ek dosya)*';
+      }
+    } catch (_) {}
+  }
+
   const embed = new EmbedBuilder()
     .setColor(0x4ade80)
     .setAuthor({ name: `${message.author.tag} (DM)`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(message.content || '*(ek dosya)*')
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesaj:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
     .setFooter({ text: '📩 Kullanıcıdan DM' })
     .setTimestamp();
 
@@ -702,10 +714,22 @@ async function forwardChannelToDM(message, client) {
   const user = await client.users.fetch(targetUserId).catch(() => null);
   if (!user) return false;
 
+  let replyText = null;
+  if (message.reference && message.reference.messageId) {
+    try {
+      const refMsg = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+      if (refMsg) {
+        const embed = refMsg.embeds?.[0];
+        const content = embed ? (embed.description || embed.title) : refMsg.content;
+        replyText = content ? (content.length > 100 ? (content.includes('Cevaplanan Mesaj:') ? content.split('\n\n').slice(1).join('\n\n') : content).slice(0, 100) + '...' : content) : '*(ek dosya)*';
+      }
+    } catch (_) {}
+  }
+
   const embed = new EmbedBuilder()
     .setColor(0x7c6af7)
     .setAuthor({ name: `${message.author.displayName} — Yetkili`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(message.content)
+    .setDescription((replyText ? `↩️ **Cevaplanan Mesajınız:** *"${replyText}"*\n\n` : '') + (message.content || '*(ek dosya)*'))
     .setFooter({ text: 'Sentara Destek • Yetkili mesajı' })
     .setTimestamp();
 

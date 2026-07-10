@@ -1253,6 +1253,40 @@ function initializeDiscordHandlers(client) {
 
 
 
+  client.on("typingStart", async (typing) => {
+    if (typing.user.bot) return;
+
+    try {
+      const Ticket = require('../../models/Ticket');
+
+      // Case A: User is typing in DM with bot
+      if (!typing.guild) {
+        const activeTicket = await Ticket.findOne({ userId: typing.user.id, status: 'open' });
+        if (activeTicket && activeTicket.channelId) {
+          const channel = await client.channels.fetch(activeTicket.channelId).catch(() => null);
+          if (channel && channel.isTextBased()) {
+            await channel.sendTyping().catch(() => {});
+          }
+        }
+      } 
+      // Case B: Moderator/Staff is typing in ticket or reklam channel
+      else {
+        const channelName = typing.channel.name;
+        if (channelName && (channelName.startsWith('ticket-') || channelName.startsWith('reklam-'))) {
+          const activeTicket = await Ticket.findOne({ channelId: typing.channel.id, status: 'open' });
+          if (activeTicket) {
+            const user = await client.users.fetch(activeTicket.userId).catch(() => null);
+            if (user) {
+              await user.sendTyping().catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[typingStart] Error forwarding typing status:', err.message);
+    }
+  });
+
   client.on("messageCreate", async (message) => {
     // ── Soruşturma Sistemi Kanal Mesajı Senkronizasyonu ───────────────────────
     if (message.guild && !message.author.bot) {
