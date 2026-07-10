@@ -509,6 +509,13 @@ async function handleSupportModal(interaction) {
     const closeButton = buildCloseButton(ticketId);
     await ticketChannel.send({ embeds: [ticketEmbed], components: [closeButton] });
 
+    if (isGuild2) {
+      const { startTicketClaimRouting } = require("../services/reklamTicketService");
+      startTicketClaimRouting(ticket, targetGuild, interaction.client).catch(err => {
+        console.error("[modalHandler] Claim routing failed:", err.message);
+      });
+    }
+
     // ── AI karşılama devre dışı ───────────────────────────────────────────
     // (Ticket AI kaldırıldı)
 

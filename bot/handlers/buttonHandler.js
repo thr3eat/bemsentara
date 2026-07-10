@@ -97,6 +97,110 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  if (customId.startsWith("staff_claim_accept_")) {
+    const parts = customId.replace("staff_claim_accept_", "").split("_");
+    const ticketId = parts[0];
+    const targetStaffId = parts[1];
+
+    if (interaction.user.id !== targetStaffId) {
+      return interaction.reply({ content: "❌ Bu işlemi yapmaya yetkiniz yok.", ephemeral: true });
+    }
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) {
+      return interaction.update({ content: "❌ Destek talebi bulunamadı.", embeds: [], components: [] });
+    }
+
+    if (ticket.status === "closed") {
+      return interaction.update({ content: "❌ Bu destek talebi kapatılmış.", embeds: [], components: [] });
+    }
+
+    if (ticket.claimedBy) {
+      return interaction.update({ content: `❌ Bu destek talebi zaten <@${ticket.claimedBy}> tarafından üstlenilmiş.`, embeds: [], components: [] });
+    }
+
+    // Accept and claim
+    ticket.claimedBy = interaction.user.id;
+    ticket.claimedByName = interaction.user.username;
+    await ticket.save();
+
+    // Clean up active claim routing
+    const { activeTicketClaims } = require("../services/reklamTicketService");
+    activeTicketClaims.delete(ticketId);
+
+    // Update DM message
+    await interaction.update({
+      content: `✅ **Tebrikler!** Destek talebini başarıyla üstlendiniz. Kanala gitmek için: <#${ticket.channelId}>`,
+      embeds: [],
+      components: []
+    });
+
+    // Notify ticket channel
+    try {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId).catch(() => null);
+      if (guild) {
+        const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+        if (channel) {
+          await channel.send(`🙋‍♂️ <@${interaction.user.id}> bu talebi DM üzerinden gelen bildirimle üstlendi.`);
+          
+          // Try to update channel welcome message claim button
+          // Find welcome message in channel history
+          const messages = await channel.messages.fetch({ limit: 20 }).catch(() => []);
+          const welcomeMsg = messages.find(m => m.author.id === interaction.client.user.id && m.components.length > 0);
+          if (welcomeMsg) {
+            const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+            const originalRow = welcomeMsg.components[0];
+            const newComponents = [];
+            if (originalRow) {
+              const updatedRow = new ActionRowBuilder();
+              originalRow.components.forEach(comp => {
+                if (comp.customId.startsWith("claim_ticket_")) {
+                  updatedRow.addComponents(
+                    new ButtonBuilder()
+                      .setCustomId(`claimed_ticket_disabled_${ticketId}`)
+                      .setLabel(`Üstlendi: ${interaction.user.username}`)
+                      .setStyle(ButtonStyle.Secondary)
+                      .setDisabled(true)
+                  );
+                } else {
+                  updatedRow.addComponents(ButtonBuilder.from(comp));
+                }
+              });
+              newComponents.push(updatedRow);
+            }
+            await welcomeMsg.edit({ components: newComponents }).catch(() => {});
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to notify channel/edit message on DM claim:", err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("staff_claim_reject_")) {
+    const parts = customId.replace("staff_claim_reject_", "").split("_");
+    const ticketId = parts[0];
+    const targetStaffId = parts[1];
+
+    if (interaction.user.id !== targetStaffId) {
+      return interaction.reply({ content: "❌ Bu işlemi yapmaya yetkiniz yok.", ephemeral: true });
+    }
+
+    // Inform staff
+    await interaction.update({
+      content: "❌ Talebi incelemeyi reddettiniz. Talep sıradaki aktif yetkiliye iletiliyor...",
+      embeds: [],
+      components: []
+    });
+
+    // Send to next staff member in queue
+    const { routeNextClaimRequest } = require("../services/reklamTicketService");
+    await routeNextClaimRequest(ticketId, interaction.client);
+    return;
+  }
+
   if (customId === "ekoyildiz_reklam_form_button") {
     const { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require("discord.js");
     const modal = new ModalBuilder()

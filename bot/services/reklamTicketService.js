@@ -183,6 +183,11 @@ async function handleReklamConfirm(interaction, client, isYes, ticketId) {
 
     await channel.send({ embeds: [welcomeEmbed], components: [rowButtons] });
 
+    // Start Claim Routing for active staff
+    await startTicketClaimRouting(ticket, targetGuild, client).catch(err => {
+      console.error("[reklamTicketService] Claim routing failed:", err.message);
+    });
+
     // Inform user in DM
     await interaction.followUp({
       content: `✅ **Reklam kanalınız oluşturuldu!** Eko Yıldız sunucusundaki kanal üzerinden görüşmeye başlayabilirsiniz.\n\n` +
@@ -423,6 +428,120 @@ async function toggleReklamPause(interaction, ticketId) {
   }
 }
 
+const activeTicketClaims = new Map();
+
+/**
+ * Finds online active staff members in the server. Falls back to offline if none online.
+ */
+async function findActiveOnlineStaff(guild, client) {
+  const StaffProgress = require('../../models/StaffProgress');
+  const activeStaffDocs = await StaffProgress.find({ status: 'active' });
+  if (!activeStaffDocs || activeStaffDocs.length === 0) return [];
+
+  // Shuffle docs
+  const shuffledDocs = activeStaffDocs.sort(() => Math.random() - 0.5);
+
+  const onlineStaff = [];
+  const offlineOrUncachedStaff = [];
+
+  for (const doc of shuffledDocs) {
+    const member = await guild.members.fetch(doc.userId).catch(() => null);
+    if (!member || member.user.bot) continue;
+
+    const presenceStatus = member.presence?.status;
+    if (presenceStatus && presenceStatus !== 'offline') {
+      onlineStaff.push(member);
+    } else {
+      offlineOrUncachedStaff.push(member);
+    }
+  }
+
+  return onlineStaff.length > 0 ? onlineStaff : offlineOrUncachedStaff;
+}
+
+/**
+ * Starts claim routing process for a ticket
+ */
+async function startTicketClaimRouting(ticket, guild, client) {
+  const staffMembers = await findActiveOnlineStaff(guild, client);
+  if (!staffMembers || staffMembers.length === 0) {
+    console.log(`[ClaimRouting] No active staff members found for ticket ${ticket.ticketId}`);
+    return;
+  }
+
+  const staffIds = staffMembers.map(m => m.id);
+  activeTicketClaims.set(ticket.ticketId, {
+    staffList: staffIds,
+    currentIndex: 0,
+    guildId: guild.id,
+    channelId: ticket.channelId
+  });
+
+  await routeNextClaimRequest(ticket.ticketId, client);
+}
+
+/**
+ * Route claim request to the next staff member in list
+ */
+async function routeNextClaimRequest(ticketId, client) {
+  const claimInfo = activeTicketClaims.get(ticketId);
+  if (!claimInfo) return;
+
+  const { staffList, currentIndex, guildId, channelId } = claimInfo;
+  if (currentIndex >= staffList.length) {
+    console.log(`[ClaimRouting] All staff members rejected or ignored ticket ${ticketId}`);
+    
+    // Notify channel that routing finished without success
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (guild) {
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        await channel.send("⚠️ **Bildirim:** Aktif tüm personeller bu talebi incelemeyi reddetti veya meşguller. Talebi boştaki herhangi bir yetkili manuel üstlenebilir.").catch(() => {});
+      }
+    }
+    activeTicketClaims.delete(ticketId);
+    return;
+  }
+
+  const currentStaffId = staffList[currentIndex];
+  claimInfo.currentIndex++; // Advance for next attempt
+
+  const user = await client.users.fetch(currentStaffId).catch(() => null);
+  if (!user) {
+    return routeNextClaimRequest(ticketId, client);
+  }
+
+  try {
+    const embed = new EmbedBuilder()
+      .setTitle("🎫 Yeni Destek Talebi Bildirimi")
+      .setDescription(
+        `Eko Yıldız sunucusunda **${ticketId}** numaralı yeni bir destek talebi oluşturuldu.\n\n` +
+        `Bu ticket'ı üstlenmek ister misiniz?\n\n` +
+        `*Kabul ederseniz ticket'a bakmakla görevlendirileceksiniz. Reddederseniz sıradaki diğer yetkiliye iletilecektir.*`
+      )
+      .setColor(0x3498DB)
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`staff_claim_accept_${ticketId}_${currentStaffId}`)
+        .setLabel("Kabul Et")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`staff_claim_reject_${ticketId}_${currentStaffId}`)
+        .setLabel("Reddet")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await user.send({ embeds: [embed], components: [row] });
+    console.log(`[ClaimRouting] Sent claim request to ${user.tag} for ticket ${ticketId}`);
+  } catch (err) {
+    console.warn(`[ClaimRouting] Could not DM staff member ${user.tag}:`, err.message);
+    // Try the next one immediately
+    return routeNextClaimRequest(ticketId, client);
+  }
+}
+
 module.exports = {
   handleReklamModalSubmit,
   handleReklamConfirm,
@@ -431,5 +550,9 @@ module.exports = {
   sendReklamPrices,
   triggerPurchaseSelection,
   handlePurchaseSelection,
-  toggleReklamPause
+  toggleReklamPause,
+  findActiveOnlineStaff,
+  startTicketClaimRouting,
+  routeNextClaimRequest,
+  activeTicketClaims
 };
