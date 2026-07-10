@@ -319,6 +319,11 @@ async function deleteTicketChannel(ticketId) {
       console.log(`[ticketCleanup] ${ticketId} → DB'de bulunamadı`);
       return;
     }
+
+    if (ticket.guildId === GUILD2_ID) {
+      console.log(`[ticketCleanup] ${ticketId} is an Eko Yıldız ticket. Skipping deletion (archived instead).`);
+      return;
+    }
     
     if (ticket.status === "open") {
       console.log(`[ticketCleanup] ${ticketId} → yeniden açılmış, silme iptal.`);
