@@ -80,6 +80,16 @@ async function handleEpostaModalSubmit(interaction, category) {
   const subject = interaction.fields.getTextInputValue("eposta_konu").trim();
   const description = interaction.fields.getTextInputValue("eposta_detay").trim();
 
+  // Check if user is ticket-banned
+  const User = require('../../models/User');
+  const userRecord = await User.findOne({ discordId: interaction.user.id });
+  if (userRecord?.ticketBanned) {
+    return interaction.reply({
+      content: "🚫 **Ticket Yasaklısınız.**\nSpam/kötüye kullanım raporunuz yetkililerce onaylandığı için ticket sistemi erişiminiz engellendi. Bu konuda itirazınız varsa sunucu yöneticisiyle iletişime geçin.",
+      ephemeral: true
+    });
+  }
+
   await interaction.reply({
     content: "📬 **Talebiniz alındı!** Sizin için özel bir e-posta kutusu kanalı oluşturuluyor. Lütfen sol taraftaki kanalları kontrol edin.",
     ephemeral: true

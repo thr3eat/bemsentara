@@ -18,6 +18,16 @@ async function handleReklamModalSubmit(interaction) {
   const memberCount = interaction.fields.getTextInputValue("reklam_kisi_sayisi").trim();
   const adType = interaction.fields.getTextInputValue("reklam_turu").trim();
 
+  // Check if user is ticket-banned
+  const User = require('../../models/User');
+  const userRecord = await User.findOne({ discordId: interaction.user.id });
+  if (userRecord?.ticketBanned) {
+    return interaction.reply({
+      content: "🚫 **Ticket Yasaklısınız.**\nSpam/kötüye kullanım raporunuz yetkililerce onaylandığı için ticket sistemi erişiminiz engellendi. Bu konuda itirazınız varsa sunucu yöneticisiyle iletişime geçin.",
+      ephemeral: true
+    });
+  }
+
   await interaction.reply({
     content: "📬 **Talebiniz alındı! Lütfen DM kutunuzu kontrol edin.** Eko Yıldız Reklam Departmanı sizinle iletişime geçiyor...",
     ephemeral: true

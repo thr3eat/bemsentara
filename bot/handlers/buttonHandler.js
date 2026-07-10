@@ -477,12 +477,96 @@ async function handleButtonInteraction(interaction) {
   }
 
   if (customId.startsWith("eposta_spam_")) {
-    return interaction.reply({
-      content:
-        `⚠️ **EkoYıldız Destek Sistemi Spam Raporlama**\n` +
-        `Bu e-posta adresi spam listesine eklenmek üzere güvenlik merkezine bildirildi.`,
-      ephemeral: true
-    });
+    const ticketId = customId.replace("eposta_spam_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Hata: Destek talebi bulunamadı.", ephemeral: true });
+
+    try {
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      const { GUILD2_ID } = require("../../config");
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      const reportChannelId = "1518684031275761719";
+      const reportChannel = guild ? await guild.channels.fetch(reportChannelId).catch(() => null) : null;
+
+      if (reportChannel) {
+        const reportUser = await interaction.client.users.fetch(ticket.userId).catch(() => null);
+        const spamEmbed = new EmbedBuilder()
+          .setTitle("⚠️ Spam / Kötüye Kullanım Raporu")
+          .setDescription(
+            `**Rapor Eden:** <@${interaction.user.id}> (${interaction.user.username})\n` +
+            `**Şikayetçi Olduğu Kullanıcı:** <@${ticket.userId}> (${ticket.userName})\n` +
+            `**Ticket ID:** \`${ticket.ticketId}\`\n` +
+            `**Konu:** ${ticket.subject || 'Belirtilmedi'}\n\n` +
+            `Bu kullanıcının ticket sistemi üzerinden spam/kötüye kullanım yaptığı bildirilmiştir.\n` +
+            `**Kabul Et** butonuna basarsanız kullanıcı bir daha ticket açamaz.\n` +
+            `**Reddet** butonuna basarsanız rapor geçersiz sayılır ve kullanıcı ticket açmaya devam edebilir.`
+          )
+          .setColor(0xe74c3c)
+          .setThumbnail(reportUser?.displayAvatarURL() || null)
+          .setTimestamp();
+
+        const reportRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`spam_ban_accept_${ticket.userId}_${ticket.ticketId}`)
+            .setLabel("✅ Kabul Et (Ticket Banla)")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`spam_ban_reject_${ticket.userId}_${ticket.ticketId}`)
+            .setLabel("❌ Reddet (Raporu Geçersiz Say)")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await reportChannel.send({ embeds: [spamEmbed], components: [reportRow] });
+      }
+
+      return interaction.reply({
+        content: `⚠️ **Spam Raporu Gönderildi.**\nRaporunuz yetkili ekibine iletildi. Ekip inceledikten sonra gerekli işlem yapılacaktır.`,
+        ephemeral: true
+      });
+    } catch (err) {
+      console.error("[eposta_spam] Error:", err.message);
+      return interaction.reply({ content: "❌ Rapor gönderilemedi.", ephemeral: true });
+    }
+  }
+
+  if (customId.startsWith("spam_ban_accept_")) {
+    const parts = customId.replace("spam_ban_accept_", "").split("_");
+    const targetUserId = parts[0];
+    const ticketId = parts[1];
+
+    const User = require("../../models/User");
+    let user = await User.findOne({ discordId: targetUserId });
+    if (!user) {
+      user = new User({ discordId: targetUserId });
+    }
+    user.ticketBanned = true;
+    user.ticketBannedAt = new Date();
+    user.ticketBannedBy = interaction.user.id;
+    await user.save();
+
+    const { EmbedBuilder } = require("discord.js");
+    const doneEmbed = new EmbedBuilder()
+      .setTitle("✅ Ticket Yasağı Uygulandı")
+      .setDescription(`<@${targetUserId}> artık ticket sisteminden yararlanamaz.\n**İşlemi Yapan:** <@${interaction.user.id}>`)
+      .setColor(0x2ecc71)
+      .setTimestamp();
+
+    return interaction.update({ embeds: [doneEmbed], components: [] });
+  }
+
+  if (customId.startsWith("spam_ban_reject_")) {
+    const parts = customId.replace("spam_ban_reject_", "").split("_");
+    const targetUserId = parts[0];
+
+    const { EmbedBuilder } = require("discord.js");
+    const rejEmbed = new EmbedBuilder()
+      .setTitle("❌ Rapor Reddedildi")
+      .setDescription(`<@${targetUserId}> hakkındaki spam raporu geçersiz sayıldı. Kullanıcı ticket açmaya devam edebilir.\n**İşlemi Yapan:** <@${interaction.user.id}>`)
+      .setColor(0x95a5a6)
+      .setTimestamp();
+
+    return interaction.update({ embeds: [rejEmbed], components: [] });
   }
 
   if (customId.startsWith("ekoyildiz_eposta_form_button_")) {
