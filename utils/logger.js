@@ -3,6 +3,62 @@ const chalk = require("chalk");
 const logs = [];
 const MAX_LOGS = 50;
 
+const originalConsoleLog = console.log;
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
+
+const NOISY_PATTERNS = [
+  /GET \/(?:favicon\.ico)? - \d+ \(\d+ms\)/i,
+  /^\[Telegram Polling\]/i,
+  /^\[AuditLogPoller\]/i,
+  /^\[tmtLogger\]/i,
+  /^\[ticketCleanup\]/i,
+  /^\[staffSystem\]/i,
+  /^\[unitStartupVerifier\]/i,
+  /^\[monthlyPromotion\]/i,
+  /^\[banRankManager\]/i,
+  /^\[coachWelcome\]/i,
+  /^\[ekoLogger\]/i,
+  /^\[aiChannelChat\]/i,
+  /^\[RiddleService\]/i,
+  /^\[RobloxGroupManager\]/i,
+  /^\[DiscordAbuseDetector\]/i,
+  /Cached \d+ invites/i,
+  /timestamp başlatıldı/i,
+  /Scheduler başlatıldı/i,
+  /Personel doğrulamaları kontrol edildi/i,
+  /Doğrulama tamamlandı/i,
+  /İzlenen Sunucular:/i,
+  /Tüm gruplar poll ediliyor/i,
+  /Poll turu tamamlandı/i
+];
+
+const shouldSuppressConsoleMessage = (args) => {
+  const text = args
+    .map((arg) => (typeof arg === "string" ? arg : String(arg)))
+    .join(" ");
+
+  if (!text) return false;
+  if (process.env.SUPPRESS_STARTUP_LOGS === "false") return false;
+
+  return NOISY_PATTERNS.some((pattern) => pattern.test(text));
+};
+
+console.log = (...args) => {
+  if (shouldSuppressConsoleMessage(args)) return;
+  originalConsoleLog(...args);
+};
+
+console.warn = (...args) => {
+  if (shouldSuppressConsoleMessage(args)) return;
+  originalConsoleWarn(...args);
+};
+
+console.error = (...args) => {
+  if (shouldSuppressConsoleMessage(args)) return;
+  originalConsoleError(...args);
+};
+
 const addLog = (type, msg, details) => {
   const logEntry = {
     timestamp: new Date().toISOString(),
