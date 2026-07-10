@@ -479,21 +479,72 @@ async function findActiveOnlineStaff(guild, client) {
   const shuffledDocs = activeStaffDocs.sort(() => Math.random() - 0.5);
 
   const onlineStaff = [];
-  const offlineOrUncachedStaff = [];
+  const { hasInactivityRole } = require('./staffSystem');
 
   for (const doc of shuffledDocs) {
+    // Check if on leave today
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const isLeave = doc.leaves?.usedDays && doc.leaves.usedDays.includes(todayStr);
+    if (isLeave) continue;
+
     const member = await guild.members.fetch(doc.userId).catch(() => null);
     if (!member || member.user.bot) continue;
+
+    // Check inactivity roles
+    const inactive = await hasInactivityRole(member.id, client).catch(() => false);
+    if (inactive) continue;
 
     const presenceStatus = member.presence?.status;
     if (presenceStatus && presenceStatus !== 'offline') {
       onlineStaff.push(member);
-    } else {
-      offlineOrUncachedStaff.push(member);
     }
   }
 
-  return onlineStaff.length > 0 ? onlineStaff : offlineOrUncachedStaff;
+  return onlineStaff;
+}
+
+/**
+ * Sends a notification to the moderator channel that no active staff is online/available.
+ */
+async function handleNoActiveStaffAvailable(ticketId, guildId, channelId, client) {
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (guild) {
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+    if (channel) {
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      const embed = new EmbedBuilder()
+        .setTitle("⚠️ Aktif Personel Bulunamadı")
+        .setDescription("Şu anda aktif bir mod yok.. Aktif bir mod gelene kadar bekleyin...")
+        .setColor(0xe74c3c)
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`claim_ticket_${ticketId}`)
+          .setLabel("🙋‍♂️ Üstlen")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await channel.send({ embeds: [embed], components: [row] }).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Clears timeout and deletes the last sent DM message to active staff
+ */
+async function deleteActiveClaimDmMessage(ticketId) {
+  const claimInfo = activeTicketClaims.get(ticketId);
+  if (claimInfo) {
+    if (claimInfo.timeoutId) {
+      clearTimeout(claimInfo.timeoutId);
+      claimInfo.timeoutId = null;
+    }
+    if (claimInfo.lastDmMessage) {
+      await claimInfo.lastDmMessage.delete().catch(() => {});
+      claimInfo.lastDmMessage = null;
+    }
+  }
 }
 
 /**
@@ -503,6 +554,7 @@ async function startTicketClaimRouting(ticket, guild, client) {
   const staffMembers = await findActiveOnlineStaff(guild, client);
   if (!staffMembers || staffMembers.length === 0) {
     console.log(`[ClaimRouting] No active staff members found for ticket ${ticket.ticketId}`);
+    await handleNoActiveStaffAvailable(ticket.ticketId, guild.id, ticket.channelId, client);
     return;
   }
 
@@ -511,7 +563,9 @@ async function startTicketClaimRouting(ticket, guild, client) {
     staffList: staffIds,
     currentIndex: 0,
     guildId: guild.id,
-    channelId: ticket.channelId
+    channelId: ticket.channelId,
+    lastDmMessage: null,
+    timeoutId: null
   });
 
   await routeNextClaimRequest(ticket.ticketId, client);
@@ -524,19 +578,21 @@ async function routeNextClaimRequest(ticketId, client) {
   const claimInfo = activeTicketClaims.get(ticketId);
   if (!claimInfo) return;
 
+  // Clear previous timeout and message if any
+  if (claimInfo.timeoutId) {
+    clearTimeout(claimInfo.timeoutId);
+    claimInfo.timeoutId = null;
+  }
+  if (claimInfo.lastDmMessage) {
+    await claimInfo.lastDmMessage.delete().catch(() => {});
+    claimInfo.lastDmMessage = null;
+  }
+
   const { staffList, currentIndex, guildId, channelId } = claimInfo;
   if (currentIndex >= staffList.length) {
     console.log(`[ClaimRouting] All staff members rejected or ignored ticket ${ticketId}`);
-    
-    // Notify channel that routing finished without success
-    const guild = await client.guilds.fetch(guildId).catch(() => null);
-    if (guild) {
-      const channel = await guild.channels.fetch(channelId).catch(() => null);
-      if (channel) {
-        await channel.send("⚠️ **Bildirim:** Aktif tüm personeller bu talebi incelemeyi reddetti veya meşguller. Talebi boştaki herhangi bir yetkili manuel üstlenebilir.").catch(() => {});
-      }
-    }
     activeTicketClaims.delete(ticketId);
+    await handleNoActiveStaffAvailable(ticketId, guildId, channelId, client);
     return;
   }
 
@@ -554,7 +610,8 @@ async function routeNextClaimRequest(ticketId, client) {
       .setDescription(
         `Eko Yıldız sunucusunda **${ticketId}** numaralı yeni bir destek talebi oluşturuldu.\n\n` +
         `Bu ticket'ı üstlenmek ister misiniz?\n\n` +
-        `*Kabul ederseniz ticket'a bakmakla görevlendirileceksiniz. Reddederseniz sıradaki diğer yetkiliye iletilecektir.*`
+        `*Kabul ederseniz ticket'a bakmakla görevlendirileceksiniz. Reddederseniz sıradaki diğer yetkiliye iletilecektir.*\n\n` +
+        `⏳ **Yanıtlama Süresi:** 5 dakika`
       )
       .setColor(0x3498DB)
       .setTimestamp();
@@ -570,11 +627,22 @@ async function routeNextClaimRequest(ticketId, client) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await user.send({ embeds: [embed], components: [row] });
+    const sentMsg = await user.send({ embeds: [embed], components: [row] });
     console.log(`[ClaimRouting] Sent claim request to ${user.tag} for ticket ${ticketId}`);
+
+    claimInfo.lastDmMessage = sentMsg;
+
+    // Set 5 minutes timeout to auto-ignore
+    claimInfo.timeoutId = setTimeout(async () => {
+      console.log(`[ClaimRouting] Staff member ${user.tag} ignored claim request for 5 minutes.`);
+      await sentMsg.delete().catch(() => {});
+      claimInfo.timeoutId = null;
+      claimInfo.lastDmMessage = null;
+      await routeNextClaimRequest(ticketId, client);
+    }, 5 * 60 * 1000);
+
   } catch (err) {
     console.warn(`[ClaimRouting] Could not DM staff member ${user.tag}:`, err.message);
-    // Try the next one immediately
     return routeNextClaimRequest(ticketId, client);
   }
 }
@@ -591,5 +659,6 @@ module.exports = {
   findActiveOnlineStaff,
   startTicketClaimRouting,
   routeNextClaimRequest,
+  deleteActiveClaimDmMessage,
   activeTicketClaims
 };

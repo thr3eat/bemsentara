@@ -126,15 +126,14 @@ async function handleButtonInteraction(interaction) {
     await ticket.save();
 
     // Clean up active claim routing
-    const { activeTicketClaims } = require("../services/reklamTicketService");
+    const { activeTicketClaims, deleteActiveClaimDmMessage } = require("../services/reklamTicketService");
+    await deleteActiveClaimDmMessage(ticketId);
     activeTicketClaims.delete(ticketId);
 
-    // Update DM message
-    await interaction.update({
-      content: `✅ **Tebrikler!** Destek talebini başarıyla üstlendiniz. Kanala gitmek için: <#${ticket.channelId}>`,
-      embeds: [],
-      components: []
-    });
+    // Send a new fresh message with the channel link
+    await interaction.user.send({
+      content: `✅ **Destek talebini başarıyla üstlendiniz!** Kanala gitmek için: <#${ticket.channelId}>`
+    }).catch(() => {});
 
     // Notify ticket channel
     try {
@@ -579,6 +578,13 @@ async function handleButtonInteraction(interaction) {
     ticket.claimedBy = interaction.user.id;
     ticket.claimedByName = interaction.user.username;
     await ticket.save();
+
+    // Clean up active claim routing and delete DM message
+    try {
+      const { activeTicketClaims, deleteActiveClaimDmMessage } = require("../services/reklamTicketService");
+      await deleteActiveClaimDmMessage(ticketId);
+      activeTicketClaims.delete(ticketId);
+    } catch (_) {}
 
     await interaction.reply({
       content: `🙋‍♂️ **Destek talebi başarıyla üstlenildi!** Bu taleple <@${interaction.user.id}> ilgileniyor.`

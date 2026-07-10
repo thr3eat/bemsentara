@@ -691,6 +691,13 @@ async function handleCloseReasonModal(interaction) {
   // Önce etkileşimi onayla
   await interaction.reply({ content: "✅ Ticket kapatılıyor...", ephemeral: true });
 
+  // Clean up active claim routing and delete DM message if any
+  try {
+    const { activeTicketClaims, deleteActiveClaimDmMessage } = require("../services/reklamTicketService");
+    await deleteActiveClaimDmMessage(ticket.ticketId);
+    activeTicketClaims.delete(ticket.ticketId);
+  } catch (_) {}
+
   const { GUILD2_ID } = require("../../config");
   const isGuild2 = ticket.guildId === GUILD2_ID;
 
