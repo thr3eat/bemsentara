@@ -19,7 +19,7 @@ function buildRoleConnectionMetadata(user, groupMemberships = {}) {
   };
 }
 
-async function updateDiscordRoleConnection(accessToken, applicationId, metadata) {
+async function updateDiscordRoleConnection(accessToken, applicationId, metadata, user) {
   if (!accessToken || !applicationId) {
     throw new Error('Discord access token ve application id gereklidir.');
   }
@@ -27,6 +27,8 @@ async function updateDiscordRoleConnection(accessToken, applicationId, metadata)
   const response = await axios.put(
     `https://discord.com/api/v10/users/@me/applications/${applicationId}/role-connection`,
     {
+      platform_name: 'EkoYıldız', // Görseldeki pencerenin en üstünde kalın yazıyla görünecek başlık
+      platform_username: user?.robloxUsername || 'Doğrulanmış Hesap', // Kullanıcının o pencerede yazacak adı
       metadata
     },
     {
@@ -42,7 +44,8 @@ async function updateDiscordRoleConnection(accessToken, applicationId, metadata)
 
 async function syncRoleConnectionForUser(user, accessToken, applicationId, groupMemberships = {}) {
   const metadata = buildRoleConnectionMetadata(user, groupMemberships);
-  return updateDiscordRoleConnection(accessToken, applicationId, metadata);
+  // user objesini güncelleme fonksiyonuna paslıyoruz ki robloxUsername'i platform_username olarak basabilelim
+  return updateDiscordRoleConnection(accessToken, applicationId, metadata, user);
 }
 
 module.exports = {
