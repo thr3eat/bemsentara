@@ -250,6 +250,107 @@ async function handleModalSubmit(interaction) {
     return handleEpostaModalSubmit(interaction, category);
   }
 
+  if (interaction.customId.startsWith("eposta_add_user_modal_")) {
+    const ticketId = interaction.customId.replace("eposta_add_user_modal_", "");
+    const targetInput = interaction.fields.getTextInputValue("target_user_input").trim();
+
+    await interaction.reply({ content: "⏳ Kullanıcı bulunuyor ve gruba ekleniyor...", ephemeral: true });
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.followUp({ content: "❌ Hata: E-posta bulunamadı.", ephemeral: true });
+
+    let targetUser = null;
+    if (/^\d{17,20}$/.test(targetInput)) {
+      targetUser = await interaction.client.users.fetch(targetInput).catch(() => null);
+    } else {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId).catch(() => null);
+      if (guild) {
+        const members = await guild.members.fetch().catch(() => []);
+        const foundMember = members.find(m => m.user.username.toLowerCase() === targetInput.toLowerCase() || m.user.displayName.toLowerCase() === targetInput.toLowerCase());
+        if (foundMember) targetUser = foundMember.user;
+      }
+    }
+
+    if (!targetUser) {
+      return interaction.followUp({ content: "❌ Hata: Belirtilen kullanıcı bulunamadı. Lütfen doğru ID veya Discord kullanıcı adını girin.", ephemeral: true });
+    }
+
+    if (targetUser.id === ticket.userId) {
+      return interaction.followUp({ content: "❌ Hata: Bu kullanıcı zaten e-postanın sahibi.", ephemeral: true });
+    }
+    if (ticket.additionalUsers && ticket.additionalUsers.includes(targetUser.id)) {
+      return interaction.followUp({ content: "❌ Hata: Bu kullanıcı zaten gruba eklenmiş.", ephemeral: true });
+    }
+
+    try {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId);
+      const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      const { GUILD2_TICKET_CATEGORY_ID } = require("../../config");
+
+      const userPermissions = [
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+        {
+          id: targetUser.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.EmbedLinks,
+          ],
+        }
+      ];
+
+      const newChannel = await guild.channels.create({
+        name: `eposta-${targetUser.username.toLowerCase()}`,
+        type: ChannelType.GuildText,
+        parent: GUILD2_TICKET_CATEGORY_ID || undefined,
+        permissionOverwrites: userPermissions,
+      });
+
+      ticket.additionalUsers = ticket.additionalUsers || [];
+      ticket.additionalUsers.push(targetUser.id);
+      ticket.additionalChannels = ticket.additionalChannels || [];
+      ticket.additionalChannels.push(newChannel.id);
+      await ticket.save();
+
+      const addedEmbed = new EmbedBuilder()
+        .setTitle("📨 GÖNDERİLEN E-POSTA KUTUSU (Grup Görüşmesi)")
+        .setDescription(
+          `Merhaba <@${targetUser.id}>,\n` +
+          `<@${interaction.user.id}> sizi **${ticket.subject}** konulu destek e-posta grubuna ekledi.\n\n` +
+          `💬 **Nasıl Çalışır?**\n` +
+          `Bu kanala yazacağınız her şey destek ekibimize ve diğer grup üyelerine iletilir.\n\n` +
+          `Gruptan çıkmak isterseniz aşağıdaki butona basarak onay talep edebilirsiniz.`
+        )
+        .setColor(0x3498db)
+        .setTimestamp();
+
+      const rowLeave = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`eposta_leave_ticket_${ticketId}`)
+          .setLabel("🚪 TİCKETDEN ÇIKMAK İSTİYORUM")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      await newChannel.send({ embeds: [addedEmbed], components: [rowLeave] });
+
+      if (ticket.userChannelId) {
+        const mainChan = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+        if (mainChan) await mainChan.send(`➕ <@${targetUser.id}> görüşmeye e-posta adresi eklenerek dahil edildi.`);
+      }
+      const modChan = await guild.channels.fetch(ticket.channelId).catch(() => null);
+      if (modChan) await modChan.send(`➕ <@${targetUser.id}> görüşmeye e-posta adresi eklenerek dahil edildi.`);
+
+      return interaction.followUp({ content: `✅ <@${targetUser.id}> başarıyla görüşmeye eklendi ve özel e-posta kanalı oluşturuldu.`, ephemeral: true });
+
+    } catch (err) {
+      console.error("[eposta_add_user_modal] Error:", err.message);
+      return interaction.followUp({ content: `❌ Hata: Kanal oluşturulamadı. ${err.message}`, ephemeral: true });
+    }
+  }
+
   if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_") || interaction.customId.startsWith("ekoyildiz_support_modal_")) {
     return handleSupportModal(interaction);
   }
@@ -589,6 +690,34 @@ async function handleCloseReasonModal(interaction) {
 
   // Önce etkileşimi onayla
   await interaction.reply({ content: "✅ Ticket kapatılıyor...", ephemeral: true });
+
+  const { GUILD2_ID } = require("../../config");
+  const isGuild2 = ticket.guildId === GUILD2_ID;
+
+  if (isGuild2) {
+    try {
+      ticket.status = "closed";
+      ticket.closedAt = new Date();
+      ticket.closeReason = reason;
+      ticket.closedBy = interaction.user.id;
+      ticket.closedByName = interaction.user.username;
+      await ticket.save();
+
+      const { archiveEkoYildizTicket } = require("../services/epostaTicketService");
+      await archiveEkoYildizTicket(ticket, interaction, reason);
+
+      const { logTicketClosed } = require("../services/ticketLog");
+      logTicketClosed(ticket, {
+        closedBy: interaction.user.id,
+        closedByName: interaction.user.username,
+        reason,
+        source: "Discord Kapat Butonu (Arşiv)",
+      });
+    } catch (err) {
+      console.error("[closeEkoTicket] Error:", err.message);
+    }
+    return null;
+  }
 
   try {
     // Ticket'ın hangi sunucuda olduğunu belirle

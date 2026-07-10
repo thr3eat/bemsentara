@@ -201,6 +201,235 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId.startsWith("eposta_add_user_")) {
+    const ticketId = customId.replace("eposta_add_user_", "");
+    const { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require("discord.js");
+    const modal = new ModalBuilder()
+      .setCustomId(`eposta_add_user_modal_${ticketId}`)
+      .setTitle("Görüşmeye Katılımcı Ekle");
+
+    const input = new TextInputBuilder()
+      .setCustomId("target_user_input")
+      .setLabel("Kullanıcı ID veya Kullanıcı Adı")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("Örn: 1031620522406072350 veya emre")
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("eposta_remove_user_")) {
+    const ticketId = customId.replace("eposta_remove_user_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Hata: E-posta bulunamadı.", ephemeral: true });
+
+    if (!ticket.additionalUsers || ticket.additionalUsers.length === 0) {
+      return interaction.reply({ content: "❌ Görüşmede çıkarılabilecek ek bir kişi bulunmuyor.", ephemeral: true });
+    }
+
+    const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder } = require("discord.js");
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`eposta_remove_select_${ticketId}`)
+      .setPlaceholder("Çıkarmak istediğiniz kişiyi seçin...");
+
+    for (const userId of ticket.additionalUsers) {
+      const user = await interaction.client.users.fetch(userId).catch(() => null);
+      if (user) {
+        selectMenu.addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel(user.username)
+            .setValue(user.id)
+            .setDescription(`ID: ${user.id}`)
+        );
+      }
+    }
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    return interaction.reply({ content: "👤 Çıkarmak istediğiniz grup üyesini seçin:", components: [row], ephemeral: true });
+  }
+
+  if (customId.startsWith("eposta_leave_ticket_")) {
+    const ticketId = customId.replace("eposta_leave_ticket_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Hata: E-posta bulunamadı.", ephemeral: true });
+
+    try {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId);
+      const modChan = await guild.channels.fetch(ticket.channelId).catch(() => null);
+      if (modChan) {
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+        const leaveEmbed = new EmbedBuilder()
+          .setTitle("🚪 Görüşmeden Ayrılma Talebi")
+          .setDescription(`👤 <@${interaction.user.id}> (${interaction.user.username}) e-posta destek grubundan ayrılmak istiyor.`)
+          .setColor(0xe67e22)
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`eposta_leave_accept_${ticketId}_${interaction.user.id}`)
+            .setLabel("✅ Kabul Et (Çıkart)")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`eposta_leave_reject_${ticketId}_${interaction.user.id}`)
+            .setLabel("❌ Reddet")
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        await modChan.send({ embeds: [leaveEmbed], components: [row] });
+        return interaction.reply({ content: "⏳ Ayrılma talebiniz destek ekibine iletildi. Onay verildiğinde bu kanalınız silinecektir.", ephemeral: true });
+      }
+    } catch (err) {
+      console.error("[eposta_leave_ticket] Error:", err.message);
+    }
+  }
+
+  if (customId.startsWith("eposta_leave_accept_")) {
+    const parts = customId.replace("eposta_leave_accept_", "").split("_");
+    const ticketId = parts[0];
+    const targetUserId = parts[1];
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Destek talebi bulunamadı.", ephemeral: true });
+
+    try {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId);
+      if (ticket.additionalUsers) {
+        const idx = ticket.additionalUsers.indexOf(targetUserId);
+        if (idx !== -1) {
+          const chanId = ticket.additionalChannels[idx];
+          if (chanId) {
+            const ch = await guild.channels.fetch(chanId).catch(() => null);
+            if (ch) await ch.delete("Gruptan ayrıldı").catch(() => {});
+          }
+          ticket.additionalUsers.splice(idx, 1);
+          ticket.additionalChannels.splice(idx, 1);
+        }
+      }
+      await ticket.save();
+
+      await interaction.update({ content: `✅ <@${targetUserId}> görüşmeden çıkartıldı ve kanalı silindi.`, embeds: [], components: [] });
+
+      if (ticket.userChannelId) {
+        const mainChan = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+        if (mainChan) await mainChan.send(`🚪 <@${targetUserId}> e-posta grubundan ayrıldı.`);
+      }
+    } catch (err) {
+      console.error("[eposta_leave_accept] Error:", err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("eposta_leave_reject_")) {
+    const parts = customId.replace("eposta_leave_reject_", "").split("_");
+    const ticketId = parts[0];
+    const targetUserId = parts[1];
+
+    await interaction.update({ content: `❌ Ayrılma talebi reddedildi.`, embeds: [], components: [] });
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (ticket && ticket.additionalUsers) {
+      const idx = ticket.additionalUsers.indexOf(targetUserId);
+      if (idx !== -1) {
+        const chanId = ticket.additionalChannels[idx];
+        if (chanId) {
+          const ch = await interaction.client.channels.fetch(chanId).catch(() => null);
+          if (ch) await ch.send(`❌ Ayrılma talebiniz destek ekibi tarafından reddedildi.`);
+        }
+      }
+    }
+    return;
+  }
+
+  if (customId.startsWith("reopen_ticket_")) {
+    const ticketId = customId.replace("reopen_ticket_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Destek talebi bulunamadı.", ephemeral: true });
+
+    const isStaff = !((ticket.userId === interaction.user.id) || (ticket.additionalUsers?.includes(interaction.user.id)));
+
+    if (!isStaff && ticket.lockReopen) {
+      return interaction.reply({ content: "❌ Bu destek talebini yeniden açma yetkiniz kilitlenmiştir. Açılması için bir yöneticinin izin vermesi gerekir.", ephemeral: true });
+    }
+
+    const { reopenEkoYildizTicket } = require("../../bot/services/epostaTicketService");
+    await reopenEkoYildizTicket(ticket, interaction);
+
+    if (interaction.channel) {
+      await interaction.reply({ content: "🔄 Destek talebi yeniden açıldı!", ephemeral: true });
+      try {
+        await interaction.message.delete().catch(() => {});
+      } catch (_) {}
+    } else {
+      await interaction.reply({ content: "🔄 Destek talebi yeniden açıldı!", ephemeral: true });
+    }
+    return;
+  }
+
+  if (customId.startsWith("eposta_lock_reopen_")) {
+    const ticketId = customId.replace("eposta_lock_reopen_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Destek talebi bulunamadı.", ephemeral: true });
+
+    ticket.lockReopen = true;
+    await ticket.save();
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+    const updatedRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reopen_ticket_${ticketId}`)
+        .setLabel("🔓 Yeniden Aç")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`reopen_allow_${ticketId}`)
+        .setLabel("🔓 Yeniden Açma İzni Ver (Yönetici)")
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    return interaction.update({
+      content: `🚫 **Kullanıcıların bu talebi yeniden açması engellendi.** (Kilitlendi)\n*Sadece yöneticiler tekrar izin verebilir.*`,
+      components: [updatedRow]
+    });
+  }
+
+  if (customId.startsWith("reopen_allow_")) {
+    const ticketId = customId.replace("reopen_allow_", "");
+    const { PermissionFlagsBits } = require("discord.js");
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu işlemi yalnızca sunucudaki **Yönetici** yetkisine sahip yetkililer yapabilir.", ephemeral: true });
+    }
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Destek talebi bulunamadı.", ephemeral: true });
+
+    ticket.lockReopen = false;
+    await ticket.save();
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+    const updatedRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reopen_ticket_${ticketId}`)
+        .setLabel("🔓 Yeniden Aç")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`eposta_lock_reopen_${ticketId}`)
+        .setLabel("🚫 Yeniden Açılışı Engelle")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    return interaction.update({
+      content: `✅ **Kullanıcıların bu talebi yeniden açması serbest bırakıldı.**`,
+      components: [updatedRow]
+    });
+  }
+
   if (customId.startsWith("eposta_scan_")) {
     return interaction.reply({
       content: 

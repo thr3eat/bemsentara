@@ -311,10 +311,227 @@ async function forwardModToUserChannel(message, client) {
   return true;
 }
 
+async function archiveEkoYildizTicket(ticket, interaction, reason) {
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+  const guild = await interaction.client.guilds.fetch(ticket.guildId);
+  const archiveCategoryId = "1525218080068730991";
+
+  // 1. Archive Moderator Channel (ticket-)
+  const modChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+  if (modChannel) {
+    await modChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+    
+    const modClosedEmbed = new EmbedBuilder()
+      .setTitle("📦 Ticket Arşive Taşındı")
+      .setDescription(
+        `**Arşivleyen:** ${interaction.user.username}\n` +
+        `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
+        `📌 **Kontroller:**\n` +
+        `• Yetkililer bu talebi yeniden açabilir.\n` +
+        `• "Yeniden Açılışı Engelle" butonuna basarak kullanıcının bu talebi kendi başına açmasını önleyebilirsiniz.`
+      )
+      .setColor(0x7f8c8d)
+      .setTimestamp();
+
+    const rowMod = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reopen_ticket_${ticket.ticketId}`)
+        .setLabel("🔓 Yeniden Aç")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`eposta_lock_reopen_${ticket.ticketId}`)
+        .setLabel("🚫 Yeniden Açılışı Engelle")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await modChannel.send({ embeds: [modClosedEmbed], components: [rowMod] });
+  }
+
+  // 2. Archive User Channel (eposta-)
+  if (ticket.userChannelId) {
+    const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+    if (userChannel) {
+      await userChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+      
+      // Make channel read-only for user
+      await userChannel.permissionOverwrites.edit(ticket.userId, {
+        ViewChannel: true,
+        SendMessages: false,
+      }).catch(() => {});
+
+      if (ticket.additionalUsers) {
+        for (const addUserId of ticket.additionalUsers) {
+          await userChannel.permissionOverwrites.edit(addUserId, {
+            ViewChannel: true,
+            SendMessages: false,
+          }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  // 3. Archive additional users private channels if they exist
+  if (ticket.additionalChannels) {
+    for (const chanId of ticket.additionalChannels) {
+      const extraChan = await guild.channels.fetch(chanId).catch(() => null);
+      if (extraChan) {
+        await extraChan.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+        // Get username from channel name
+        const match = extraChan.name.match(/eposta-(.+)/);
+        if (match) {
+          const targetMember = guild.members.cache.find(m => m.user.username.toLowerCase() === match[1]);
+          if (targetMember) {
+            await extraChan.permissionOverwrites.edit(targetMember.id, {
+              ViewChannel: true,
+              SendMessages: false,
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+  }
+
+  // Welcomes reopen embed in User Channel (Channel A)
+  if (ticket.userChannelId) {
+    const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+    if (userChannel) {
+      const userClosedEmbed = new EmbedBuilder()
+        .setTitle("🔒 E-Posta Talebiniz Arşivlendi")
+        .setDescription(
+          `Bu destek talebi başarıyla arşivlenmiştir.\n\n` +
+          `💬 **Tarihçe:** Bu kanaldaki geçmiş e-postaları okumaya devam edebilirsiniz.\n` +
+          `🔄 **Yeniden Açma:** İhtiyacınız olduğunda aşağıdaki butona tıklayarak talebi tekrar aktif hale getirebilirsiniz.`
+        )
+        .setColor(0x95a5a6)
+        .setTimestamp();
+
+      const rowUser = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`reopen_ticket_${ticket.ticketId}`)
+          .setLabel("🔄 Yeniden Aç")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await userChannel.send({ embeds: [userClosedEmbed], components: [rowUser] });
+    }
+  }
+
+  // For Reklam tickets:
+  if (ticket.category === 'reklam_destek') {
+    const reklamChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+    if (reklamChannel) {
+      await reklamChannel.setParent(archiveCategoryId, { lockPermissions: false }).catch(() => {});
+      
+      await reklamChannel.permissionOverwrites.edit(ticket.userId, {
+        ViewChannel: true,
+        SendMessages: false,
+      }).catch(() => {});
+
+      const reklamClosedEmbed = new EmbedBuilder()
+        .setTitle("🔒 Reklam Talebi Arşivlendi")
+        .setDescription(
+          `Bu reklam destek talebi arşive taşınmıştır.\n\n` +
+          `🔄 Yeniden açmak isterseniz aşağıdaki butona tıklayabilirsiniz.`
+        )
+        .setColor(0x95a5a6)
+        .setTimestamp();
+
+      const rowReklam = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`reopen_ticket_${ticket.ticketId}`)
+          .setLabel("🔄 Yeniden Aç")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await reklamChannel.send({ embeds: [reklamClosedEmbed], components: [rowReklam] });
+    }
+  }
+}
+
+async function reopenEkoYildizTicket(ticket, interaction) {
+  const { EmbedBuilder } = require("discord.js");
+  const guild = await interaction.client.guilds.fetch(ticket.guildId);
+  const ticketCategoryId = "1518716275239551046";
+
+  // Reopen User Channel
+  if (ticket.userChannelId) {
+    const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+    if (userChannel) {
+      await userChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+      
+      // Allow user to send messages again
+      await userChannel.permissionOverwrites.edit(ticket.userId, {
+        ViewChannel: true,
+        SendMessages: true,
+      }).catch(() => {});
+
+      if (ticket.additionalUsers) {
+        for (const addUserId of ticket.additionalUsers) {
+          await userChannel.permissionOverwrites.edit(addUserId, {
+            ViewChannel: true,
+            SendMessages: true,
+          }).catch(() => {});
+        }
+      }
+
+      await userChannel.send("🔄 **E-Posta Talebi Yeniden Açıldı.** Artık yazmaya devam edebilirsiniz.");
+    }
+  }
+
+  // Reopen all additional users private channels if they exist
+  if (ticket.additionalChannels) {
+    for (const chanId of ticket.additionalChannels) {
+      const extraChan = await guild.channels.fetch(chanId).catch(() => null);
+      if (extraChan) {
+        await extraChan.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+        const match = extraChan.name.match(/eposta-(.+)/);
+        if (match) {
+          const targetMember = guild.members.cache.find(m => m.user.username.toLowerCase() === match[1]);
+          if (targetMember) {
+            await extraChan.permissionOverwrites.edit(targetMember.id, {
+              ViewChannel: true,
+              SendMessages: true,
+            }).catch(() => {});
+          }
+        }
+        await extraChan.send("🔄 **E-Posta Talebi Yeniden Açıldı.** Artık yazmaya devam edebilirsiniz.");
+      }
+    }
+  }
+
+  // Reopen Mod/Staff Channel
+  const modChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+  if (modChannel) {
+    await modChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+    await modChannel.send(`🔄 **Ticket Yeniden Açıldı.** (Açan: ${interaction.user.username})`);
+  }
+
+  // Reopen Reklam Channel (if reklam ticket)
+  if (ticket.category === 'reklam_destek') {
+    const reklamChannel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+    if (reklamChannel) {
+      await reklamChannel.setParent(ticketCategoryId, { lockPermissions: false }).catch(() => {});
+      await reklamChannel.permissionOverwrites.edit(ticket.userId, {
+        ViewChannel: true,
+        SendMessages: true,
+      }).catch(() => {});
+      await reklamChannel.send("🔄 **Reklam Talebi Yeniden Açıldı.** Artık yazmaya devam edebilirsiniz.");
+    }
+  }
+
+  // Update DB status
+  ticket.status = 'open';
+  ticket.closedAt = null;
+  ticket.closeReason = null;
+  await ticket.save();
+}
+
 module.exports = {
   handleEpostaSupportSelect,
   triggerEpostaFormModal,
   handleEpostaModalSubmit,
   forwardUserToModChannel,
-  forwardModToUserChannel
+  forwardModToUserChannel,
+  archiveEkoYildizTicket,
+  reopenEkoYildizTicket
 };

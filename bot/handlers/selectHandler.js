@@ -13,6 +13,67 @@ async function handleSelectInteraction(interaction) {
     return handlePurchaseSelection(interaction);
   }
 
+  if (customId.startsWith("eposta_remove_select_")) {
+    const ticketId = interaction.customId.replace("eposta_remove_select_", "");
+    const targetUserId = interaction.values[0];
+
+    await interaction.reply({ content: "⏳ Katılımcı görüşmeden çıkartılıyor...", ephemeral: true });
+
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.followUp({ content: "❌ Hata: Destek talebi bulunamadı.", ephemeral: true });
+
+    try {
+      const guild = await interaction.client.guilds.fetch(ticket.guildId);
+      
+      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      if (targetUser) {
+        const userChanName = `eposta-${targetUser.username.toLowerCase()}`;
+        const channels = await guild.channels.fetch();
+        const chanToDelete = channels.find(c => c.name === userChanName && c.parentId === guild.channels.cache.get(ticket.channelId)?.parentId);
+        
+        if (chanToDelete) {
+          await chanToDelete.delete(`Kullanıcı görüşmeden çıkarıldı.`).catch(() => {});
+        }
+
+        if (ticket.additionalChannels) {
+          const idx = ticket.additionalUsers.indexOf(targetUserId);
+          if (idx !== -1) {
+            const chanId = ticket.additionalChannels[idx];
+            if (chanId) {
+              const ch = await guild.channels.fetch(chanId).catch(() => null);
+              if (ch) await ch.delete("Kullanıcı görüşmeden çıkarıldı").catch(() => {});
+            }
+          }
+        }
+      }
+
+      if (ticket.additionalUsers) {
+        ticket.additionalUsers = ticket.additionalUsers.filter(id => id !== targetUserId);
+      }
+      if (ticket.additionalChannels) {
+        const idx = ticket.additionalUsers.indexOf(targetUserId);
+        if (idx !== -1) {
+          ticket.additionalChannels.splice(idx, 1);
+        }
+      }
+      await ticket.save();
+
+      if (ticket.userChannelId) {
+        const mainChan = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
+        if (mainChan) await mainChan.send(`➖ <@${targetUserId}> görüşmeden çıkarıldı.`);
+      }
+      const modChan = await guild.channels.fetch(ticket.channelId).catch(() => null);
+      if (modChan) await modChan.send(`➖ <@${targetUserId}> görüşmeden çıkarıldı.`);
+
+      return interaction.followUp({ content: `✅ <@${targetUserId}> başarıyla görüşmeden çıkarıldı.`, ephemeral: true });
+
+    } catch (err) {
+      console.error("[eposta_remove_select] Error:", err.message);
+      return interaction.followUp({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+    }
+  }
+
   // ── Soruşturma Sistemi Ceza Seçimi ──────────────────────────────────────────
   if (customId.startsWith("invest_penalty_select_")) {
     const { PermissionFlagsBits } = require("discord.js");
