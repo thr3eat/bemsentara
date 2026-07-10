@@ -268,6 +268,7 @@ async function processInactivityCheck(ticket, client, warnCutoff) {
  */
 async function runCleanupCheck() {
   const Ticket = require("../../models/Ticket");
+  const { GUILD2_ID } = require("../../config");
   const now = Date.now();
   const cutoff = new Date(now - CLEANUP_DELAY_MS);
 
@@ -277,6 +278,14 @@ async function runCleanupCheck() {
     for (const ticket of closedTickets) {
       // Kanal zaten silinmişse atla
       if (!ticket.channelId || ticket.channelDeleted) continue;
+
+      // Eko Yıldız ticketları hiç silinmez — channelDeleted: true olarak işaretle ve atla
+      if (ticket.guildId === GUILD2_ID) {
+        ticket.channelDeleted = true;
+        ticket.channelDeletedAt = ticket.channelDeletedAt || new Date();
+        await ticket.save().catch(() => {});
+        continue;
+      }
 
       // Bellekte zaten kuyruktaysa atla (setTimeout zaten çalışıyor)
       if (pendingDeletions.has(ticket.ticketId)) continue;
