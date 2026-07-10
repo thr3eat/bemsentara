@@ -849,6 +849,16 @@ async function handleButtonInteraction(interaction) {
 
   // ── Soruşturma Sistemi Butonları ───────────────────────────────────────────
   if (customId === "investigation_start_trigger") {
+    const { getTodayInvestigationCountForUser, canStartInvestigationToday, MAX_INVESTIGATIONS_PER_DAY } = require("../services/investigationService");
+    const startedTodayCount = await getTodayInvestigationCountForUser(interaction.user.id);
+
+    if (!canStartInvestigationToday(startedTodayCount)) {
+      return interaction.reply({
+        content: `❌ Bugün zaten ${startedTodayCount} soruşturma başlattınız. Günlük maksimum ${MAX_INVESTIGATIONS_PER_DAY} soruşturma açabilirsiniz.`,
+        ephemeral: true
+      });
+    }
+
     const modal = new ModalBuilder()
       .setCustomId("investigation_start_modal")
       .setTitle("🔍 Soruşturma Başlat");

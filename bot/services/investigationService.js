@@ -14,7 +14,49 @@ const { chatWithAI } = require('./aiService');
 const { ROLES } = require('./staffSystem');
 
 const STAFF_GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
+const MAX_INVESTIGATIONS_PER_DAY = 3;
 const pendingMentionReminders = new Map();
+
+function getIstanbulDateParts(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day)
+  };
+}
+
+function getStartOfTodayInIstanbul(date = new Date()) {
+  const { year, month, day } = getIstanbulDateParts(date);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function getEndOfTodayInIstanbul(date = new Date()) {
+  const start = getStartOfTodayInIstanbul(date);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function canStartInvestigationToday(startedTodayCount, maxPerDay = MAX_INVESTIGATIONS_PER_DAY) {
+  return Number(startedTodayCount || 0) < maxPerDay;
+}
+
+async function getTodayInvestigationCountForUser(userId, date = new Date()) {
+  const start = getStartOfTodayInIstanbul(date);
+  const end = getEndOfTodayInIstanbul(date);
+
+  return Investigation.countDocuments({
+    creatorId: userId,
+    createdAt: { $gte: start, $lt: end }
+  });
+}
 
 async function scheduleMentionReminder(client, invest, channelId, targetUserId) {
   const reminderKey = `${channelId}:${targetUserId}`;
@@ -78,7 +120,8 @@ async function setupTriggerButton(client) {
           .setTitle("🛡️ Soruşturma & Disiplin Yönetim Sistemi")
           .setDescription(
             "Bir üyenin kural ihlali veya suistimal durumu hakkında resmi soruşturma başlatmak için aşağıdaki butona tıklayın.\n\n" +
-            "⚠️ **Yetki Sınırı:** Bu aracı sadece moderatörler ve yöneticiler kullanabilir."
+            "⚠️ **Yetki Sınırı:** Bu aracı sadece moderatörler ve yöneticiler kullanabilir.\n" +
+            "📅 **Günlük Limit:** Aynı gün içerisinde maksimum 3 soruşturma başlatılabilir."
           )
           .setColor(0xc0392b)
           .setTimestamp();
@@ -105,6 +148,13 @@ async function startInvestigation(interaction, name, targetUserId, reason) {
   const guild = client.guilds.cache.get(STAFF_GUILD_ID);
   if (!guild) {
     return interaction.editReply({ content: "❌ Sunucu bulunamadı." });
+  }
+
+  const startedTodayCount = await getTodayInvestigationCountForUser(interaction.user.id);
+  if (!canStartInvestigationToday(startedTodayCount)) {
+    return interaction.editReply({
+      content: `❌ Bugün zaten ${startedTodayCount} soruşturma başlattınız. Günlük maksimum ${MAX_INVESTIGATIONS_PER_DAY} soruşturma açabilirsiniz.`
+    });
   }
 
   // Verify target user is in the guild
@@ -949,6 +999,9 @@ async function closeInvestigation(interaction, channelId) {
 }
 
 module.exports = {
+  MAX_INVESTIGATIONS_PER_DAY,
+  canStartInvestigationToday,
+  getTodayInvestigationCountForUser,
   setupTriggerButton,
   startInvestigation,
   handleAgreement,
