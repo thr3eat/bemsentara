@@ -519,12 +519,12 @@ async function archiveEkoYildizTicket(ticket, interaction, reason) {
     await modChannel.send({ embeds: [modClosedEmbed], components: [rowMod] }).catch(() => {});
   }
 
-  // 2. Archive User Channel (eposta-) — deny everyone, user view-only
+  // 2. Archive User Channel (eposta-) — deny EVERYONE (user cannot see it after archive)
   if (ticket.userChannelId) {
     const userChannel = await guild.channels.fetch(ticket.userChannelId).catch(() => null);
     if (userChannel) {
-      const viewIds = [ticket.userId, ...(ticket.additionalUsers || [])];
-      await lockChannelForArchive(userChannel, viewIds);
+      // Kimse göremez — tamamen gizle
+      await lockChannelForArchive(userChannel, []);
 
       const userClosedEmbed = new EmbedBuilder()
         .setTitle("🔒 E-Posta Talebiniz Arşivlendi")

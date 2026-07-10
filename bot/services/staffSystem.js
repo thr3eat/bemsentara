@@ -1142,6 +1142,10 @@ async function recordTicketSolved(userId, client) {
     // Rozetleri kontrol et
     await checkAndUnlockBadges(p, client).catch(() => { });
     await checkChosenTaskCompletion(p, client).catch(() => { });
+
+    // 🎫 Ticket görevi ilerleme DM'i
+    await sendTicketTaskProgressDM(p, client).catch(() => { });
+
     try {
       const { checkAutoPromotion } = require('./unitService');
       await checkAutoPromotion(userId, client, 'ticket').catch(() => { });
@@ -1153,6 +1157,89 @@ async function recordTicketSolved(userId, client) {
   } catch (err) {
     console.error('[staffSystem] recordTicketSolved error:', err.message);
   }
+}
+
+/**
+ * Ticket çözümü sonrası personele görev ilerleme DM'i gönderir.
+ * - Ticket görevi varsa: progress bar + kaç tane kaldı
+ * - Ticket görevi yoksa: EK GÖREV mesajı + %30 bonus teklifi
+ */
+async function sendTicketTaskProgressDM(p, client) {
+  if (!client) return;
+  const discordUser = await client.users.fetch(p.userId).catch(() => null);
+  if (!discordUser) return;
+
+  const hasTicketTask = p.daily?.chosenTask === 'task_ticket';
+  const nextReq = PROMOTION_REQUIREMENTS[p.level];
+  const solved = p.stats.ticketsSolved || 0;
+  const required = nextReq?.ticketsSolved || 1;
+  const pct = Math.min(100, Math.round((solved / required) * 100));
+
+  // Progress bar oluştur (20 blok)
+  const filled = Math.round(pct / 5);
+  const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+
+  if (hasTicketTask && !p.daily?.chosenTaskCompleted) {
+    // Görev var ve henüz tamamlanmadı — ilerleme göster
+    const solvedToday = p.daily?.ticketsSolvedToday || 0;
+    const taskTarget = 1; // task_ticket = 1 ticket
+    const taskPct = Math.min(100, Math.round((solvedToday / taskTarget) * 100));
+    const taskFilled = Math.round(taskPct / 5);
+    const taskBar = '█'.repeat(taskFilled) + '░'.repeat(20 - taskFilled);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xf39c12)
+      .setTitle('🎫 Ticket Görevi — İlerleme Güncellendi')
+      .setDescription(
+        `**Bugünkü Ticket Görevi Durumu:**\n` +
+        `\`[${taskBar}] ${taskPct}%\`\n` +
+        `📊 Bugün: **${solvedToday}/${taskTarget}** ticket çözüldü\n\n` +
+        `**Terfi İlerlemen (Ticket):**\n` +
+        `\`[${bar}] ${pct}%\`\n` +
+        `🎯 Toplam: **${solved}/${required}** ticket\n\n` +
+        `💪 Devam et! Görevi tamamlamak **%25 terfi katkısı** sağlıyor!`
+      )
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
+      .setTimestamp();
+
+    await discordUser.send({ embeds: [embed] }).catch(() => {});
+
+  } else if (!hasTicketTask) {
+    // Ticket görevi YOK — özel bonus mesajı
+    const embed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle('🎫 TİCKET GÖREVİN YOKKEN TİCKET GÖREVİNİ YAPTIN!')
+      .setDescription(
+        `Tebrikler! Bugün seçmeli görevin **ticket çözümü** olmadığı hâlde ticket çözdün! 🔥\n\n` +
+        `**Terfi İlerlemen (Ticket):**\n` +
+        `\`[${bar}] ${pct}%\`\n` +
+        `🎯 Toplam: **${solved}/${required}** ticket\n\n` +
+        `🎁 **EK GÖREV TAMAMLADIN!**\n` +
+        `1 tane daha ek görev yaparsan **dilediğin rütbe terfi alma görevin** yapılmış olarak sayılacak!\n\n` +
+        `> 💡 **%30 bonus** - Bu extra görevi tamamladığında terfi gereksinimlerinin **%30'u** otomatik olarak doldurulur.`
+      )
+      .setFooter({ text: 'Eko Yıldız • Personel Sistemi — Ek Görev Sistemi' })
+      .setTimestamp();
+
+    await discordUser.send({ embeds: [embed] }).catch(() => {});
+
+    // %30 bonus ekle (extra görev ödülü olarak işaretle)
+    if (!p.daily) p.daily = {};
+    if (!p.daily.extraTicketBonusGiven) {
+      p.daily.extraTicketBonusGiven = true;
+      // Terfi istatistiklerine %30 katkı
+      if (nextReq) {
+        const bonus30 = (val, req) => Math.ceil((req || 0) * 0.30);
+        p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + bonus30(null, nextReq.ticketsSolved);
+        p.stats.chatMessages = (p.stats.chatMessages || 0) + bonus30(null, nextReq.chatMessages);
+        p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + bonus30(null, nextReq.totalVoiceMinutes);
+        p.stats.activeDays = (p.stats.activeDays || 0) + bonus30(null, nextReq.activeDays);
+        p.stats.moderationActions = (p.stats.moderationActions || 0) + bonus30(null, nextReq.moderationActions);
+      }
+      await p.save().catch(() => {});
+    }
+  }
+  // Görev zaten tamamlandıysa sessizce çık (checkChosenTaskCompletion kendi DM'ini gönderir)
 }
 
 async function recordChatMessage(userId, client, guildId = null) {

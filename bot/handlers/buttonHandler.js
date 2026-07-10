@@ -430,15 +430,116 @@ async function handleButtonInteraction(interaction) {
   }
 
   if (customId.startsWith("eposta_scan_")) {
-    return interaction.reply({
+    const ticketId = customId.replace("eposta_scan_", "");
+    const Ticket = require("../../models/Ticket");
+    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) return interaction.reply({ content: "❌ Ticket bulunamadı.", ephemeral: true });
+
+    await interaction.deferReply({ ephemeral: true });
+
+    // Küfür / hakaret kelime listesi
+    const PROFANITY_LIST = [
+      "sik", "orospu", "piç", "göt", "oğlan", "bok", "salak", "aptal",
+      "gerizekalı", "mal", "kaltak", "fahişe", "ibne", "eşek", "beyinsiz",
+      "fuck", "shit", "bitch", "asshole", "bastard", "idiot", "moron",
+      "amk", "amına", "ananı", "amcık", "götveren", "kahpe", "sürtük",
+      "siktir", "oç", "bok", "yarrak", "meret", "döl", "gavat"
+    ];
+
+    let violations = [];
+    let scannedCount = 0;
+
+    // Hem kullanıcı kanalı hem mod kanalını tara
+    const channelIds = [ticket.userChannelId, ticket.channelId].filter(Boolean);
+    for (const chanId of channelIds) {
+      try {
+        const chan = await interaction.client.channels.fetch(chanId).catch(() => null);
+        if (!chan) continue;
+        const msgs = await chan.messages.fetch({ limit: 50 });
+        scannedCount += msgs.size;
+        for (const [, msg] of msgs) {
+          if (msg.author.bot) continue;
+          const lower = msg.content.toLowerCase();
+          for (const word of PROFANITY_LIST) {
+            if (lower.includes(word)) {
+              violations.push({
+                author: `${msg.author.tag} (<@${msg.author.id}>)`,
+                content: msg.content.slice(0, 200),
+                word,
+                timestamp: msg.createdAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }),
+                channel: chan.name,
+              });
+              break; // Tek mesaj için bir kez raporla
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (violations.length === 0) {
+      return interaction.editReply({
+        content:
+          `🛡️ **EkoYıldız Destek Sistemi — Güvenlik Taraması Tamamlandı**\n` +
+          "```\n" +
+          `[TARAMA] ${scannedCount} mesaj analiz edildi.\n` +
+          `[ANALİZ] Küfür / hakaret taraması yapıldı.\n` +
+          `[SONUÇ]  Herhangi bir ihlal tespit edilmedi. ✅\n` +
+          "```",
+      });
+    }
+
+    // İhlal bulundu — mod kanalına rapor gönder
+    try {
+      const { GUILD2_ID } = require("../../config");
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      const reportChannel = guild ? await guild.channels.fetch("1518684031275761719").catch(() => null) : null;
+
+      if (reportChannel) {
+        const reportEmbed = new EmbedBuilder()
+          .setTitle("🚨 Güvenlik Taraması — Küfür / Hakaret İhlali Tespit Edildi!")
+          .setColor(0xe74c3c)
+          .setDescription(
+            `**Ticket ID:** \`${ticket.ticketId}\`\n` +
+            `**Taramayı Yapan:** <@${interaction.user.id}> (${interaction.user.username})\n` +
+            `**Taranan Mesaj Sayısı:** ${scannedCount}\n` +
+            `**İhlal Sayısı:** ${violations.length}\n\n` +
+            `**Rapor Edilen Mesajlar:**\n` +
+            violations.slice(0, 5).map((v, i) =>
+              `**${i + 1}.** ${v.author}\n` +
+              `> 🕐 ${v.timestamp} | #${v.channel}\n` +
+              `> 💬 \`${v.content.replace(/`/g, "'")}\``
+            ).join("\n\n") +
+            (violations.length > 5 ? `\n\n... ve ${violations.length - 5} ihlal daha.` : "")
+          )
+          .setFooter({ text: "EkoYıldız Destek Güvenlik Sistemi" })
+          .setTimestamp();
+
+        const reportRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`spam_ban_accept_${ticket.userId}_${ticket.ticketId}`)
+            .setLabel("🚫 Kullanıcıyı Ticket'tan Banla")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`spam_ban_reject_${ticket.userId}_${ticket.ticketId}`)
+            .setLabel("✅ İhlal Değil — Görmezden Gel")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await reportChannel.send({ embeds: [reportEmbed], components: [reportRow] });
+      }
+    } catch (repErr) {
+      console.error("[eposta_scan] Rapor gönderilemedi:", repErr.message);
+    }
+
+    return interaction.editReply({
       content:
-        `🛡️ **EkoYıldız Destek SistemiSecure Gateway - Antivirus & Phishing Scanner**\n` +
-        `\`\`\`\n` +
-        `[TARAMA] E-posta ekleri ve bağlantıları analiz ediliyor...\n` +
-        `[ANALİZ] Kaspersky Secure Mail Gateway: Dosya tarandı (TEMİZ).\n` +
-        `[SONUÇ] Herhangi bir virüs, phishing bağlantısı veya şüpheli hareket tespit edilmedi.\n` +
-        `\`\`\``,
-      ephemeral: true
+        `🚨 **${violations.length} ihlal tespit edildi!**\n` +
+        `Küfür/hakaret içeren mesajlar moderasyon kanalına raporlandı.\n` +
+        "```\n" +
+        violations.slice(0, 3).map(v => `• [${v.channel}] ${v.author.split("(")[0].trim()}: "${v.content.slice(0, 80)}"`).join("\n") +
+        "\n```",
     });
   }
 
