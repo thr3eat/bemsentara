@@ -8,6 +8,11 @@ const {
 async function handleSelectInteraction(interaction) {
   const customId = interaction.customId;
 
+  if (customId.startsWith("reklam_package_select_")) {
+    const { handlePurchaseSelection } = require("../services/reklamTicketService");
+    return handlePurchaseSelection(interaction);
+  }
+
   // ── Soruşturma Sistemi Ceza Seçimi ──────────────────────────────────────────
   if (customId.startsWith("invest_penalty_select_")) {
     const { PermissionFlagsBits } = require("discord.js");
@@ -254,6 +259,30 @@ async function handleSelectInteraction(interaction) {
   const category = interaction.values[0];
   const isTMT = interaction.customId === "tmt_support_category";
   const isEko = interaction.customId === "ekoyildiz_support_category";
+
+  if (isEko && category === "reklam_destek") {
+    const { EmbedBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+    const mailEmbed = new EmbedBuilder()
+      .setTitle("📨 E-POSTA ALICISI: Eko Yıldız Reklam Departmanı")
+      .setDescription(
+        "**Reklam Destek Hizmetlerine Hoş Geldiniz!**\n\n" +
+        "Sanki yeni bir e-posta yazıyormuş gibi aşağıdaki butona tıklayarak Reklam Talep Formu'nu doldurun.\n\n" +
+        "📝 **Sistem Durumu:** Çevrimiçi\n" +
+        "👤 **Departman Sorumlusu:** Emre (Müşteri İlişkileri)"
+      )
+      .setColor(0x3498DB)
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("ekoyildiz_reklam_form_button")
+        .setLabel("Yeni Reklam Talebi")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("📨")
+    );
+
+    return interaction.reply({ embeds: [mailEmbed], components: [row], ephemeral: true });
+  }
 
   // Kategori bazlı başlık ve placeholder
   const categoryTitles = {

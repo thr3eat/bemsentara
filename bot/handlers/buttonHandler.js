@@ -97,6 +97,129 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  if (customId === "ekoyildiz_reklam_form_button") {
+    const { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require("discord.js");
+    const modal = new ModalBuilder()
+      .setCustomId("ekoyildiz_reklam_form_modal")
+      .setTitle("Reklam Oluşturma Talebi");
+
+    const compNameInput = new TextInputBuilder()
+      .setCustomId("reklam_topluluk_adi")
+      .setLabel("Topluluğunuzun Adı")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("Örn: Eko Yıldız")
+      .setRequired(true);
+
+    const memberCountInput = new TextInputBuilder()
+      .setCustomId("reklam_kisi_sayisi")
+      .setLabel("Kişi Sayısı (Hedef Kitle)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("Örn: 50,000")
+      .setRequired(true);
+
+    const adTypeInput = new TextInputBuilder()
+      .setCustomId("reklam_turu")
+      .setLabel("Nasıl bir reklam olacak?")
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder("Reklamın içeriği ve formatı hakkında bilgi verin.")
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(compNameInput),
+      new ActionRowBuilder().addComponents(memberCountInput),
+      new ActionRowBuilder().addComponents(adTypeInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("ekoyildiz_reklam_confirm_yes_")) {
+    const ticketId = customId.replace("ekoyildiz_reklam_confirm_yes_", "");
+    const { handleReklamConfirm } = require("../services/reklamTicketService");
+    return handleReklamConfirm(interaction, interaction.client, true, ticketId);
+  }
+
+  if (customId.startsWith("ekoyildiz_reklam_confirm_no_")) {
+    const ticketId = customId.replace("ekoyildiz_reklam_confirm_no_", "");
+    const { handleReklamConfirm } = require("../services/reklamTicketService");
+    return handleReklamConfirm(interaction, interaction.client, false, ticketId);
+  }
+
+  if (customId.startsWith("reklam_close_")) {
+    const ticketId = customId.replace("reklam_close_", "");
+    const { buildCloseReasonModal } = require("../embeds");
+    return interaction.showModal(buildCloseReasonModal(ticketId));
+  }
+
+  if (customId.startsWith("reklam_pause_")) {
+    const ticketId = customId.replace("reklam_pause_", "");
+    const { toggleReklamPause } = require("../services/reklamTicketService");
+    return toggleReklamPause(interaction, ticketId);
+  }
+
+  if (customId.startsWith("reklam_prices_")) {
+    const ticketId = customId.replace("reklam_prices_", "");
+    const { sendReklamPrices } = require("../services/reklamTicketService");
+    return sendReklamPrices(interaction, ticketId);
+  }
+
+  if (customId.startsWith("reklam_buy_")) {
+    const ticketId = customId.replace("reklam_buy_", "");
+    const { triggerPurchaseSelection } = require("../services/reklamTicketService");
+    return triggerPurchaseSelection(interaction, ticketId);
+  }
+
+  if (customId.startsWith("claim_ticket_")) {
+    const ticketId = customId.replace("claim_ticket_", "");
+    const Ticket = require("../../models/Ticket");
+    const ticket = await Ticket.findOne({ ticketId });
+    if (!ticket) {
+      return interaction.reply({ content: "❌ Destek talebi bulunamadı.", ephemeral: true });
+    }
+
+    if (ticket.claimedBy) {
+      return interaction.reply({ content: `❌ Bu destek talebi zaten <@${ticket.claimedBy}> tarafından üstlenilmiş.`, ephemeral: true });
+    }
+
+    ticket.claimedBy = interaction.user.id;
+    ticket.claimedByName = interaction.user.username;
+    await ticket.save();
+
+    await interaction.reply({
+      content: `🙋‍♂️ **Destek talebi başarıyla üstlenildi!** Bu taleple <@${interaction.user.id}> ilgileniyor.`
+    });
+
+    try {
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      const currentMessage = interaction.message;
+      if (currentMessage) {
+        const originalRow = currentMessage.components[0];
+        const newComponents = [];
+        if (originalRow) {
+          const updatedRow = new ActionRowBuilder();
+          originalRow.components.forEach(comp => {
+            if (comp.customId.startsWith("claim_ticket_")) {
+              updatedRow.addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`claimed_ticket_disabled_${ticketId}`)
+                  .setLabel(`Üstlendi: ${interaction.user.username}`)
+                  .setStyle(ButtonStyle.Secondary)
+                  .setDisabled(true)
+              );
+            } else {
+              updatedRow.addComponents(ButtonBuilder.from(comp));
+            }
+          });
+          newComponents.push(updatedRow);
+        }
+        await currentMessage.edit({ components: newComponents }).catch(() => {});
+      }
+    } catch (editErr) {
+      console.warn("Failed to edit welcome message components on claim:", editErr.message);
+    }
+    return;
+  }
+
   // ── Soruşturma Sistemi Butonları ───────────────────────────────────────────
   if (customId === "investigation_start_trigger") {
     const modal = new ModalBuilder()

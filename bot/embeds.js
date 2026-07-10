@@ -67,7 +67,11 @@ function buildCloseButton(ticketId) {
     new ButtonBuilder()
       .setCustomId(`close_ticket_${ticketId}`)
       .setLabel("🔒 Ticket'ı Kapat")
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`claim_ticket_${ticketId}`)
+      .setLabel("🙋‍♂️ Üstlen")
+      .setStyle(ButtonStyle.Success)
   );
 }
 

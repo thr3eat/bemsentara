@@ -1636,6 +1636,18 @@ function initializeDiscordHandlers(client) {
         const handled = await handleKonusReply(message, client);
         if (handled) return;
       } catch (_) { }
+      // Reklam DM ticket
+      try {
+        const Ticket = require('../../models/Ticket');
+        const activeReklamTicket = await Ticket.findOne({ userId: message.author.id, status: 'open', category: 'reklam_destek' });
+        if (activeReklamTicket && activeReklamTicket.channelId) {
+          const { forwardDMToReklamChannel } = require('../services/reklamTicketService');
+          await forwardDMToReklamChannel(message, client, activeReklamTicket);
+          return;
+        }
+      } catch (err) {
+        console.error('[messageCreate] Reklam DM handler hata:', err.message);
+      }
       // Normal DM ticket
       try {
         const { handleDMMessage } = require('../services/dmTicket');
@@ -1877,6 +1889,38 @@ function initializeDiscordHandlers(client) {
         if (forwarded) return;
       } catch (err) {
         console.warn('[messageCreate] forwardChannelToDM hata:', err.message);
+      }
+    }
+
+    // ── reklam- kanalından yetkili mesajını kullanıcıya veya transfer durumunu ilet ──
+    if (message.channel.name?.startsWith('reklam-') && !message.author.bot) {
+      try {
+        const Ticket = require('../../models/Ticket');
+        const ticket = await Ticket.findOne({ channelId: message.channel.id, status: 'open', category: 'reklam_destek' });
+        
+        if (ticket) {
+          // Eğer kullanıcı (reklam açan kişi) kanala doğrudan yazıyorsa ve transfer bekleniyorsa:
+          if (message.author.id === ticket.userId && ticket.transferState === 'pending_transfer') {
+            ticket.transferState = 'connected';
+            await ticket.save();
+            
+            const { EmbedBuilder } = require('discord.js');
+            const connEmbed = new EmbedBuilder()
+              .setColor(0x2ECC71)
+              .setTitle("🔌 Bağlantı Kuruldu")
+              .setDescription("✅ **Bağlanıldı!** Satın alma işleminiz için üst düzey yönetici sohbete katıldı.")
+              .setTimestamp();
+            await message.author.send({ embeds: [connEmbed] }).catch(() => {});
+          }
+
+          // Yetkili mesaj yazdıysa (veya kullanıcı yazdıysa da yetkiliye iletmek gerekirse, normalde yetkili yazar ve kullanıcıya DM gider)
+          // Burada standard yetkili yazınca kullanıcıya DM olarak iletilir:
+          const { forwardReklamChannelToDM } = require('../services/reklamTicketService');
+          const forwarded = await forwardReklamChannelToDM(message, client);
+          if (forwarded) return;
+        }
+      } catch (err) {
+        console.warn('[messageCreate] forwardReklamChannelToDM veya transfer kontrol hata:', err.message);
       }
     }
 

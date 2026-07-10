@@ -239,6 +239,11 @@ async function handleModalSubmit(interaction) {
   }
 
   // ── Ticket oluşturma modal'ı ─────────────────────────────────────────────
+  if (interaction.customId === "ekoyildiz_reklam_form_modal") {
+    const { handleReklamModalSubmit } = require("../services/reklamTicketService");
+    return handleReklamModalSubmit(interaction);
+  }
+
   if (interaction.customId.startsWith("support_modal_") || interaction.customId.startsWith("tmt_support_modal_") || interaction.customId.startsWith("ekoyildiz_support_modal_")) {
     return handleSupportModal(interaction);
   }
@@ -560,15 +565,12 @@ async function handleCloseReasonModal(interaction) {
     cleanupTicketAI(ticketId);
   } catch (_) {}
 
-  // Personel istatistiği — ticket'ı kapatan yetkili ise kaydet
+  // Personel istatistiği — ticket'ı üstlenen yetkili ise ona, yoksa kapatan yetkiliye kaydet
   try {
-    const { recordTicketSolved, ROLES } = require('../services/staffSystem');
-    const staffRoleIds = Object.values(ROLES).filter(id =>
-      id && !['PERSONEL_ROLE_ID','GELISMIS_ROLE_ID','SEKRETER_ROLE_ID'].includes(id)
-    );
-    const member = interaction.member;
-    if (member && staffRoleIds.some(rid => member.roles.cache.has(rid))) {
-      await recordTicketSolved(interaction.user.id, interaction.client);
+    const { recordTicketSolved } = require('../services/staffSystem');
+    const targetUserIdForCredit = ticket.claimedBy || (ticket.category === 'reklam_destek' ? null : interaction.user.id);
+    if (targetUserIdForCredit) {
+      await recordTicketSolved(targetUserIdForCredit, interaction.client);
     }
   } catch (_) {}
 
