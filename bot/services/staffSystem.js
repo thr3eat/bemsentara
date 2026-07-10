@@ -1985,13 +1985,16 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     `• **Ses Aktifliği Görevi:** ${voiceDone ? '✅ Tamamlandı' : '❌ Eksik'} (${voiceMins}/${req.voiceMinutes} dk)`;
 
   const stats = getDailyTaskCompletionStats(progress);
+  const bothTasksDone = isGreetDone && voiceDone;
 
   const embed = new EmbedBuilder()
     .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
     .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/${MAX_WARNINGS}`)
     .setDescription(
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
-      `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n` +
+      (bothTasksDone 
+        ? `Görevlerini tamamladın ama sistem uyarısı alıyorsun. 😟 Bu bir hata olabilir.\n\n` 
+        : `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n`) +
       `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Görevlerinin Durumu:**\n` +
