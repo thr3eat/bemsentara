@@ -73,7 +73,7 @@ passport.use(
       clientID: process.env.DISCORD_CLIENT_ID,
       clientSecret: process.env.DISCORD_CLIENT_SECRET,
       callbackURL: `${BASE_URL}/auth/discord/callback`,
-      scope: ["identify", "email"],
+      scope: ["identify", "email", "role_connections.write"],
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -104,6 +104,10 @@ passport.use(
             user.isStaff = true;
           }
         }
+
+        user.discordAccessToken = accessToken || null;
+        user.discordRefreshToken = refreshToken || null;
+        user.discordTokenUpdatedAt = new Date();
 
         await user.save();
         saveStoreNow();

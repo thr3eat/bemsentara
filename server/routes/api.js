@@ -2356,6 +2356,11 @@ router.post("/api/auth/roblox/friend-verify", async (req, res) => {
     dbUser.robloxId = String(robloxId);
     dbUser.robloxUsername = username;
     dbUser.isAuthorized = true;
+    dbUser.verificationStatus = {
+      ...(dbUser.verificationStatus || {}),
+      robloxVerifiedAt: new Date().toISOString(),
+      source: 'friend-verify'
+    };
     await dbUser.save();
     saveStoreNow();
 
@@ -2378,6 +2383,28 @@ router.post("/api/auth/roblox/friend-verify", async (req, res) => {
     // Arkadaşlıktan çıkar
     const { unfriendUser } = require("../../bot/services/robloxGroupManager");
     await unfriendUser(parseInt(robloxId, 10));
+
+    try {
+      const { syncRoleConnectionForUser } = require("../services/discordRoleConnectionService");
+      const accessToken = dbUser.discordAccessToken || req.session?.discordAccessToken;
+      const applicationId = process.env.DISCORD_ROLE_CONNECTION_APPLICATION_ID;
+      if (applicationId && accessToken) {
+        const groupMemberships = {};
+        const { getDiscordClient } = require("../../bot/discordClient");
+        const client = getDiscordClient();
+        const guild = client?.isReady() ? await client.guilds.fetch("1367646464804655104").catch(() => null) : null;
+        if (guild && dbUser.discordId) {
+          const member = await guild.members.fetch(dbUser.discordId).catch(() => null);
+          if (member) {
+            groupMemberships['35431216'] = member.roles.cache.has('35431216');
+            groupMemberships['130659145'] = member.roles.cache.has('130659145');
+          }
+        }
+        await syncRoleConnectionForUser(dbUser, accessToken, applicationId, groupMemberships);
+      }
+    } catch (syncErr) {
+      console.warn("[api] Discord role connection sync failed after verification:", syncErr.message);
+    }
 
     res.json({ success: true });
   } catch (err) {

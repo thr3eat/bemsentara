@@ -3,6 +3,33 @@ const passport = require("../passport");
 const User = require("../../models/User");
 const { renderLoginPage, renderAuthorizePage } = require("../views");
 const { saveStoreNow } = require("../../models/Store");
+const { syncRoleConnectionForUser } = require("../services/discordRoleConnectionService");
+
+async function syncLinkedRoleMetadata(user, session = null) {
+  if (!user?.discordId) return;
+
+  const accessToken = user.discordAccessToken || session?.discordAccessToken;
+  const applicationId = process.env.DISCORD_ROLE_CONNECTION_APPLICATION_ID;
+  if (!accessToken || !applicationId) return;
+
+  const groupMemberships = {};
+  try {
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    const guild = client?.isReady() ? await client.guilds.fetch("1367646464804655104").catch(() => null) : null;
+    if (guild && user.discordId) {
+      const member = await guild.members.fetch(user.discordId).catch(() => null);
+      if (member) {
+        groupMemberships["35431216"] = member.roles.cache.has("35431216");
+        groupMemberships["130659145"] = member.roles.cache.has("130659145");
+      }
+    }
+  } catch (err) {
+    console.warn("[auth] Group membership lookup failed:", err.message);
+  }
+
+  await syncRoleConnectionForUser(user, accessToken, applicationId, groupMemberships);
+}
 
 const router = express.Router();
 
@@ -114,13 +141,29 @@ router.get("/auth/discord", passport.authenticate("discord"));
 router.get(
   "/auth/discord/callback",
   passport.authenticate("discord", { failureRedirect: "/login" }),
-  (req, res) => {
-    const linkId = req.session.linkDiscordId;
-    if (linkId && req.user && String(req.user.discordId) === String(linkId)) {
-      delete req.session.linkDiscordId;
-      return res.redirect("/auth/roblox");
+  async (req, res) => {
+    try {
+      const linkId = req.session.linkDiscordId;
+      if (linkId && req.user && String(req.user.discordId) === String(linkId)) {
+        delete req.session.linkDiscordId;
+        return res.redirect("/auth/roblox");
+      }
+
+      const freshUser = await User.findOne({ discordId: String(req.user.discordId) });
+      if (freshUser) {
+        req.session.discordAccessToken = freshUser.discordAccessToken || req.session.discordAccessToken;
+        try {
+          await syncLinkedRoleMetadata(freshUser, req.session);
+        } catch (err) {
+          console.warn("[auth] Discord role connection sync failed:", err.message);
+        }
+      }
+
+      res.redirect("/dashboard");
+    } catch (err) {
+      console.error("[auth] Discord callback error:", err);
+      res.redirect("/dashboard");
     }
-    res.redirect("/dashboard");
   }
 );
 
@@ -152,6 +195,13 @@ router.get(
               req.session.passport.user = fresh._id;
             }
             tryAutoSyncRoles(req.user).catch(() => {});
+
+            try {
+              await syncLinkedRoleMetadata(req.user, req.session);
+            } catch (err) {
+              console.warn("[auth] Roblox role connection sync failed:", err.message);
+            }
+
             res.redirect("/dashboard?robloxLinked=true");
           });
         } else {

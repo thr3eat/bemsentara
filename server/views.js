@@ -1024,6 +1024,9 @@ function renderAuthorizePage(scopes = []) {
 function renderDashboard(user, staffProgress) {
   // Use isAuthorized flag instead of checking username, since username might be a fallback value
   const isRobloxLinked = user.isAuthorized && user.robloxId;
+  const hasDiscordOAuth = Boolean(user.discordId);
+  const hasEkoGroupMembership = Boolean(user.verificationStatus?.ekoGroupMember || user.verificationStatus?.ekoyildizGroupMember);
+  const hasModeratorTeamMembership = Boolean(user.verificationStatus?.moderatorTeamMember || user.verificationStatus?.moderatorTeamGroupMember);
   const { SUPPORT_CATEGORIES } = require("../config");
 
   // Determine if staff promotion warning should be displayed
@@ -1154,6 +1157,47 @@ function renderDashboard(user, staffProgress) {
     ` : ''}
 
     <!-- Terms Warning Banner -->
+    <div style="background:rgba(129,140,248,0.07);
+                border:1px solid rgba(129,140,248,0.25);
+                border-radius:16px;padding:1.25rem 1.5rem;
+                display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+                margin-bottom:1rem;animation:fadeUp 0.5s ease;">
+      <div style="display:flex;align-items:center;gap:0.75rem;flex:1;">
+        <span style="font-size:1.5rem;">🔗</span>
+        <div>
+          <div style="font-weight:700;color:var(--accent2);">Discord ile doğrulama ve bağlantılı roller</div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">
+            Roblox doğrulaması tamamlandığında Discord tarafında bağlantılı roller için şartlar otomatik güncellenir.
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <a href="/auth/discord" class="btn btn-sm btn-ghost" style="border-color:rgba(129,140,248,0.3);color:var(--accent2);font-weight:700;">Discord ile Giriş Yap</a>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:1rem 1.25rem;margin-bottom:2rem;">
+      <div style="font-weight:800;margin-bottom:0.75rem;">📋 Doğrulama Şartları</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;">
+        <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Discord OAuth</div>
+          <div style="font-weight:700;color:${hasDiscordOAuth ? 'var(--success)' : 'var(--warning)'};">${hasDiscordOAuth ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
+        </div>
+        <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Roblox Doğrulaması</div>
+          <div style="font-weight:700;color:${isRobloxLinked ? 'var(--success)' : 'var(--warning)'};">${isRobloxLinked ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
+        </div>
+        <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">EkoYıldız Grubu</div>
+          <div style="font-weight:700;color:${hasEkoGroupMembership ? 'var(--success)' : 'var(--warning)'};">${hasEkoGroupMembership ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
+        </div>
+        <div style="padding:0.75rem;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+          <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.3rem;">Moderatör Ekibi Grubu</div>
+          <div style="font-weight:700;color:${hasModeratorTeamMembership ? 'var(--success)' : 'var(--warning)'};">${hasModeratorTeamMembership ? '✅ Tamamlandı' : '⏳ Bekliyor'}</div>
+        </div>
+      </div>
+    </div>
+
     <div style="background:rgba(129,140,248,0.07);
                 border:1px solid rgba(129,140,248,0.25);
                 border-radius:16px;padding:1.25rem 1.5rem;
