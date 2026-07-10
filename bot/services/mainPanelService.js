@@ -2287,11 +2287,11 @@ async function handlePanelModal(interaction) {
     const username = interaction.fields.getTextInputValue("username").trim();
 
     try {
-      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
+      const { handleSlashCommand } = require("../handlers/slashHandler");
       const cmdName =
         customId === "panel_modal_sys_grupcekeko" ? "grupcekeko" : "grupcekekogerial";
       const proxy = buildProxy(interaction, cmdName, { getString: () => username });
-      await handleGeneralCommand(proxy);
+      await handleSlashCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Roblox GrupÇekEko işlemi başarısız: ${e.message}`);
     }
