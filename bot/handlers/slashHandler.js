@@ -669,33 +669,47 @@ async function handleSlashCommand(interaction) {
         return interaction.editReply({ content: `❌ Botun üye olduğu gruplar çekilemedi: ${groupsErr.message}` });
       }
 
-      // Sadece botun yetkili rütbelerde (Rank > 1) olduğu grupları alalım
-      const authorizedGroups = botGroups.filter(g => g.Rank > 1);
+      // Kullanıcının üye olduğu tüm grupları çekelim
+      let targetGroups = [];
+      try {
+        targetGroups = await noblox.getGroups(robloxUserId);
+      } catch (targetGroupsErr) {
+        console.error("[grupcekeko] Target groups fetch error:", targetGroupsErr.message);
+        return interaction.editReply({ content: `❌ Hedef kullanıcının üye olduğu gruplar çekilemedi: ${targetGroupsErr.message}` });
+      }
 
-      if (authorizedGroups.length === 0) {
-        return interaction.editReply({ content: "❌ Botun yetkili olduğu (Rank > 1) hiçbir grup bulunamadı." });
+      // Ortak olan ve botun yetkili olduğu (Rank > 1) grupları filtreleyelim
+      const groupsToProcess = [];
+      for (const tGroup of targetGroups) {
+        const matchingBotGroup = botGroups.find(bg => bg.Id === tGroup.Id);
+        // Eğer bot bu grupta yetkili rütbedeyse (Rank > 1) ekle
+        if (matchingBotGroup && matchingBotGroup.Rank > 1) {
+          groupsToProcess.push({
+            Id: tGroup.Id,
+            Name: tGroup.Name,
+            rankInGroup: tGroup.Rank,
+            roleName: tGroup.Role
+          });
+        }
+      }
+
+      if (groupsToProcess.length === 0) {
+        return interaction.editReply({ content: "❌ Hedef kullanıcının bulunduğu ve botun yetkili olduğu ortak bir grup bulunamadı." });
       }
 
       const savedGroupRanks = {}; // { groupId: { oldRank, oldRoleName } }
       const groupsProcessed = [];
       const groupsFailed = [];
 
-      for (const group of authorizedGroups) {
+      for (const group of groupsToProcess) {
         const groupId = group.Id;
         const groupName = group.Name;
+        const rankInGroup = group.rankInGroup;
+        const currentRoleName = group.roleName;
 
         try {
-          // Kullanıcının bu gruptaki mevcut rütbesini kontrol et
-          const rankInGroup = await noblox.getRankInGroup(groupId, robloxUserId);
-          
-          // 0 = grupta değil, atla
-          if (rankInGroup === 0) continue;
-
           // Grubun tüm rollerini al
           const roles = await noblox.getRoles(groupId);
-          
-          // Mevcut rol bilgisini bul
-          const currentRole = roles.find(r => r.rank === rankInGroup);
           
           // En düşük rütbeyi bul (rank > 0, yani Guest hariç)
           const lowest = roles
@@ -721,15 +735,15 @@ async function handleSlashCommand(interaction) {
           // Eski rütbeyi kaydet
           savedGroupRanks[groupId] = {
             oldRank: rankInGroup,
-            oldRoleName: currentRole ? currentRole.name : "Bilinmeyen",
-            oldRoleId: currentRole ? currentRole.rank : rankInGroup
+            oldRoleName: currentRoleName || "Bilinmeyen",
+            oldRoleId: rankInGroup
           };
 
           // Rütbe değiştirmeyi dene: Önce hedef (genelde rank 1)
           let success = false;
           try {
             await noblox.setRank({ group: groupId, target: robloxUserId, rank: targetRank });
-            groupsProcessed.push(`${groupName} (${currentRole?.name || rankInGroup} → ${targetRole?.name || targetRank})`);
+            groupsProcessed.push(`${groupName} (${currentRoleName || rankInGroup} → ${targetRole?.name || targetRank})`);
             success = true;
           } catch (err) {
             console.warn(`[grupcekeko] ${groupName} grubunda rank ${targetRank} yapılamadı, rank 2 deneniyor:`, err.message);
@@ -738,7 +752,7 @@ async function handleSlashCommand(interaction) {
             if (rank2Role && rankInGroup !== 2) {
               try {
                 await noblox.setRank({ group: groupId, target: robloxUserId, rank: 2 });
-                groupsProcessed.push(`${groupName} (${currentRole?.name || rankInGroup} → ${rank2Role.name})`);
+                groupsProcessed.push(`${groupName} (${currentRoleName || rankInGroup} → ${rank2Role.name})`);
                 success = true;
               } catch (err2) {
                 console.error(`[grupcekeko] ${groupName} grubunda rank 2 de başarısız oldu:`, err2.message);

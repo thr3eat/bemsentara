@@ -803,10 +803,37 @@ async function pollAllGroups(client) {
     return;
   }
 
-  console.log(`[AuditLogPoller] Tüm gruplar poll ediliyor... (${Object.keys(ROBLOX_GROUPS).length} grup)`);
+  // Botun (Token) Roblox ID'sini ve üye olduğu grupları çekelim
+  let botGroups = [];
+  try {
+    const { getBotRobloxId } = require("./robloxGroupManager");
+    let botRobloxId = getBotRobloxId();
+    if (!botRobloxId) {
+      const botUser = await noblox.getAuthenticatedUser();
+      botRobloxId = botUser.id || botUser.userId || botUser.UserID;
+    }
+    if (botRobloxId) {
+      botGroups = await noblox.getGroups(botRobloxId);
+    }
+  } catch (authErr) {
+    console.error("[AuditLogPoller] Bot groups fetch error in pollAllGroups:", authErr.message);
+  }
 
-  for (const groupId of Object.keys(ROBLOX_GROUPS)) {
-    await pollGroup(client, groupId, ROBLOX_GROUPS[groupId], logChannel);
+  // Eğer dinamik gruplar çekilemediyse fallback olarak ROBLOX_GROUPS kullanalım
+  let groupsToPoll = {};
+  if (botGroups && botGroups.length > 0) {
+    for (const g of botGroups) {
+      groupsToPoll[String(g.Id)] = g.Name;
+    }
+  } else {
+    // Fallback to hardcoded ROBLOX_GROUPS
+    groupsToPoll = ROBLOX_GROUPS;
+  }
+
+  console.log(`[AuditLogPoller] Tüm gruplar poll ediliyor... (${Object.keys(groupsToPoll).length} grup)`);
+
+  for (const groupId of Object.keys(groupsToPoll)) {
+    await pollGroup(client, groupId, groupsToPoll[groupId], logChannel);
     await new Promise(r => setTimeout(r, 1500));
   }
 
@@ -815,8 +842,7 @@ async function pollAllGroups(client) {
 
 // ─── Başlatma fonksiyonu ──────────────────────────────────────────────────────
 function startAuditLogPoller(client) {
-  const count = Object.keys(ROBLOX_GROUPS).length;
-  console.log(`[AuditLogPoller] Başlatıldı — ${count} grup izleniyor, her ${POLL_INTERVAL_MS / 1000}s kontrol.`);
+  console.log(`[AuditLogPoller] Dinamik Abuse/AuditLog sistemi başlatıldı, her ${POLL_INTERVAL_MS / 1000}s kontrol.`);
 
   pollAllGroups(client).catch(err =>
     console.error("[AuditLogPoller] İlk çalıştırma hatası:", err.message)
