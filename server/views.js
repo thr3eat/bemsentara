@@ -468,351 +468,300 @@ function _esc(str) {
 // ─────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────
-function renderMainPage() {
+function renderMainPage(user) {
+  const authCta = user
+    ? `<a class="btn nav-cta" href="/dashboard"><span class="cta-label">Dashboard</span></a>`
+    : `<a class="btn nav-cta" href="/login"><span class="cta-label">Giriş Yap</span></a>`;
+
+  const heroCta = user
+    ? `<a class="btn primary" href="/dashboard">Dashboard'a Git</a>`
+    : `<a class="btn primary" href="/login">Hemen Başla</a>`;
+
   return `<!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" dir="ltr" data-lang="tr" data-app-mode="web">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sentara — Premium Destek Sistemi</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg:      #06060e;
-      --surface: rgba(255,255,255,0.035);
-      --border:  rgba(255,255,255,0.08);
-      --accent:  #a78bfa;
-      --accent2: #818cf8;
-      --text:    #f0f0f8;
-      --muted:   #7c7c9a;
-    }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { scroll-behavior:smooth; }
-    body {
-      background: var(--bg);
-      background-image:
-        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(99,102,241,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(139,92,246,0.06) 0%, transparent 50%);
-      color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sentara — Premium Destek Platformu</title>
 
-    .glow {
-      position:fixed; width:500px; height:500px;
-      border-radius:50%; opacity:0.06; z-index:0;
-      filter:blur(180px); pointer-events:none;
-      animation: floatGlow 18s infinite ease-in-out alternate;
-    }
-    .glow-1 { background:var(--accent2); top:-150px; right:-150px; }
-    .glow-2 { background:var(--accent);  bottom:-150px; left:-150px; animation-delay:-9s; }
-    @keyframes floatGlow {
-      0%   { transform: scale(1) translate(0,0); }
-      100% { transform: scale(1.1) translate(15px,20px); }
-    }
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="author" content="Sentara" />
+    <meta name="publisher" content="Sentara" />
+    <meta name="application-name" content="Sentara" />
+    <meta name="apple-mobile-web-app-title" content="Sentara" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="keywords" content="Sentara, Discord Destek, Roblox Türkiye, Roblox, Discord Bot, Canlı Destek" />
+    <meta name="description" content="Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada." />
 
-    header {
-      background: rgba(6,6,14,0.45);
-      backdrop-filter: blur(28px) saturate(1.2);
-      -webkit-backdrop-filter: blur(28px) saturate(1.2);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 50px;
-      padding: 0.6rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 1.5rem;
-      z-index: 200;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
-      max-width: 1200px;
-      margin: 1.5rem auto 0;
-      width: calc(100% - 3rem);
-    }
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      text-decoration: none;
-      color: inherit;
-    }
-    .logo span {
-      font-weight: 800;
-      font-size: 1.4rem;
-      color: #ffffff;
-      letter-spacing: -0.5px;
-    }
-    nav { display:flex; gap:1.2rem; align-items:center; }
-    nav a {
-      color:var(--muted); text-decoration:none; font-weight:500;
-      transition:color 0.3s; position:relative; font-size:0.95rem;
-    }
-    nav a::after {
-      content:''; position:absolute; bottom:-4px; left:50%;
-      width:0; height:2px; background:var(--accent);
-      transition:width 0.3s ease, left 0.3s ease; border-radius:1px;
-    }
-    nav a:hover { color:var(--text); }
-    nav a:hover::after { width:100%; left:0; }
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sentara" />
+    <meta property="og:locale" content="tr_TR" />
+    <meta property="og:title" content="Sentara" />
+    <meta property="og:description" content="Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada." />
+    <meta property="og:image" content="https://ta-studios.com/Assets/Image/Icons/logo-banner.png" />
 
-    .btn {
-      padding:0.8rem 2rem;
-      background:rgba(167,139,250,0.18);
-      border:1px solid rgba(167,139,250,0.25);
-      color:var(--accent); border-radius:30px;
-      font-family:'Outfit',sans-serif; font-weight:600; font-size:1rem;
-      cursor:pointer; text-decoration:none;
-      transition:all 0.3s ease;
-      box-shadow:0 2px 16px rgba(167,139,250,0.1);
-      display:inline-flex; align-items:center; gap:0.5rem;
-      position:relative; overflow:hidden;
-      backdrop-filter:blur(8px);
-    }
-    .btn::after {
-      content:''; position:absolute; top:0; left:-100%;
-      width:100%; height:100%;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);
-      transition:left 0.5s;
-    }
-    .btn:hover::after { left:100%; }
-    .btn:hover {
-      transform:translateY(-2px) scale(1.02);
-      background:rgba(167,139,250,0.28);
-      border-color:rgba(167,139,250,0.4);
-      color:#fff;
-      box-shadow:0 8px 28px rgba(167,139,250,0.2);
-    }
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:domain" content="sentara.premium" />
+    <meta name="twitter:title" content="Sentara" />
+    <meta name="twitter:description" content="Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada." />
+    <meta name="twitter:image" content="https://ta-studios.com/Assets/Image/Icons/logo-banner.png" />
 
-    /* ── Hero ── */
-    .hero {
-      position:relative; z-index:1;
-      max-width:1100px; margin:0 auto;
-      padding:7rem 2rem 4rem;
-      text-align:center;
-    }
-    .hero-badge {
-      display:inline-flex; align-items:center; gap:0.5rem;
-      background:rgba(167,139,250,0.08);
-      border:1px solid rgba(167,139,250,0.15);
-      padding:0.4rem 1rem; border-radius:30px;
-      font-size:0.85rem; font-weight:500; color:var(--accent);
-      margin-bottom:2rem;
-      animation:fadeUp 0.8s ease forwards; opacity:0;
-      backdrop-filter:blur(8px);
-    }
-    h1 {
-      font-size:4.5rem; line-height:1.05; font-weight:800;
-      margin-bottom:1.5rem;
-      animation:fadeUp 0.9s ease 0.1s forwards; opacity:0;
-      letter-spacing:-1px;
-    }
-    .grad {
-      background:linear-gradient(135deg,var(--accent),var(--accent2));
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-    }
-    .subtitle {
-      color:var(--muted); font-size:1.15rem; max-width:640px;
-      margin:0 auto 3rem;
-      animation:fadeUp 0.9s ease 0.2s forwards; opacity:0;
-      line-height:1.8; font-weight:300;
-    }
-    .hero-cta {
-      display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;
-      animation:fadeUp 0.9s ease 0.3s forwards; opacity:0;
-    }
-    .btn-outline {
-      padding:0.8rem 2rem; background:rgba(255,255,255,0.03);
-      border:1px solid rgba(255,255,255,0.1); color:var(--text);
-      border-radius:30px; font-family:'Outfit',sans-serif;
-      font-weight:500; cursor:pointer; text-decoration:none;
-      transition:all 0.3s; backdrop-filter:blur(8px);
-    }
-    .btn-outline:hover {
-      border-color:rgba(167,139,250,0.35);
-      color:var(--accent);
-      background:rgba(167,139,250,0.05);
-    }
+    <meta name="theme-color" content="#06060e">
 
-    @keyframes fadeUp {
-      to { opacity:1; transform:translateY(0); }
-      from { opacity:0; transform:translateY(20px); }
-    }
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
 
-    /* ── Stats strip ── */
-    .stats {
-      display:flex; justify-content:center; gap:3rem; flex-wrap:wrap;
-      padding:2.5rem; background:rgba(255,255,255,0.035);
-      border:1px solid rgba(255,255,255,0.07); border-radius:20px;
-      max-width:900px; margin:3rem auto 0;
-      animation:fadeUp 1s ease 0.4s forwards; opacity:0;
-      backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
-      box-shadow:0 8px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-    .stat-item { text-align:center; }
-    .stat-value { font-size:2.5rem; font-weight:800; }
-    .stat-label { color:var(--muted); font-size:0.85rem; font-weight:300; }
-
-    /* ── Features ── */
-    #features {
-      max-width:1100px; margin:6rem auto; padding:0 2rem;
-    }
-    .section-label {
-      text-align:center; color:var(--accent); font-weight:600;
-      font-size:0.8rem; letter-spacing:3px; text-transform:uppercase;
-      margin-bottom:1rem;
-    }
-    .section-title { text-align:center; font-size:2.5rem; font-weight:800; margin-bottom:4rem; letter-spacing:-0.5px; }
-    .features-grid {
-      display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.25rem;
-    }
-    .feature {
-      background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06);
-      border-radius:20px; padding:2rem;
-      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-      transition:transform 0.35s, border-color 0.35s, box-shadow 0.35s;
-      position:relative; overflow:hidden;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    }
-    .feature::before {
-      content:''; position:absolute;
-      inset:0; border-radius:20px;
-      background:linear-gradient(135deg,rgba(167,139,250,0.04),transparent);
-      opacity:0; transition:opacity 0.35s;
-    }
-    .feature:hover {
-      transform:translateY(-6px);
-      border-color:rgba(167,139,250,0.2);
-      box-shadow:0 16px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
-    }
-    .feature:hover::before { opacity:1; }
-    .feature-icon {
-      font-size:2.2rem; display:inline-flex;
-      align-items:center; justify-content:center;
-      width:56px; height:56px;
-      background:rgba(167,139,250,0.08); border-radius:14px;
-      margin-bottom:1.25rem;
-      border:1px solid rgba(167,139,250,0.1);
-    }
-    .feature h3 { font-size:1.2rem; font-weight:700; margin-bottom:0.6rem; }
-    .feature p  { color:var(--muted); line-height:1.7; font-size:0.92rem; font-weight:300; }
-
-    /* ── Footer ── */
-    footer {
-      text-align:center; padding:3rem 2rem;
-      border-top:1px solid rgba(255,255,255,0.05);
-      color:var(--muted); background:rgba(6,6,14,0.8);
-      position:relative; z-index:1;
-      backdrop-filter:blur(10px);
-    }
-    footer .logo { font-size:1.4rem; display:block; margin-bottom:0.75rem; }
-    .footer-links { display:flex; justify-content:center; gap:1.5rem; margin:1rem 0; flex-wrap:wrap; }
-    .footer-links a { color:var(--muted); text-decoration:none; font-size:0.88rem; transition:color 0.2s; font-weight:300; }
-    .footer-links a:hover { color:var(--text); }
-
-    ::selection { background:rgba(167,139,250,0.3); color:#fff; }
-    ::-webkit-scrollbar { width:6px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:3px; }
-
-    @media(max-width:768px) {
-      header { padding:1rem; flex-direction:column; gap:1rem; }
-      h1 { font-size:2.5rem; }
-      .stats { gap:1.5rem; }
-    }
-  </style>
+    <link rel="stylesheet" href="https://ta-studios.com/Assets/Style/main.css?v=10.0.0-20260707214730" />
+    <script async src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
+    <style>
+        :root {
+          --brand-coral: #a78bfa;
+          --brand-pink: #c084fc;
+          --brand-fuchsia: #e879f9;
+          --accent: #818cf8;
+          --bg: #06060e;
+          --card: #0c0c16;
+          --border: rgba(255, 255, 255, 0.08);
+          --supporter-chip-text: #ffffff;
+          --supporter-chip-border: rgba(255, 255, 255, 0.12);
+        }
+        body {
+          background-color: var(--bg);
+          background-image:
+            radial-gradient(ellipse 80% 60% at 10% 0%, rgba(99,102,241,0.08) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 50% at 90% 100%, rgba(139,92,246,0.06) 0%, transparent 50%);
+        }
+        .site-header {
+          background: rgba(6,6,14,0.45) !important;
+          backdrop-filter: blur(28px) saturate(1.2) !important;
+          -webkit-backdrop-filter: blur(28px) saturate(1.2) !important;
+          border: 1px solid rgba(255,255,255,0.08) !important;
+          border-radius: 50px !important;
+          padding: 0.6rem 2rem !important;
+          margin-top: 1.5rem !important;
+        }
+        .brand-logo {
+          filter: drop-shadow(0 0 8px var(--brand-coral));
+        }
+        .nav-toggle {
+          background: rgba(255,255,255,0.03) !important;
+          border: 1px solid rgba(255,255,255,0.08) !important;
+        }
+        .menu a:hover {
+          color: #ffffff !important;
+        }
+        .hero-media {
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          box-shadow: 0 20px 40px -32px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+        }
+    </style>
 </head>
-<body>
-  <div class="glow glow-1"></div>
-  <div class="glow glow-2"></div>
 
-  <header>
-    <a href="/" class="logo">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent2); filter: drop-shadow(0 0 8px var(--accent2));"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/></svg>
-      <span>sentara</span>
-    </a>
-    <nav>
-      <a href="#features">Özellikler</a>
-      <a href="/legal/tos">Koşullar</a>
-      <a href="/login" class="btn" style="background: #2563eb; border-color: #3b82f6; border-radius: 9999px; color: #fff; padding: 0.5rem 1.2rem; display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg> Giriş Yap</a>
-    </nav>
-  </header>
+<body class="home-page" data-lang="tr" data-app-mode="web">
+    <header class="site-header">
+        <div class="container nav glass">
+            <a class="brand" href="/">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-logo" style="color: var(--brand-coral); margin-right: 8px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/></svg>
+                <span class="brand-text">Sentara</span>
+            </a>
 
-  <div class="hero" style="position:relative;z-index:1;">
-    <div class="hero-badge">✨ Discord Destek Platformu</div>
-    <h1>Discord'da<br><span class="grad">Yeni Nesil Destek</span></h1>
-    <p class="subtitle">Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada.</p>
-    <div class="hero-cta">
-      <a href="/login" class="btn" style="font-size:1.1rem;padding:1rem 2.5rem;">🚀 Hemen Başla</a>
-      <a href="#features" class="btn-outline">Özellikleri İncele</a>
-    </div>
+            <button id="nav-toggle" class="nav-toggle glass" aria-expanded="false" aria-controls="nav-menu" aria-label="Menüyü Aç" onclick="const nav = document.getElementById('nav-menu'); const open = nav.classList.toggle('open'); this.setAttribute('aria-expanded', open)">
+                <iconify-icon icon="lucide:menu" class="nav-icon icon-burger" aria-hidden="true"></iconify-icon>
+                <iconify-icon icon="lucide:x" class="nav-icon icon-close" aria-hidden="true"></iconify-icon>
+            </button>
 
-    <div class="stats">
-      <div class="stat-item">
-        <div class="stat-value grad">12K+</div>
-        <div class="stat-label">Kayıtlı Kullanıcı</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value grad">98K+</div>
-        <div class="stat-label">Çözülen Ticket</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value grad">99.9%</div>
-        <div class="stat-label">Uptime</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value grad">&lt;2s</div>
-        <div class="stat-label">Ortalama Yanıt</div>
-      </div>
-    </div>
-  </div>
+            <nav id="nav-menu" class="menu" aria-label="Ana menü">
+                <a href="#hakkimizda">Hakkımızda</a>
+                <a href="#ekip">Ekip</a>
+                <a href="#projeler">Projeler</a>
+                <a href="#istatistik">İstatistikler</a>
+                <a href="/wiki">Wiki</a>
+                <a class="btn nav-support-cta" href="/tickets">
+                    <iconify-icon icon="lucide:headphones" aria-hidden="true"></iconify-icon>
+                    <span>Canlı Destek</span>
+                </a>
+                <a class="btn nav-premium-cta" href="/shop">
+                    <iconify-icon icon="lucide:shopping-bag" aria-hidden="true"></iconify-icon>
+                    <span>Mağaza</span>
+                </a>
+                ${authCta}
+            </nav>
+        </div>
+    </header>
 
-  <section id="features">
-    <p class="section-label">Özellikler</p>
-    <h2 class="section-title">Neden <span class="grad">Sentara</span>?</h2>
-    <div class="features-grid">
-      <div class="feature">
-        <div class="feature-icon">🎮</div>
-        <h3>Roblox Entegrasyonu</h3>
-        <p>Kullanıcıların Roblox hesaplarını Discord ile eşleştirin. Destek taleplerinde güvenilir kimlik doğrulama sağlayın.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">⚡</div>
-        <h3>Işık Hızında Panel</h3>
-        <p>Premium web paneli sayesinde tüm destek işlemlerinizi saniyeler içinde yönetin. Gerçek zamanlı güncellemeler.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🎨</div>
-        <h3>Modern Arayüz</h3>
-        <p>Glass morphism tasarım dili ile hem takımınız hem de üyeleriniz için unutulmaz bir kullanıcı deneyimi.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🔒</div>
-        <h3>Gelişmiş Güvenlik</h3>
-        <p>OAuth2 tabanlı kimlik doğrulama, rol yönetimi ve izin sistemi ile güvenli bir ortam.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">📊</div>
-        <h3>Detaylı İstatistikler</h3>
-        <p>Ticket metrikleri, personel performansı ve kullanıcı aktivitesi hakkında kapsamlı raporlar.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🤖</div>
-        <h3>Otomasyon</h3>
-        <p>Otomatik atama, kategorizasyon ve yanıt şablonları ile verimliliği maksimuma taşıyın.</p>
-      </div>
-    </div>
-  </section>
+    <main>
+        <section class="hero">
+            <div class="container hero-grid">
+                <div class="hero-copy">
+                    <p class="eyebrow">Roblox Türkiye'nin En İyisi</p>
+                    <h1 class="title">
+                        <span class="grad">Favori sunucunuzun</span>
+                        <span>favori destek sistemi.</span>
+                    </h1>
+                    <p class="lead">Sentara ile sunucunuzdaki destek deneyimini tamamen değiştirin. Roblox entegrasyonu, premium tasarım ve kusursuz hız bir arada.</p>
+                    <div class="cta">
+                        ${heroCta}
+                        <a id="heroCtaBtn" class="btn ghost" href="#hakkimizda">Özellikleri Keşfet</a>
+                    </div>
+                </div>
 
-  <footer>
-    <a href="/" class="logo">sentara</a>
-    <div class="footer-links">
-      <a href="/legal/tos">Hizmet Koşulları</a>
-      <a href="/legal/privacy">Gizlilik Politikası</a>
-      <a href="/wiki">Wiki</a>
-    </div>
-    <p style="font-size:0.85rem;">&copy; 2026 Sentara Premium Support. Tüm hakları saklıdır.</p>
-  </footer>
+                <figure class="hero-media glass">
+                    <img src="https://ta-studios.com/Assets/Image/Webp/hero-img.webp" alt="Sentara Hero Görseli" />
+                </figure>
+            </div>
+        </section>
+
+        <section id="hakkimizda" class="section">
+            <div class="container">
+                <div class="section-head">
+                    <h2>Biz Kimiz</h2>
+                    <p class="muted">Toplulukla büyüyen, modern ve dinamik bir destek platformu.</p>
+                </div>
+
+                <div class="grid">
+                    <article class="card">
+                        <h3>Kullanıcı Odaklı</h3>
+                        <p>Kararlarımızı kullanıcı istatistikleri ve topluluk geri bildirimleri doğrultusunda yönlendiririz.</p>
+                    </article>
+                    <article class="card">
+                        <h3>Modüler Altyapı</h3>
+                        <p>Gelişmiş modüllerimiz sayesinde hızlı ve kesintisiz entegrasyonlar sunarız.</p>
+                    </article>
+                    <article class="card">
+                        <h3>Güçlü Topluluk</h3>
+                        <p>Discord sunucumuz ve sosyal kanallarımız üzerinden topluluğumuzla sürekli etkileşim halindeyiz.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="ekip" class="section">
+            <div class="container">
+                <div class="section-head">
+                    <h2>Ekiple Tanış</h2>
+                    <p class="muted">Projelerimize ve platformumuza yön veren yaratıcı ekip.</p>
+                </div>
+                <div class="grid team">
+                    <article class="card team-card">
+                        <div class="team-head">
+                            <img class="team-avatar" src="https://ta-studios.com/Assets/Image/default-avatar.png" width="72" height="72" alt="Sentara Avatar">
+                            <div class="team-meta">
+                                <h3 class="p-title">Sentara</h3>
+                                <span class="team-role">Founder & Lead Developer</span>
+                            </div>
+                        </div>
+                        <div class="team-links">
+                            <a class="icon-link -discord" href="https://discord.com" target="_blank" rel="noopener" title="Discord"><iconify-icon icon="simple-icons:discord"></iconify-icon></a>
+                        </div>
+                    </article>
+                    <article class="card team-card">
+                        <div class="team-head">
+                            <img class="team-avatar" src="https://ta-studios.com/Assets/Image/default-avatar.png" width="72" height="72" alt="Alp Avatar">
+                            <div class="team-meta">
+                                <h3 class="p-title">Alp</h3>
+                                <span class="team-role">Co-Founder & Designer</span>
+                            </div>
+                        </div>
+                        <div class="team-links">
+                            <a class="icon-link -discord" href="https://discord.com" target="_blank" rel="noopener" title="Discord"><iconify-icon icon="simple-icons:discord"></iconify-icon></a>
+                        </div>
+                    </article>
+                    <article class="card team-card">
+                        <div class="team-head">
+                            <img class="team-avatar" src="https://ta-studios.com/Assets/Image/default-avatar.png" width="72" height="72" alt="Moderatör Avatar">
+                            <div class="team-meta">
+                                <h3 class="p-title">Destek Ekibi</h3>
+                                <span class="team-role">Community Staff</span>
+                            </div>
+                        </div>
+                        <div class="team-links">
+                            <a class="icon-link -discord" href="https://discord.com" target="_blank" rel="noopener" title="Discord"><iconify-icon icon="simple-icons:discord"></iconify-icon></a>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="projeler" class="section">
+            <div class="container">
+                <div class="section-head">
+                    <h2>Projelerimiz</h2>
+                    <p class="muted">Aktif olarak sunduğumuz ve geliştirilmekte olan yenilikçi sistemlerimiz.</p>
+                </div>
+
+                <div class="grid projects">
+                    <article class="card project-card">
+                        <h3>Sentara Ticket Bot</h3>
+                        <span class="badge badge-open">Aktif</span>
+                        <p>Sunucunuzdaki destek taleplerini organize eden gelişmiş Discord botu.</p>
+                    </article>
+                    <article class="card project-card">
+                        <h3>Sentara Web Dashboard</h3>
+                        <span class="badge badge-pending">Geliştirmede</span>
+                        <p>Kullanıcıların ve yetkililerin talepleri kolayca yönetebileceği modern web paneli.</p>
+                    </article>
+                    <article class="card project-card">
+                        <h3>Roblox Doğrulama Sistemi</h3>
+                        <span class="badge badge-open">Aktif</span>
+                        <p>Roblox hesaplarını güvenle Discord'a bağlayan OAuth/API entegrasyonu.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="istatistik" class="section">
+            <div class="container">
+                <div class="section-head">
+                    <h2>İstatistikler</h2>
+                    <p class="muted">Platformumuzun güncel performans ve kullanım verileri.</p>
+                </div>
+
+                <div class="grid">
+                    <article class="card">
+                        <h3>Kayıtlı Kullanıcı</h3>
+                        <div class="stat-number">12K+</div>
+                    </article>
+
+                    <article class="card">
+                        <h3>Çözülen Ticket</h3>
+                        <div class="stat-number">98K+</div>
+                    </article>
+
+                    <article class="card">
+                        <h3>Sistem Uptime</h3>
+                        <div class="stat-number">99.9%</div>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container foot">
+            <div class="brandline">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--brand-coral); margin-right: 8px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/></svg>
+                <span class="brand-text">Sentara</span>
+            </div>
+
+            <div class="foot-links legal-actions">
+                <a class="btn" href="/legal/tos">Hizmet Şartları</a>
+                <a class="btn" href="/legal/privacy">Gizlilik Politikası</a>
+            </div>
+
+            <div class="social">
+                <a href="https://discord.gg" target="_blank" rel="noopener">
+                    <iconify-icon icon="simple-icons:discord" aria-hidden="true"></iconify-icon>
+                    <span>Discord</span>
+                </a>
+            </div>
+        </div>
+        <div class="container footer-meta">
+            <p class="copyright">© 2026 Sentara — Tüm hakları saklıdır.</p>
+        </div>
+    </footer>
 </body>
 </html>`;
 }
