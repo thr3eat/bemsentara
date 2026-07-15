@@ -8,6 +8,7 @@
     "build": "npm install"
   },
   "dependencies": {
+    "@discordjs/voice": "^0.19.2",
     "axios": "^1.6.7",
     "chalk": "^4.1.2",
     "cors": "^2.8.5",

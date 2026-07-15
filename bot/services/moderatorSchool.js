@@ -859,25 +859,45 @@ async function finishPhase(userId, phase, client) {
   }
 }
 
+function joinSchoolVoice(guild, channelId) {
+  try {
+    const { joinVoiceChannel } = require('@discordjs/voice');
+    joinVoiceChannel({
+      channelId: channelId,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: true,
+      selfMute: true,
+    });
+  } catch (err) {
+    logger.error(`[ModeratorSchool] joinSchoolVoice error for channel ${channelId}:`, err.message);
+  }
+}
+
 async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
   try {
     const userId = newState.id;
     const voiceChannelId = newState.channelId;
     if (!voiceChannelId) return;
 
+    // Check if the joined channel is a school voice channel
+    const isSchoolVoice = Object.values(VOICE_CHANNELS).includes(voiceChannelId);
+    if (!isSchoolVoice) return;
+
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
+
+    // 1. Ensure bot joins the voice channel immediately
+    try {
+      const guild = newState.guild;
+      if (guild.members.me.permissions.has('Connect')) {
+        joinSchoolVoice(guild, voiceChannelId);
+      }
+    } catch (_) { }
 
     if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_1 && p.schoolSystem.phase === 1) {
       if (p.schoolSystem.status === 'phase1_blocks_completed' || p.schoolSystem.status === 'phase1_exam_submitted') return;
       if (activeTrainings.has(userId)) return;
-
-      try {
-        const guild = newState.guild;
-        if (guild.members.me.permissions.has('Connect')) {
-          await guild.members.me.voice.setChannel(voiceChannelId).catch(() => { });
-        }
-      } catch (_) { }
 
       const user = await client.users.fetch(userId);
       await user.send({ content: '🌸 Selin: Eğitim 3 dakika sonra başlayacak... Lütfen ses kanalında kal. 💕' }).catch(() => { });
@@ -894,13 +914,6 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
     else if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_2 && p.schoolSystem.phase === 2) {
       if (p.schoolSystem.status === 'phase2_blocks_completed' || p.schoolSystem.status === 'phase2_exam_submitted') return;
       if (activeTrainings.has(userId)) return;
-
-      try {
-        const guild = newState.guild;
-        if (guild.members.me.permissions.has('Connect')) {
-          await guild.members.me.voice.setChannel(voiceChannelId).catch(() => { });
-        }
-      } catch (_) { }
 
       const user = await client.users.fetch(userId);
       await user.send({ content: '🌸 Selin: Eğitim 3 dakika sonra başlayacak... Lütfen ses kanalında kal. 💕' }).catch(() => { });
@@ -934,13 +947,6 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       }
 
       if (activeExams.has(userId)) return;
-
-      try {
-        const guild = newState.guild;
-        if (guild.members.me.permissions.has('Connect')) {
-          await guild.members.me.voice.setChannel(voiceChannelId).catch(() => { });
-        }
-      } catch (_) { }
 
       const user = await client.users.fetch(userId);
       await user.send({ content: `🌸 Selin: ${phase}. Aşama Sınavınız 3 dakika sonra başlayacak... Lütfen hazır olun. 💕` }).catch(() => { });
