@@ -144,11 +144,11 @@ async function startModInterview(targetUser, adminId, guildId, client) {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`mod_interview_yes_${targetUser.id}`)
+      .setCustomId(`mod_interview_yes_${targetUser.id}_${adminId}_${guildId}`)
       .setLabel('✅ Evet, Katılıyorum')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`mod_interview_no_${targetUser.id}`)
+      .setCustomId(`mod_interview_no_${targetUser.id}_${adminId}_${guildId}`)
       .setLabel('❌ Şu An Zamanım Yok')
       .setStyle(ButtonStyle.Secondary)
   );
@@ -184,7 +184,32 @@ async function handleInterviewButton(interaction, client) {
   if (!cid.startsWith('mod_interview_yes_') && !cid.startsWith('mod_interview_no_')) return false;
 
   const userId = interaction.user.id;
-  const info = activeInterviews.get(userId);
+  let info = activeInterviews.get(userId);
+
+  if (!info) {
+    const parts = cid.split('_');
+    if (parts.length >= 6) {
+      const targetUserId = parts[3];
+      const adminId = parts[4];
+      const guildId = parts[5];
+      
+      // Re-initialize the active interview session dynamically in memory
+      info = {
+        adminId,
+        guildId,
+        client,
+        history: [],
+        answeredCount: 0,
+        totalScore: 0,
+        startTime: Date.now(),
+        responses: [],
+        username: interaction.user.username,
+        timeoutHandle: null,
+      };
+      activeInterviews.set(targetUserId, info);
+      refreshTimeout(targetUserId, client);
+    }
+  }
 
   // ── Hayır ──
   if (cid.startsWith('mod_interview_no_')) {
