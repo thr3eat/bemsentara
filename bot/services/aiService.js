@@ -42,7 +42,7 @@ Kurallar:
 /**
  * Tek bir modele istek at
  */
-function requestModel(model, messages, systemContent) {
+function requestModel(model, messages, systemContent, options = {}) {
   // Validate inputs
   if (!OLLAMA_KEY || OLLAMA_KEY.trim() === '') {
     return Promise.reject(new Error('❌ AI API anahtarı yapılandırılmamış'));
@@ -59,8 +59,8 @@ function requestModel(model, messages, systemContent) {
       ...messages,
     ],
     stream: false,
-    max_tokens: 300,
-    temperature: 0.7,
+    max_tokens: options.max_tokens || 300,
+    temperature: options.temperature !== undefined ? options.temperature : 0.7,
   });
 
   return new Promise((resolve, reject) => {
@@ -173,7 +173,7 @@ function requestModel(model, messages, systemContent) {
  * @param {Array} messages - [{role, content}]
  * @param {string} [customSystemPrompt] - Özel system prompt (opsiyonel)
  */
-async function chatWithAI(messages, customSystemPrompt, mode = 'ticket') {
+async function chatWithAI(messages, customSystemPrompt, mode = 'ticket', options = {}) {
   const systemContent = customSystemPrompt || (mode === 'story' ? STORY_SYSTEM_PROMPT : TICKET_SYSTEM_PROMPT);
   let msgArray = messages;
   if (typeof messages === 'string') {
@@ -183,7 +183,7 @@ async function chatWithAI(messages, customSystemPrompt, mode = 'ticket') {
   for (const model of MODELS) {
     try {
       console.log(`[aiService] Deneniyor: ${model}`);
-      const result = await requestModel(model, msgArray, systemContent);
+      const result = await requestModel(model, msgArray, systemContent, options);
       console.log(`[aiService] Başarılı: ${model}`);
       return result;
     } catch (err) {

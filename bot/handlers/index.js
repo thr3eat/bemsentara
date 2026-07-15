@@ -1407,6 +1407,60 @@ function initializeDiscordHandlers(client) {
         }
       }
     }
+
+    // ── Yapay Zeka Sunucu Yönetim Sistemi (!botaiyaptırma) ──────────────────
+    if (message.guild && !message.author.bot) {
+      const content = message.content.trim();
+      const lowerContent = content.toLowerCase();
+
+      // 1) Eşleşen aktif bir session varsa, bunu talimat olarak kabul et
+      const { getActiveSessions, processAIInstruction } = require("../services/aiManagementService");
+      const activeSessions = getActiveSessions();
+      if (activeSessions.has(message.author.id) && activeSessions.get(message.author.id).channelId === message.channel.id) {
+        // Oturumu hemen sil ki mükerrer çalışmasın
+        activeSessions.delete(message.author.id);
+        
+        // Eylemi işle
+        processAIInstruction(message, content).catch(err => {
+          console.error("[AI Management Command] Hata:", err);
+        });
+        return;
+      }
+
+      // 2) Yeni komut başlatma
+      if (lowerContent.startsWith("!botaiyaptırma")) {
+        const { PermissionFlagsBits } = require("discord.js");
+        
+        // Yetki kontrolü (Yalnızca Yönetici)
+        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.").catch(() => {});
+        }
+
+        const argsStr = content.slice("!botaiyaptırma".length).trim();
+        if (argsStr.length > 0) {
+          // Doğrudan talimat verilmiş, işle
+          processAIInstruction(message, argsStr).catch(err => {
+            console.error("[AI Management Command] Hata:", err);
+          });
+        } else {
+          // Oturum başlat
+          activeSessions.set(message.author.id, {
+            channelId: message.channel.id,
+            timestamp: Date.now()
+          });
+          
+          await message.reply(
+            "🤖 **Yapay Zeka Yönetim Modu Açıldı!**\n" +
+            "Lütfen sunucuda yapmak istediğiniz işlemleri yazın. Örnekler:\n" +
+            "• `Moderatör Anasayfa kategorisine moderatör-sohbet adında bir kanal oluştur ve o kategorinin izinlerini yap`\n" +
+            "• `Moderatör Lideri rolünün altına siyah renginde yetkileri tam altında olan rol gibi olsun`\n\n" +
+            "*Not: 2 dakika içinde yapacağınız bir sonraki mesajınız talimat olarak algılanacaktır.*"
+          ).catch(() => {});
+        }
+        return;
+      }
+    }
+
     // ── Sunucuya Özel s!sil ve s!ban Komutları ───────────────────────────────
     if (message.guild && !message.author.bot && (message.content.toLowerCase().startsWith("s!sil") || message.content.toLowerCase().startsWith("s!ban"))) {
       const ServerSetup = require("../../models/ServerSetup");
@@ -2972,6 +3026,14 @@ function initializeDiscordHandlers(client) {
           return interaction.reply({ content: "❌ Bu sunucu yetkilendirilmemiştir. Bot bu sunucuda kullanılamaz.", ephemeral: true }).catch(() => { });
         }
       }
+
+      // ── AI Sunucu Yönetim Butonları ──────────────────────────────────────────
+      if (interaction.isButton() && (interaction.customId?.startsWith('ai_mgmt_approve_') || interaction.customId?.startsWith('ai_mgmt_reject_'))) {
+        const { handleManagementButton } = require("../services/aiManagementService");
+        await handleManagementButton(interaction);
+        return;
+      }
+
       // ── Anket Evet/Hayır butonu ───────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('survey_yes_') || interaction.customId?.startsWith('survey_no_'))) {
         await handleSurveyButton(interaction, client);
