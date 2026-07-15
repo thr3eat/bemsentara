@@ -222,6 +222,84 @@ async function initializeModeratorSchool(client) {
       }
     }, 5000);
 
+    // Scan voice channels on startup after 7 seconds to rejoin and resume
+    setTimeout(async () => {
+      try {
+        const schoolGuild = await client.guilds.fetch(SCHOOL_GUILD_ID).catch(() => null);
+        if (schoolGuild) {
+          const channelsToScan = Object.values(VOICE_CHANNELS);
+          for (const channelId of channelsToScan) {
+            const channel = await schoolGuild.channels.fetch(channelId).catch(() => null);
+            if (channel && channel.isVoiceBased()) {
+              const members = Array.from(channel.members.values());
+              for (const member of members) {
+                if (member.user.bot) continue;
+                const uId = member.id;
+                
+                const p = await StaffProgress.findOne({ userId: uId });
+                if (!p || p.status !== 'active') continue;
+
+                // Make bot join voice immediately
+                if (schoolGuild.members.me.permissions.has('Connect')) {
+                  joinSchoolVoice(schoolGuild, channelId);
+                }
+
+                // If training channel and candidate is eligible to start/resume training
+                if (channelId === VOICE_CHANNELS.EGITIM_SESLI_1 && p.schoolSystem.phase === 1) {
+                  if (p.schoolSystem.status === 'phase1_blocks_completed' || p.schoolSystem.status === 'phase1_exam_submitted') continue;
+                  if (activeTrainings.has(uId)) continue;
+                  
+                  const user = member.user;
+                  await user.send({ content: '🌸 Selin: Kaldığımız yerden eğitime devam ediyoruz... Lütfen ses kanalında kal. 💕' }).catch(() => { });
+                  await sendTrainingBlock(uId, client);
+                }
+                
+                else if (channelId === VOICE_CHANNELS.EGITIM_SESLI_2 && p.schoolSystem.phase === 2) {
+                  if (p.schoolSystem.status === 'phase2_blocks_completed' || p.schoolSystem.status === 'phase2_exam_submitted') continue;
+                  if (activeTrainings.has(uId)) continue;
+                  
+                  const user = member.user;
+                  await user.send({ content: '🌸 Selin: Kaldığımız yerden eğitime devam ediyoruz... Lütfen ses kanalında kal. 💕' }).catch(() => { });
+                  await sendTrainingBlock(uId, client);
+                }
+
+                // If exam channel and candidate is eligible to start/resume exam
+                else if (channelId === VOICE_CHANNELS.SINAV_ODASI) {
+                  const status = p.schoolSystem.status;
+                  const phase = p.schoolSystem.phase;
+
+                  let isEligible = false;
+                  if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
+                  else if (phase === 2 && status === 'phase2_blocks_completed') isEligible = true;
+                  else if (phase === 3) isEligible = true;
+
+                  if (!isEligible || activeExams.has(uId)) continue;
+
+                  const user = member.user;
+                  await user.send({ content: `🌸 Selin: Sınavına kaldığımız yerden devam ediyoruz... Lütfen hazır ol. 💕` }).catch(() => { });
+
+                  let questions = EXAM_QUESTIONS;
+                  if (phase === 1) questions = EXAM_QUESTIONS_PHASE1;
+                  else if (phase === 2) questions = EXAM_QUESTIONS_PHASE2;
+
+                  activeExams.set(uId, {
+                    questionIndex: 0,
+                    answers: [],
+                    phase: phase,
+                    questions: questions
+                  });
+                  await saveExamToDB(uId, activeExams.get(uId)).catch(() => {});
+                  await askExamQuestion(uId, client);
+                }
+              }
+            }
+          }
+        }
+      } catch (scanErr) {
+        logger.error('[ModeratorSchool] Error scanning voice channels on startup:', scanErr.message);
+      }
+    }, 7000);
+
   } catch (err) {
     logger.error('[ModeratorSchool] Startup hook hatası:', err.message);
   }
