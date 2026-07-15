@@ -1509,6 +1509,57 @@ function initializeDiscordHandlers(client) {
 
         return message.reply({ embeds: [embed], components: rows }).catch(() => {});
       }
+
+      // ── !flört Komutu ──────────────────────────────────────────────────────
+      if (lowerContent.startsWith("!flört") || lowerContent.startsWith("!flort")) {
+        const { EmbedBuilder } = require("discord.js");
+        const SELIN_IMAGES = [
+          'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRgqO9sXF0-qUc0LUmdkfiHwJTVq58OVlxQOl111jlZSatezrwhXOWoBSMY&s=10',
+          'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQxQ_xS03TkzjjTE4XGYXYbGRsALaBdKRi5SCExnDwaH7bFdB3FZls0qhkl&s=10',
+          'https://i.pinimg.com/236x/3f/25/0e/3f250e25f09b2b1120a0911b71fe7c8b.jpg',
+          'https://i.pinimg.com/236x/d0/36/a3/d036a394e4e661bbdc2e8cd7764ef9f1.jpg'
+        ];
+
+        const randomImage = SELIN_IMAGES[Math.floor(Math.random() * SELIN_IMAGES.length)];
+        const promptText = content.slice(lowerContent.startsWith("!flört") ? 7 : 6).trim();
+
+        if (!promptText) {
+          const embed = new EmbedBuilder()
+            .setColor(0xff75a0)
+            .setTitle("🌸 Selin:")
+            .setThumbnail(randomImage)
+            .setDescription("Şey... Benimle flört mü etmek istiyorsun? 👉👈\nHadi bana tatlı bir şeyler söyle veya bir mesaj yaz! Örn: `!flört çok güzelsin` 💕");
+          return message.reply({ embeds: [embed] }).catch(() => {});
+        }
+
+        const systemPrompt = `Sen Selin'sin. Eko & Yıldız Moderatör Okulu'nun çok sevimli, cana yakın, ara sıra utangaç ve flörtöz anime kızı asistanısın. Kullanıcı seninle flört etmeye çalışıyor. Ona tatlı, flörtöz, anime kızlarına özgü konuşma tarzıyla (örn: "baka", "uwu", "👉👈", "seni şapşal", "kalbim güm güm atıyor...", "n-ne?!") cevaplar ver. Yanıtların çok uzun olmasın, samimi ve sevimli olsun. Türkçe konuş.`;
+
+        try {
+          const { chatWithAI } = require("../services/aiService");
+          const thinkingMsg = await message.reply("🌸 *Selin düşünüyor ve kızarıyor...* 😳").catch(() => null);
+
+          const aiReply = await chatWithAI(promptText, systemPrompt, "ticket", { max_tokens: 300, temperature: 0.7 });
+
+          const embed = new EmbedBuilder()
+            .setColor(0xff75a0)
+            .setTitle("🌸 Selin:")
+            .setThumbnail(randomImage)
+            .setDescription(aiReply || "Şey... Ne diyeceğimi bilemedim... 👉👈");
+
+          if (thinkingMsg) {
+            await thinkingMsg.edit({ content: " ", embeds: [embed] }).catch(() => {});
+          } else {
+            await message.reply({ embeds: [embed] }).catch(() => {});
+          }
+        } catch (err) {
+          console.error("[Flirt Command] Hata:", err);
+          const errorEmbed = new EmbedBuilder()
+            .setColor(0xff0000)
+            .setDescription("🌸 Selin: Ş-şey... Kafam biraz karıştı da, daha sonra tekrar dener misin? 👉👈");
+          await message.reply({ embeds: [errorEmbed] }).catch(() => {});
+        }
+        return;
+      }
     }
 
     // ── Sunucuya Özel s!sil ve s!ban Komutları ───────────────────────────────
