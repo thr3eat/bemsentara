@@ -2445,7 +2445,21 @@ async function handlePanelModal(interaction) {
       } else if (staffRecord.level < 1) {
         staffRecord.level = 1;
       }
+      staffRecord.schoolSystem = {
+        status: 'pending_contract',
+        originalLevel: 1,
+        originalRoles: []
+      };
+      staffRecord.status = 'active';
       await staffRecord.save();
+
+      // Okul sözleşmesini (Selin başlangıcı) gönder
+      try {
+        const { sendContractDM } = require('./moderatorSchool');
+        await sendContractDM(targetUserId, client);
+      } catch (errSchool) {
+        console.error('[directModAlim] Okul sözleşmesi gönderilemedi:', errSchool.message);
+      }
 
       // Moderatör yönetim sunucusunda değilse davet linki gönder
       const { ensureAdminGuildMembership } = require('./staffAutomation');
