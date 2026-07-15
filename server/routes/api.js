@@ -882,25 +882,38 @@ router.post("/api/admin/action", async (req, res) => {
         const BLACKLIST_LOG_CHANNEL_ID = '1518920074264842380';
         const logChannel = await client.channels.fetch(BLACKLIST_LOG_CHANNEL_ID).catch(() => null);
 
+        const cleanBlacklistName = (str) => {
+          if (!str) return "";
+          return str.replace(/[\*\~\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+        };
+
+        const cleanBlacklistReason = (str) => {
+          if (!str) return "";
+          return str.replace(/[\*\~\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+        };
+
+        const cleanedName = cleanBlacklistName(name);
+        const cleanedReason = cleanBlacklistReason(reason);
+
         const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const safePattern = new RegExp(`^${escapeRegex(name.trim())}$`, 'i');
+        const safePattern = new RegExp(`^${escapeRegex(cleanedName)}$`, 'i');
         let entry = await Blacklist.findOne({ name: { $regex: safePattern } });
 
         if (option === "1" || option === "2") {
           let type = option === "1" ? "person" : "group";
-          let finalName = name.trim();
+          let finalName = cleanedName;
           if (type === "group" && !finalName.endsWith(" grubu")) {
             finalName += " grubu";
           }
           let isNew = false;
           if (entry) {
-            entry.reason = reason;
+            entry.reason = cleanedReason;
             entry.type = type;
             entry.status = "active";
             entry.removedAt = null;
             await entry.save();
           } else {
-            entry = new Blacklist({ name: finalName, type, reason, status: "active" });
+            entry = new Blacklist({ name: finalName, type, reason: cleanedReason, status: "active" });
             await entry.save();
             isNew = true;
           }

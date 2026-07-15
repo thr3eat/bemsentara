@@ -6,6 +6,16 @@ const Blacklist = require('../../models/Blacklist');
 const BLACKLIST_CHANNEL_ID = '1518692472367222915';
 const LOG_CHANNEL_ID = '1518920074264842380';
 
+const cleanBlacklistName = (name) => {
+  if (!name) return '';
+  return name.replace(/[\*\~\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const cleanBlacklistReason = (reason) => {
+  if (!reason) return '';
+  return reason.replace(/[\*\~\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
 // Default list of initial blocked people and groups
 const DEFAULT_PEOPLE = [
   { name: 'LorerYT', reason: 'salaklık ve alttaki 2 kişi onun ekibinden' },
@@ -60,6 +70,19 @@ async function initializeBlacklist(client) {
       console.log('[blacklist] Seeding complete.');
     }
 
+    // DB migration: Clean existing entries with invalid formatting characters (newlines, asterisks, tildes)
+    const allEntries = await Blacklist.find();
+    for (const entry of allEntries) {
+      const cleanName = cleanBlacklistName(entry.name);
+      const cleanReason = cleanBlacklistReason(entry.reason);
+      if (entry.name !== cleanName || entry.reason !== cleanReason) {
+        console.log(`[blacklist] Migrating entry: "${entry.name}" -> "${cleanName}"`);
+        entry.name = cleanName;
+        entry.reason = cleanReason;
+        await entry.save().catch(e => console.error('[blacklist] Migration save error:', e.message));
+      }
+    }
+
     await renderBlacklist(client);
   } catch (err) {
     console.error('[blacklist] Initialization error:', err.message);
@@ -84,8 +107,10 @@ async function renderBlacklist(client) {
       if (list.length === 0) return '*(Temiz)*';
       return list.map(item => {
         const isRemoved = item.status === 'removed';
-        const formattedName = isRemoved ? `~~**${item.name}**~~` : `**${item.name}**`;
-        const reasonText = item.reason ? ` (${item.reason})` : '';
+        const cleanName = cleanBlacklistName(item.name);
+        const cleanReason = cleanBlacklistReason(item.reason);
+        const formattedName = isRemoved ? `~~**${cleanName}**~~` : `**${cleanName}**`;
+        const reasonText = cleanReason ? ` (${cleanReason})` : '';
         const statusText = isRemoved ? ' - *[Kaldırıldı (15 gün sonra silinecek)]*' : '';
         return `* ${formattedName}${reasonText}${statusText}`;
       }).join('\n');
@@ -339,8 +364,8 @@ async function handleBlacklistMessage(message, client) {
   // 4. Check Group Addition Pattern
   if (groupAdditionPattern.test(content)) {
     const match = content.match(groupAdditionPattern);
-    const name = match[1].trim() + ' grubu';
-    const reason = match[2].trim();
+    const name = cleanBlacklistName(match[1]) + ' grubu';
+    const reason = cleanBlacklistReason(match[2]);
 
     try {
       let entry = await Blacklist.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
@@ -382,8 +407,8 @@ async function handleBlacklistMessage(message, client) {
   // 5. Check Addition Pattern (Standard Person/Auto-detect Group)
   if (additionPattern.test(content)) {
     const match = content.match(additionPattern);
-    const name = match[1].trim();
-    const reason = match[2].trim();
+    const name = cleanBlacklistName(match[1]);
+    const reason = cleanBlacklistReason(match[2]);
 
     // Check if the reason implies a state change like "sorunçözüldü" or "sorun çözülmemiş"
     if (reason.toLowerCase() === 'sorunçözüldü' || reason.toLowerCase().includes('sorun çözülmemiş')) {
