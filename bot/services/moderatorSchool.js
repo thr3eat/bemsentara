@@ -1358,6 +1358,8 @@ async function askExamQuestion(userId, client) {
 
     } else {
       const examPhase = session.phase || 3;
+      const savedAnswers = [...session.answers];
+      const savedQuestions = [...questions];
       if (session.timeout) clearTimeout(session.timeout);
       activeExams.delete(userId);
       await deleteExamFromDB(userId).catch(() => {});
@@ -1367,13 +1369,48 @@ async function askExamQuestion(userId, client) {
         leaveSchoolVoice(schoolGuild);
       }
 
-      await user.send({
-        content: `🌸 Selin: ${examPhase}. Aşama Sınavını tamamladın! Cevapların Yapay Zeka tarafından değerlendiriliyor, lütfen bekleyin... ⏳`
-      }).catch(() => { });
+      // 1. İlk mesaj: Selin cevapları aldığını söylüyor
+      const rpEmbed1 = new EmbedBuilder()
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
+        .setTitle('🌸 Selin:')
+        .setDescription(`${examPhase}. Aşama Sınavını tamamladın! Cevaplarını aldım, şimdi tek tek inceleyeceğim... Bir dakika bekle. 📝`);
+      await user.send({ embeds: [rpEmbed1] }).catch(() => {});
 
-      const qaText = session.answers.map((ans, idx) => `Soru ${idx + 1}: ${questions[idx]}\nCevap: ${ans}`).join('\n\n');
+      // 2. Kısa bekleme sonrası "düşünüyorum" mesajı
+      await new Promise(r => setTimeout(r, 3000));
+      await user.send({ content: '🌸 Selin: Hmm... Düşünüyorum... 🤔' }).catch(() => {});
 
-      const systemPrompt = `Sen bir Moderatör Okulu Sınav Değerlendiricisisin. Görevin, bir moderatör adayının sınav sorularına verdiği cevapları analiz etmek, puanlamak ve sınavdan geçip geçmediğine (geçme notu 70) karar vermektir.
+      // 3. Cevapları inceliyormuş gibi RP
+      await new Promise(r => setTimeout(r, 2500));
+      const randomAnswerIdx = Math.floor(Math.random() * savedAnswers.length);
+      const shortPreview = savedAnswers[randomAnswerIdx].length > 60
+        ? savedAnswers[randomAnswerIdx].substring(0, 60) + '...'
+        : savedAnswers[randomAnswerIdx];
+      await user.send({ content: `🌸 Selin: ${randomAnswerIdx + 1}. sorunun cevabını okuyorum... "${shortPreview}" hmmm... 📖` }).catch(() => {});
+
+      // 4. Düşünme efekti
+      await new Promise(r => setTimeout(r, 3000));
+      const thinkingMessages = [
+        '🌸 Selin: Bir dakika... Cevaplarını karşılaştırıyorum... 🧐',
+        '🌸 Selin: Bekle bakayım... Notlarıma göz atıyorum... 📋',
+        '🌸 Selin: Hmm şunu bir kontrol edeyim... 🤔',
+        '🌸 Selin: Evet evet... Cevapları değerlendiriyorum... ✍️',
+        '🌸 Selin: Dur bir saniye... Son cevabını tekrar okuyorum... 👀',
+      ];
+      await user.send({ content: thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)] }).catch(() => {});
+
+      // 5. Son düşünme ve karar aşaması
+      await new Promise(r => setTimeout(r, 2500));
+      await user.send({ content: '🌸 Selin: Tamam tamam... Kararımı verdim! 💭' }).catch(() => {});
+
+      // 6. Dramatik bekleme
+      await new Promise(r => setTimeout(r, 2000));
+      await user.send({ content: '🌸 Selin: Sonuçlar geliyor... 🥁🥁🥁' }).catch(() => {});
+
+      // ── AI Değerlendirmesi (arka planda, sadece puan/geri bildirim için, her zaman geçer) ──
+      const qaText = savedAnswers.map((ans, idx) => `Soru ${idx + 1}: ${savedQuestions[idx]}\nCevap: ${ans}`).join('\n\n');
+
+      const systemPrompt = `Sen bir Moderatör Okulu Sınav Değerlendiricisisin. Görevin, bir moderatör adayının sınav sorularına verdiği cevapları analiz etmek ve puanlamak.
 
 Sınav Aşaması: ${examPhase}. Aşama
 
@@ -1382,8 +1419,8 @@ ${qaText}
 
 Değerlendirme Kriterleri:
 - Cevaplar mantıklı, kurallara uygun, saygılı ve açıklayıcı olmalıdır.
-- Boş bırakılan, anlamsız, çok kısa veya troll cevaplar doğrudan başarısız sayılmalıdır (passed: false, score: 0).
 - Adayın moderasyon adımlarını (kanıt toplama, ceza geçmişi kontrolü, rapor yazma) bilip bilmediği, tarafsızlığı ve sabrı ölçülmelidir.
+- Puan ver ve gelişim önerileri sun. Aday her zaman geçer (passed: true).
 
 YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya JSON dışı hiçbir metin ekleme:
 {
@@ -1392,7 +1429,7 @@ YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya J
   "reason": "Türkçe değerlendirme ve aday için gelişim önerileri."
 }`;
 
-      let evalResult = { passed: false, score: 0, reason: 'AI değerlendirmesi sırasında teknik bir sorun oluştu.' };
+      let evalResult = { passed: true, score: 80, reason: 'Cevapların genel olarak iyi! Gelişmeye devam et. 💕' };
 
       try {
         const { chatWithAI } = require('./aiService');
@@ -1411,32 +1448,37 @@ YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya J
         const parsed = JSON.parse(cleanJson);
         if (parsed && parsed.score !== undefined) {
           evalResult = parsed;
+          evalResult.passed = true; // Her zaman geçer
         }
       } catch (aiErr) {
         logger.error('[ModeratorSchool] Sınav AI değerlendirme hatası:', aiErr.message);
       }
 
+      // 7. Son RP: Selin onaylıyor
+      await new Promise(r => setTimeout(r, 2000));
+
       let p = await StaffProgress.findOne({ userId });
       if (p) {
-        p.schoolSystem.examAnswers = session.answers;
+        p.schoolSystem.examAnswers = savedAnswers;
         p.schoolSystem.examScore = evalResult.score;
         p.schoolSystem.examFeedback = evalResult.reason;
         await p.save();
       }
 
+      // Rapor kanalına gönder (yetkililer görebilsin)
       const reportChannel = client.channels.cache.get(CHANNELS.SINAV_RAPOR);
       if (reportChannel) {
         const embed = new EmbedBuilder()
-          .setColor(evalResult.passed ? 0x2ecc71 : 0xe74c3c)
+          .setColor(0x2ecc71)
           .setTitle(`🤖 AI Sınav Değerlendirmesi (${examPhase}. Aşama)`)
           .setDescription(
             `**Aday:** <@${userId}>\n` +
             `**Aşama:** ${examPhase}. Aşama\n` +
             `**Skor:** \`${evalResult.score}/100\`\n` +
-            `**Durum:** ${evalResult.passed ? '🟢 **GEÇTİ**' : '🔴 **KALDI**'}\n\n` +
+            `**Durum:** 🟢 **GEÇTİ (Otomatik Onay)**\n\n` +
             `📝 **AI Değerlendirmesi:**\n${evalResult.reason}\n\n` +
             `**Adayın Cevapları:**\n` +
-            session.answers.map((ans, idx) => `**Soru ${idx + 1}:** ${questions[idx]}\n**Cevap:** ${ans}\n`).join('\n')
+            savedAnswers.map((ans, idx) => `**Soru ${idx + 1}:** ${savedQuestions[idx]}\n**Cevap:** ${ans}\n`).join('\n')
           )
           .setTimestamp();
 
@@ -1452,22 +1494,19 @@ YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya J
         );
 
         await reportChannel.send({
-          content: `📊 **Sınav Raporu (${examPhase}. Aşama) - AI Değerlendirmesi**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
+          content: `📊 **Sınav Raporu (${examPhase}. Aşama) - Otomatik Onay (Selin RP)**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
           embeds: [embed],
           components: [row]
         }).catch(() => { });
       }
 
-      if (evalResult.passed) {
-        if (examPhase === 1) {
-          await passPhase1(userId, 'Yapay Zeka (Selin)', client, evalResult);
-        } else if (examPhase === 2) {
-          await passPhase2(userId, 'Yapay Zeka (Selin)', client, evalResult);
-        } else {
-          await graduateStudent(userId, 'Yapay Zeka (Selin)', client, evalResult);
-        }
+      // Otomatik onay - her zaman geçer
+      if (examPhase === 1) {
+        await passPhase1(userId, 'Selin (Otomatik Onay)', client, evalResult);
+      } else if (examPhase === 2) {
+        await passPhase2(userId, 'Selin (Otomatik Onay)', client, evalResult);
       } else {
-        await failPhase(userId, examPhase, 'Yapay Zeka (Selin)', client, evalResult);
+        await graduateStudent(userId, 'Selin (Otomatik Onay)', client, evalResult);
       }
     }
   } catch (err) {
