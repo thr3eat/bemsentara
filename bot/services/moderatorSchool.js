@@ -269,14 +269,14 @@ async function initializeModeratorSchool(client) {
                   const phase = p.schoolSystem.phase;
 
                   // Auto-recovery if status wasn't saved on completion due to schema validation error
-                  if (phase === 1 && status !== 'phase1_blocks_completed') {
+                  if (phase == 1 && status !== 'phase1_blocks_completed') {
                     if (p.schoolSystem.step >= PHASE1_BLOCKS.length - 1) {
                       p.schoolSystem.status = 'phase1_blocks_completed';
                       await p.save().catch(() => {});
                       status = 'phase1_blocks_completed';
                     }
                   }
-                  else if (phase === 2 && status !== 'phase2_blocks_completed') {
+                  else if (phase == 2 && status !== 'phase2_blocks_completed') {
                     if (p.schoolSystem.step >= PHASE2_BLOCKS.length - 1) {
                       p.schoolSystem.status = 'phase2_blocks_completed';
                       await p.save().catch(() => {});
@@ -285,9 +285,9 @@ async function initializeModeratorSchool(client) {
                   }
 
                   let isEligible = false;
-                  if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
-                  else if (phase === 2 && status === 'phase2_blocks_completed') isEligible = true;
-                  else if (phase === 3) isEligible = true;
+                  if (phase == 1 && status === 'phase1_blocks_completed') isEligible = true;
+                  else if (phase == 2 && status === 'phase2_blocks_completed') isEligible = true;
+                  else if (phase == 3) isEligible = true;
 
                   if (!isEligible || activeExams.has(uId)) continue;
 
@@ -295,8 +295,8 @@ async function initializeModeratorSchool(client) {
                   await user.send({ content: `🌸 Selin: Sınavına kaldığımız yerden devam ediyoruz... Lütfen hazır ol. 💕` }).catch(() => { });
 
                   let questions = EXAM_QUESTIONS;
-                  if (phase === 1) questions = EXAM_QUESTIONS_PHASE1;
-                  else if (phase === 2) questions = EXAM_QUESTIONS_PHASE2;
+                  if (phase == 1) questions = EXAM_QUESTIONS_PHASE1;
+                  else if (phase == 2) questions = EXAM_QUESTIONS_PHASE2;
 
                   activeExams.set(uId, {
                     questionIndex: 0,
@@ -1063,14 +1063,14 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       const phase = p.schoolSystem.phase;
 
       // Auto-recovery if status wasn't saved on completion due to schema validation error
-      if (phase === 1 && status !== 'phase1_blocks_completed') {
+      if (phase == 1 && status !== 'phase1_blocks_completed') {
         if (p.schoolSystem.step >= PHASE1_BLOCKS.length - 1) {
           p.schoolSystem.status = 'phase1_blocks_completed';
           await p.save().catch(() => {});
           status = 'phase1_blocks_completed';
         }
       }
-      else if (phase === 2 && status !== 'phase2_blocks_completed') {
+      else if (phase == 2 && status !== 'phase2_blocks_completed') {
         if (p.schoolSystem.step >= PHASE2_BLOCKS.length - 1) {
           p.schoolSystem.status = 'phase2_blocks_completed';
           await p.save().catch(() => {});
@@ -1079,15 +1079,15 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       }
 
       let isEligible = false;
-      if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
-      else if (phase === 2 && status === 'phase2_blocks_completed') isEligible = true;
-      else if (phase === 3) isEligible = true;
+      if (phase == 1 && status === 'phase1_blocks_completed') isEligible = true;
+      else if (phase == 2 && status === 'phase2_blocks_completed') isEligible = true;
+      else if (phase == 3) isEligible = true;
 
       if (!isEligible) {
         const user = await client.users.fetch(userId);
-        if (phase === 1 && status !== 'phase1_blocks_completed') {
+        if (phase == 1 && status !== 'phase1_blocks_completed') {
           await user.send({ content: '🌸 Selin: 1. Aşama Sınavına girmek için önce 1. Aşama eğitim dökümanlarını tamamlamalısınız. 💕' }).catch(() => { });
-        } else if (phase === 2 && status !== 'phase2_blocks_completed') {
+        } else if (phase == 2 && status !== 'phase2_blocks_completed') {
           await user.send({ content: '🌸 Selin: 2. Aşama Sınavına girmek için önce 2. Aşama eğitim dökümanlarını tamamlamalısınız. 💕' }).catch(() => { });
         }
         return;
@@ -1104,8 +1104,8 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
           await user.send({ content: `🌸 Selin: ${phase}. Aşama Sınavı başladı! Aşağıdaki soruları tek tek cevaplandır. ✨` }).catch(() => { });
 
           let questions = EXAM_QUESTIONS;
-          if (phase === 1) questions = EXAM_QUESTIONS_PHASE1;
-          else if (phase === 2) questions = EXAM_QUESTIONS_PHASE2;
+          if (phase == 1) questions = EXAM_QUESTIONS_PHASE1;
+          else if (phase == 2) questions = EXAM_QUESTIONS_PHASE2;
 
           activeExams.set(userId, {
             questionIndex: 0,
