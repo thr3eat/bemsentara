@@ -1636,7 +1636,8 @@ async function handleEgitimIstekMessage(message, client) {
  */
 async function handleTrainingRequestConfirm(interaction, client) {
   try {
-    const { customId } = interaction;
+    const { customId, user: interactionUser } = interaction;
+    const userId = interactionUser.id;
     await interaction.deferUpdate().catch(() => { });
 
     if (customId === 'school_confirm_req_no') {
@@ -1655,10 +1656,21 @@ async function handleTrainingRequestConfirm(interaction, client) {
 
     await interaction.editReply({ content: '🌸 Harika! Eğitim talebin onaylandı ve duyuru kanalına gönderildi. Lütfen eğitim saatinde uygun ses kanalında ol! 💕', embeds: [], components: [] }).catch(() => { });
 
+    const isPhase1 = type.toLowerCase().includes('1') || (type.toLowerCase().includes('i') && !type.toLowerCase().includes('ii'));
+
+    // Update database status immediately on confirmation
+    let p = await StaffProgress.findOne({ userId });
+    if (p) {
+      if (!p.schoolSystem) p.schoolSystem = { status: 'none', phase: 1, step: 0 };
+      p.schoolSystem.phase = isPhase1 ? 1 : 2;
+      p.schoolSystem.status = 'in_school';
+      p.schoolSystem.step = 0;
+      await p.save().catch(() => {});
+    }
+
     // Send announcement to egitim-duyuru
     const duyuruChannel = await client.channels.fetch(CHANNELS.EGITIM_DUYURU).catch(() => null);
     if (duyuruChannel) {
-      const isPhase1 = type.toLowerCase().includes('1') || type.toLowerCase().includes('i') && !type.toLowerCase().includes('ii');
       const targetVoice = isPhase1 ? 'Eğitim Sesli 1' : 'Eğitim Sesli 2';
       const tagRole = isPhase1 ? SCHOOL_ROLES.ASAMA_1 : SCHOOL_ROLES.ASAMA_2;
 
@@ -1671,6 +1683,37 @@ async function handleTrainingRequestConfirm(interaction, client) {
           `Link: https://discord.gg/y9q8xhjkFD\n\n` +
           `Tag: <@&${tagRole}>`
       }).catch(() => { });
+    }
+
+    // Check if the user is already in the appropriate voice channel in the school server
+    const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+    if (schoolGuild) {
+      const member = await schoolGuild.members.fetch(userId).catch(() => null);
+      if (member && member.voice.channelId) {
+        const voiceChannelId = member.voice.channelId;
+        const targetVoiceChannelId = isPhase1 ? VOICE_CHANNELS.EGITIM_SESLI_1 : VOICE_CHANNELS.EGITIM_SESLI_2;
+
+        if (voiceChannelId === targetVoiceChannelId) {
+          // Join bot to the voice channel immediately
+          if (schoolGuild.members.me && schoolGuild.members.me.permissions.has('Connect')) {
+            joinSchoolVoice(schoolGuild, voiceChannelId);
+          }
+
+          if (!activeTrainings.has(userId)) {
+            const user = await client.users.fetch(userId);
+            await user.send({ content: '🌸 Selin: Eğitim başladı! Başarılar dilerim. ✨' }).catch(() => { });
+
+            const session = {
+              phase: isPhase1 ? 1 : 2,
+              step: 0,
+              lastMessageId: null
+            };
+            activeTrainings.set(userId, session);
+            await saveTrainingToDB(userId, session).catch(() => {});
+            await sendTrainingBlock(userId, client);
+          }
+        }
+      }
     }
   } catch (err) {
     logger.error('[ModeratorSchool] handleTrainingRequestConfirm error:', err);
