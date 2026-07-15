@@ -488,20 +488,60 @@ async function handleSchoolButtons(interaction, client) {
       return;
     }
 
-    const rolesToRemove = [SCHOOL_ROLES.ASAMA_1, SCHOOL_ROLES.ASAMA_2, SCHOOL_ROLES.ASAMA_3, SCHOOL_ROLES.MOD_EKIBI];
-    await member.roles.remove(rolesToRemove).catch(() => { });
+    // New Role mappings based on user request (Page 1 & Page 2)
+    const RANK_ROLE_MAP = {
+      5: ["[Beklemede]"],
+      7: ["Aşama-I", "[Akademi Personeli]"],
+      8: ["[Akademi Personeli]", "Aşama-II"],
+      9: ["[Akademi Personeli]", "Aşama-III"],
+      10: ["Stajyer Eğitmen", "[Akademi Eğitmeni]", "[Akademi Personeli]"],
+      11: ["[Akademi Personeli]", "[Akademi Eğitmeni]", "Eğitmen"],
+      12: ["Uzman Eğitmen", "[Akademi Personeli]", "[Akademi Eğitmeni]"],
+      13: ["[Akademi Personeli]", "Akademi Asistanı", "[Akademi Yetkilisi]"],
+      14: ["Akademi Profesörü", "[Akademi Personeli]", "[Akademi Yetkilisi]"],
+      15: ["Akademi Dekan Yardımcısı", "[Akademi Personeli]", "[Akademi Yönetimi]"],
+      16: ["[Akademi Personeli]", "[Akademi Yönetimi]", "Akademi Dekanı"],
+      17: ["[Akademi Personeli]", "💡 Genel Sekreter", "[Akademi Yetkilisi]"],
+      18: ["[Akademi Personeli]", "[Moderatör Yönetimi]"],
+      19: ["[Akademi Personeli]", "[Moderatör Yönetimi]", "💼 Yönetim Ekibi"],
+      20: ["[Akademi Personeli]", "[Akademi Yönetimi]", "[Moderatör Yönetimi]", "💼 Yönetim Ekibi", "⚓ Kaptan"],
+      254: ["🌟 Eko & Yıldız", "Sigma Male", "💼 Yönetim Ekibi", "🎥 Video Ekibi", "[Akademi Personeli]"],
+      255: ["Sigma Male", "🌟 Eko & Yıldız", "💼 Yönetim Ekibi", "🎥 Video Ekibi", "[Moderatör Yönetimi]", "[Akademi Personeli]", "Rowifi Bypass", "🎥 Video Ekibi Yönetimi", "👁️ Overseer", "🕵️ Supervisor"]
+    };
 
-    let targetRole = null;
-    if (rankNum === 7) targetRole = SCHOOL_ROLES.ASAMA_1;
-    else if (rankNum === 8) targetRole = SCHOOL_ROLES.ASAMA_2;
-    else if (rankNum === 9) targetRole = SCHOOL_ROLES.ASAMA_3;
-    else if (rankNum === 11) targetRole = SCHOOL_ROLES.MOD_EKIBI;
+    // Flatten all roles that we manage to know which ones to clean up
+    const ALL_MANAGED_ROLE_NAMES = Array.from(new Set(Object.values(RANK_ROLE_MAP).flat()));
 
-    if (targetRole) {
-      await member.roles.add(targetRole).catch(() => { });
-      await interaction.editReply({ content: `✅ Rolleriniz güncellendi! Yeni rolünüz: <@&${targetRole}>` });
+    // Find all managed role IDs in this guild
+    const managedRoleIds = [];
+    const rolesToAddIds = [];
+    const targetRoleNames = RANK_ROLE_MAP[rankNum];
+
+    // Look up role IDs in cache/guild
+    for (const roleName of ALL_MANAGED_ROLE_NAMES) {
+      const foundRole = schoolGuild.roles.cache.find(r => {
+        const cleanR = r.name.replace(/[\[\]]/g, '').trim().toLowerCase();
+        const cleanTarget = roleName.replace(/[\[\]]/g, '').trim().toLowerCase();
+        return cleanR === cleanTarget || r.name.toLowerCase() === roleName.toLowerCase();
+      });
+      if (foundRole) {
+        managedRoleIds.push(foundRole.id);
+        if (targetRoleNames && targetRoleNames.includes(roleName)) {
+          rolesToAddIds.push(foundRole.id);
+        }
+      }
+    }
+
+    // Remove all managed roles first to keep role updates consistent
+    await member.roles.remove(managedRoleIds).catch(() => { });
+
+    // Add target roles if rank matches and roles exist
+    if (rolesToAddIds.length > 0) {
+      await member.roles.add(rolesToAddIds).catch(() => { });
+      const roleMentions = rolesToAddIds.map(id => `<@&${id}>`).join(', ');
+      await interaction.editReply({ content: `✅ Rolleriniz güncellendi! Yeni rolleriniz: ${roleMentions}` });
     } else {
-      await interaction.editReply({ content: `❌ Roblox grubunda uygun bir rütbeniz bulunamadı (Rütbeniz: ${rankNum}).` });
+      await interaction.editReply({ content: `❌ Roblox grubunda uygun bir rütbeniz bulunamadı veya karşılık gelen roller okul sunucusunda mevcut değil (Rütbeniz: ${rankNum}).` });
     }
     return;
   }
