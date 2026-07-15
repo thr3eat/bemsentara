@@ -49,8 +49,7 @@ const VOICE_CHANNELS = {
 // Documents & Training Texts
 const DOCS = {
   INTRO: `**Eko & Yıldız Moderatör Okulu Stajyer Eğitim Sistemi**
-BAŞLATILIYOR.... :)
-*kesinlikle bu dökümanı yaymanız yasaktır aksi takdirde gerekli işlemler uygulanacaktır…*`,
+İlk eğitimini olmak eğitim-istek kanalına moderatör okulu sunucusunda eğitim istek formunu doldur. :)`,
 };
 
 const PHASE1_BLOCKS = [

@@ -109,6 +109,17 @@ Desteklenen Eylem Tipleri (actions):
   - parentCategoryIdOrName: string (Varsa üst kategorinin ID veya tam adı)
 - delete_channel:
   - channelIdOrName: string (Kanalın ID veya tam adı)
+- modify_channel:
+  - channelIdOrName: string (Kanalın ID veya tam adı)
+  - name: string (Yeni kanal adı, isteğe bağlı)
+  - topic: string (Kanal konusu/açıklaması, isteğe bağlı)
+  - nsfw: boolean (İsteğe bağlı)
+  - slowmode: number (Kullanıcı yavaş modu saniye olarak, örn: 10, isteğe bağlı)
+- set_channel_permissions:
+  - channelIdOrName: string (Kanalın ID veya tam adı)
+  - roleIdOrNameOrUser: string (Hedef rol adı/ID'si veya kullanıcı adı/ID'si)
+  - allow: string[] (İzin verilecek yetki adları, örn: ["ViewChannel", "SendMessages"], isteğe bağlı)
+  - deny: string[] (Engellenecek yetki adları, örn: ["SendTTSMessages", "MentionEveryone"], isteğe bağlı)
 - sync_permissions_with_category:
   - channelIdOrName: string (Kanalın ID veya adı)
   - categoryIdOrName: string (Kategorinin ID veya adı)
@@ -129,6 +140,28 @@ Desteklenen Eylem Tipleri (actions):
 - remove_role:
   - userIdOrTag: string (Kullanıcı ID veya kullanıcı adı/etiketi)
   - roleIdOrName: string (Rol ID veya adı)
+- kick_member:
+  - userIdOrTag: string (Kullanıcı ID veya kullanıcı adı/etiketi)
+  - reason: string (Atılma sebebi, isteğe bağlı)
+- ban_member:
+  - userIdOrTag: string (Kullanıcı ID veya kullanıcı adı/etiketi)
+  - reason: string (Yasaklanma sebebi, isteğe bağlı)
+- unban_member:
+  - userIdOrTag: string (Kullanıcı ID veya kullanıcı adı/etiketi)
+  - reason: string (Yasak kaldırma sebebi, isteğe bağlı)
+- timeout_member:
+  - userIdOrTag: string (Kullanıcı ID veya kullanıcı adı/etiketi)
+  - duration: number (Susturma süresi dakika olarak, örn: 15)
+  - reason: string (Susturma sebebi, isteğe bağlı)
+- send_message:
+  - channelIdOrName: string (Mesaj gönderilecek kanal)
+  - content: string (Mesaj içeriği, isteğe bağlı)
+  - embedTitle: string (Embed başlığı, isteğe bağlı)
+  - embedDescription: string (Embed içeriği, isteğe bağlı)
+  - embedColor: string (Embed rengi hex olarak, isteğe bağlı)
+- clear_messages:
+  - channelIdOrName: string (Mesajların silineceği kanal)
+  - amount: number (Silinecek mesaj miktarı 1-100 arası)
 
 Yanıt Formatı (JSON):
 {
@@ -187,7 +220,7 @@ Yanıt Formatı (JSON):
     });
 
     const embed = new EmbedBuilder()
-      .setTitle('🤖 AI Yönetim İşlemi Onayı')
+      .setTitle('🤖 AI Sunucu Yönetim İşlemi Onayı')
       .setColor(0x3498db)
       .setDescription(
         `Aşağıdaki işlemleri gerçekleştirmek için onayınız gerekiyor:\n\n` +
@@ -199,6 +232,10 @@ Yanıt Formatı (JSON):
             desc += `📁 **Kanal Oluştur:** \`${act.name}\` (${act.channelType})${act.parentCategoryIdOrName ? ` -> Kategori: \`${act.parentCategoryIdOrName}\`` : ''}`;
           } else if (act.type === 'delete_channel') {
             desc += `🗑️ **Kanal Sil:** \`${act.channelIdOrName}\``;
+          } else if (act.type === 'modify_channel') {
+            desc += `✏️ **Kanal Düzenle:** \`${act.channelIdOrName}\`${act.name ? ` -> Yeni Ad: \`${act.name}\`` : ''}${act.topic !== undefined ? ` -> Konu: \`${act.topic}\`` : ''}${act.slowmode !== undefined ? ` -> Yavaş Mod: \`${act.slowmode}s\`` : ''}`;
+          } else if (act.type === 'set_channel_permissions') {
+            desc += `🔒 **Kanal İzni Belirle:** \`${act.channelIdOrName}\` kanalında \`${act.roleIdOrNameOrUser}\` için: ${act.allow?.length ? `İzin verilen: \`${act.allow.join(', ')}\`` : ''} ${act.deny?.length ? `Engellenen: \`${act.deny.join(', ')}\`` : ''}`;
           } else if (act.type === 'sync_permissions_with_category') {
             desc += `🔒 **İzinleri Eşitle:** \`${act.channelIdOrName}\` kanalı \`${act.categoryIdOrName}\` kategorisine göre ayarlanacak.`;
           } else if (act.type === 'create_role') {
@@ -211,6 +248,18 @@ Yanıt Formatı (JSON):
             desc += `➕ **Rol Ver:** \`${act.roleIdOrName}\` -> \`${act.userIdOrTag}\``;
           } else if (act.type === 'remove_role') {
             desc += `➖ **Rol Geri Al:** \`${act.roleIdOrName}\` -> \`${act.userIdOrTag}\``;
+          } else if (act.type === 'kick_member') {
+            desc += `👢 **Kullanıcı At (Kick):** \`${act.userIdOrTag}\`${act.reason ? ` (Sebep: ${act.reason})` : ''}`;
+          } else if (act.type === 'ban_member') {
+            desc += `🔨 **Kullanıcı Yasakla (Ban):** \`${act.userIdOrTag}\`${act.reason ? ` (Sebep: ${act.reason})` : ''}`;
+          } else if (act.type === 'unban_member') {
+            desc += `🔓 **Yasak Kaldır (Unban):** \`${act.userIdOrTag}\``;
+          } else if (act.type === 'timeout_member') {
+            desc += `🔇 **Sustur (Timeout):** \`${act.userIdOrTag}\` -> \`${act.duration} dakika\`${act.reason ? ` (Sebep: ${act.reason})` : ''}`;
+          } else if (act.type === 'send_message') {
+            desc += `✉️ **Mesaj Gönder:** <#${act.channelIdOrName}> ${act.content ? `\`${act.content.slice(0, 30)}...\`` : 'Embed Mesajı'}`;
+          } else if (act.type === 'clear_messages') {
+            desc += `🧹 **Mesaj Temizle:** \`${act.channelIdOrName}\` kanalından \`${act.amount}\` mesaj`;
           } else {
             desc += `Bilinmeyen Eylem: \`${act.type}\``;
           }
@@ -516,6 +565,178 @@ async function handleManagementButton(interaction) {
 
         await member.roles.remove(role, 'AI Sunucu Yönetim Sistemi');
         results.push(`➖ **Rol Geri Alındı:** \`${role.name}\` -> **${member.user.tag}**`);
+
+      } else if (act.type === 'modify_channel') {
+        const channel = guild.channels.cache.find(c => 
+          c.id === act.channelIdOrName || 
+          c.name.toLowerCase() === act.channelIdOrName.toLowerCase()
+        );
+        if (!channel) {
+          throw new Error(`Düzenlenecek "${act.channelIdOrName}" kanalı bulunamadı.`);
+        }
+
+        const updateData = {};
+        if (act.name) updateData.name = act.name;
+        if (act.topic !== undefined) updateData.topic = act.topic;
+        if (act.nsfw !== undefined) updateData.nsfw = act.nsfw;
+        if (act.slowmode !== undefined) updateData.rateLimitPerUser = parseInt(act.slowmode, 10);
+
+        await channel.edit(updateData, 'AI Sunucu Yönetim Sistemi');
+        results.push(`✏️ **Kanal Düzenlendi:** <#${channel.id}> (${Object.keys(updateData).map(k => `${k}: ${updateData[k]}`).join(', ')})`);
+
+      } else if (act.type === 'set_channel_permissions') {
+        const channel = guild.channels.cache.find(c => 
+          c.id === act.channelIdOrName || 
+          c.name.toLowerCase() === act.channelIdOrName.toLowerCase()
+        );
+        if (!channel) {
+          throw new Error(`İzinleri ayarlanacak "${act.channelIdOrName}" kanalı bulunamadı.`);
+        }
+
+        const cleanTargetStr = act.roleIdOrNameOrUser.replace(/[^0-9]/g, '');
+        const target = guild.roles.cache.find(r => 
+          r.id === act.roleIdOrNameOrUser || 
+          r.name.toLowerCase() === act.roleIdOrNameOrUser.toLowerCase()
+        )
+        || guild.members.cache.get(cleanTargetStr)
+        || await guild.members.fetch(cleanTargetStr).catch(() => null);
+
+        if (!target) {
+          throw new Error(`İzin verilecek rol veya kullanıcı "${act.roleIdOrNameOrUser}" bulunamadı.`);
+        }
+
+        const resolvePermissionFlag = (permStr) => {
+          const keys = Object.keys(PermissionFlagsBits);
+          const found = keys.find(k => k.toLowerCase() === permStr.replace(/_/g, '').toLowerCase());
+          return found ? PermissionFlagsBits[found] : null;
+        };
+
+        const allowFlags = (act.allow || []).map(p => resolvePermissionFlag(p)).filter(Boolean);
+        const denyFlags = (act.deny || []).map(p => resolvePermissionFlag(p)).filter(Boolean);
+
+        const overwrites = {};
+        for (const f of allowFlags) overwrites[f] = true;
+        for (const f of denyFlags) overwrites[f] = false;
+
+        await channel.permissionOverwrites.edit(target, overwrites, { reason: 'AI Sunucu Yönetim Sistemi' });
+        results.push(`🔒 **Kanal İzinleri Güncellendi:** <#${channel.id}> kanalında \`${target.name || target.user?.tag || act.roleIdOrNameOrUser}\` için özel izinler tanımlandı.`);
+
+      } else if (act.type === 'kick_member') {
+        const cleanUserStr = act.userIdOrTag.replace(/[^0-9]/g, '');
+        const member = guild.members.cache.get(cleanUserStr) 
+          || guild.members.cache.find(m => m.user.tag.toLowerCase() === act.userIdOrTag.toLowerCase())
+          || await guild.members.fetch(cleanUserStr).catch(() => null);
+
+        if (!member) {
+          throw new Error(`Kullanıcı "${act.userIdOrTag}" bulunamadı.`);
+        }
+
+        const me = guild.members.me;
+        if (member.roles.highest.position >= me.roles.highest.position) {
+          throw new Error(`Botun yetkisi "${member.user.tag}" kullanıcısını atmaya yetmiyor (Hiyerarşi engeli).`);
+        }
+
+        await member.kick(act.reason || 'AI Sunucu Yönetim Sistemi');
+        results.push(`👢 **Kullanıcı Atıldı:** **${member.user.tag}** (Sebep: ${act.reason || 'Belirtilmedi'})`);
+
+      } else if (act.type === 'ban_member') {
+        const cleanUserStr = act.userIdOrTag.replace(/[^0-9]/g, '');
+        const member = guild.members.cache.get(cleanUserStr) 
+          || guild.members.cache.find(m => m.user.tag.toLowerCase() === act.userIdOrTag.toLowerCase())
+          || await guild.members.fetch(cleanUserStr).catch(() => null);
+
+        const me = guild.members.me;
+        if (member) {
+          if (member.roles.highest.position >= me.roles.highest.position) {
+            throw new Error(`Botun yetkisi "${member.user.tag}" kullanıcısını yasaklamaya yetmiyor (Hiyerarşi engeli).`);
+          }
+          await member.ban({ reason: act.reason || 'AI Sunucu Yönetim Sistemi' });
+          results.push(`🔨 **Kullanıcı Yasaklandı:** **${member.user.tag}** (Sebep: ${act.reason || 'Belirtilmedi'})`);
+        } else {
+          await guild.members.ban(cleanUserStr, { reason: act.reason || 'AI Sunucu Yönetim Sistemi' });
+          results.push(`🔨 **Kullanıcı Yasaklandı (Sunucu dışı ID):** \`${cleanUserStr}\` (Sebep: ${act.reason || 'Belirtilmedi'})`);
+        }
+
+      } else if (act.type === 'unban_member') {
+        const cleanUserStr = act.userIdOrTag.replace(/[^0-9]/g, '');
+        await guild.members.unban(cleanUserStr, act.reason || 'AI Sunucu Yönetim Sistemi');
+        results.push(`🔓 **Yasak Kaldırıldı:** \`${cleanUserStr}\` (Sebep: ${act.reason || 'Belirtilmedi'})`);
+
+      } else if (act.type === 'timeout_member') {
+        const cleanUserStr = act.userIdOrTag.replace(/[^0-9]/g, '');
+        const member = guild.members.cache.get(cleanUserStr) 
+          || guild.members.cache.find(m => m.user.tag.toLowerCase() === act.userIdOrTag.toLowerCase())
+          || await guild.members.fetch(cleanUserStr).catch(() => null);
+
+        if (!member) {
+          throw new Error(`Kullanıcı "${act.userIdOrTag}" bulunamadı.`);
+        }
+
+        const me = guild.members.me;
+        if (member.roles.highest.position >= me.roles.highest.position) {
+          throw new Error(`Botun yetkisi "${member.user.tag}" kullanıcısını susturmaya yetmiyor (Hiyerarşi engeli).`);
+        }
+
+        const durationMs = parseInt(act.duration, 10) * 60 * 1000;
+        if (isNaN(durationMs) || durationMs <= 0) {
+          throw new Error(`Geçersiz susturma süresi: ${act.duration}`);
+        }
+
+        await member.timeout(durationMs, act.reason || 'AI Sunucu Yönetim Sistemi');
+        results.push(`🔇 **Kullanıcı Susturuldu (Timeout):** **${member.user.tag}** (${act.duration} dakika, Sebep: ${act.reason || 'Belirtilmedi'})`);
+
+      } else if (act.type === 'send_message') {
+        const channel = guild.channels.cache.find(c => 
+          c.id === act.channelIdOrName || 
+          c.name.toLowerCase() === act.channelIdOrName.toLowerCase()
+        );
+        if (!channel) {
+          throw new Error(`Mesaj gönderilecek "${act.channelIdOrName}" kanalı bulunamadı.`);
+        }
+        if (!channel.isTextBased()) {
+          throw new Error(`"${act.channelIdOrName}" kanalı metin tabanlı değil.`);
+        }
+
+        const messageOptions = {};
+        if (act.content) messageOptions.content = act.content;
+
+        if (act.embedTitle || act.embedDescription) {
+          const msgEmbed = new EmbedBuilder()
+            .setTitle(act.embedTitle || null)
+            .setDescription(act.embedDescription || null)
+            .setTimestamp();
+          
+          if (act.embedColor) {
+            const cleanHex = act.embedColor.replace('#', '');
+            msgEmbed.setColor(parseInt(cleanHex, 16) || 0x3498db);
+          } else {
+            msgEmbed.setColor(0x3498db);
+          }
+          messageOptions.embeds = [msgEmbed];
+        }
+
+        if (!messageOptions.content && !messageOptions.embeds) {
+          throw new Error(`Gönderilecek mesaj içeriği veya embed boş olamaz.`);
+        }
+
+        await channel.send(messageOptions);
+        results.push(`✉️ **Kanalına Mesaj Gönderildi:** <#${channel.id}>`);
+
+      } else if (act.type === 'clear_messages') {
+        const channel = guild.channels.cache.find(c => 
+          c.id === act.channelIdOrName || 
+          c.name.toLowerCase() === act.channelIdOrName.toLowerCase()
+        );
+        if (!channel) {
+          throw new Error(`Mesaj temizlenecek "${act.channelIdOrName}" kanalı bulunamadı.`);
+        }
+        if (!channel.isTextBased() || typeof channel.bulkDelete !== 'function') {
+          throw new Error(`"${act.channelIdOrName}" kanalı toplu mesaj silmeyi desteklemiyor.`);
+        }
+
+        const amount = Math.min(Math.max(parseInt(act.amount, 10) || 10, 1), 100);
+        const deleted = await channel.bulkDelete(amount, true);
+        results.push(`🧹 **Mesajlar Silindi:** <#${channel.id}> kanalından \`${deleted.size}\` adet mesaj silindi.`);
 
       }
     } catch (err) {

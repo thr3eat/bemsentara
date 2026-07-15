@@ -1420,6 +1420,11 @@ function initializeDiscordHandlers(client) {
         // Oturumu hemen sil ki mükerrer çalışmasın
         activeSessions.delete(message.author.id);
         
+        const { PermissionFlagsBits } = require("discord.js");
+        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return message.reply("❌ Bu komutu kullanmak için `Yönetici` yetkisine sahip olmalısınız.").catch(() => {});
+        }
+        
         // Eylemi işle
         processAIInstruction(message, content).catch(err => {
           console.error("[AI Management Command] Hata:", err);
