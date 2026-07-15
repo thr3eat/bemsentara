@@ -316,7 +316,24 @@ async function verifyActiveStaffRole(userId, client, guildId) {
 }
 
 async function syncAndFilterActiveStaff(allProgress, client) {
-  return allProgress;
+  // Moderatör okulu sürecindeki kişilere moderatör ekibi bildirimleri gönderilmemeli
+  const SCHOOL_ACTIVE_STATUSES = [
+    'pending_contract',
+    'in_school',
+    'phase1_blocks_completed',
+    'phase1_exam_submitted',
+    'phase1_completed',
+    'phase2_blocks_completed',
+    'phase2_exam_submitted',
+    'phase2_completed',
+  ];
+  return allProgress.filter(p => {
+    const schoolStatus = p.schoolSystem?.status;
+    if (schoolStatus && SCHOOL_ACTIVE_STATUSES.includes(schoolStatus)) {
+      return false; // Okul sürecindeyse moderatör ekibi bildirimlerinden çıkar
+    }
+    return true;
+  });
 }
 
 function getDailyTaskCompletionStats(progress) {
