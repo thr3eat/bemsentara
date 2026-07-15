@@ -265,8 +265,24 @@ async function initializeModeratorSchool(client) {
 
                 // If exam channel and candidate is eligible to start/resume exam
                 else if (channelId === VOICE_CHANNELS.SINAV_ODASI) {
-                  const status = p.schoolSystem.status;
+                  let status = p.schoolSystem.status;
                   const phase = p.schoolSystem.phase;
+
+                  // Auto-recovery if status wasn't saved on completion due to schema validation error
+                  if (phase === 1 && status !== 'phase1_blocks_completed') {
+                    if (p.schoolSystem.step >= PHASE1_BLOCKS.length - 1) {
+                      p.schoolSystem.status = 'phase1_blocks_completed';
+                      await p.save().catch(() => {});
+                      status = 'phase1_blocks_completed';
+                    }
+                  }
+                  else if (phase === 2 && status !== 'phase2_blocks_completed') {
+                    if (p.schoolSystem.step >= PHASE2_BLOCKS.length - 1) {
+                      p.schoolSystem.status = 'phase2_blocks_completed';
+                      await p.save().catch(() => {});
+                      status = 'phase2_blocks_completed';
+                    }
+                  }
 
                   let isEligible = false;
                   if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
@@ -1043,8 +1059,24 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
     }
 
     else if (voiceChannelId === VOICE_CHANNELS.SINAV_ODASI) {
-      const status = p.schoolSystem.status;
+      let status = p.schoolSystem.status;
       const phase = p.schoolSystem.phase;
+
+      // Auto-recovery if status wasn't saved on completion due to schema validation error
+      if (phase === 1 && status !== 'phase1_blocks_completed') {
+        if (p.schoolSystem.step >= PHASE1_BLOCKS.length - 1) {
+          p.schoolSystem.status = 'phase1_blocks_completed';
+          await p.save().catch(() => {});
+          status = 'phase1_blocks_completed';
+        }
+      }
+      else if (phase === 2 && status !== 'phase2_blocks_completed') {
+        if (p.schoolSystem.step >= PHASE2_BLOCKS.length - 1) {
+          p.schoolSystem.status = 'phase2_blocks_completed';
+          await p.save().catch(() => {});
+          status = 'phase2_blocks_completed';
+        }
+      }
 
       let isEligible = false;
       if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
