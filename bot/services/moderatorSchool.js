@@ -414,7 +414,7 @@ async function handleSchoolButtons(interaction, client) {
           .setURL(`${BASE_URL}/auth/authorize?discordId=${userId}`),
         new ButtonBuilder()
           .setCustomId('school_joined_roblox_group')
-          .setLabel('EŞLEŞTİRDİM/KATILDIM')
+          .setLabel('KATILDIM')
           .setStyle(ButtonStyle.Success)
       );
 
