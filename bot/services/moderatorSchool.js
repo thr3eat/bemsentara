@@ -411,6 +411,81 @@ async function handleSchoolButtons(interaction, client) {
   const { customId, user } = interaction;
   const userId = user.id;
 
+  if (customId.startsWith('school_admin_cancel_')) {
+    await interaction.deferUpdate().catch(() => { });
+    const targetUserId = customId.split('_').pop();
+
+    if (activeTrainings.has(targetUserId)) {
+      const session = activeTrainings.get(targetUserId);
+      if (session.timeout) clearTimeout(session.timeout);
+      activeTrainings.delete(targetUserId);
+      await deleteTrainingFromDB(targetUserId).catch(() => {});
+
+      const p = await StaffProgress.findOne({ userId: targetUserId });
+      if (p) {
+        if (!p.schoolSystem) p.schoolSystem = { status: 'none', phase: 1, step: 0 };
+        p.schoolSystem.status = 'in_school';
+        p.schoolSystem.step = 0;
+        await p.save().catch(() => {});
+      }
+
+      const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+      if (schoolGuild) {
+        leaveSchoolVoice(schoolGuild);
+      }
+
+      const userObj = await client.users.fetch(targetUserId).catch(() => null);
+      if (userObj) {
+        await userObj.send({ content: '🌸 Selin: Eğitimin bir yetkili tarafından iptal edildi. Tekrar ses kanalına katılarak baştan başlayabilirsin! 💕' }).catch(() => {});
+      }
+
+      await interaction.editReply({ content: `✅ <@${targetUserId}> adlı adayın eğitimi başarıyla iptal edildi.`, embeds: [], components: [] }).catch(() => {});
+    } else {
+      await interaction.editReply({ content: '❌ Bu aday için aktif bir eğitim bulunamadı.', embeds: [], components: [] }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId.startsWith('school_admin_toexam_')) {
+    await interaction.deferUpdate().catch(() => { });
+    const targetUserId = customId.split('_').pop();
+
+    if (activeTrainings.has(targetUserId)) {
+      const session = activeTrainings.get(targetUserId);
+      if (session.timeout) clearTimeout(session.timeout);
+      activeTrainings.delete(targetUserId);
+      await deleteTrainingFromDB(targetUserId).catch(() => {});
+
+      const p = await StaffProgress.findOne({ userId: targetUserId });
+      if (p) {
+        if (!p.schoolSystem) p.schoolSystem = { status: 'none', phase: 1, step: 0 };
+        p.schoolSystem.status = p.schoolSystem.phase == 1 ? 'phase1_blocks_completed' : 'phase2_blocks_completed';
+        await p.save().catch(() => {});
+      }
+
+      const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+      if (schoolGuild) {
+        leaveSchoolVoice(schoolGuild);
+      }
+
+      const userObj = await client.users.fetch(targetUserId).catch(() => null);
+      if (userObj) {
+        const nextPhase = p ? p.schoolSystem.phase : 1;
+        const examName = nextPhase == 1 ? '1. Aşama' : '2. Aşama';
+        await userObj.send({
+          content: `🎉 **Eğitim Tamamlandı!** 🎉\n` +
+            `Selin: Yetkili tarafından eğitimin tamamlandı olarak işaretlendi! 💕\n\n` +
+            `Şimdi ${examName} Sınavını başlatmak için okul sunucusunda **Sınav Odası** sesli kanalına giriş yapabilirsin! Başarılar! ✨`
+        }).catch(() => {});
+      }
+
+      await interaction.editReply({ content: `✅ <@${targetUserId}> adlı adayın eğitimi tamamlandı sayıldı ve sınav aşamasına geçirildi.`, embeds: [], components: [] }).catch(() => {});
+    } else {
+      await interaction.editReply({ content: '❌ Bu aday için aktif bir eğitim bulunamadı.', embeds: [], components: [] }).catch(() => {});
+    }
+    return;
+  }
+
   if (customId === 'school_accept_contract') {
     await interaction.deferUpdate().catch(() => { });
 
@@ -1720,6 +1795,10 @@ async function handleTrainingRequestConfirm(interaction, client) {
   }
 }
 
+function getActiveTrainings() {
+  return activeTrainings;
+}
+
 module.exports = {
   initializeModeratorSchool,
   sendContractDM,
@@ -1728,4 +1807,5 @@ module.exports = {
   handleSchoolExamReply,
   handleEgitimIstekMessage,
   handleTrainingRequestConfirm,
+  getActiveTrainings,
 };

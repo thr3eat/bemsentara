@@ -1464,6 +1464,51 @@ function initializeDiscordHandlers(client) {
         }
         return;
       }
+
+      // ── !devamedenegitimlermodalim Komutu ──────────────────────────────────
+      if (lowerContent.startsWith("!devamedenegitimlermodalim")) {
+        const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return message.reply("❌ Bu komutu kullanmak için gerekli yetkiniz bulunmamaktadır.").catch(() => {});
+        }
+
+        const { getActiveTrainings } = require("../services/moderatorSchool");
+        const activeTrainingsMap = getActiveTrainings();
+
+        if (activeTrainingsMap.size === 0) {
+          return message.reply("🌸 Selin: Şu anda devam eden aktif bir eğitim bulunmamaktadır. 💕").catch(() => {});
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0xff75a0)
+          .setTitle("📚 Devam Eden Eğitimler")
+          .setDescription("Şu anda aktif olan eğitimler aşağıda listelenmiştir. İşlem yapmak için butonları kullanabilirsiniz:");
+
+        const rows = [];
+        let index = 1;
+
+        for (const [candId, sess] of activeTrainingsMap.entries()) {
+          embed.addFields({
+            name: `${index}. Aday: <@${candId}>`,
+            value: `• Aşama: **${sess.phase}**\n• Adım: **${sess.step}**`
+          });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`school_admin_cancel_${candId}`)
+              .setLabel('Eğitimi İptal Et')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`school_admin_toexam_${candId}`)
+              .setLabel('Sınava Geç')
+              .setStyle(ButtonStyle.Success)
+          );
+          rows.push(row);
+          index++;
+        }
+
+        return message.reply({ embeds: [embed], components: rows }).catch(() => {});
+      }
     }
 
     // ── Sunucuya Özel s!sil ve s!ban Komutları ───────────────────────────────
