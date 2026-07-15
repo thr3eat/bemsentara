@@ -164,7 +164,7 @@ const staffProgressSchema = new mongoose.Schema({
 
   // Moderatör Okulu Sistemi
   schoolSystem: {
-    status: { type: String, default: 'none', enum: ['none', 'pending_contract', 'in_school', 'phase1_completed', 'phase2_completed', 'exam_passed', 'graduated'] },
+    status: { type: String, default: 'none', enum: ['none', 'pending_contract', 'in_school', 'phase1_blocks_completed', 'phase1_exam_submitted', 'phase1_completed', 'phase2_blocks_completed', 'phase2_exam_submitted', 'phase2_completed', 'exam_passed', 'graduated'] },
     originalLevel: { type: Number, default: 1 },
     originalRoles: { type: [String], default: [] },
     phase: { type: Number, default: 0 },
