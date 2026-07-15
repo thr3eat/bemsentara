@@ -575,6 +575,37 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     components.push(row);
   }
 
+  else if (tabName === "mod_alim") {
+    embed
+      .setTitle("🛡️ MOD-ALIM: Moderatör Seçim & Başvuru Sistemi")
+      .setColor(0xE74C3C)
+      .setDescription(
+        "Moderatör alımı ve mülakat işlemlerini buradan yönetin.\n\n" +
+        "**Seçenekler:**\n" +
+        "📝 **Mülakat Gönder** — Adaya DM üzerinden 7 soruluk mülakat daveti gönderir.\n" +
+        "⚡ **Direkt Mod Alım** — Mülakatsız direkt olarak moderatör olarak atar ve okula yönlendirir."
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("panel_mod_alim_search")
+        .setLabel("📝 Mülakat Gönder")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_mod_alim_direct")
+        .setLabel("⚡ Direkt Mod Alım")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_tab_system")
+        .setLabel("⬅️ Geri Dön")
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    components.push(row);
+  }
+
   else if (tabName === "units") {
     embed
       .setTitle("🏆 Birim Sistemi & Liderbordu")
