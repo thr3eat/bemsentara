@@ -2745,7 +2745,6 @@ async function runDailyCheck(client) {
 
 // ── Scheduler — sabah brifing + gün içi hatırlatmalar ──────────────────────
 function startStaffScheduler(client) {
-  // Belirli saatte çalışacak görev planla
   function scheduleAt(hour, minute, callback) {
     function run() {
       if (global.SPAM_STOPPED) {
@@ -2753,14 +2752,29 @@ function startStaffScheduler(client) {
         return;
       }
       const now = new Date();
-      const next = new Date();
-      // Bugün o saat geçtiyse yarın planla
-      next.setHours(hour, minute, 0, 0);
-      if (next <= now) next.setDate(next.getDate() + 1);
-      const delay = next - now;
+      // Turkey is permanently UTC+3
+      const nowGmt3 = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+      const currentYear = nowGmt3.getUTCFullYear();
+      const currentMonth = nowGmt3.getUTCMonth();
+      const currentDate = nowGmt3.getUTCDate();
+
+      // Target time in Turkey timezone (using UTC methods on GMT+3 shifted date)
+      const targetGmt3 = new Date(Date.UTC(currentYear, currentMonth, currentDate, hour, minute, 0, 0));
+      if (targetGmt3 <= nowGmt3) {
+        targetGmt3.setUTCDate(targetGmt3.getUTCDate() + 1);
+      }
+      
+      const delay = targetGmt3.getTime() - nowGmt3.getTime();
+      
+      console.log(`[staffSystem] Scheduled task for ${hour}:${minute} (Istanbul time). Real execution in ${Math.round(delay / 1000 / 60)} minutes.`);
+
       setTimeout(async () => {
         if (global.SPAM_STOPPED) return;
-        try { await callback(); } catch (err) { console.error('[staffSystem] Scheduler hata:', err.message); }
+        try {
+          await callback();
+        } catch (err) {
+          console.error('[staffSystem] Scheduler hata:', err.message);
+        }
         run(); // Ertesi gün için tekrar planla
       }, delay);
     }
