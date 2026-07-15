@@ -50,6 +50,7 @@ const CHANNELS = {
   SINAV_RAPOR: '1467162525907816448',
   MEZUNLAR: '1467162479476867257',
   RUTBE_DEGISIM: '1493726938949222420',
+  GRADUATION_EXAM_CHANNEL: '1496976686812495943',
 };
 
 // Voice Channels
@@ -198,6 +199,7 @@ async function initializeModeratorSchool(client) {
 
     // Ensure Update Roles message exists in school server
     await ensureSchoolUpdateRolesMessage(client).catch(() => { });
+    await ensureGraduationExamMessage(client).catch(() => { });
 
     // Restore saved training and exam sessions from DB after 5 seconds
     setTimeout(async () => {
@@ -417,6 +419,39 @@ async function ensureSchoolUpdateRolesMessage(client) {
   }
 }
 
+async function ensureGraduationExamMessage(client) {
+  try {
+    const guild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+    if (!guild) return;
+
+    const channel = guild.channels.cache.get(CHANNELS.GRADUATION_EXAM_CHANNEL);
+    if (!channel || !channel.isTextBased()) return;
+
+    const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+    const existing = messages?.find(m => m.components?.some(row => row.components?.some(c => c.customId === 'school_graduation_exam_start')));
+    if (existing) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🎓 Mezuniyet Sınavı')
+      .setDescription(
+        'Bu kanaldan, 2. Aşama eğitimini tamamlamış personeller mezuniyet sınavını başlatabilir. ' +
+        'Butona tıkladığınızda sistem sizi otomatik olarak mezuniyet sürecine alır ve ana sunucuda personel doğrulama sistemine yönlendirir.'
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('school_graduation_exam_start')
+        .setLabel('Mezuniyet Sınavını Başlat')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await channel.send({ embeds: [embed], components: [row] });
+  } catch (err) {
+    logger.error('[ModeratorSchool] ensureGraduationExamMessage error:', err.message);
+  }
+}
+
 /**
  * Handles all Moderator School related button interactions.
  */
@@ -495,6 +530,34 @@ async function handleSchoolButtons(interaction, client) {
       await interaction.editReply({ content: `✅ <@${targetUserId}> adlı adayın eğitimi tamamlandı sayıldı ve sınav aşamasına geçirildi.`, embeds: [], components: [] }).catch(() => {});
     } else {
       await interaction.editReply({ content: '❌ Bu aday için aktif bir eğitim bulunamadı.', embeds: [], components: [] }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId === 'school_graduation_exam_start') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+    const p = await StaffProgress.findOne({ userId });
+    if (!p) {
+      return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı. Lütfen önce kayıtlı olun veya yetkiliye başvurun.', components: [] }).catch(() => { });
+    }
+
+    if (p.schoolSystem?.status !== 'phase2_completed') {
+      return interaction.editReply({ content: '❌ Mezuniyet sınavını başlatmak için önce 2. Aşama eğitimini tamamlamış olmanız gerekir.', components: [] }).catch(() => { });
+    }
+
+    await interaction.editReply({ content: '✅ Mezuniyet sınavı başlatılıyor... Lütfen DM kutunuzu kontrol edin.', components: [] }).catch(() => { });
+
+    try {
+      await graduateStudent(userId, 'Otomatik Mezuniyet', client, { score: '100', reason: 'Mezuniyet sınavı butonuyla otomatik olarak tamamlandı.' });
+      const userObj = await client.users.fetch(userId).catch(() => null);
+      if (userObj) {
+        await userObj.send({
+          content: '🎉 Tebrikler! Mezuniyet süreciniz başarıyla tamamlandı. Artık ana sunucuda personel doğrulama sistemine geçebilirsiniz. Lütfen sunucuda `/verify` komutunu kullanarak rollerinizi senkronize edin veya doğrulama kanalına gidin.'
+        }).catch(() => { });
+      }
+    } catch (err) {
+      logger.error('[ModeratorSchool] graduation exam start failed:', err.message);
     }
     return;
   }
