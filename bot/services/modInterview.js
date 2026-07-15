@@ -41,6 +41,28 @@ const INTERVIEW_TIMEOUT_MS = 30 * 60 * 1000; // 30 dakika
  */
 const activeInterviews = new Map();
 
+async function saveInterviewToDB(userId, info) {
+  try {
+    const ModInterview = require('../../models/ModInterview');
+    await ModInterview.findOneAndUpdate(
+      { userId },
+      {
+        adminId: info.adminId,
+        guildId: info.guildId,
+        history: info.history,
+        answeredCount: info.answeredCount,
+        totalScore: info.totalScore,
+        startTime: info.startTime || new Date(),
+        responses: info.responses,
+        username: info.username,
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    console.error('[modInterview] DB save error:', err.message);
+  }
+}
+
 // ── Sistem promptu ─────────────────────────────────────────────────────────
 const INTERVIEW_SYSTEM = `Sen Eko Yıldız Discord sunucusu için MASTER MODERATÖR mülakatı yapan bir yapay zekasın.
 Bu, en zor ve en seçici mülakat. Adaya toplamda 7 adet ÇOK ZOR, ANALİTİK, GERÇEK DURUM sorusu sor.
@@ -83,6 +105,11 @@ function clearInterview(userId) {
   const info = activeInterviews.get(userId);
   if (info?.timeoutHandle) clearTimeout(info.timeoutHandle);
   activeInterviews.delete(userId);
+
+  const ModInterview = require('../../models/ModInterview');
+  ModInterview.deleteOne({ userId }).catch(err => {
+    console.error('[modInterview] DB delete error:', err.message);
+  });
 }
 
 // ── Timeout başlat / yenile ────────────────────────────────────────────────
@@ -173,6 +200,9 @@ async function startModInterview(targetUser, adminId, guildId, client) {
     timeoutHandle: null,
   });
 
+  const sessionInfo = activeInterviews.get(targetUser.id);
+  await saveInterviewToDB(targetUser.id, sessionInfo).catch(() => {});
+
   // Davet için kısa timeout — kullanıcı 30 dk içinde yanıt vermezse temizle
   refreshTimeout(targetUser.id, client);
   return true;
@@ -187,27 +217,45 @@ async function handleInterviewButton(interaction, client) {
   let info = activeInterviews.get(userId);
 
   if (!info) {
-    const parts = cid.split('_');
-    if (parts.length >= 6) {
-      const targetUserId = parts[3];
-      const adminId = parts[4];
-      const guildId = parts[5];
-      
-      // Re-initialize the active interview session dynamically in memory
+    const ModInterview = require('../../models/ModInterview');
+    const dbInfo = await ModInterview.findOne({ userId }).catch(() => null);
+    if (dbInfo) {
       info = {
-        adminId,
-        guildId,
+        adminId: dbInfo.adminId,
+        guildId: dbInfo.guildId,
         client,
-        history: [],
-        answeredCount: 0,
-        totalScore: 0,
-        startTime: Date.now(),
-        responses: [],
-        username: interaction.user.username,
+        history: dbInfo.history,
+        answeredCount: dbInfo.answeredCount,
+        totalScore: dbInfo.totalScore,
+        startTime: dbInfo.startTime,
+        responses: dbInfo.responses,
+        username: dbInfo.username,
         timeoutHandle: null,
       };
-      activeInterviews.set(targetUserId, info);
-      refreshTimeout(targetUserId, client);
+      activeInterviews.set(userId, info);
+      refreshTimeout(userId, client);
+    } else {
+      const parts = cid.split('_');
+      if (parts.length >= 6) {
+        const targetUserId = parts[3];
+        const adminId = parts[4];
+        const guildId = parts[5];
+        
+        info = {
+          adminId,
+          guildId,
+          client,
+          history: [],
+          answeredCount: 0,
+          totalScore: 0,
+          startTime: Date.now(),
+          responses: [],
+          username: interaction.user.username,
+          timeoutHandle: null,
+        };
+        activeInterviews.set(targetUserId, info);
+        refreshTimeout(targetUserId, client);
+      }
     }
   }
 
@@ -282,6 +330,7 @@ async function askNextQuestion(userId, previousAnswer, client) {
     info.history.push({ role: 'user', content: previousAnswer });
     info.responses.push(previousAnswer);
     info.answeredCount++;
+    await saveInterviewToDB(userId, info).catch(() => {});
   }
 
   // 7 cevap alındı mı? Kontrol et
@@ -372,12 +421,36 @@ async function askNextQuestion(userId, previousAnswer, client) {
       .setFooter({ text: 'Cevabını yazarak gönder. DM bağlantını açık tut.' })
       .setTimestamp()],
   }, `soru-${progress}`);
+
+  await saveInterviewToDB(userId, info).catch(() => {});
 }
 
 // ── DM'den cevap gelince ───────────────────────────────────────────────────
 async function handleInterviewReply(message, client) {
   const userId = message.author.id;
-  const info = activeInterviews.get(userId);
+  let info = activeInterviews.get(userId);
+
+  if (!info) {
+    const ModInterview = require('../../models/ModInterview');
+    const dbInfo = await ModInterview.findOne({ userId }).catch(() => null);
+    if (dbInfo) {
+      info = {
+        adminId: dbInfo.adminId,
+        guildId: dbInfo.guildId,
+        client,
+        history: dbInfo.history,
+        answeredCount: dbInfo.answeredCount,
+        totalScore: dbInfo.totalScore,
+        startTime: dbInfo.startTime,
+        responses: dbInfo.responses,
+        username: dbInfo.username,
+        timeoutHandle: null,
+      };
+      activeInterviews.set(userId, info);
+      refreshTimeout(userId, client);
+    }
+  }
+
   if (!info) return false;
   // İlk soru henüz gönderilmemişse (answeredCount=0 ama history de boşsa) cevap alma
   if (info.answeredCount === 0 && info.history.length === 0) return false;
