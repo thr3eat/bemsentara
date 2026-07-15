@@ -185,6 +185,43 @@ async function initializeModeratorSchool(client) {
 
     // Ensure Update Roles message exists in school server
     await ensureSchoolUpdateRolesMessage(client).catch(() => { });
+
+    // Restore saved training and exam sessions from DB after 5 seconds
+    setTimeout(async () => {
+      try {
+        const SchoolSession = require('../../models/SchoolSession');
+        const savedSessions = await SchoolSession.find({}).catch(() => []);
+        for (const sess of savedSessions) {
+          const uId = sess.userId;
+          
+          if (sess.training && sess.training.phase !== undefined) {
+            const session = {
+              phase: sess.training.phase,
+              step: sess.training.step,
+              lastMessageId: sess.training.lastMessageId,
+            };
+            activeTrainings.set(uId, session);
+            logger.info(`[ModeratorSchool] Resuming training for user ${uId} on startup.`);
+            await sendTrainingBlock(uId, client).catch(() => {});
+          }
+
+          if (sess.exam && sess.exam.phase !== undefined) {
+            const session = {
+              questionIndex: sess.exam.questionIndex,
+              answers: sess.exam.answers,
+              phase: sess.exam.phase,
+              questions: sess.exam.questions,
+            };
+            activeExams.set(uId, session);
+            logger.info(`[ModeratorSchool] Resuming exam for user ${uId} on startup.`);
+            await askExamQuestion(uId, client).catch(() => {});
+          }
+        }
+      } catch (sessionErr) {
+        logger.error('[ModeratorSchool] Error restoring school sessions:', sessionErr.message);
+      }
+    }, 5000);
+
   } catch (err) {
     logger.error('[ModeratorSchool] Startup hook hatası:', err.message);
   }
