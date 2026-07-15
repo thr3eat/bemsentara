@@ -919,6 +919,36 @@ async function sendTrainingBlock(userId, client) {
     p.schoolSystem.step = session.step;
     await p.save();
 
+    // Inactivity timeout (10 minutes)
+    if (session.timeout) clearTimeout(session.timeout);
+    session.timeout = setTimeout(async () => {
+      try {
+        const currentSession = activeTrainings.get(userId);
+        if (currentSession) {
+          activeTrainings.delete(userId);
+          await deleteTrainingFromDB(userId).catch(() => {});
+
+          const pRecord = await StaffProgress.findOne({ userId });
+          if (pRecord) {
+            if (!pRecord.schoolSystem) pRecord.schoolSystem = { status: 'none', phase: 1, step: 0 };
+            pRecord.schoolSystem.status = 'in_school';
+            pRecord.schoolSystem.step = 0;
+            await pRecord.save().catch(() => {});
+          }
+
+          const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+          if (schoolGuild) {
+            leaveSchoolVoice(schoolGuild);
+          }
+
+          const userObj = await client.users.fetch(userId).catch(() => null);
+          if (userObj) {
+            await userObj.send({ content: '🌸 Selin: Eğitimde uzun süre işlem yapmadığın için (10 dakika) eğitimin zaman aşımına uğradı ve sonlandırıldı. Tekrar başlamak için ses kanalına yeniden girebilirsin! 💕' }).catch(() => {});
+          }
+        }
+      } catch (_) {}
+    }, 10 * 60 * 1000);
+
     setTimeout(async () => {
       try {
         const currentSession = activeTrainings.get(userId);
@@ -953,6 +983,11 @@ async function sendTrainingBlock(userId, client) {
 
 async function finishPhase(userId, phase, client) {
   try {
+    const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+    if (schoolGuild) {
+      leaveSchoolVoice(schoolGuild);
+    }
+
     const user = await client.users.fetch(userId);
     let p = await StaffProgress.findOne({ userId });
     if (!p) return;
@@ -1005,10 +1040,65 @@ function joinSchoolVoice(guild, channelId) {
   }
 }
 
+function leaveSchoolVoice(guild) {
+  try {
+    const { getVoiceConnection } = require('@discordjs/voice');
+    const connection = getVoiceConnection(guild.id);
+    if (connection) {
+      connection.destroy();
+    }
+  } catch (err) {
+    logger.error(`[ModeratorSchool] leaveSchoolVoice error:`, err.message);
+  }
+}
+
 async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
   try {
-    const userId = newState.id;
+    const userId = newState.id || oldState.id;
     const voiceChannelId = newState.channelId;
+
+    const isOldSchoolVoice = oldState.channelId && Object.values(VOICE_CHANNELS).includes(oldState.channelId);
+    const isNewSchoolVoice = newState.channelId && Object.values(VOICE_CHANNELS).includes(newState.channelId);
+
+    // Left a school voice channel (either disconnected or moved to a non-school channel)
+    if (isOldSchoolVoice && !isNewSchoolVoice) {
+      try {
+        leaveSchoolVoice(oldState.guild);
+      } catch (_) { }
+
+      if (activeTrainings.has(userId)) {
+        const session = activeTrainings.get(userId);
+        if (session.timeout) clearTimeout(session.timeout);
+        activeTrainings.delete(userId);
+        await deleteTrainingFromDB(userId).catch(() => {});
+
+        const p = await StaffProgress.findOne({ userId });
+        if (p) {
+          if (!p.schoolSystem) p.schoolSystem = { status: 'none', phase: 1, step: 0 };
+          p.schoolSystem.status = 'in_school';
+          p.schoolSystem.step = 0;
+          await p.save().catch(() => {});
+        }
+
+        const user = await client.users.fetch(userId).catch(() => null);
+        if (user) {
+          await user.send({ content: '🌸 Selin: Ses kanalından ayrıldığın için eğitimin iptal edildi. Tekrar ses kanalına katılarak baştan başlayabilirsin! 💕' }).catch(() => {});
+        }
+      }
+
+      if (activeExams.has(userId)) {
+        const session = activeExams.get(userId);
+        if (session.timeout) clearTimeout(session.timeout);
+        activeExams.delete(userId);
+        await deleteExamFromDB(userId).catch(() => {});
+
+        const user = await client.users.fetch(userId).catch(() => null);
+        if (user) {
+          await user.send({ content: '🌸 Selin: Sınav odasından ayrıldığın için sınavın iptal edildi. Tekrar odaya katılarak baştan başlayabilirsin! 💕' }).catch(() => {});
+        }
+      }
+    }
+
     if (!voiceChannelId) return;
 
     // Check if the joined channel is a school voice channel
@@ -1141,10 +1231,39 @@ async function askExamQuestion(userId, client) {
       await user.send({
         content: `🌸 **Soru ${session.questionIndex + 1}:** ${questions[session.questionIndex]}`
       });
+
+      // Inactivity timeout (10 minutes)
+      if (session.timeout) clearTimeout(session.timeout);
+      session.timeout = setTimeout(async () => {
+        try {
+          const currentSession = activeExams.get(userId);
+          if (currentSession) {
+            activeExams.delete(userId);
+            await deleteExamFromDB(userId).catch(() => {});
+
+            const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+            if (schoolGuild) {
+              leaveSchoolVoice(schoolGuild);
+            }
+
+            const userObj = await client.users.fetch(userId).catch(() => null);
+            if (userObj) {
+              await userObj.send({ content: '🌸 Selin: Sınavda uzun süre (10 dakika) cevap vermediğin için sınavın zaman aşımına uğradı ve iptal edildi. Tekrar sınav odasına girerek baştan başlayabilirsin! 💕' }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }, 10 * 60 * 1000);
+
     } else {
       const examPhase = session.phase || 3;
+      if (session.timeout) clearTimeout(session.timeout);
       activeExams.delete(userId);
       await deleteExamFromDB(userId).catch(() => {});
+
+      const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+      if (schoolGuild) {
+        leaveSchoolVoice(schoolGuild);
+      }
 
       await user.send({
         content: `🌸 Selin: ${examPhase}. Aşama Sınavını tamamladın! Cevapların Yapay Zeka tarafından değerlendiriliyor, lütfen bekleyin... ⏳`
