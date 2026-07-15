@@ -74,6 +74,20 @@ const PHASE2_BLOCKS = [
   "Eko & Yıldız Moderatörü; sunucuyu temsil eder, kendi davranışına dikkat eder, insanlarla iletişimde nazik olur, yetkisini kişisel amaçla kullanmaz ve sunucu kurallarına uyar. Bu son eğitiminizdi, bundan sonra sınava gireceksiniz. Başarılar! 🌸"
 ];
 
+const EXAM_QUESTIONS_PHASE1 = [
+  "Topluluk kurallarından en az 3 tanesini ve iftira/yalan yasağını kendi cümlelerinle açıkla. 🌸",
+  "Bir Eko & Yıldız Moderatörünün temel görev ve sorumlulukları nelerdir? 🌸",
+  "Ceza vermeden önce yapman gereken 4 adımı sırasıyla yaz. 🌸",
+  "Raporlama neden çok önemlidir ve ne zaman yapılmalıdır? 🌸"
+];
+
+const EXAM_QUESTIONS_PHASE2 = [
+  "/sustur (mute) komutunu kullanırken hangi parametreleri girmelisin ve sonrasında ne yapmalısın? 🌸",
+  "/yasakla (ban) işlemi yapıldıktan sonra hangi kanala rapor yazmalısın? 🌸",
+  "Spam atan bir botu bulmak için izlemen gereken adımları açıkla. 🌸",
+  "Destek talebi (ticket) açan bir kullanıcıya karşı sergilemen gereken tavır nasıl olmalıdır? 🌸"
+];
+
 const EXAM_QUESTIONS = [
   "Neden Eko & Yıldız Moderatörü Olmak İstiyorsun? 🌸",
   "Eko & Yıldız Moderatörü olmanın asıl amacı ne? 🌸",
@@ -593,12 +607,28 @@ async function handleSchoolButtons(interaction, client) {
     // Remove buttons from log message
     await interaction.editReply({ components: [] }).catch(() => { });
 
+    let p = await StaffProgress.findOne({ userId: targetUserId });
+    if (!p) {
+      await interaction.followUp({ content: '❌ Adayın veritabanı kaydı bulunamadı.' }).catch(() => { });
+      return;
+    }
+
+    const currentPhase = p.schoolSystem?.phase || 1;
+
     if (passed) {
-      await graduateStudent(targetUserId, interaction.user.username, client);
-      await interaction.followUp({ content: `✅ <@${targetUserId}> başarıyla mezun edildi.` }).catch(() => { });
+      if (currentPhase === 1) {
+        await passPhase1(targetUserId, interaction.user.username, client);
+        await interaction.followUp({ content: `✅ <@${targetUserId}> 1. Aşama Sınavını geçti ve 2. Aşamaya yükseltildi.` }).catch(() => { });
+      } else if (currentPhase === 2) {
+        await passPhase2(targetUserId, interaction.user.username, client);
+        await interaction.followUp({ content: `✅ <@${targetUserId}> 2. Aşama Sınavını geçti ve 3. Aşamaya yükseltildi.` }).catch(() => { });
+      } else {
+        await graduateStudent(targetUserId, interaction.user.username, client);
+        await interaction.followUp({ content: `✅ <@${targetUserId}> 3. Aşama Sınavını geçti ve başarıyla okuldan mezun edildi.` }).catch(() => { });
+      }
     } else {
-      await failStudent(targetUserId, interaction.user.username, client);
-      await interaction.followUp({ content: `❌ <@${targetUserId}> sınavı geçemedi olarak işaretlendi.` }).catch(() => { });
+      await failPhase(targetUserId, currentPhase, interaction.user.username, client);
+      await interaction.followUp({ content: `❌ <@${targetUserId}> ${currentPhase}. Aşama Sınavını geçemedi olarak işaretlendi.` }).catch(() => { });
     }
     return;
   }
@@ -685,68 +715,33 @@ async function finishPhase(userId, phase, client) {
     let p = await StaffProgress.findOne({ userId });
     if (!p) return;
 
-    const robloxUser = await User.findOne({ discordId: userId });
-    const robloxId = robloxUser ? parseInt(robloxUser.robloxId) : null;
-
     if (phase === 1) {
-      // Roblox rank 8 (Phase 2)
-      if (robloxId) {
-        await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 8).catch(() => { });
-      }
-
-      p.schoolSystem.status = 'phase1_completed';
-      p.schoolSystem.phase = 2;
-      p.schoolSystem.step = 0;
+      p.schoolSystem.status = 'phase1_blocks_completed';
       await p.save();
 
       const embed = new EmbedBuilder()
         .setColor(0xff75a0)
-        .setTitle('🎉 1. Aşama Eğitimi Başarıyla Tamamlandı! 🎉')
+        .setTitle('🎉 1. Aşama Eğitim Dökümanları Tamamlandı! 🎉')
         .setDescription(
-          `Selin: Harika gidiyorsun! 1. Aşama eğitimini başarıyla bitirdin. 💖\n\n` +
-          `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
-          `Daha sonra 2. Aşama sesli kanalına girerek yeni eğitimini başlatabilirsin! ✨`
+          `Selin: Harika gidiyorsun! 1. Aşama eğitim dökümanlarını başarıyla okudun. 💖\n\n` +
+          `Şimdi 1. Aşama Sınavını başlatmak için okul sunucusunda **Sınav Odası** sesli kanalına giriş yapabilirsin! Başarılar! ✨`
         );
 
       await user.send({ embeds: [embed] }).catch(() => { });
-
-      // Log to egitim-rapor
-      const reportChannel = client.channels.cache.get(CHANNELS.EGITIM_RAPOR);
-      if (reportChannel) {
-        await reportChannel.send({
-          content: `**Eğitim Raporu**\n\nİsim: Selin\nRütbe: Aşama-I\nEğitim Türü: 1. Aşama\nDenetmen: adamgeldi_adam4\nEğitimi geçen kişiler:\n- <@${userId}>\n\nTag: <@&${SCHOOL_ROLES.ASAMA_3}> & <@&${SCHOOL_ROLES.MOD_EKIBI}>\n<@&${SCHOOL_ROLES.ASAMA_2}>`
-        }).catch(() => { });
-      }
 
     } else if (phase === 2) {
-      // Roblox rank 9 (Exam/Phase 3)
-      if (robloxId) {
-        await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 9).catch(() => { });
-      }
-
-      p.schoolSystem.status = 'phase2_completed';
-      p.schoolSystem.phase = 3;
-      p.schoolSystem.step = 0;
+      p.schoolSystem.status = 'phase2_blocks_completed';
       await p.save();
 
       const embed = new EmbedBuilder()
         .setColor(0xff75a0)
-        .setTitle('🎉 2. Aşama Eğitimi Başarıyla Tamamlandı! 🎉')
+        .setTitle('🎉 2. Aşama Eğitim Dökümanları Tamamlandı! 🎉')
         .setDescription(
-          `Selin: İnanılmazsın! 2. Aşama eğitimini de tamamladın. 🌸\n\n` +
-          `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
-          `Daha sonra Sınav Odası sesli kanalına girerek son aşama sınavını başlatabilirsin! Başarılar dilerim! 💕`
+          `Selin: İnanılmazsın! 2. Aşama eğitim dökümanlarını tamamladın. 🌸\n\n` +
+          `Şimdi 2. Aşama Sınavını başlatmak için okul sunucusunda **Sınav Odası** sesli kanalına giriş yapabilirsin! Başarılar! 💕`
         );
 
       await user.send({ embeds: [embed] }).catch(() => { });
-
-      // Log to egitim-rapor
-      const reportChannel = client.channels.cache.get(CHANNELS.EGITIM_RAPOR);
-      if (reportChannel) {
-        await reportChannel.send({
-          content: `**Eğitim Raporu**\n\nİsim: Selin\nRütbe: Aşama-II\nEğitim Türü: 2. Aşama\nDenetmen: adamgeldi_adam4\nEğitimi geçen kişiler:\n- <@${userId}>\n\nTag: <@&${SCHOOL_ROLES.ASAMA_3}> & <@&${SCHOOL_ROLES.MOD_EKIBI}>\n<@&${SCHOOL_ROLES.ASAMA_2}>`
-        }).catch(() => { });
-      }
     }
   } catch (err) {
     logger.error('[ModeratorSchool] finishPhase error:', err.message);
@@ -767,6 +762,10 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
 
     // Check which channel they joined
     if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_1 && p.schoolSystem.phase === 1) {
+      if (p.schoolSystem.status === 'phase1_blocks_completed' || p.schoolSystem.status === 'phase1_exam_submitted') {
+        // They completed phase 1 blocks, shouldn't restart training
+        return;
+      }
       if (activeTrainings.has(userId)) return; // Already training
 
       // Bot joins voice channel
@@ -792,6 +791,10 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
     }
 
     else if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_2 && p.schoolSystem.phase === 2) {
+      if (p.schoolSystem.status === 'phase2_blocks_completed' || p.schoolSystem.status === 'phase2_exam_submitted') {
+        // They completed phase 2 blocks, shouldn't restart training
+        return;
+      }
       if (activeTrainings.has(userId)) return;
 
       // Bot joins voice
@@ -814,7 +817,25 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       }, 15000);
     }
 
-    else if (voiceChannelId === VOICE_CHANNELS.SINAV_ODASI && p.schoolSystem.phase === 3) {
+    else if (voiceChannelId === VOICE_CHANNELS.SINAV_ODASI) {
+      const status = p.schoolSystem.status;
+      const phase = p.schoolSystem.phase;
+
+      let isEligible = false;
+      if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
+      else if (phase === 2 && status === 'phase2_blocks_completed') isEligible = true;
+      else if (phase === 3) isEligible = true; // Phase 3 has no blocks, can start exam immediately
+
+      if (!isEligible) {
+        const user = await client.users.fetch(userId);
+        if (phase === 1 && status !== 'phase1_blocks_completed') {
+          await user.send({ content: '🌸 Selin: 1. Aşama Sınavına girmek için önce 1. Aşama eğitim dökümanlarını tamamlamalısınız. 💕' }).catch(() => { });
+        } else if (phase === 2 && status !== 'phase2_blocks_completed') {
+          await user.send({ content: '🌸 Selin: 2. Aşama Sınavına girmek için önce 2. Aşama eğitim dökümanlarını tamamlamalısınız. 💕' }).catch(() => { });
+        }
+        return;
+      }
+
       if (activeExams.has(userId)) return;
 
       // Bot joins voice
@@ -826,17 +847,23 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       } catch (_) { }
 
       const user = await client.users.fetch(userId);
-      await user.send({ content: '🌸 Selin: Sınavınız 3 dakika sonra başlayacak... Lütfen hazır olun. 💕' }).catch(() => { });
+      await user.send({ content: `🌸 Selin: ${phase}. Aşama Sınavınız 3 dakika sonra başlayacak... Lütfen hazır olun. 💕` }).catch(() => { });
 
       setTimeout(async () => {
         const currentMember = newState.guild.members.cache.get(userId);
         if (currentMember?.voice.channelId === VOICE_CHANNELS.SINAV_ODASI) {
-          await user.send({ content: '🌸 Selin: Sınav başladı! Aşağıdaki soruları tek tek cevaplandır. ✨' }).catch(() => { });
+          await user.send({ content: `🌸 Selin: ${phase}. Aşama Sınavı başladı! Aşağıdaki soruları tek tek cevaplandır. ✨` }).catch(() => { });
+
+          let questions = EXAM_QUESTIONS;
+          if (phase === 1) questions = EXAM_QUESTIONS_PHASE1;
+          else if (phase === 2) questions = EXAM_QUESTIONS_PHASE2;
 
           // Init exam session
           activeExams.set(userId, {
             questionIndex: 0,
             answers: [],
+            phase: phase,
+            questions: questions
           });
 
           await askExamQuestion(userId, client);
@@ -857,23 +884,29 @@ async function askExamQuestion(userId, client) {
     const session = activeExams.get(userId);
     if (!session || !user) return;
 
-    if (session.questionIndex < EXAM_QUESTIONS.length) {
+    const questions = session.questions || EXAM_QUESTIONS;
+
+    if (session.questionIndex < questions.length) {
       await user.send({
-        content: `🌸 **Soru ${session.questionIndex + 1}:** ${EXAM_QUESTIONS[session.questionIndex]}`
+        content: `🌸 **Soru ${session.questionIndex + 1}:** ${questions[session.questionIndex]}`
       });
     } else {
       // Completed!
+      const examPhase = session.phase || 3;
       activeExams.delete(userId);
 
       let p = await StaffProgress.findOne({ userId });
       if (p) {
-        p.schoolSystem.status = 'exam_passed'; // Temporary passed state waiting for admin approval
+        if (examPhase === 1) p.schoolSystem.status = 'phase1_exam_submitted';
+        else if (examPhase === 2) p.schoolSystem.status = 'phase2_exam_submitted';
+        else p.schoolSystem.status = 'exam_passed'; // Phase 3
+        
         p.schoolSystem.examAnswers = session.answers;
         await p.save();
       }
 
       await user.send({
-        content: '🌸 Selin: Sınavı başarıyla tamamladın! Cevapların yöneticilerimize mülakat olarak gönderildi. Sonuç açıklandığında sana bildireceğim. Görüşmek üzere! 💕'
+        content: `🌸 Selin: ${examPhase}. Aşama Sınavını başarıyla tamamladın! Cevapların yöneticilerimize gönderildi. Sonuç açıklandığında bildireceğim. Görüşmek üzere! 💕`
       }).catch(() => { });
 
       // Post to sınav-rapor
@@ -881,24 +914,24 @@ async function askExamQuestion(userId, client) {
       if (reportChannel) {
         const embed = new EmbedBuilder()
           .setColor(0x7c6af7)
-          .setTitle('📝 Sınav Cevapları Değerlendirmesi')
-          .setDescription(`**Aday:** <@${userId}>\n**Tarih:** ${new Date().toLocaleDateString('tr-TR')}\n\n**Cevaplar:**\n` +
-            session.answers.map((ans, idx) => `**Soru ${idx + 1}:** ${EXAM_QUESTIONS[idx]}\n**Cevap:** ${ans}\n`).join('\n')
+          .setTitle(`📝 ${examPhase}. Aşama Sınav Cevapları Değerlendirmesi`)
+          .setDescription(`**Aday:** <@${userId}>\n**Aşama:** ${examPhase}. Aşama\n**Tarih:** ${new Date().toLocaleDateString('tr-TR')}\n\n**Cevaplar:**\n` +
+            session.answers.map((ans, idx) => `**Soru ${idx + 1}:** ${questions[idx]}\n**Cevap:** ${ans}\n`).join('\n')
           );
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId(`school_exam_pass_${userId}`)
-            .setLabel('GEÇTİ (MEZUN ET)')
+            .setLabel('GEÇTİ (Onayla)')
             .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
             .setCustomId(`school_exam_fail_${userId}`)
-            .setLabel('KALDI (REDDET)')
+            .setLabel('KALDI (Reddet)')
             .setStyle(ButtonStyle.Danger)
         );
 
         await reportChannel.send({
-          content: `📊 **Sınav Raporu**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
+          content: `📊 **Sınav Raporu (${examPhase}. Aşama)**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
           embeds: [embed],
           components: [row]
         }).catch(() => { });
@@ -1033,24 +1066,110 @@ async function graduateStudent(userId, adminName, client) {
 /**
  * Handles failed student logic.
  */
-async function failStudent(userId, adminName, client) {
+async function passPhase1(userId, adminName, client) {
   try {
     const user = await client.users.fetch(userId);
     let p = await StaffProgress.findOne({ userId });
     if (!p) return;
 
-    // Reset phase / step or keep them in school
-    p.schoolSystem.status = 'in_school';
+    const robloxUser = await User.findOne({ discordId: userId });
+    const robloxId = robloxUser ? parseInt(robloxUser.robloxId) : null;
+
+    // Roblox rank 8 (Phase 2)
+    if (robloxId) {
+      await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 8).catch(() => { });
+    }
+
+    p.schoolSystem.status = 'phase1_completed';
+    p.schoolSystem.phase = 2;
+    p.schoolSystem.step = 0;
+    await p.save();
+
+    if (user) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff75a0)
+        .setTitle('🎉 1. Aşama Sınavını Başarıyla Geçtin! 🎉')
+        .setDescription(
+          `Selin: Tebrikler! 1. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
+          `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
+          `Daha sonra 2. Aşama sesli kanalına girerek yeni eğitimini başlatabilirsin! ✨`
+        );
+      await user.send({ embeds: [embed] }).catch(() => { });
+    }
+
+    // Log to egitim-rapor
+    const reportChannel = client.channels.cache.get(CHANNELS.EGITIM_RAPOR);
+    if (reportChannel) {
+      await reportChannel.send({
+        content: `**Eğitim Raporu (1. Aşama Sınav Geçişi)**\n\nPersonel: <@${userId}>\n1. Aşama Sınavını onaylayan yetkili: ${adminName}\nYeni Durum: 2. Aşama Eğitimi`
+      }).catch(() => { });
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] passPhase1 error:', err.message);
+  }
+}
+
+async function passPhase2(userId, adminName, client) {
+  try {
+    const user = await client.users.fetch(userId);
+    let p = await StaffProgress.findOne({ userId });
+    if (!p) return;
+
+    const robloxUser = await User.findOne({ discordId: userId });
+    const robloxId = robloxUser ? parseInt(robloxUser.robloxId) : null;
+
+    // Roblox rank 9 (Exam/Phase 3)
+    if (robloxId) {
+      await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 9).catch(() => { });
+    }
+
+    p.schoolSystem.status = 'phase2_completed';
     p.schoolSystem.phase = 3;
+    p.schoolSystem.step = 0;
+    await p.save();
+
+    if (user) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff75a0)
+        .setTitle('🎉 2. Aşama Sınavını Başarıyla Geçtin! 🎉')
+        .setDescription(
+          `Selin: Harika! 2. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
+          `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
+          `Daha sonra Sınav Odası sesli kanalına girerek son aşama sınavını başlatabilirsin! Başarılar dilerim! 💕`
+        );
+      await user.send({ embeds: [embed] }).catch(() => { });
+    }
+
+    // Log to egitim-rapor
+    const reportChannel = client.channels.cache.get(CHANNELS.EGITIM_RAPOR);
+    if (reportChannel) {
+      await reportChannel.send({
+        content: `**Eğitim Raporu (2. Aşama Sınav Geçişi)**\n\nPersonel: <@${userId}>\n2. Aşama Sınavını onaylayan yetkili: ${adminName}\nYeni Durum: 3. Aşama Sınavı`
+      }).catch(() => { });
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] passPhase2 error:', err.message);
+  }
+}
+
+async function failPhase(userId, phase, adminName, client) {
+  try {
+    const user = await client.users.fetch(userId);
+    let p = await StaffProgress.findOne({ userId });
+    if (!p) return;
+
+    // Put them back in school at the training block state for their phase
+    p.schoolSystem.status = 'in_school';
+    p.schoolSystem.step = 0;
     await p.save();
 
     if (user) {
       await user.send({
-        content: '🌸 Selin: Sınavı geçemedin maalesef. Lütfen eğitim dökümanlarını tekrar çalış ve ses kanalına girerek sınavı yeniden dene! Başarılar! 💕'
+        content: `🌸 Selin: ${phase}. Aşama Sınavını geçemedin maalesef. Lütfen ${phase}. Aşama eğitim dökümanlarını tekrar çalış ve ses kanalına girerek eğitimi/sınavı yeniden dene! Başarılar! 💕`
       }).catch(() => { });
     }
   } catch (err) {
-    logger.error('[ModeratorSchool] failStudent error:', err.message);
+    logger.error('[ModeratorSchool] failPhase error:', err.message);
   }
 }
 
