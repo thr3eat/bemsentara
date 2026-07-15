@@ -145,6 +145,17 @@ async function recordModAction(staffId, actionType, targetUserId, targetTag, det
       if (!p.modReports) p.modReports = {};
       p.modReports.totalReports = (p.modReports.totalReports || 0) + 1;
       await p.save();
+
+      // Raporlama komutunun kendisi hariç ('modislem'), tüm asıl cezaları ('ban', 'kick', 'timeout' vb.) 
+      // personel sistemi günlük/terfi ilerlemesine yansıtıp ödüllendiriyoruz.
+      if (actionType !== 'modislem') {
+        try {
+          const { recordModerationAction } = require('./staffSystem');
+          await recordModerationAction(staffId, _client, targetUserId, actionType);
+        } catch (subErr) {
+          console.error('[modReportTracker] recordModerationAction tetikleme hatası:', subErr.message);
+        }
+      }
     }
   } catch (err) {
     console.error('[modReportTracker] StaffProgress güncelleme hatası:', err.message);

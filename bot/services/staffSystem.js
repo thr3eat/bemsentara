@@ -633,6 +633,7 @@ async function recordGreet(userId, client, guildId = null) {
         }
       }
     }
+    await checkChosenTaskCompletion(p, client).catch(() => { });
   } catch (err) {
     console.error('[staffSystem] recordGreet error:', err.message);
   }
@@ -736,16 +737,16 @@ async function addEkoCoin(progress, amount, client, reason) {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
       const user = await client.users.fetch(progress.userId);
       const embed = new EmbedBuilder()
-        .setColor(0x2ecc71)
-        .setTitle('🪙 EkoCoin Kazandın!')
-        .setDescription(`**${reason}** görevini başarıyla yerine getirdiğin için **${amount} E.C.** kazandın!\n\n💰 Güncel Bakiye: **${progress.gamification.ecoCoins} E.C.**`)
-        .setFooter({ text: 'Eko Yıldız • Mağaza Sistemi' });
+        .setColor(0x3498db)
+        .setTitle('🎯 Görev Tamamlandı!')
+        .setDescription(`**${reason}** görevini başarıyla bitirdin. Diğer göreve başlamak için aşağıdaki butona tıklayabilirsin!`)
+        .setFooter({ text: 'Eko Yıldız • Personel Sistemi' });
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId('ekocoin_magaza')
-          .setLabel('🛒 MAĞAZAYI İNCELE')
-          .setStyle(ButtonStyle.Success)
+          .setCustomId('talk_to_coach')
+          .setLabel('💬 Koçla Konuş')
+          .setStyle(ButtonStyle.Primary)
       );
 
       await user.send({ embeds: [embed], components: [row] }).catch(() => { });
@@ -754,11 +755,33 @@ async function addEkoCoin(progress, amount, client, reason) {
 }
 
 // ── Mod işlem kaydı (yeni) ─────────────────────────────────────────────────
-async function recordModerationAction(userId, client) {
+const recentlyRewardedModActions = new Map();
+const REWARD_DEDUP_WINDOW_MS = 10000; // 10 saniye
+
+async function recordModerationAction(userId, client, targetUserId = null, actionType = null) {
   try {
     if (!userId) {
       console.warn('[staffSystem] recordModerationAction: Invalid userId');
       return;
+    }
+
+    // Mükerrer ödüllendirme/sayma kontrolü (10 saniye içinde aynı yetkili ve aynı hedef kullanıcı için tekil işlem)
+    if (targetUserId && actionType) {
+      const key = `${userId}:${targetUserId}`;
+      const lastTime = recentlyRewardedModActions.get(key);
+      if (lastTime && (Date.now() - lastTime) < REWARD_DEDUP_WINDOW_MS) {
+        console.log(`[staffSystem] Duplicate moderation action reward blocked for ${userId} on ${targetUserId} (${actionType})`);
+        return;
+      }
+      recentlyRewardedModActions.set(key, Date.now());
+
+      // Bellek temizliği
+      if (recentlyRewardedModActions.size > 500) {
+        const now = Date.now();
+        for (const [k, v] of recentlyRewardedModActions) {
+          if (now - v > REWARD_DEDUP_WINDOW_MS) recentlyRewardedModActions.delete(k);
+        }
+      }
     }
 
     const p = await getOrCreate(userId, GUILD_ID, client);
@@ -3947,4 +3970,6 @@ module.exports = {
   generateSettingsEmbed,
   getSettingsComponents,
   recordGamePlay,
+  resetDaily,
+  addEkoCoin,
 };

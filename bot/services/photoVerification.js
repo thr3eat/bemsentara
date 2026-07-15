@@ -42,67 +42,6 @@ async function getActiveModerators(guild) {
   }
 }
 
-function resetDaily(progress) {
-  const today = new Date().toISOString().split('T')[0];
-
-  if (!progress.daily) {
-    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
-    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
-    progress.daily = {
-      date: today,
-      greeted: false,
-      voiceMinutes: 0,
-      chosenTask: randomTask,
-      chosenTaskCompleted: false,
-      chatMessagesToday: 0,
-      ticketsSolvedToday: 0,
-      moderationActionsToday: 0
-    };
-    return;
-  }
-
-  if (progress.daily.date !== today) {
-    const taskKeys = ['task_chat', 'task_voice', 'task_ticket', 'task_mod'];
-    const randomTask = taskKeys[Math.floor(Math.random() * taskKeys.length)];
-    progress.daily.date = today;
-    progress.daily.greeted = false;
-    progress.daily.voiceMinutes = 0;
-    progress.daily.chosenTask = randomTask;
-    progress.daily.chosenTaskCompleted = false;
-    progress.daily.chatMessagesToday = 0;
-    progress.daily.ticketsSolvedToday = 0;
-    progress.daily.moderationActionsToday = 0;
-  }
-}
-
-async function addEkoCoin(progress, amount, client, reason) {
-  progress.gamification = progress.gamification || {};
-  progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + amount;
-
-  if (client) {
-    try {
-      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-      const user = await client.users.fetch(progress.userId).catch(() => null);
-      if (user) {
-        const embed = new EmbedBuilder()
-          .setColor(0x2ecc71)
-          .setTitle('🪙 EkoCoin Kazandın!')
-          .setDescription(`**${reason}** görevini başarıyla yerine getirdiğin için **${amount} E.C.** kazandın!\n\n💰 Güncel Bakiye: **${progress.gamification.ecoCoins} E.C.**`)
-          .setFooter({ text: 'Eko Yıldız • Mağaza Sistemi' });
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('ekocoin_magaza')
-            .setLabel('🛒 MAĞAZAYI İNCELE')
-            .setStyle(ButtonStyle.Success)
-        );
-
-        await user.send({ embeds: [embed], components: [row] }).catch(() => {});
-      }
-    } catch (_) {}
-  }
-}
-
 // Reward moderator helper
 async function rewardModerator(moderatorId, client, isAccept) {
   try {
@@ -110,7 +49,7 @@ async function rewardModerator(moderatorId, client, isAccept) {
     const p = await StaffProgress.findOne({ userId: moderatorId });
     if (!p || p.status !== 'active') return;
 
-    const { checkDailyCompletion, checkPromotion } = require('./staffSystem');
+    const { checkDailyCompletion, checkPromotion, checkChosenTaskCompletion, resetDaily, addEkoCoin } = require('./staffSystem');
     
     // Reset daily stats if it is a new day
     resetDaily(p);
@@ -151,6 +90,7 @@ async function rewardModerator(moderatorId, client, isAccept) {
     await addEkoCoin(p, coinGain, client, isAccept ? 'Abone Kabulü (Hızlı İşlem)' : 'Abone Reddi (Detaylı İnceleme)');
 
     // Check daily completion and promotion
+    await checkChosenTaskCompletion(p, client).catch(() => {});
     await checkDailyCompletion(p, client).catch(() => {});
     await checkPromotion(p, client).catch(() => {});
 
