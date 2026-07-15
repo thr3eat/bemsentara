@@ -1018,10 +1018,15 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
 
+    // Ensure schoolSystem subdocument exists and is initialized
+    if (!p.schoolSystem) {
+      p.schoolSystem = { status: 'none', phase: 1, step: 0 };
+    }
+
     // 1. Ensure bot joins the voice channel immediately
     try {
       const guild = newState.guild;
-      if (guild.members.me.permissions.has('Connect')) {
+      if (guild && guild.members.me && guild.members.me.permissions.has('Connect')) {
         joinSchoolVoice(guild, voiceChannelId);
       }
     } catch (_) { }
