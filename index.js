@@ -24,7 +24,8 @@ discordBot.on("debug", (info) => {
       info.includes('WS => Shard') ||
       info.includes('WS => Manager') ||
       info.includes('Session Limit Information') ||
-      info.includes('Fetched Gateway Information')
+      info.includes('Fetched Gateway Information') ||
+      info.includes('Failed to find guild, or unknown type for channel')
     ) {
       return;
     }

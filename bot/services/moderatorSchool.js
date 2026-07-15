@@ -709,6 +709,20 @@ async function handleSchoolButtons(interaction, client) {
     }
 
     const robloxId = parseInt(robloxUser.robloxId);
+
+    // Re-detect/fetch the fresh Roblox username
+    let freshUsername = robloxUser.robloxUsername;
+    try {
+      const fetchedName = await noblox.getUsernameFromId(robloxId);
+      if (fetchedName) {
+        freshUsername = fetchedName;
+        if (fetchedName !== robloxUser.robloxUsername) {
+          robloxUser.robloxUsername = fetchedName;
+          await robloxUser.save().catch(() => {});
+        }
+      }
+    } catch (_) {}
+
     let rankNum = await noblox.getRankInGroup(SCHOOL_ROBLOX_GROUP, robloxId).catch(() => 0);
 
     // 2. User has a linked account, but is not in the Roblox group yet (rank 0)
@@ -726,7 +740,7 @@ async function handleSchoolButtons(interaction, client) {
           .setThumbnail(getSelinImage()).setColor(0xff75a0)
           .setTitle('🌸 Roblox Grubumuza Katılma İsteği Gönder! 🌸')
           .setDescription(
-            `Selin: Roblox hesabını başarıyla doğruladık (\`${robloxUser.robloxUsername}\`). Ancak henüz Roblox grubumuza katılma isteği göndermemişsin! 💕\n\n` +
+            `Selin: Roblox hesabını başarıyla doğruladık (\`${freshUsername}\`). Ancak henüz Roblox grubumuza katılma isteği göndermemişsin! 💕\n\n` +
             `Lütfen aşağıdaki **Roblox Grubuna Git** butonuna tıklayarak gruba katılma isteği gönder, ardından tekrar aşağıdaki **KATILDIM** butonuna bas! ✨`
           );
 
@@ -1387,6 +1401,13 @@ YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya J
         if (cleanJson.startsWith('```')) {
           cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
         }
+        // Clean unescaped control characters in JSON string literals
+        cleanJson = cleanJson.replace(/[\u0000-\u001F]+/g, (match) => {
+          if (match.includes('\n')) return '\\n';
+          if (match.includes('\r')) return '\\r';
+          if (match.includes('\t')) return '\\t';
+          return '';
+        });
         const parsed = JSON.parse(cleanJson);
         if (parsed && parsed.score !== undefined) {
           evalResult = parsed;

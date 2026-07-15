@@ -124,7 +124,24 @@ router.get("/auth/discord", passport.authenticate("discord"));
 
 router.get(
   "/auth/discord/callback",
-  passport.authenticate("discord", { failureRedirect: "/login" }),
+  (req, res, next) => {
+    passport.authenticate("discord", (err, user, info) => {
+      if (err) {
+        console.warn("[auth] Discord authentication failed:", err.message || err);
+        return res.redirect("/auth/discord"); // Redirect back to retry authentication
+      }
+      if (!user) {
+        return res.redirect("/login");
+      }
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          console.error("[auth] Login session setup error:", loginErr);
+          return res.redirect("/login");
+        }
+        return next();
+      });
+    })(req, res, next);
+  },
   async (req, res) => {
     try {
       const linkId = req.session.linkDiscordId;
@@ -155,7 +172,24 @@ router.get("/auth/roblox", passport.authenticate("roblox"));
 
 router.get(
   "/auth/roblox/callback",
-  passport.authenticate("roblox", { failureRedirect: "/dashboard" }),
+  (req, res, next) => {
+    passport.authenticate("roblox", (err, user, info) => {
+      if (err) {
+        console.warn("[auth] Roblox authentication failed:", err.message || err);
+        return res.redirect("/dashboard?robloxError=true");
+      }
+      if (!user) {
+        return res.redirect("/dashboard");
+      }
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          console.error("[auth] Roblox login session setup error:", loginErr);
+          return res.redirect("/dashboard");
+        }
+        return next();
+      });
+    })(req, res, next);
+  },
   async (req, res) => {
     try {
       // Regenerate session to ensure updated user data is persisted
