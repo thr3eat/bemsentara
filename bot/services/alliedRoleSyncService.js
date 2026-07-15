@@ -46,9 +46,10 @@ async function fetchUserGroups(robloxId) {
   return response.data.data || [];
 }
 
-async function syncAlliedRoles(client, discordUserId, robloxUserId, guild) {
+async function syncAlliedRoles(client, discordUserId, robloxUserId, guildOrMember) {
   try {
-    const member = await guild.members.fetch(discordUserId).catch(() => null);
+    const guild = guildOrMember.guild || guildOrMember;
+    const member = guildOrMember.guild ? guildOrMember : await guild.members.fetch(discordUserId).catch(() => null);
     if (!member) return { success: false, error: "not_found", message: "Üye sunucuda bulunamadı" };
 
     const userGroups = await fetchUserGroups(robloxUserId);

@@ -99,6 +99,73 @@ const EXAM_QUESTIONS = [
 const activeTrainings = new Map(); // userId -> { phase, step, timeout, lastMessageId }
 const activeExams = new Map();      // userId -> { questionIndex, answers[] }
 
+async function saveTrainingToDB(userId, session) {
+  try {
+    const SchoolSession = require('../../models/SchoolSession');
+    await SchoolSession.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          training: {
+            phase: session.phase,
+            step: session.step,
+            lastMessageId: session.lastMessageId,
+          }
+        }
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    logger.error(`[ModeratorSchool] saveTrainingToDB error for ${userId}:`, err.message);
+  }
+}
+
+async function saveExamToDB(userId, session) {
+  try {
+    const SchoolSession = require('../../models/SchoolSession');
+    await SchoolSession.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          exam: {
+            questionIndex: session.questionIndex,
+            answers: session.answers,
+            phase: session.phase,
+            questions: session.questions,
+          }
+        }
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    logger.error(`[ModeratorSchool] saveExamToDB error for ${userId}:`, err.message);
+  }
+}
+
+async function deleteTrainingFromDB(userId) {
+  try {
+    const SchoolSession = require('../../models/SchoolSession');
+    await SchoolSession.findOneAndUpdate(
+      { userId },
+      { $unset: { training: 1 } }
+    );
+  } catch (err) {
+    logger.error(`[ModeratorSchool] deleteTrainingFromDB error for ${userId}:`, err.message);
+  }
+}
+
+async function deleteExamFromDB(userId) {
+  try {
+    const SchoolSession = require('../../models/SchoolSession');
+    await SchoolSession.findOneAndUpdate(
+      { userId },
+      { $unset: { exam: 1 } }
+    );
+  } catch (err) {
+    logger.error(`[ModeratorSchool] deleteExamFromDB error for ${userId}:`, err.message);
+  }
+}
+
 /**
  * Startup Hook: Checks active staff on boot and sends the contract message if they haven't started.
  */
@@ -600,7 +667,30 @@ async function handleSchoolButtons(interaction, client) {
   if (customId === 'school_understand_ok' || customId === 'school_understand_not_ok') {
     await interaction.deferUpdate().catch(() => { });
 
-    const session = activeTrainings.get(userId);
+    let session = activeTrainings.get(userId);
+    if (!session) {
+      const SchoolSession = require('../../models/SchoolSession');
+      const dbSession = await SchoolSession.findOne({ userId }).catch(() => null);
+      if (dbSession && dbSession.training && dbSession.training.phase !== undefined) {
+        session = {
+          phase: dbSession.training.phase,
+          step: dbSession.training.step,
+          lastMessageId: dbSession.training.lastMessageId,
+        };
+        activeTrainings.set(userId, session);
+      } else {
+        const p = await StaffProgress.findOne({ userId });
+        if (p && p.schoolSystem && p.schoolSystem.status === 'in_school') {
+          session = {
+            phase: p.schoolSystem.phase || 1,
+            step: p.schoolSystem.step || 0,
+            lastMessageId: null,
+          };
+          activeTrainings.set(userId, session);
+        }
+      }
+    }
+
     if (!session) return;
 
     await interaction.deleteReply().catch(() => { });
@@ -614,6 +704,7 @@ async function handleSchoolButtons(interaction, client) {
         await sendTrainingBlock(userId, client);
       } else {
         activeTrainings.delete(userId);
+        await deleteTrainingFromDB(userId).catch(() => {});
         await finishPhase(userId, session.phase, client);
       }
     }
@@ -692,6 +783,7 @@ async function sendTrainingBlock(userId, client) {
 
     const msg = await user.send({ embeds: [embed] });
     session.lastMessageId = msg.id;
+    await saveTrainingToDB(userId, session).catch(() => {});
 
     p.schoolSystem.step = session.step;
     await p.save();
@@ -868,6 +960,7 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
             phase: phase,
             questions: questions
           });
+          await saveExamToDB(userId, activeExams.get(userId)).catch(() => {});
 
           await askExamQuestion(userId, client);
         }
@@ -893,6 +986,7 @@ async function askExamQuestion(userId, client) {
     } else {
       const examPhase = session.phase || 3;
       activeExams.delete(userId);
+      await deleteExamFromDB(userId).catch(() => {});
 
       await user.send({
         content: `🌸 Selin: ${examPhase}. Aşama Sınavını tamamladın! Cevapların Yapay Zeka tarafından değerlendiriliyor, lütfen bekleyin... ⏳`
@@ -997,11 +1091,27 @@ YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya J
 
 async function handleSchoolExamReply(message, client) {
   const userId = message.author.id;
-  const session = activeExams.get(userId);
+  let session = activeExams.get(userId);
+
+  if (!session) {
+    const SchoolSession = require('../../models/SchoolSession');
+    const dbSession = await SchoolSession.findOne({ userId }).catch(() => null);
+    if (dbSession && dbSession.exam && dbSession.exam.phase !== undefined) {
+      session = {
+        questionIndex: dbSession.exam.questionIndex,
+        answers: dbSession.exam.answers,
+        phase: dbSession.exam.phase,
+        questions: dbSession.exam.questions,
+      };
+      activeExams.set(userId, session);
+    }
+  }
+
   if (!session) return false;
 
   session.answers.push(message.content);
   session.questionIndex++;
+  await saveExamToDB(userId, session).catch(() => {});
 
   await askExamQuestion(userId, message.client).catch(() => { });
   return true;
