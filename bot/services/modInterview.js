@@ -387,51 +387,48 @@ async function finalizeInterview(userId, accepted, summary, client) {
   let staffOk = false;
 
   if (accepted) {
-    // ── Rol ver ──
-    try {
-      const guild = await client.guilds.fetch(info.guildId);
-      const member = await guild.members.fetch(userId);
-      await member.roles.add(MOD_ROLE_ID, 'Moderatör mülakatını geçti (MOD-ALIM)');
-      roleOk = true;
-    } catch (err) {
-      console.warn('[modInterview] Rol verilemedi:', err.message);
-    }
-
-    // ── Staff sistemine kayıt ──
+    roleOk = true; // Set to true for logging since they'll be processed by the school system
+    // ── Staff sistemine kayıt (Okul Sistemi Başlangıcı) ──
     try {
       let p = await StaffProgress.findOne({ userId });
       if (!p) {
         p = new StaffProgress({ userId, guildId: info.guildId, level: 1 });
-      } else if (p.level < 1) {
-        p.level = 1;
       }
+      p.schoolSystem = {
+        status: 'pending_contract',
+        originalLevel: 1,
+        originalRoles: []
+      };
+      p.status = 'active';
       await p.save();
       staffOk = true;
-      console.log(`[modInterview] ${userId} → staff sistemine kaydedildi`);
+      console.log(`[modInterview] ${userId} → staff sistemine (Okul Entegrasyonu) kaydedildi`);
+
+      // Okul sözleşmesini gönder
+      try {
+        const { sendContractDM } = require('./moderatorSchool');
+        await sendContractDM(userId, client);
+      } catch (errSchool) {
+        console.error('[modInterview] Okul sözleşmesi gönderilemedi:', errSchool.message);
+      }
     } catch (err) {
       console.warn('[modInterview] Staff kayıt hatası:', err.message);
     }
 
     // ── Kullanıcıya tebrik ──
     if (user) {
-      const warningLines = [];
-      if (!roleOk) warningLines.push('⚠️ Moderatör rolü otomatik verilemedi — yöneticiye bildirildi.');
-      if (!staffOk) warningLines.push('⚠️ Staff sistemine kayıt yapılamadı — yöneticiye bildirildi.');
-
       await safeSend(user, {
         embeds: [new EmbedBuilder()
           .setColor(0x4ade80)
-          .setTitle('🎉 TEBRİKLER! MODERATÖR OLDUNUZ!')
+          .setTitle('🎉 TEBRİKLER! MÜLAKATI GEÇTİNİZ!')
           .setThumbnail(user.avatarURL() || null)
           .setDescription(
             `Mülakatı **başarıyla geçtiniz**! 🏆\n\n` +
-            `Eko Yıldız moderasyon ekibine hoş geldiniz.` +
-            (warningLines.length ? `\n\n${warningLines.join('\n')}` : '')
+            `Moderatör ekibine katılmadan önce kısa süreli bir eğitim kampımız (Moderatör Okulu) bulunuyor. Eğitim detayları ve sözleşmeniz DM üzerinden size iletildi.`
           )
           .addFields(
             { name: '📊 Mülakat Sonuçları', value: `Ortalama Puan: **${avgScore}/10**\nSüre: **${minutes}d ${seconds}s**`, inline: false },
-            { name: '✨ Değerlendirme', value: cleanSummary || '—', inline: false },
-            { name: '🎁 Kazandıklarınız', value: '• 🛡️ Moderatör Ekibi Rolü\n• 📊 Staff Sistem Kaydı\n• 🎖️ Moderatör Rozetleri', inline: false }
+            { name: '✨ Değerlendirme', value: cleanSummary || '—', inline: false }
           )
           .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
           .setTimestamp()],

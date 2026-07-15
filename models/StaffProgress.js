@@ -160,6 +160,20 @@ const staffProgressSchema = new mongoose.Schema({
   settings: {
     dailyBriefingEnabled: { type: Boolean, default: true },
     warningsEnabled: { type: Boolean, default: true }
+  },
+
+  // Moderatör Okulu Sistemi
+  schoolSystem: {
+    status: { type: String, default: 'none', enum: ['none', 'pending_contract', 'in_school', 'phase1_completed', 'phase2_completed', 'exam_passed', 'graduated'] },
+    originalLevel: { type: Number, default: 1 },
+    originalRoles: { type: [String], default: [] },
+    phase: { type: Number, default: 0 },
+    step: { type: Number, default: 0 },
+    robloxUsername: { type: String, default: '' },
+    robloxUserId: { type: Number, default: 0 },
+    examAnswers: { type: [String], default: [] },
+    examQuestionIndex: { type: Number, default: 0 },
+    completedAt: { type: Date, default: null }
   }
 }, { timestamps: true });
 

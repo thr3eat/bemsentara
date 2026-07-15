@@ -204,6 +204,16 @@ function initializeDiscordHandlers(client) {
       console.error("[coachWelcome] Başlatma hatası:", err.message);
     }
 
+    // Moderatör Okulu Başlatma
+    try {
+      const { initializeModeratorSchool } = require("../services/moderatorSchool");
+      initializeModeratorSchool(client).catch(err => {
+        console.error("[moderatorSchool] Başlatma hatası:", err.message);
+      });
+    } catch (err) {
+      console.error("[moderatorSchool] Başlatma hatası:", err.message);
+    }
+
     // Telegram AI Chat dinleyicisini başlat
     try {
       const { startTelegramPolling } = require("../services/telegramService");
@@ -1003,6 +1013,14 @@ function initializeDiscordHandlers(client) {
         return;
       }
 
+      // Moderatör Okulu Ses Kanal Kontrolü
+      try {
+        const { handleSchoolVoiceStateUpdate } = require("../services/moderatorSchool");
+        await handleSchoolVoiceStateUpdate(oldState, newState, client);
+      } catch (errSchool) {
+        console.error('[voiceStateUpdate] handleSchoolVoiceStateUpdate error:', errSchool.message);
+      }
+
       const { GUILD_ID: STAFF_GUILD_ID, ROLES } = require("../services/staffSystem");
       const { FROG_GUILD_ID, onVoiceJoin, onVoiceLeave, addVoiceXP } = require("../services/frogLevel");
       const staffRoleIds = Object.values(ROLES);
@@ -1314,6 +1332,16 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    // ── Moderatör Okulu Eğitim İstekleri ─────────────────────────────────────
+    if (message.guild && !message.author.bot) {
+      try {
+        const { handleEgitimIstekMessage } = require("../services/moderatorSchool");
+        await handleEgitimIstekMessage(message, client);
+      } catch (err) {
+        console.error("[messageCreate] handleEgitimIstekMessage error:", err.message);
+      }
+    }
+
     // ── Soruşturma Sistemi Kanal Mesajı Senkronizasyonu ───────────────────────
     if (message.guild && !message.author.bot) {
       try {
@@ -1682,6 +1710,12 @@ function initializeDiscordHandlers(client) {
       try {
         const { handleInterviewReply } = require('../services/modInterview');
         const handled = await handleInterviewReply(message, client);
+        if (handled) return;
+      } catch (_) { }
+      // Moderatör Okulu Sınav cevabı mı?
+      try {
+        const { handleSchoolExamReply } = require('../services/moderatorSchool');
+        const handled = await handleSchoolExamReply(message, client);
         if (handled) return;
       } catch (_) { }
       // Koç sohbeti cevabı mı?

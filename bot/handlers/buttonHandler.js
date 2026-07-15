@@ -97,6 +97,12 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  // ── Okul Sistemi Butonları ──────────────────────────────────────────────
+  if (customId.startsWith("school_")) {
+    const { handleSchoolButtons } = require("../services/moderatorSchool");
+    return handleSchoolButtons(interaction, interaction.client);
+  }
+
   if (customId.startsWith("staff_claim_accept_")) {
     const parts = customId.replace("staff_claim_accept_", "").split("_");
     const ticketId = parts[0];

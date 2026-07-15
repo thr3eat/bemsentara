@@ -590,8 +590,8 @@ async function recordGreet(userId, client, guildId = null) {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('talk_to_coach')
-              .setLabel('💬 Koçla Konuş')
+              .setCustomId('staff_update_progress')
+              .setLabel('👤 Moderatör Anasayfası')
               .setStyle(ButtonStyle.Primary)
           );
 
@@ -679,8 +679,8 @@ async function addVoiceMinutes(userId, minutes, client) {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('talk_to_coach')
-              .setLabel('💬 Koçla Konuş')
+              .setCustomId('staff_update_progress')
+              .setLabel('👤 Moderatör Anasayfası')
               .setStyle(ButtonStyle.Primary)
           );
 
@@ -904,8 +904,8 @@ async function checkDailyCompletion(progress, client) {
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId('talk_to_coach')
-          .setLabel('💬 Koçla Konuş')
+          .setCustomId('staff_update_progress')
+          .setLabel('👤 Moderatör Anasayfası')
           .setStyle(ButtonStyle.Primary)
       );
 
@@ -1653,8 +1653,8 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
         .setLabel('🚀 1. GÖREVİ BAŞLAT')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId('talk_to_coach')
-        .setLabel('💬 Koçla Konuş')
+        .setCustomId('staff_update_progress')
+        .setLabel('👤 Moderatör Anasayfası')
         .setStyle(ButtonStyle.Primary)
     );
 
@@ -1886,7 +1886,11 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId(`coach_ekmesai_${progress.userId}`)
       .setLabel('⚡ Ek Mesai Yap')
-      .setStyle(ButtonStyle.Success)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('talk_to_coach')
+      .setLabel('💬 Koç AI ile Konuş')
+      .setStyle(ButtonStyle.Primary)
   );
 
   if (progress.currentQuestion) {
@@ -2038,8 +2042,8 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId('talk_to_coach')
-        .setLabel('💬 Koçla Konuş')
+        .setCustomId('staff_update_progress')
+        .setLabel('👤 Moderatör Anasayfası')
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });
@@ -2362,8 +2366,8 @@ async function sendMidDayReminder(progress, client) {
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId('talk_to_coach')
-        .setLabel('💬 Koçla Konuş')
+        .setCustomId('staff_update_progress')
+        .setLabel('👤 Moderatör Anasayfası')
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });
@@ -2420,8 +2424,8 @@ Bu kişinin ${warnCount} uyarısı var. Çok kısa (max 80 karakter), sakin ve a
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId('talk_to_coach')
-        .setLabel('💬 Koçla Konuş')
+        .setCustomId('staff_update_progress')
+        .setLabel('👤 Moderatör Anasayfası')
         .setStyle(ButtonStyle.Primary)
     );
     await user.send({ embeds: [embed], components: [row] });

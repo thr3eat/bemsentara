@@ -1461,8 +1461,8 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
               .setLabel('🚀 1. GÖREVİ BAŞLAT')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('talk_to_coach')
-              .setLabel('💬 Koçla Konuş')
+              .setCustomId('staff_update_progress')
+              .setLabel('👤 Moderatör Anasayfası')
               .setStyle(ButtonStyle.Primary)
           );
 
