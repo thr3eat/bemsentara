@@ -1804,7 +1804,7 @@ async function handleTrainingRequestConfirm(interaction, client) {
 
     await interaction.editReply({ content: '🌸 Harika! Eğitim talebin onaylandı ve duyuru kanalına gönderildi. Lütfen eğitim saatinde uygun ses kanalında ol! 💕', embeds: [], components: [] }).catch(() => { });
 
-    const isPhase1 = type.toLowerCase().includes('1') || (type.toLowerCase().includes('i') && !type.toLowerCase().includes('ii'));
+    const isPhase1 = !type.toLowerCase().includes('2') && !type.toLowerCase().includes('ii');
 
     // Update database status immediately on confirmation
     let p = await StaffProgress.findOne({ userId });
