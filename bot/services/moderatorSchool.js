@@ -394,31 +394,73 @@ async function handleSchoolButtons(interaction, client) {
   if (customId === 'school_joined_roblox_group') {
     await interaction.deferUpdate().catch(() => { });
 
+    const { BASE_URL } = require('../../config');
     const robloxUser = await User.findOne({ discordId: userId });
+    
+    // 1. User has no linked Roblox account
     if (!robloxUser || !robloxUser.robloxId) {
-      await interaction.followUp({ content: '❌ Roblox hesabın bot ile eşleştirilmemiş. Lütfen önce profil ayarlarından Roblox hesabını doğrula!', ephemeral: true }).catch(() => { });
+      const verifyEmbed = new EmbedBuilder()
+        .setColor(0xff75a0)
+        .setTitle('🌸 Roblox Hesabını Doğrulaman Gerekiyor! 🌸')
+        .setDescription(
+          `Selin: Görünüşe göre Roblox hesabın henüz bot ile eşleştirilmemiş. 💕\n\n` +
+          `Lütfen aşağıdaki **Roblox Hesabını Doğrula** butonuna tıklayarak web sitemizden Roblox hesabını doğrula. Doğrulamadan sonra tekrar aşağıdaki **EŞLEŞTİRDİM/KATILDIM** butonuna basabilirsin! ✨`
+        );
+
+      const verifyRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel('Roblox Hesabını Doğrula')
+          .setStyle(ButtonStyle.Link)
+          .setURL(`${BASE_URL}/auth/authorize?discordId=${userId}`),
+        new ButtonBuilder()
+          .setCustomId('school_joined_roblox_group')
+          .setLabel('EŞLEŞTİRDİM/KATILDIM')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.editReply({ embeds: [verifyEmbed], components: [verifyRow] }).catch(() => { });
       return;
     }
 
     const robloxId = parseInt(robloxUser.robloxId);
-    const rankNum = await noblox.getRankInGroup(SCHOOL_ROBLOX_GROUP, robloxId).catch(() => 0);
+    let rankNum = await noblox.getRankInGroup(SCHOOL_ROBLOX_GROUP, robloxId).catch(() => 0);
 
+    // 2. User has a linked account, but is not in the Roblox group yet (rank 0)
     if (rankNum === 0) {
-      // Try accepting join request
+      // Try accepting join request automatically
       try {
         await noblox.handleJoinRequest(SCHOOL_ROBLOX_GROUP, robloxId, true).catch(() => { });
       } catch (_) { }
 
-      const rankRetry = await noblox.getRankInGroup(SCHOOL_ROBLOX_GROUP, robloxId).catch(() => 0);
-      if (rankRetry === 0) {
-        await user.send({
-          content: '🌸 Roblox grubumuza henüz katılmamışsın ya da isteğin beklemede. Lütfen gruba katıldığından emin ol ve tekrar dene! https://www.roblox.com/communities/813826297/EkoY-ld-z-Moderat-r-Okulu'
-        }).catch(() => { });
+      rankNum = await noblox.getRankInGroup(SCHOOL_ROBLOX_GROUP, robloxId).catch(() => 0);
+      
+      // Still not in group (either request failed, or request wasn't sent yet)
+      if (rankNum === 0) {
+        const groupEmbed = new EmbedBuilder()
+          .setColor(0xff75a0)
+          .setTitle('🌸 Roblox Grubumuza Katılma İsteği Gönder! 🌸')
+          .setDescription(
+            `Selin: Roblox hesabını başarıyla doğruladık (\`${robloxUser.robloxUsername}\`). Ancak henüz Roblox grubumuza katılma isteği göndermemişsin! 💕\n\n` +
+            `Lütfen aşağıdaki **Roblox Grubuna Git** butonuna tıklayarak gruba katılma isteği gönder, ardından tekrar aşağıdaki **KATILDIM** butonuna bas! ✨`
+          );
+
+        const groupRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('Roblox Grubuna Git')
+            .setStyle(ButtonStyle.Link)
+            .setURL('https://www.roblox.com/communities/813826297/EkoY-ld-z-Moderat-r-Okulu'),
+          new ButtonBuilder()
+            .setCustomId('school_joined_roblox_group')
+            .setLabel('KATILDIM')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        await interaction.editReply({ embeds: [groupEmbed], components: [groupRow] }).catch(() => { });
         return;
       }
     }
 
-    // Set Roblox rank in school group to 7
+    // 3. User is in group: set Roblox rank to 7 and offer Update Roles
     try {
       await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 7).catch(() => { });
     } catch (errRank) {
