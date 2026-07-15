@@ -523,15 +523,12 @@ async function handleSchoolButtons(interaction, client) {
       255: ["Sigma Male", "🌟 Eko & Yıldız", "💼 Yönetim Ekibi", "🎥 Video Ekibi", "[Moderatör Yönetimi]", "[Akademi Personeli]", "Rowifi Bypass", "🎥 Video Ekibi Yönetimi", "👁️ Overseer", "🕵️ Supervisor"]
     };
 
-    // Flatten all roles that we manage to know which ones to clean up
     const ALL_MANAGED_ROLE_NAMES = Array.from(new Set(Object.values(RANK_ROLE_MAP).flat()));
 
-    // Find all managed role IDs in this guild
     const managedRoleIds = [];
     const rolesToAddIds = [];
     const targetRoleNames = RANK_ROLE_MAP[rankNum];
 
-    // Look up role IDs in cache/guild
     for (const roleName of ALL_MANAGED_ROLE_NAMES) {
       const foundRole = schoolGuild.roles.cache.find(r => {
         const cleanR = r.name.replace(/[\[\]]/g, '').trim().toLowerCase();
@@ -546,10 +543,8 @@ async function handleSchoolButtons(interaction, client) {
       }
     }
 
-    // Remove all managed roles first to keep role updates consistent
     await member.roles.remove(managedRoleIds).catch(() => { });
 
-    // Add target roles if rank matches and roles exist
     if (rolesToAddIds.length > 0) {
       await member.roles.add(rolesToAddIds).catch(() => { });
       const roleMentions = rolesToAddIds.map(id => `<@&${id}>`).join(', ');
@@ -560,27 +555,22 @@ async function handleSchoolButtons(interaction, client) {
     return;
   }
 
-  // Understand logic
   if (customId === 'school_understand_ok' || customId === 'school_understand_not_ok') {
     await interaction.deferUpdate().catch(() => { });
 
     const session = activeTrainings.get(userId);
     if (!session) return;
 
-    // Delete the "Anladın mı?" message
     await interaction.deleteReply().catch(() => { });
 
     if (customId === 'school_understand_not_ok') {
-      // Resend same block
       await sendTrainingBlock(userId, client);
     } else {
-      // Understood: advance
       session.step++;
       const blocks = session.phase === 1 ? PHASE1_BLOCKS : PHASE2_BLOCKS;
       if (session.step < blocks.length) {
         await sendTrainingBlock(userId, client);
       } else {
-        // Phase completed!
         activeTrainings.delete(userId);
         await finishPhase(userId, session.phase, client);
       }
@@ -588,11 +578,9 @@ async function handleSchoolButtons(interaction, client) {
     return;
   }
 
-  // Exam evaluation buttons (GEÇTİ / KALDI)
   if (customId.startsWith('school_exam_pass_') || customId.startsWith('school_exam_fail_')) {
     await interaction.deferUpdate().catch(() => { });
 
-    // Check permissions (must be admin or school director)
     const isManager = interaction.member.roles.cache.has(SCHOOL_ROLES.ASAMA_3) ||
       interaction.member.roles.cache.has(SCHOOL_ROLES.ADMIN) ||
       interaction.member.permissions.has('Administrator');
@@ -604,7 +592,6 @@ async function handleSchoolButtons(interaction, client) {
     const targetUserId = customId.split('_').pop();
     const passed = customId.includes('pass');
 
-    // Remove buttons from log message
     await interaction.editReply({ components: [] }).catch(() => { });
 
     let p = await StaffProgress.findOne({ userId: targetUserId });
@@ -634,9 +621,6 @@ async function handleSchoolButtons(interaction, client) {
   }
 }
 
-/**
- * Sends a training block to the user and manages the 5 second visibility timeout.
- */
 async function sendTrainingBlock(userId, client) {
   try {
     const user = await client.users.fetch(userId);
@@ -667,19 +651,15 @@ async function sendTrainingBlock(userId, client) {
     const msg = await user.send({ embeds: [embed] });
     session.lastMessageId = msg.id;
 
-    // Save step to database
     p.schoolSystem.step = session.step;
     await p.save();
 
-    // Start 5-second timer
     setTimeout(async () => {
       try {
         const currentSession = activeTrainings.get(userId);
         if (currentSession && currentSession.lastMessageId === msg.id) {
-          // Delete message
           await msg.delete().catch(() => { });
 
-          // Ask "Anladın mı?"
           const askEmbed = new EmbedBuilder()
             .setColor(0xff75a0)
             .setTitle('🌸 Selin:')
@@ -706,9 +686,6 @@ async function sendTrainingBlock(userId, client) {
   }
 }
 
-/**
- * Finishes the training phase.
- */
 async function finishPhase(userId, phase, client) {
   try {
     const user = await client.users.fetch(userId);
@@ -748,27 +725,19 @@ async function finishPhase(userId, phase, client) {
   }
 }
 
-/**
- * Handles voice channel status changes to start training or exam.
- */
 async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
   try {
     const userId = newState.id;
     const voiceChannelId = newState.channelId;
-    if (!voiceChannelId) return; // Disconnected
+    if (!voiceChannelId) return;
 
     const p = await StaffProgress.findOne({ userId });
     if (!p || p.status !== 'active') return;
 
-    // Check which channel they joined
     if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_1 && p.schoolSystem.phase === 1) {
-      if (p.schoolSystem.status === 'phase1_blocks_completed' || p.schoolSystem.status === 'phase1_exam_submitted') {
-        // They completed phase 1 blocks, shouldn't restart training
-        return;
-      }
-      if (activeTrainings.has(userId)) return; // Already training
+      if (p.schoolSystem.status === 'phase1_blocks_completed' || p.schoolSystem.status === 'phase1_exam_submitted') return;
+      if (activeTrainings.has(userId)) return;
 
-      // Bot joins voice channel
       try {
         const guild = newState.guild;
         if (guild.members.me.permissions.has('Connect')) {
@@ -776,28 +745,22 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
         }
       } catch (_) { }
 
-      // Start countdown
       const user = await client.users.fetch(userId);
       await user.send({ content: '🌸 Selin: Eğitim 3 dakika sonra başlayacak... Lütfen ses kanalında kal. 💕' }).catch(() => { });
 
       setTimeout(async () => {
-        // Verify user is still in the voice channel
         const currentMember = newState.guild.members.cache.get(userId);
         if (currentMember?.voice.channelId === VOICE_CHANNELS.EGITIM_SESLI_1) {
           await user.send({ content: '🌸 Selin: Eğitim başladı! Başarılar dilerim. ✨' }).catch(() => { });
           await sendTrainingBlock(userId, client);
         }
-      }, 15000); // 15 seconds simulation for easy testing
+      }, 15000);
     }
 
     else if (voiceChannelId === VOICE_CHANNELS.EGITIM_SESLI_2 && p.schoolSystem.phase === 2) {
-      if (p.schoolSystem.status === 'phase2_blocks_completed' || p.schoolSystem.status === 'phase2_exam_submitted') {
-        // They completed phase 2 blocks, shouldn't restart training
-        return;
-      }
+      if (p.schoolSystem.status === 'phase2_blocks_completed' || p.schoolSystem.status === 'phase2_exam_submitted') return;
       if (activeTrainings.has(userId)) return;
 
-      // Bot joins voice
       try {
         const guild = newState.guild;
         if (guild.members.me.permissions.has('Connect')) {
@@ -824,7 +787,7 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
       let isEligible = false;
       if (phase === 1 && status === 'phase1_blocks_completed') isEligible = true;
       else if (phase === 2 && status === 'phase2_blocks_completed') isEligible = true;
-      else if (phase === 3) isEligible = true; // Phase 3 has no blocks, can start exam immediately
+      else if (phase === 3) isEligible = true;
 
       if (!isEligible) {
         const user = await client.users.fetch(userId);
@@ -838,7 +801,6 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
 
       if (activeExams.has(userId)) return;
 
-      // Bot joins voice
       try {
         const guild = newState.guild;
         if (guild.members.me.permissions.has('Connect')) {
@@ -858,7 +820,6 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
           if (phase === 1) questions = EXAM_QUESTIONS_PHASE1;
           else if (phase === 2) questions = EXAM_QUESTIONS_PHASE2;
 
-          // Init exam session
           activeExams.set(userId, {
             questionIndex: 0,
             answers: [],
@@ -875,66 +836,116 @@ async function handleSchoolVoiceStateUpdate(oldState, newState, client) {
   }
 }
 
-/**
- * Asks the current exam question in DM.
- */
 async function askExamQuestion(userId, client) {
   try {
     const user = await client.users.fetch(userId);
     const session = activeExams.get(userId);
     if (!session || !user) return;
 
-    const questions = session.questions || EXAM_QUESTIONS;
+    const questions = session.questions;
 
     if (session.questionIndex < questions.length) {
       await user.send({
         content: `🌸 **Soru ${session.questionIndex + 1}:** ${questions[session.questionIndex]}`
       });
     } else {
-      // Completed!
       const examPhase = session.phase || 3;
       activeExams.delete(userId);
 
+      await user.send({
+        content: `🌸 Selin: ${examPhase}. Aşama Sınavını tamamladın! Cevapların Yapay Zeka tarafından değerlendiriliyor, lütfen bekleyin... ⏳`
+      }).catch(() => { });
+
+      const qaText = session.answers.map((ans, idx) => `Soru ${idx + 1}: ${questions[idx]}\nCevap: ${ans}`).join('\n\n');
+
+      const systemPrompt = `Sen bir Moderatör Okulu Sınav Değerlendiricisisin. Görevin, bir moderatör adayının sınav sorularına verdiği cevapları analiz etmek, puanlamak ve sınavdan geçip geçmediğine (geçme notu 70) karar vermektir.
+
+Sınav Aşaması: ${examPhase}. Aşama
+
+Sınav Soruları ve Adayın Cevapları:
+${qaText}
+
+Değerlendirme Kriterleri:
+- Cevaplar mantıklı, kurallara uygun, saygılı ve açıklayıcı olmalıdır.
+- Boş bırakılan, anlamsız, çok kısa veya troll cevaplar doğrudan başarısız sayılmalıdır (passed: false, score: 0).
+- Adayın moderasyon adımlarını (kanıt toplama, ceza geçmişi kontrolü, rapor yazma) bilip bilmediği, tarafsızlığı ve sabrı ölçülmelidir.
+
+YALNIZCA aşağıdaki JSON formatında yanıt ver. Markdown kod blokları veya JSON dışı hiçbir metin ekleme:
+{
+  "passed": true,
+  "score": 85,
+  "reason": "Türkçe değerlendirme ve aday için gelişim önerileri."
+}`;
+
+      let evalResult = { passed: false, score: 0, reason: 'AI değerlendirmesi sırasında teknik bir sorun oluştu.' };
+
+      try {
+        const { chatWithAI } = require('./aiService');
+        const response = await chatWithAI(`Adayın Cevapları:\n${qaText}`, systemPrompt, 'ticket', { max_tokens: 1000, temperature: 0.1 });
+        let cleanJson = response.trim();
+        if (cleanJson.startsWith('```')) {
+          cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+        }
+        const parsed = JSON.parse(cleanJson);
+        if (parsed && parsed.score !== undefined) {
+          evalResult = parsed;
+        }
+      } catch (aiErr) {
+        logger.error('[ModeratorSchool] Sınav AI değerlendirme hatası:', aiErr.message);
+      }
+
       let p = await StaffProgress.findOne({ userId });
       if (p) {
-        if (examPhase === 1) p.schoolSystem.status = 'phase1_exam_submitted';
-        else if (examPhase === 2) p.schoolSystem.status = 'phase2_exam_submitted';
-        else p.schoolSystem.status = 'exam_passed'; // Phase 3
-        
         p.schoolSystem.examAnswers = session.answers;
+        p.schoolSystem.examScore = evalResult.score;
+        p.schoolSystem.examFeedback = evalResult.reason;
         await p.save();
       }
 
-      await user.send({
-        content: `🌸 Selin: ${examPhase}. Aşama Sınavını başarıyla tamamladın! Cevapların yöneticilerimize gönderildi. Sonuç açıklandığında bildireceğim. Görüşmek üzere! 💕`
-      }).catch(() => { });
-
-      // Post to sınav-rapor
       const reportChannel = client.channels.cache.get(CHANNELS.SINAV_RAPOR);
       if (reportChannel) {
         const embed = new EmbedBuilder()
-          .setColor(0x7c6af7)
-          .setTitle(`📝 ${examPhase}. Aşama Sınav Cevapları Değerlendirmesi`)
-          .setDescription(`**Aday:** <@${userId}>\n**Aşama:** ${examPhase}. Aşama\n**Tarih:** ${new Date().toLocaleDateString('tr-TR')}\n\n**Cevaplar:**\n` +
+          .setColor(evalResult.passed ? 0x2ecc71 : 0xe74c3c)
+          .setTitle(`🤖 AI Sınav Değerlendirmesi (${examPhase}. Aşama)`)
+          .setDescription(
+            `**Aday:** <@${userId}>\n` +
+            `**Aşama:** ${examPhase}. Aşama\n` +
+            `**Skor:** \`${evalResult.score}/100\`\n` +
+            `**Durum:** ${evalResult.passed ? '🟢 **GEÇTİ**' : '🔴 **KALDI**'}\n\n` +
+            `📝 **AI Değerlendirmesi:**\n${evalResult.reason}\n\n` +
+            `**Adayın Cevapları:**\n` +
             session.answers.map((ans, idx) => `**Soru ${idx + 1}:** ${questions[idx]}\n**Cevap:** ${ans}\n`).join('\n')
-          );
+          )
+          .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId(`school_exam_pass_${userId}`)
-            .setLabel('GEÇTİ (Onayla)')
+            .setLabel('MANUEL GEÇİR (Onayla)')
             .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
             .setCustomId(`school_exam_fail_${userId}`)
-            .setLabel('KALDI (Reddet)')
+            .setLabel('MANUEL BIRAK (Reddet)')
             .setStyle(ButtonStyle.Danger)
         );
 
         await reportChannel.send({
-          content: `📊 **Sınav Raporu (${examPhase}. Aşama)**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
+          content: `📊 **Sınav Raporu (${examPhase}. Aşama) - AI Değerlendirmesi**\n\nTag: <@&${SCHOOL_ROLES.ASAMA_2}> & <@&${SCHOOL_ROLES.ASAMA_3}>`,
           embeds: [embed],
           components: [row]
         }).catch(() => { });
+      }
+
+      if (evalResult.passed) {
+        if (examPhase === 1) {
+          await passPhase1(userId, 'Yapay Zeka (Selin)', client, evalResult);
+        } else if (examPhase === 2) {
+          await passPhase2(userId, 'Yapay Zeka (Selin)', client, evalResult);
+        } else {
+          await graduateStudent(userId, 'Yapay Zeka (Selin)', client, evalResult);
+        }
+      } else {
+        await failPhase(userId, examPhase, 'Yapay Zeka (Selin)', client, evalResult);
       }
     }
   } catch (err) {
@@ -942,9 +953,6 @@ async function askExamQuestion(userId, client) {
   }
 }
 
-/**
- * Handles incoming DM messages from users taking the exam.
- */
 async function handleSchoolExamReply(message, client) {
   const userId = message.author.id;
   const session = activeExams.get(userId);
@@ -957,16 +965,12 @@ async function handleSchoolExamReply(message, client) {
   return true;
 }
 
-/**
- * Graduation logic when admin approves the exam answers.
- */
-async function graduateStudent(userId, adminName, client) {
+async function graduateStudent(userId, adminName, client, evalResult = null) {
   try {
     const user = await client.users.fetch(userId);
     let p = await StaffProgress.findOne({ userId });
     if (!p) return;
 
-    // Set Roblox rank back in main group
     const robloxUser = await User.findOne({ discordId: userId });
     if (robloxUser && robloxUser.robloxId) {
       try {
@@ -975,22 +979,16 @@ async function graduateStudent(userId, adminName, client) {
       } catch (_) { }
     }
 
-    // Restore Discord roles on main server
     const mainGuild = client.guilds.cache.get(MAIN_GUILD_ID);
     if (mainGuild) {
       try {
         const member = await mainGuild.members.fetch(userId).catch(() => null);
         if (member) {
-          // Remove school roles on main server
           await member.roles.remove([MAIN_SCHOOL_ROLES.TRAINEE, MAIN_SCHOOL_ROLES.INFO_ROLE]).catch(() => { });
-
-          // Restore backup roles
           const savedRoles = p.schoolSystem.originalRoles || [];
           if (savedRoles.length > 0) {
             await member.roles.add(savedRoles).catch(() => { });
           }
-
-          // Also verify/set level based rank role in main server
           try {
             const { ROLES } = require('./staffSystem');
             const targetRoleId = ROLES[p.level];
@@ -1004,16 +1002,12 @@ async function graduateStudent(userId, adminName, client) {
       }
     }
 
-    // Assign Graduate role in School server and kick/remove them
     const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
     if (schoolGuild) {
       try {
         const schoolMember = await schoolGuild.members.fetch(userId).catch(() => null);
         if (schoolMember) {
-          // Add Graduate/Moderator Ekibi role in school server
           await schoolMember.roles.add(SCHOOL_ROLES.MOD_EKIBI).catch(() => { });
-
-          // Kick the member after 5 seconds to finalize
           setTimeout(async () => {
             await schoolMember.kick('Mezun oldu!').catch(() => { });
           }, 5000);
@@ -1023,27 +1017,25 @@ async function graduateStudent(userId, adminName, client) {
       }
     }
 
-    // DM farewell
     if (user) {
       const farewellEmbed = new EmbedBuilder()
         .setColor(0xff75a0)
-        .setTitle('🌸 Selin:')
+        .setTitle('🎉 3. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
-          `Görüşürüz! Seni çok özleyeceğim.. 💖\n\n` +
+          `Selin: Görüşürüz! Seni çok özleyeceğim.. 💖\n\n` +
+          (evalResult ? `📊 **Sınav Puanın:** \`${evalResult.score}/100\`\n💬 **Selin'in Notu:** ${evalResult.reason}\n\n` : '') +
           `Moderatör ekibindeki görevlerine kaldığın yerden devam edebilirsin! Harika bir iş çıkardın, başarılar dilerim! 🌟`
         );
       await user.send({ embeds: [farewellEmbed] }).catch(() => { });
     }
 
-    // Log to mezunlar
     const mezunlarChannel = client.channels.cache.get(CHANNELS.MEZUNLAR);
     if (mezunlarChannel) {
       await mezunlarChannel.send({
-        content: `🎓 **Mezuniyet Tebriği!**\n\n<@${userId}> başarıyla okuldan mezun olmuş ve ekibe geri dönmüştür! 👏\nTarih: ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}`
+        content: `🎓 **Mezuniyet Tebriği!**\n\n<@${userId}> başarıyla okuldan mezun olmuş ve ekibe geri dönmüştür! 👏\nPuan: ${evalResult ? evalResult.score : 'N/A'}\nTarih: ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}`
       }).catch(() => { });
     }
 
-    // Log to rutbe-degisim
     const changeChannel = client.channels.cache.get(CHANNELS.RUTBE_DEGISIM);
     if (changeChannel) {
       const { ROLE_NAMES } = require('./staffSystem');
@@ -1053,7 +1045,6 @@ async function graduateStudent(userId, adminName, client) {
       }).catch(() => { });
     }
 
-    // Update database
     p.schoolSystem.status = 'graduated';
     p.schoolSystem.completedAt = new Date();
     await p.save();
@@ -1063,10 +1054,7 @@ async function graduateStudent(userId, adminName, client) {
   }
 }
 
-/**
- * Handles failed student logic.
- */
-async function passPhase1(userId, adminName, client) {
+async function passPhase1(userId, adminName, client, evalResult = null) {
   try {
     const user = await client.users.fetch(userId);
     let p = await StaffProgress.findOne({ userId });
@@ -1075,7 +1063,6 @@ async function passPhase1(userId, adminName, client) {
     const robloxUser = await User.findOne({ discordId: userId });
     const robloxId = robloxUser ? parseInt(robloxUser.robloxId) : null;
 
-    // Roblox rank 8 (Phase 2)
     if (robloxId) {
       await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 8).catch(() => { });
     }
@@ -1091,17 +1078,17 @@ async function passPhase1(userId, adminName, client) {
         .setTitle('🎉 1. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
           `Selin: Tebrikler! 1. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
+          (evalResult ? `📊 **Sınav Puanın:** \`${evalResult.score}/100\`\n💬 **Selin'in Notu:** ${evalResult.reason}\n\n` : '') +
           `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
           `Daha sonra 2. Aşama sesli kanalına girerek yeni eğitimini başlatabilirsin! ✨`
         );
       await user.send({ embeds: [embed] }).catch(() => { });
     }
 
-    // Log to egitim-rapor
     const reportChannel = client.channels.cache.get(CHANNELS.EGITIM_RAPOR);
     if (reportChannel) {
       await reportChannel.send({
-        content: `**Eğitim Raporu (1. Aşama Sınav Geçişi)**\n\nPersonel: <@${userId}>\n1. Aşama Sınavını onaylayan yetkili: ${adminName}\nYeni Durum: 2. Aşama Eğitimi`
+        content: `**Eğitim Raporu (1. Aşama Sınav Geçişi)**\n\nPersonel: <@${userId}>\nDeğerlendirici: ${adminName}\nPuan: ${evalResult ? evalResult.score : 'N/A'}\nYeni Durum: 2. Aşama Eğitimi`
       }).catch(() => { });
     }
   } catch (err) {
@@ -1109,7 +1096,7 @@ async function passPhase1(userId, adminName, client) {
   }
 }
 
-async function passPhase2(userId, adminName, client) {
+async function passPhase2(userId, adminName, client, evalResult = null) {
   try {
     const user = await client.users.fetch(userId);
     let p = await StaffProgress.findOne({ userId });
@@ -1118,7 +1105,6 @@ async function passPhase2(userId, adminName, client) {
     const robloxUser = await User.findOne({ discordId: userId });
     const robloxId = robloxUser ? parseInt(robloxUser.robloxId) : null;
 
-    // Roblox rank 9 (Exam/Phase 3)
     if (robloxId) {
       await noblox.setRank(SCHOOL_ROBLOX_GROUP, robloxId, 9).catch(() => { });
     }
@@ -1134,6 +1120,7 @@ async function passPhase2(userId, adminName, client) {
         .setTitle('🎉 2. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
           `Selin: Harika! 2. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
+          (evalResult ? `📊 **Sınav Puanın:** \`${evalResult.score}/100\`\n💬 **Selin'in Notu:** ${evalResult.reason}\n\n` : '') +
           `Şimdi okul sunucusunda <#${CHANNELS.UPDATE_ROLES}> kanalına git, **Update Roles** butonuna bas ve rolünün güncellenmesini sağla.\n\n` +
           `Daha sonra Sınav Odası sesli kanalına girerek son aşama sınavını başlatabilirsin! Başarılar dilerim! 💕`
         );
