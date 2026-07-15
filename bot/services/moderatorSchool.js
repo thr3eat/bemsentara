@@ -8,6 +8,19 @@ const StaffProgress = require('../../models/StaffProgress');
 const User = require('../../models/User');
 const logger = require('../../utils/logger');
 
+// Selin Embed Profile Photos
+const SELIN_IMAGES = [
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRgqO9sXF0-qUc0LUmdkfiHwJTVq58OVlxQOl111jlZSatezrwhXOWoBSMY&s=10',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQxQ_xS03TkzjjTE4XGYXYbGRsALaBdKRi5SCExnDwaH7bFdB3FZls0qhkl&s=10',
+  'https://i.pinimg.com/236x/3f/25/0e/3f250e25f09b2b1120a0911b71fe7c8b.jpg',
+  'https://i.pinimg.com/236x/d0/36/a3/d036a394e4e661bbdc2e8cd7764ef9f1.jpg'
+];
+
+function getSelinImage() {
+  return SELIN_IMAGES[Math.floor(Math.random() * SELIN_IMAGES.length)];
+}
+
+
 // Configurations
 const MAIN_GUILD_ID = '1367646464804655104';
 const SCHOOL_GUILD_ID = '1467159451726512380';
@@ -550,7 +563,7 @@ async function handleSchoolButtons(interaction, client) {
     setTimeout(async () => {
       try {
         const embed = new EmbedBuilder()
-          .setColor(0xff75a0)
+          .setThumbnail(getSelinImage()).setColor(0xff75a0)
           .setTitle('🌸 Selammmm, Tanıştığıma Memnun Oldum! 🌸')
           .setDescription(
             `Ben Selin! ✨ Animeli konuşurum falan filan neyse şimdi moderatör okulu kolay 1 günlük iş hızlıca yaparsın tamammı? 🎀\n\n` +
@@ -598,7 +611,7 @@ async function handleSchoolButtons(interaction, client) {
 
     // Show rules
     const embed = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle('📚 Eko & Yıldız Moderatör Okulu Sunucu Kuralları')
       .setDescription(
         `**Kurallar:**\n` +
@@ -642,7 +655,7 @@ async function handleSchoolButtons(interaction, client) {
     await interaction.deferUpdate().catch(() => { });
 
     const embed = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle('🎈 Kurallar Kabul Edildi! 🎈')
       .setDescription(
         `Tamam kabul ettin! :) Kabul etmek çok önemli. ✨\n\n` +
@@ -673,7 +686,7 @@ async function handleSchoolButtons(interaction, client) {
     // 1. User has no linked Roblox account
     if (!robloxUser || !robloxUser.robloxId) {
       const verifyEmbed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🌸 Roblox Hesabını Doğrulaman Gerekiyor! 🌸')
         .setDescription(
           `Selin: Görünüşe göre Roblox hesabın henüz bot ile eşleştirilmemiş. 💕\n\n` +
@@ -710,7 +723,7 @@ async function handleSchoolButtons(interaction, client) {
       // Still not in group (either request failed, or request wasn't sent yet)
       if (rankNum === 0) {
         const groupEmbed = new EmbedBuilder()
-          .setColor(0xff75a0)
+          .setThumbnail(getSelinImage()).setColor(0xff75a0)
           .setTitle('🌸 Roblox Grubumuza Katılma İsteği Gönder! 🌸')
           .setDescription(
             `Selin: Roblox hesabını başarıyla doğruladık (\`${robloxUser.robloxUsername}\`). Ancak henüz Roblox grubumuza katılma isteği göndermemişsin! 💕\n\n` +
@@ -741,7 +754,7 @@ async function handleSchoolButtons(interaction, client) {
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle('🎉 Tebrikler!')
       .setDescription(
         `Süpersin! Roblox grubuna katılımın onaylandı ve rütben 7 olarak güncellendi. 💕\n\n` +
@@ -775,7 +788,7 @@ async function handleSchoolButtons(interaction, client) {
 
     // Send Selin message and Intro Document
     const embedIntro = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle('📚 Selin:')
       .setDescription('Bir sonraki eğitimde görüşürüz! Seni özleyeceğim.. 🌸 Şaka şaka okul başladı bile! Al bakalım stajyer el kitabın:');
 
@@ -982,7 +995,7 @@ async function sendTrainingBlock(userId, client) {
     const blockText = blocks[session.step];
 
     const embed = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle(`🌸 Selin (Eğitmen):`)
       .setDescription(blockText)
       .setFooter({ text: 'Not: Bu mesaj 5 saniye sonra silinecektir. Lütfen dikkatle oku!' });
@@ -1031,7 +1044,7 @@ async function sendTrainingBlock(userId, client) {
           await msg.delete().catch(() => { });
 
           const askEmbed = new EmbedBuilder()
-            .setColor(0xff75a0)
+            .setThumbnail(getSelinImage()).setColor(0xff75a0)
             .setTitle('🌸 Selin:')
             .setDescription('Bu kısmı anladın mı? 💕');
 
@@ -1072,7 +1085,7 @@ async function finishPhase(userId, phase, client) {
       await p.save();
 
       const embed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🎉 1. Aşama Eğitim Dökümanları Tamamlandı! 🎉')
         .setDescription(
           `Selin: Harika gidiyorsun! 1. Aşama eğitim dökümanlarını başarıyla okudun. 💖\n\n` +
@@ -1086,7 +1099,7 @@ async function finishPhase(userId, phase, client) {
       await p.save();
 
       const embed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🎉 2. Aşama Eğitim Dökümanları Tamamlandı! 🎉')
         .setDescription(
           `Selin: İnanılmazsın! 2. Aşama eğitim dökümanlarını tamamladın. 🌸\n\n` +
@@ -1523,7 +1536,7 @@ async function graduateStudent(userId, adminName, client, evalResult = null) {
 
     if (user) {
       const farewellEmbed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🎉 3. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
           `Selin: Görüşürüz! Seni çok özleyeceğim.. 💖\n\n` +
@@ -1578,7 +1591,7 @@ async function passPhase1(userId, adminName, client, evalResult = null) {
 
     if (user) {
       const embed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🎉 1. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
           `Selin: Tebrikler! 1. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
@@ -1620,7 +1633,7 @@ async function passPhase2(userId, adminName, client, evalResult = null) {
 
     if (user) {
       const embed = new EmbedBuilder()
-        .setColor(0xff75a0)
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
         .setTitle('🎉 2. Aşama Sınavını Başarıyla Geçtin! 🎉')
         .setDescription(
           `Selin: Harika! 2. Aşama Sınavını başarıyla geçtin. 💖\n\n` +
@@ -1685,7 +1698,7 @@ async function handleEgitimIstekMessage(message, client) {
   // DM the user asking if they really want this training
   try {
     const embed = new EmbedBuilder()
-      .setColor(0xff75a0)
+      .setThumbnail(getSelinImage()).setColor(0xff75a0)
       .setTitle('🌸 Selin:')
       .setDescription(`Merhaba! **${type}** eğitimini talep ettiğini gördüm. Bu aşamalı eğitimi başlatmak ister misin? 💕`);
 
