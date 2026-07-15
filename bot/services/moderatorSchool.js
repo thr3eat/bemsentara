@@ -1209,11 +1209,11 @@ async function handleEgitimIstekMessage(message, client) {
   if (message.guildId !== SCHOOL_GUILD_ID || message.channelId !== CHANNELS.EGITIM_ISTEK || message.author.bot) return;
 
   const content = message.content;
-  // Parse format
-  const matchesName = content.match(/İsim:\s*(.*)/i);
-  const matchesRank = content.match(/Rütbe:\s*(.*)/i);
-  const matchesType = content.match(/İstenilen Eğitim:\s*(.*)/i);
-  const matchesTime = content.match(/Ne zaman:\s*(.*)/i);
+  // Parse format - support both Turkish and English characters
+  const matchesName = content.match(/(?:İsim|Isim):\s*(.*)/i);
+  const matchesRank = content.match(/(?:Rütbe|Rutbe):\s*(.*)/i);
+  const matchesType = content.match(/(?:İstenilen|Istenilen)\s*(?:Eğitim|Egitim):\s*(.*)/i);
+  const matchesTime = content.match(/(?:Ne\s*zaman):\s*(.*)/i);
 
   if (!matchesName || !matchesRank || !matchesType) return; // Doesn't match format
 
@@ -1229,7 +1229,7 @@ async function handleEgitimIstekMessage(message, client) {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`school_confirm_req_yes_${message.id}_${type.replace(/\s+/g, '-')}_${time.replace(/\s+/g, '-')}`)
+        .setCustomId(`school_confirm_req_yes_${message.id}_${type.replace(/[\s_]+/g, '-')}_${time.replace(/[\s_]+/g, '-')}`)
         .setLabel('EVET')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
@@ -1248,38 +1248,45 @@ async function handleEgitimIstekMessage(message, client) {
  * Handles confirmation of training requests.
  */
 async function handleTrainingRequestConfirm(interaction, client) {
-  const { customId, user } = interaction;
-
-  if (customId === 'school_confirm_req_no') {
+  try {
+    const { customId } = interaction;
     await interaction.deferUpdate().catch(() => { });
-    await interaction.editReply({ content: '🌸 Tamam, eğitim talebi iptal edildi! Görüşmek üzere. 💕', embeds: [], components: [] }).catch(() => { });
-    return;
-  }
 
-  // format: school_confirm_req_yes_msgId_type_time
-  const parts = customId.split('_');
-  const type = parts[5].replace(/-/g, ' ');
-  const time = parts[6].replace(/-/g, ' ');
+    if (customId === 'school_confirm_req_no') {
+      await interaction.editReply({ content: '🌸 Tamam, eğitim talebi iptal edildi! Görüşmek üzere. 💕', embeds: [], components: [] }).catch(() => { });
+      return;
+    }
 
-  await interaction.deferUpdate().catch(() => { });
-  await interaction.editReply({ content: '🌸 Harika! Eğitim talebin onaylandı ve duyuru kanalına gönderildi. Lütfen eğitim saatinde uygun ses kanalında ol! 💕', embeds: [], components: [] }).catch(() => { });
+    // format: school_confirm_req_yes_msgId_type_time
+    const parts = customId.split('_');
+    if (parts.length < 7) {
+      await interaction.editReply({ content: '❌ Geçersiz buton verisi.', embeds: [], components: [] }).catch(() => { });
+      return;
+    }
+    const type = parts[5].replace(/-/g, ' ');
+    const time = parts[6].replace(/-/g, ' ');
 
-  // Send announcement to egitim-duyuru
-  const duyuruChannel = client.channels.cache.get(CHANNELS.EGITIM_DUYURU);
-  if (duyuruChannel) {
-    const isPhase1 = type.toLowerCase().includes('1') || type.toLowerCase().includes('i') && !type.toLowerCase().includes('ii');
-    const targetVoice = isPhase1 ? 'Eğitim Sesli 1' : 'Eğitim Sesli 2';
-    const tagRole = isPhase1 ? SCHOOL_ROLES.ASAMA_1 : SCHOOL_ROLES.ASAMA_2;
+    await interaction.editReply({ content: '🌸 Harika! Eğitim talebin onaylandı ve duyuru kanalına gönderildi. Lütfen eğitim saatinde uygun ses kanalında ol! 💕', embeds: [], components: [] }).catch(() => { });
 
-    await duyuruChannel.send({
-      content: `**Eğitim Duyurusu** 📢\n\n` +
-        `Host: Selin\n` +
-        `Eğitim Türü: ${type}\n` +
-        `Ne zaman: ${time}\n` +
-        `Yer: ${targetVoice}\n` +
-        `Link: https://discord.gg/y9q8xhjkFD\n\n` +
-        `Tag: <@&${tagRole}>`
-    }).catch(() => { });
+    // Send announcement to egitim-duyuru
+    const duyuruChannel = await client.channels.fetch(CHANNELS.EGITIM_DUYURU).catch(() => null);
+    if (duyuruChannel) {
+      const isPhase1 = type.toLowerCase().includes('1') || type.toLowerCase().includes('i') && !type.toLowerCase().includes('ii');
+      const targetVoice = isPhase1 ? 'Eğitim Sesli 1' : 'Eğitim Sesli 2';
+      const tagRole = isPhase1 ? SCHOOL_ROLES.ASAMA_1 : SCHOOL_ROLES.ASAMA_2;
+
+      await duyuruChannel.send({
+        content: `**Eğitim Duyurusu** 📢\n\n` +
+          `Host: Selin\n` +
+          `Eğitim Türü: ${type}\n` +
+          `Ne zaman: ${time}\n` +
+          `Yer: ${targetVoice}\n` +
+          `Link: https://discord.gg/y9q8xhjkFD\n\n` +
+          `Tag: <@&${tagRole}>`
+      }).catch(() => { });
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] handleTrainingRequestConfirm error:', err);
   }
 }
 
