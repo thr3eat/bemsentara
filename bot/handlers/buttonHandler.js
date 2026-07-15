@@ -98,6 +98,11 @@ async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
   // ── Okul Sistemi Butonları ──────────────────────────────────────────────
+  if (customId.startsWith("school_confirm_req_")) {
+    const { handleTrainingRequestConfirm } = require("../services/moderatorSchool");
+    return handleTrainingRequestConfirm(interaction, interaction.client);
+  }
+
   if (customId.startsWith("school_")) {
     const { handleSchoolButtons } = require("../services/moderatorSchool");
     return handleSchoolButtons(interaction, interaction.client);
