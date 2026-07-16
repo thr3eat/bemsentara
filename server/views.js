@@ -14,7 +14,7 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
     : '';
 
   const isOwner = user && user.discordUsername === "ekonqtx";
-  const { groupAdmins } = require("./models/Store");
+  const { groupAdmins } = require("../models/Store");
   const isGrpAdmin = user && (isOwner || groupAdmins.findOne({ username: user.discordUsername }));
   const groupAdminLink = isGrpAdmin
     ? `<a href="/group-admin" class="nav-link${activePath === '/group-admin' ? ' nav-active' : ''}">⚙️ Grup Yönetimi</a>`
