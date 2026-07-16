@@ -1,12 +1,13 @@
 const express = require("express");
 const crypto = require("crypto");
+const axios = require("axios");
 const Ticket = require("../../models/Ticket");
 const User = require("../../models/User");
 const Economy = require("../../models/Economy");
 const { wikiArticles, saveStoreNow } = require("../../models/Store");
 const { isSiteAdmin, isSiteStaff } = require("../../utils/adminCheck");
 const { SHOP_ITEMS, findItem } = require("../../bot/config/shopItems");
-const { BASE_URL, WEBHOOK_SECRET } = require("../../config");
+const { BASE_URL, WEBHOOK_SECRET, MAKE_WEBHOOK_URL } = require("../../config");
 const logger = require("../../utils/logger");
 
 const router = express.Router();
@@ -535,12 +536,26 @@ router.post("/api/make/ai-process", async (req, res) => {
     const prompt = `Aşağıdaki e-postaya Türkçe, nazik ve net bir yanıt hazırla.\n\nGönderen: ${sender_email}\nKonu: ${subject || "(Boş konu)"}\n\nMesaj:\n${content}`;
     const aiResponse = await chatWithAI([{ role: "user", content: prompt }], "Sen bir yardımcı e-posta yanıtlayıcısısın. Türkçe yaz.", "ticket", { max_tokens: 400, temperature: 0.7 });
 
-    return res.json({
-      success: true,
+    if (!MAKE_WEBHOOK_URL) {
+      return res.status(500).json({ error: "Make webhook URL yapılandırılmamış." });
+    }
+
+    await axios.post(MAKE_WEBHOOK_URL, {
       recipient_email: sender_email,
       subject: `Re: ${subject || "Yanıt"}`,
-      in_reply_to_id: message_id,
       ai_response: aiResponse,
+      in_reply_to_id: message_id
+    }, {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      timeout: 25000
+    });
+
+    return res.json({
+      success: true,
+      message: "AI yanıtı oluşturuldu ve Make webhook’una gönderildi.",
+      webhookUrl: MAKE_WEBHOOK_URL,
     });
   } catch (err) {
     console.error("/api/make/ai-process error:", err);
