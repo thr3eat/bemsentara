@@ -6,6 +6,7 @@ const Economy = require("../../models/Economy");
 const { wikiArticles, saveStoreNow } = require("../../models/Store");
 const { isSiteAdmin, isSiteStaff } = require("../../utils/adminCheck");
 const { SHOP_ITEMS, findItem } = require("../../bot/config/shopItems");
+const { BASE_URL, WEBHOOK_SECRET } = require("../../config");
 const logger = require("../../utils/logger");
 
 const router = express.Router();
@@ -2221,11 +2222,11 @@ router.post("/api/profile/equip", async (req, res) => {
 // Roblox → bu endpoint → Discord webhook
 // Roblox'tan: POST /api/webhook/proxy
 // Body: { webhookUrl, content, embeds, username, avatarUrl }
-// Güvenlik: isteğe bağlı secret header kontrolü
+// Güvenlik: zorunlu secret header kontrolü
 
 router.post("/api/webhook/proxy", async (req, res) => {
-  // CORS — Roblox'tan gelen isteklere izin ver
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS — sadece site tabanlı webhook proxy isteklerine izin ver
+  res.setHeader("Access-Control-Allow-Origin", BASE_URL || "http://localhost:3000");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Webhook-Secret");
 
@@ -2247,15 +2248,63 @@ router.post("/api/webhook/proxy", async (req, res) => {
     return res.status(400).json({ success: false, error: "content veya embeds gerekli." });
   }
 
+  // Webhook secret kontrolü
+  if (!WEBHOOK_SECRET) {
+    return res.status(500).json({ success: false, error: "Sunucu yapılandırması eksik: WEBHOOK_SECRET tanımlı değil." });
+  }
+  const secretHeader = String(req.headers["x-webhook-secret"] || "").trim();
+  if (secretHeader !== WEBHOOK_SECRET) {
+    return res.status(403).json({ success: false, error: "Geçersiz webhook secret header." });
+  }
+
+  const origin = req.headers.origin;
+  if (origin && origin !== BASE_URL) {
+    return res.status(403).json({ success: false, error: "Geçersiz kaynak geldi." });
+  }
+
   // Payload oluştur
   const payload = {};
   if (content)          payload.content          = String(content).slice(0, 2000);
   if (username)         payload.username         = String(username).slice(0, 80);
   if (avatar_url)       payload.avatar_url       = String(avatar_url);
   if (tts)              payload.tts              = Boolean(tts);
-  if (allowed_mentions) payload.allowed_mentions = allowed_mentions;
+  if (allowed_mentions && typeof allowed_mentions === "object") {
+    payload.allowed_mentions = {
+      parse: Array.isArray(allowed_mentions.parse)
+        ? allowed_mentions.parse.filter((p) => ["roles", "users", "everyone"].includes(p)).slice(0, 3)
+        : [],
+      users: Array.isArray(allowed_mentions.users) ? allowed_mentions.users.slice(0, 10) : [],
+      roles: Array.isArray(allowed_mentions.roles) ? allowed_mentions.roles.slice(0, 10) : [],
+    };
+  }
   if (embeds && Array.isArray(embeds)) {
-    payload.embeds = embeds.slice(0, 10); // Discord max 10 embed
+    payload.embeds = embeds.slice(0, 10).map((embed) => {
+      const safeEmbed = {};
+      if (embed.title) safeEmbed.title = String(embed.title).slice(0, 256);
+      if (embed.description) safeEmbed.description = String(embed.description).slice(0, 4096);
+      if (embed.color) safeEmbed.color = Number(embed.color) || undefined;
+      if (embed.url && /^https?:\/\//i.test(embed.url)) safeEmbed.url = String(embed.url).slice(0, 2048);
+      if (embed.fields && Array.isArray(embed.fields)) {
+        safeEmbed.fields = embed.fields.slice(0, 10).map((field) => ({
+          name: String(field.name || "").slice(0, 256),
+          value: String(field.value || "").slice(0, 1024),
+          inline: Boolean(field.inline),
+        }));
+      }
+      if (embed.footer && embed.footer.text) {
+        safeEmbed.footer = { text: String(embed.footer.text).slice(0, 2048) };
+      }
+      if (embed.image && typeof embed.image.url === "string" && /^https?:\/\//i.test(embed.image.url)) {
+        safeEmbed.image = { url: String(embed.image.url) };
+      }
+      if (embed.thumbnail && typeof embed.thumbnail.url === "string" && /^https?:\/\//i.test(embed.thumbnail.url)) {
+        safeEmbed.thumbnail = { url: String(embed.thumbnail.url) };
+      }
+      if (embed.author && typeof embed.author.name === "string") {
+        safeEmbed.author = { name: String(embed.author.name).slice(0, 256) };
+      }
+      return safeEmbed;
+    });
   }
 
   try {

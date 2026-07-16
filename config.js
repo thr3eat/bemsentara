@@ -110,6 +110,7 @@ const SERVER_INVITE_LINKS = {
   "1414639355456389344": process.env.BEM_INVITE || "https://discord.gg/9NzKxVrs8Z",
 };
 
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || null;
 const DATA_DIR = process.env.DATA_DIR || null;
 const RESTORE_ROLES_ON_START = process.env.RESTORE_ROLES_ON_START === "true";
 
@@ -117,6 +118,7 @@ module.exports = {
   PORT,
   BASE_URL,
   SESSION_SECRET,
+  WEBHOOK_SECRET,
   RESTORE_ROLES_ON_START,
   BOT_ID,
   TOKEN,
