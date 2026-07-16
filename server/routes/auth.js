@@ -921,4 +921,37 @@ router.get("/api/admin/istatistikler", isAdmin, (req, res) => {
   }
 });
 
+// ── BRIEFING FORM SUBMISSION ──
+
+router.post("/api/briefing/submit", (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Giriş yapmalısınız" });
+  }
+
+  try {
+    const { answers } = req.body;
+    if (!answers || typeof answers !== 'object') {
+      return res.status(400).json({ error: "Geçersiz form verisi" });
+    }
+
+    const BriefingFormCompletion = require("../../models/BriefingFormCompletion");
+    BriefingFormCompletion.complete(req.user.discordId, answers);
+
+    // Activity log
+    UserActivityLog.log(req.user.discordId, "PROFILE_UPDATE", {
+      action: "briefing_form_completed",
+      answers: Object.keys(answers)
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Form başarıyla gönderildi!",
+      redirectUrl: "/briefing"
+    });
+  } catch (error) {
+    console.error("[briefing/submit]", error);
+    res.status(500).json({ error: error.message || "Sunucu hatası" });
+  }
+});
+
 module.exports = router;

@@ -16,6 +16,41 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  // ── Kurallar Kabul Modal ───────────────────────────────────────────────────
+  if (interaction.customId === 'rules_acceptance_modal') {
+    const confirmation = interaction.fields.getTextInputValue('rules_confirm').toLowerCase().trim();
+    
+    if (confirmation !== 'evet' && confirmation !== 'yes') {
+      return interaction.reply({
+        content: '❌ Kuralları kabul etmek için "evet" yazmalısınız.',
+        ephemeral: true
+      });
+    }
+
+    try {
+      const RulesAcceptance = require("../../models/RulesAcceptance");
+      RulesAcceptance.accept(interaction.user.id, "1.0");
+
+      const embed = new EmbedBuilder()
+        .setTitle("✅ Kuralları Kabul Ettin!")
+        .setDescription("Sentara'nın kurallarını kabul ettiğin için teşekkür ederiz.\n\nArtık botu tam olarak kullanabilirsin.")
+        .setColor(0x2ecc71)
+        .setFooter({ text: "Sentara" })
+        .setTimestamp();
+
+      return interaction.reply({
+        embeds: [embed],
+        ephemeral: true
+      });
+    } catch (err) {
+      console.error("[rules_acceptance_modal]", err);
+      return interaction.reply({
+        content: '❌ Bir hata oluştu: ' + err.message,
+        ephemeral: true
+      });
+    }
+  }
+
   // ── Hata Sihirbazı Modal ──────────────────────────────────────────────────
   if (interaction.customId === 'error_wizard_modal') {
     const { handleErrorWizardSubmit } = require('../services/errorWizardService');
