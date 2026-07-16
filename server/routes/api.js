@@ -2779,8 +2779,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
         "PATCH",
         {
-          name: update.name,
-          description: update.description
+          name: update.name
         }
       );
       // Wait to avoid rate limits
@@ -2821,7 +2820,6 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
           "PATCH",
           {
             name: update.name,
-            description: update.description,
             rank: tempRank
           }
         );
@@ -2837,7 +2835,6 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
           "PATCH",
           {
             name: update.name,
-            description: update.description,
             rank: update.newRank
           }
         );
@@ -2850,7 +2847,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
     for (const newRole of newRolesToCreate) {
       try {
         const createRes = await robloxApiRequest(
-          `https://groups.roblox.com/v1/groups/${groupId}/rolesets`,
+          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/create`,
           "POST",
           {
             name: newRole.name || "Yeni Rol",
@@ -2950,7 +2947,6 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
         "PATCH",
         {
           name: update.name,
-          description: update.description,
           rank: tempRank
         }
       );
@@ -2965,7 +2961,6 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
         "PATCH",
         {
           name: update.name,
-          description: update.description,
           rank: update.newRank
         }
       );
