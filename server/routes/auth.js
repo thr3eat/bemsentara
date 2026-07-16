@@ -5,6 +5,7 @@ const { renderLoginPage, renderAuthorizePage } = require("../views");
 const { saveStoreNow } = require("../../models/Store");
 const { syncRoleConnectionForUser } = require("../services/discordRoleConnectionService");
 const logger = require("../../utils/logger");
+const UserActivityLog = require("../../models/UserActivityLog");
 
 async function syncLinkedRoleMetadata(user, session = null) {
   if (!user?.discordId) return;
@@ -57,6 +58,13 @@ async function logWebLogin(user, req) {
 
     const row = new ActionRowBuilder().addComponents(btn);
     await discordLogger.sendLog('web', message, null, 'INFO', row);
+
+    // Activity logging
+    UserActivityLog.log(user.discordId, UserActivityLog.ACTIVITY_TYPES.LOGIN, {
+      ip: ip,
+      location: location,
+      source: 'web'
+    });
   } catch (err) {
     console.error("[logWebLogin] Error:", err.message);
   }
@@ -801,6 +809,115 @@ router.get("/verify", async (req, res) => {
   } catch (err) {
     console.error("[verify GET]", err);
     res.status(500).send("Sunucu hatası");
+  }
+});
+
+// ── ADMIN PANEL ENDPOINTS ──
+
+// Middleware: Admin kontrolü
+const isAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Giriş yapmalısınız" });
+  }
+  
+  // Check if user is admin (örn: ADMIN_ROLE_ID'si varsa, Roblox grup admini vs.)
+  const isUserAdmin = req.user.isAdmin || 
+    req.user.discordId === process.env.DISCORD_OWNER_ID ||
+    (req.user.rolesInRobloxGroup && req.user.rolesInRobloxGroup.includes("Admin"));
+  
+  if (!isUserAdmin) {
+    return res.status(403).json({ error: "Yetkiniz yok" });
+  }
+  
+  next();
+};
+
+// Admin Dashboard
+router.get("/admin", isAdmin, (req, res) => {
+  res.send(renderAdminDashboard());
+});
+
+// Aktif Kullanıcılar (24 saatte aktif olanlar)
+router.get("/api/admin/aktif-kullanicilar", isAdmin, (req, res) => {
+  try {
+    const activeUsers = UserActivityLog.getActiveUsers();
+    res.json({ success: true, count: activeUsers.length, users: activeUsers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// İnaktif Kullanıcılar (24+ saatin üzerinde inaktif)
+router.get("/api/admin/inaktif-kullanicilar", isAdmin, (req, res) => {
+  try {
+    const inactiveUsers = UserActivityLog.getInactiveUsers(24);
+    res.json({ success: true, count: inactiveUsers.length, users: inactiveUsers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Aktivite Geçmişi (Belirli kullanıcı)
+router.get("/api/admin/aktivite-gecmisi/:discordId", isAdmin, (req, res) => {
+  try {
+    const { discordId } = req.params;
+    const activities = UserActivityLog.getByUser(discordId, 100);
+    
+    res.json({ 
+      success: true, 
+      discordId,
+      count: activities.length,
+      activities: activities.map(a => ({
+        id: a.id,
+        type: a.activityType,
+        details: a.details,
+        timestamp: a.iso
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Kurallar Kabul Listesi
+router.get("/api/admin/kurallar-kabul", isAdmin, (req, res) => {
+  try {
+    const RulesAcceptance = require("../../models/RulesAcceptance");
+    const acceptances = RulesAcceptance.getAllAcceptances();
+    
+    res.json({ 
+      success: true,
+      total: acceptances.length,
+      acceptances: acceptances.map(a => ({
+        discordId: a.discordId,
+        ruleVersion: a.ruleVersion,
+        acceptedAt: a.acceptedAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Aktivite İstatistikleri
+router.get("/api/admin/istatistikler", isAdmin, (req, res) => {
+  try {
+    const activeUsers = UserActivityLog.getActiveUsers();
+    const inactiveUsers = UserActivityLog.getInactiveUsers(24);
+    const RulesAcceptance = require("../../models/RulesAcceptance");
+    const rulesAcceptances = RulesAcceptance.getAllAcceptances();
+    
+    res.json({
+      success: true,
+      stats: {
+        aktifKullanicilar: activeUsers.length,
+        inaktifKullanicilar: inactiveUsers.length,
+        kurallarKabul: rulesAcceptances.length,
+        toplamAktivite: UserActivityLog.getAllLogs().length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -2,6 +2,28 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const generalCommands = [
   
+  new SlashCommandBuilder()
+    .setName("kurallar-kabul")
+    .setDescription("📋 Bot kurallarını oku ve kabul et")
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName("aktif-kullanicilar")
+    .setDescription("🟢 Son 24 saatte aktif olan kullanıcıları göster")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("inaktif-kullanicilar")
+    .setDescription("🔴 24 saatin üzerinde inaktif olan kullanıcıları göster")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+  new SlashCommandBuilder()
+    .setName("aktivite-gecmisi")
+    .setDescription("📊 Bir kullanıcının aktivite geçmişini görüntüle")
+    .addUserOption((o) =>
+      o.setName("kullanici").setDescription("Bakılacak kişi (boş = kendin)").setRequired(false)
+    )
+    .setDMPermission(true),
 
   new SlashCommandBuilder()
     .setName("dogrula")

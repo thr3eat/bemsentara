@@ -4867,6 +4867,154 @@ sendWebhook("Merhaba Discord! 👋", "Oyun Bildirimi", "Bir oyuncu sunucuya kat�
 }
 
 // ─────────────────────────────────────────────
+// ADMIN DASHBOARD PAGE
+// ─────────────────────────────────────────────
+function renderAdminDashboard(user = null) {
+  const content = `
+    <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+      <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 30px; color: var(--accent);">
+        ⚙️ Admin Paneli
+      </h1>
+
+      <!-- İstatistikler -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px;">
+        <div class="card" style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3);">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--success); margin-bottom: 10px;" id="stat-active">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">🟢 Aktif Kullanıcılar (24h)</div>
+        </div>
+        <div class="card" style="background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.3);">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--danger); margin-bottom: 10px;" id="stat-inactive">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">🔴 İnaktif Kullanıcılar (24h+)</div>
+        </div>
+        <div class="card" style="background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3);">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--accent); margin-bottom: 10px;" id="stat-rules">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">📋 Kurallar Kabul</div>
+        </div>
+        <div class="card" style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--warning); margin-bottom: 10px;" id="stat-activities">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">📊 Toplam Aktiviteler</div>
+        </div>
+      </div>
+
+      <!-- Sekmeler -->
+      <div style="display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <button class="tab-btn active" data-tab="active" style="background: none; border: none; color: var(--text); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid var(--accent); font-weight: 600;">🟢 Aktif Kullanıcılar</button>
+        <button class="tab-btn" data-tab="inactive" style="background: none; border: none; color: var(--muted); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid transparent; font-weight: 600;">🔴 İnaktif Kullanıcılar</button>
+        <button class="tab-btn" data-tab="rules" style="background: none; border: none; color: var(--muted); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid transparent; font-weight: 600;">📋 Kurallar Kabul</button>
+      </div>
+
+      <!-- İçerik Alanları -->
+      <div id="tab-active" class="tab-content card" style="display: block;">
+        <h2 style="margin-bottom: 20px; color: var(--success);">🟢 Son 24 Saatte Aktif Olan Kullanıcılar</h2>
+        <div id="active-list" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+
+      <div id="tab-inactive" class="tab-content card" style="display: none;">
+        <h2 style="margin-bottom: 20px; color: var(--danger);">🔴 24 Saatin Üzerinde İnaktif Kullanıcılar</h2>
+        <div id="inactive-list" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+
+      <div id="tab-rules" class="tab-content card" style="display: none;">
+        <h2 style="margin-bottom: 20px; color: var(--accent);">📋 Kuralları Kabul Edenler</h2>
+        <div id="rules-list" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+    </div>
+
+    <style>
+      .tab-btn { transition: all 0.3s ease; }
+      .tab-btn:hover { color: var(--text); }
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+      .user-item {
+        padding: 12px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .user-item:hover { background: rgba(255,255,255,0.05); }
+    </style>
+
+    <script>
+      // Tab Switching
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => {
+            b.style.borderBottomColor = 'transparent';
+            b.style.color = 'var(--muted)';
+          });
+          btn.style.borderBottomColor = 'var(--accent)';
+          btn.style.color = 'var(--text)';
+
+          document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+          document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+        });
+      });
+
+      // Veri Yükleme
+      async function loadAdminData() {
+        try {
+          // İstatistikler
+          const statsRes = await fetch('/api/admin/istatistikler');
+          const statsData = await statsRes.json();
+          if (statsData.success) {
+            document.getElementById('stat-active').textContent = statsData.stats.aktifKullanicilar;
+            document.getElementById('stat-inactive').textContent = statsData.stats.inaktifKullanicilar;
+            document.getElementById('stat-rules').textContent = statsData.stats.kurallarKabul;
+            document.getElementById('stat-activities').textContent = statsData.stats.toplamAktivite;
+          }
+
+          // Aktif Kullanıcılar
+          const activeRes = await fetch('/api/admin/aktif-kullanicilar');
+          const activeData = await activeRes.json();
+          if (activeData.success) {
+            const html = activeData.users.slice(0, 50).map(id => 
+              \`<div class="user-item"><span><@\${id}> (ID: \${id})</span></div>\`
+            ).join('');
+            document.getElementById('active-list').innerHTML = html || '<p style="color: var(--muted);">Aktif kullanıcı yok</p>';
+          }
+
+          // İnaktif Kullanıcılar
+          const inactiveRes = await fetch('/api/admin/inaktif-kullanicilar');
+          const inactiveData = await inactiveRes.json();
+          if (inactiveData.success) {
+            const html = inactiveData.users.slice(0, 50).map(id => 
+              \`<div class="user-item"><span><@\${id}> (ID: \${id})</span></div>\`
+            ).join('');
+            document.getElementById('inactive-list').innerHTML = html || '<p style="color: var(--muted);">İnaktif kullanıcı yok</p>';
+          }
+
+          // Kurallar Kabul
+          const rulesRes = await fetch('/api/admin/kurallar-kabul');
+          const rulesData = await rulesRes.json();
+          if (rulesData.success) {
+            const html = rulesData.acceptances.slice(0, 50).map(a => 
+              \`<div class="user-item">
+                <span><@\${a.discordId}> (ID: \${a.discordId})</span>
+                <span style="font-size: 0.85rem; color: var(--muted);">\${new Date(a.acceptedAt).toLocaleString('tr-TR')}</span>
+              </div>\`
+            ).join('');
+            document.getElementById('rules-list').innerHTML = html || '<p style="color: var(--muted);">Kuralları kabul eden yok</p>';
+          }
+        } catch (error) {
+          console.error('Admin veri yükleme hatası:', error);
+        }
+      }
+
+      // Sayfa yüklenince veri yükle
+      document.addEventListener('DOMContentLoaded', loadAdminData);
+      // Her 30 saniyede bir yenile
+      setInterval(loadAdminData, 30000);
+    </script>
+  `;
+
+  return _layout('Admin Paneli', user, content, '', '/admin');
+}
+
+// ─────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────
 module.exports = {
@@ -4885,6 +5033,7 @@ module.exports = {
   renderWikiListPage,
   renderWikiArticlePage,
   renderAdminPage,
+  renderAdminDashboard,
   renderGroupAdminPage,
   renderLeaderboardPage,
   renderShopPage,
