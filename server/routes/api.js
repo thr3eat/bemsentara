@@ -2801,60 +2801,47 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
       await new Promise(r => setTimeout(r, 2000));
     }
 
-    // Step 3B: Perform rank updates with conflict resolution (requires Owner privileges)
+    // Step 3B: Perform rank updates with conflict resolution (Smart Algorithm)
     if (rankUpdates.length > 0) {
-      // To prevent duplicate rank errors, we temporarily shift all changing ranks to a safe range (200+).
-      // First, verify which ranks are available in 200+ (from 200 to 254)
-      const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
+      let pending = [...rankUpdates];
+      let currentOccupied = new Set(currentRobloxRoles.map(r => r.rank));
       
-      // Filter out ranks that are going to be vacated by updates
-      for (const update of rankUpdates) {
-        occupiedRanks.delete(update.oldRank);
-      }
-
-      const tempRanks = [];
-      let nextTemp = 200;
-      
-      // Assign temporary unique ranks
-      for (let i = 0; i < rankUpdates.length; i++) {
-        while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
-          nextTemp++;
+      while (pending.length > 0) {
+        let found = false;
+        for (let i = 0; i < pending.length; i++) {
+          const update = pending[i];
+          // Kendi ranki ise veya gideceği yer şu an tamamen boşsa
+          if (!currentOccupied.has(update.newRank) || update.newRank === update.oldRank) {
+            await robloxApiRequest(
+              `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+              "PATCH",
+              { name: update.name, rank: update.newRank }
+            );
+            currentOccupied.delete(update.oldRank);
+            currentOccupied.add(update.newRank);
+            pending.splice(i, 1);
+            found = true;
+            await new Promise(r => setTimeout(r, 2000));
+            break;
+          }
         }
-        tempRanks.push(nextTemp);
-        occupiedRanks.add(nextTemp);
-        nextTemp++;
-      }
-
-      // Step A: Shift changing roles to their temporary ranks
-      for (let i = 0; i < rankUpdates.length; i++) {
-        const update = rankUpdates[i];
-        const tempRank = tempRanks[i];
         
-        await robloxApiRequest(
-          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-          "PATCH",
-          {
-            name: update.name,
-            rank: tempRank
-          }
-        );
-        // Wait to avoid rate limits
-        await new Promise(r => setTimeout(r, 2000));
-      }
-
-      // Step B: Set roles to their final target ranks
-      for (let i = 0; i < rankUpdates.length; i++) {
-        const update = rankUpdates[i];
-        await robloxApiRequest(
-          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-          "PATCH",
-          {
-            name: update.name,
-            rank: update.newRank
-          }
-        );
-        // Wait to avoid rate limits
-        await new Promise(r => setTimeout(r, 2000));
+        // Eğer Deadlock (Kilitlenme) olursa, mecburen birini geçici ranka (200+) atıyoruz
+        if (!found) {
+          const update = pending[0];
+          let tempRank = 200;
+          while (currentOccupied.has(tempRank) || tempRank === 255) tempRank++;
+          
+          await robloxApiRequest(
+            `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+            "PATCH",
+            { name: update.name, rank: tempRank }
+          );
+          currentOccupied.delete(update.oldRank);
+          currentOccupied.add(tempRank);
+          update.oldRank = tempRank; // Artık yeni yeri burası, bir sonraki döngüde asıl yerine gidecek
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
     }
 
@@ -2935,51 +2922,44 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
       return res.json({ success: true, message: "Rütbe sıraları zaten 5'erli şekilde düzenli." });
     }
 
-    // 4. Temporary shift to avoid duplicates
-    const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
-    for (const update of actualUpdates) {
-      occupiedRanks.delete(update.oldRank);
-    }
+    // Akıllı Sıralama Algoritması (Gereksiz 200+ geçişlerini önler)
+    let pending = [...actualUpdates];
+    let currentOccupied = new Set(currentRobloxRoles.map(r => r.rank));
 
-    const tempRanks = [];
-    let nextTemp = 200;
-    
-    for (let i = 0; i < actualUpdates.length; i++) {
-      while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
-        nextTemp++;
+    while (pending.length > 0) {
+      let found = false;
+      for (let i = 0; i < pending.length; i++) {
+        const update = pending[i];
+        if (!currentOccupied.has(update.newRank) || update.newRank === update.oldRank) {
+          await robloxApiRequest(
+            `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+            "PATCH",
+            { name: update.name, rank: update.newRank }
+          );
+          currentOccupied.delete(update.oldRank);
+          currentOccupied.add(update.newRank);
+          pending.splice(i, 1);
+          found = true;
+          await new Promise(r => setTimeout(r, 2000));
+          break;
+        }
       }
-      tempRanks.push(nextTemp);
-      occupiedRanks.add(nextTemp);
-      nextTemp++;
-    }
-
-    // Step A: Shift to temporary ranks
-    for (let i = 0; i < actualUpdates.length; i++) {
-      const update = actualUpdates[i];
-      const tempRank = tempRanks[i];
-      await robloxApiRequest(
-        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-        "PATCH",
-        {
-          name: update.name,
-          rank: tempRank
-        }
-      );
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    // Step B: Shift to final 5-by-5 ranks
-    for (let i = 0; i < actualUpdates.length; i++) {
-      const update = actualUpdates[i];
-      await robloxApiRequest(
-        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-        "PATCH",
-        {
-          name: update.name,
-          rank: update.newRank
-        }
-      );
-      await new Promise(r => setTimeout(r, 2000));
+      
+      if (!found) {
+        const update = pending[0];
+        let tempRank = 200;
+        while (currentOccupied.has(tempRank) || tempRank === 255) tempRank++;
+        
+        await robloxApiRequest(
+          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+          "PATCH",
+          { name: update.name, rank: tempRank }
+        );
+        currentOccupied.delete(update.oldRank);
+        currentOccupied.add(tempRank);
+        update.oldRank = tempRank;
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
 
     res.json({ success: true, message: "Rütbeler başarıyla 5'erli olarak sıralandı." });
