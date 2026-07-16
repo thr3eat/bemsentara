@@ -2598,7 +2598,6 @@ router.post("/api/avukat/direct", async (req, res) => {
 
 
 // ─── Group Administration APIs ──────────────────────────────────────────────
-const axios = require("axios");
 const { groupAdmins, rankMetadata } = require("../../models/Store");
 const { ROBLOX_GROUPS } = require("../../bot/services/robloxGroupManager");
 
