@@ -291,6 +291,52 @@ router.post("/api/auth/verify-code", async (req, res) => {
   }
 });
 
+// Bot verification code endpoint
+router.post("/api/auth/bot-verify-code", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "Doğrulama kodu gereklidir." });
+
+  try {
+    const VerificationCode = require("../../models/VerificationCode");
+    const verificationRecord = await VerificationCode.findOne({ code });
+
+    if (!verificationRecord) {
+      return res.status(400).json({ error: "Geçersiz veya süresi dolmuş kod." });
+    }
+
+    const user = await User.findOne({ discordId: verificationRecord.discordId });
+    if (!user) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+
+    user.botVerified = true;
+    await user.save();
+    saveStoreNow();
+    await VerificationCode.verify(code);
+
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (client && client.isReady()) {
+      const discordUser = await client.users.fetch(verificationRecord.discordId).catch(() => null);
+      if (discordUser) {
+        const { EmbedBuilder } = require("discord.js");
+        const confirmEmbed = new EmbedBuilder()
+          .setTitle("✅ Doğrulama Başarılı!")
+          .setDescription("Hesabınız başarıyla doğrulandı!\n\nArtık Sentara botunun tüm komutlarını kullanabilirsiniz.")
+          .setColor(0x2ecc71)
+          .setFooter({ text: "Sentara" })
+          .setTimestamp();
+        await discordUser.send({ embeds: [confirmEmbed] }).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, message: "✅ Doğrulama başarılı! Artık botu kullanabilirsiniz." });
+  } catch (err) {
+    console.error("[bot-verify-code]", err);
+    res.status(500).json({ error: err.message || "Sunucu hatası." });
+  }
+});
+
 // Custom Password Login
 router.post("/api/auth/site-login", async (req, res) => {
   const { username, password, rememberMe } = req.body;
@@ -593,8 +639,8 @@ router.post("/api/auth/verify-request", async (req, res) => {
   }
 });
 
-// Verify code endpoint - called when user clicks link or enters code
-router.post("/api/auth/verify-code", async (req, res) => {
+// Verify bot verification code endpoint - called when user clicks link or enters code
+router.post("/api/auth/bot-verify-code", async (req, res) => {
   const { code } = req.body;
   
   if (!code) {
@@ -633,8 +679,7 @@ router.post("/api/auth/verify-code", async (req, res) => {
           .setTitle("✅ Doğrulama Başarılı!")
           .setDescription(
             `Hesabınız başarıyla doğrulandı!\n\n` +
-            `Artık Sentara botunun tüm komutlarını ve özelliklerini kullanabilirsiniz.\n\n` +
-            `Botun komutlarını görmek için \`/yardim\` yazabilirsiniz.`
+            `Artık Sentara botunun tüm komutlarını ve özelliklerini kullanabilirsiniz.`
           )
           .setColor(0x2ecc71)
           .setFooter({ text: "Sentara" })
@@ -649,7 +694,7 @@ router.post("/api/auth/verify-code", async (req, res) => {
       message: "✅ Doğrulama başarılı! Artık botu kullanabilirsiniz."
     });
   } catch (err) {
-    console.error("[verify-code]", err);
+    console.error("[bot-verify-code]", err);
     res.status(500).json({ error: err.message || "Sunucu hatası." });
   }
 });
@@ -687,7 +732,7 @@ router.get("/verify", async (req, res) => {
           async function verify(e) {
             e.preventDefault();
             const code = document.getElementById('code').value;
-            const res = await fetch('/api/auth/verify-code', {
+            const res = await fetch('/api/auth/bot-verify-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ code })
