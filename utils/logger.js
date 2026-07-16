@@ -95,22 +95,28 @@ const printWithDetails = (prefix, color, msg, details = "") => {
   }
 };
 
+const discordLogger = require("../bot/services/discordLogger");
+
 const logger = {
   info: (msg, details = "") => {
     addLog("INFO", msg, details);
     printWithDetails("ℹ INFO", chalk.blue, msg, details);
+    discordLogger.sendLog("bot", msg, details, "INFO");
   },
   success: (msg, details = "") => {
     addLog("SUCCESS", msg, details);
     printWithDetails("✅ SUCCESS", chalk.green, msg, details);
+    discordLogger.sendLog("bot", msg, details, "INFO");
   },
   warn: (msg, details = "") => {
     addLog("WARN", msg, details);
     printWithDetails("⚠ WARN", chalk.yellow, msg, details);
+    discordLogger.sendLog("bot", msg, details, "WARN");
   },
   error: (msg, err = "") => {
     addLog("ERROR", msg, err);
     printWithDetails("❌ ERROR", chalk.red, msg, err);
+    discordLogger.sendLog("error", msg, err, "ERROR");
   },
   step: (msg, details = "") => {
     addLog("STEP", msg, details);
@@ -122,6 +128,17 @@ const logger = {
     if (details) {
       console.log(chalk.dim(details));
     }
+  },
+  log: (msg, type = "INFO", details = "") => {
+    // Custom internal routing method
+    addLog(type, msg, details);
+    printWithDetails(`[${type}]`, chalk.magenta, msg, details);
+    // Route to discordLogger based on type
+    let system = "bot";
+    if (type === "admin") system = "admin";
+    if (type === "web" || type === "auth") system = type;
+    
+    discordLogger.sendLog(system, msg, details, "INFO");
   },
   getLogs: () => logs,
 };

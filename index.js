@@ -43,6 +43,11 @@ const { setDiscordClient } = require("./bot/discordClient");
 setDiscordClient(discordBot);
 initializeDiscordHandlers(discordBot);
 
+const discordLogger = require("./bot/services/discordLogger");
+discordBot.once("ready", async () => {
+  await discordLogger.init(discordBot);
+});
+
 cron.schedule("*/14 * * * *", async () => {
   try {
     await axios.get(`${BASE_URL}/api/health`);

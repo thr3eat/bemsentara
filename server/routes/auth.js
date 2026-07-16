@@ -4,6 +4,7 @@ const User = require("../../models/User");
 const { renderLoginPage, renderAuthorizePage } = require("../views");
 const { saveStoreNow } = require("../../models/Store");
 const { syncRoleConnectionForUser } = require("../services/discordRoleConnectionService");
+const logger = require("../../utils/logger");
 
 async function syncLinkedRoleMetadata(user, session = null) {
   if (!user?.discordId) return;
@@ -167,6 +168,7 @@ router.post("/api/auth/request-code", async (req, res) => {
       return res.status(400).json({ error: "Size DM gönderilemedi! Lütfen bot ile aynı sunucuda olduğunuza ve DMs'lerinizin açık olduğuna emin olun." });
     }
 
+    logger.log("[AUTH] " + discordId + " ID'li kullanıcı giriş kodu talep etti.", "auth");
     res.json({ success: true, message: "Kod Discord özel mesajlarınıza gönderildi." });
   } catch (err) {
     console.error("Request Code Error:", err);
@@ -232,6 +234,7 @@ router.post("/api/auth/verify-code", async (req, res) => {
         console.error("Login session setup error:", err);
         return res.status(500).json({ error: "Oturum açılamadı." });
       }
+      logger.log("[AUTH] " + user.username + " (" + user.discordId + ") sisteme başarıyla giriş yaptı.", "auth");
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
     });
   } catch (err) {

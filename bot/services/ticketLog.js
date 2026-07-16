@@ -61,16 +61,25 @@ async function sendTicketLog(embed, ticket) {
   try {
     const channel = await resolveLogChannel(ticket || {});
     if (channel) {
-      await channel.send({ embeds: [embed] });
-      return;
+      await channel.send({ embeds: [embed] }).catch(() => {});
+    } else if (TICKET_LOG_CHANNEL_ID) {
+      // Fallback: ana sunucu log kanalı
+      const client = getDiscordClient();
+      if (client?.isReady()) {
+        const guild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+        if (guild) {
+          const fallback = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
+          if (fallback?.isSendable()) await fallback.send({ embeds: [embed] }).catch(() => {});
+        }
+      }
     }
-    // Fallback: ana sunucu log kanalı
-    if (!TICKET_LOG_CHANNEL_ID) return;
-    const client = getDiscordClient();
-    if (!client?.isReady()) return;
-    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
-    const fallback = await guild.channels.fetch(TICKET_LOG_CHANNEL_ID);
-    if (fallback?.isSendable()) await fallback.send({ embeds: [embed] });
+    
+    // Centralized Logging (1483482948320891074)
+    const { getChannel } = require("./discordLogger");
+    const centralizedChannel = await getChannel("ticket");
+    if (centralizedChannel && centralizedChannel.id !== channel?.id) {
+      await centralizedChannel.send({ embeds: [embed] }).catch(() => {});
+    }
   } catch (err) {
     console.warn("[ticketLog] Kanala yazılamadı:", err.message);
   }
