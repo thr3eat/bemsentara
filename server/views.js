@@ -453,6 +453,38 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
         btn.classList.remove('open');
       }
     });
+
+    // ── Live Activity Tracker ──
+    const ACT_PING_FREQ = 2000; // 2 seconds
+    let actClicks = [];
+    let actPos = { x: 0, y: 0 };
+    
+    document.addEventListener('mousemove', (e) => {
+      actPos.x = e.clientX;
+      actPos.y = e.clientY;
+    }, { passive: true });
+
+    document.addEventListener('click', (e) => {
+      actClicks.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+    }, { passive: true });
+
+    setInterval(() => {
+      if (!document.hidden) {
+        fetch('/api/activity/ping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            x: actPos.x,
+            y: actPos.y,
+            w: window.innerWidth,
+            h: window.innerHeight,
+            url: window.location.pathname,
+            clicks: actClicks
+          })
+        }).catch(() => {});
+        actClicks = [];
+      }
+    }, ACT_PING_FREQ);
   </script>
 </body>
 </html>`;
@@ -2013,45 +2045,147 @@ function renderDebugPage(user, stats = {}, logs = []) {
       `).join('') || '<div class="card" style="padding:1.25rem;color:var(--muted);">İstatistik yok.</div>'}
     </div>
 
+    </div>
+
+    <!-- Live Users -->
+    <div class="card" style="margin-bottom:2rem;">
+      <h2 style="font-size:1.4rem;font-weight:800;color:var(--success);margin-bottom:1rem;">🟢 Canlı Kullanıcılar</h2>
+      <div id="live-users-output" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;">
+        <div style="color:var(--muted);">Yükleniyor...</div>
+      </div>
+    </div>
+
+    <!-- Live Screen Modal -->
+    <div id="live-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999;backdrop-filter:blur(10px);padding:2rem;">
+      <div class="card" style="max-width:1000px;margin:0 auto;height:100%;display:flex;flex-direction:column;position:relative;">
+        <button onclick="closeLiveModal()" style="position:absolute;top:1rem;right:1rem;background:var(--danger);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:bold;">X</button>
+        <h3 id="live-modal-title" style="margin-bottom:1rem;font-size:1.2rem;">Canlı İzleme</h3>
+        <p id="live-modal-url" style="color:var(--muted);margin-bottom:1rem;font-family:monospace;"></p>
+        <div id="live-screen-box" style="flex:1;background:#000;border:1px solid rgba(255,255,255,0.1);position:relative;overflow:hidden;border-radius:8px;">
+          <!-- Cursor -->
+          <div id="live-cursor" style="position:absolute;width:12px;height:12px;background:red;border-radius:50%;transform:translate(-50%,-50%);transition:top 0.1s,left 0.1s;pointer-events:none;z-index:10;box-shadow:0 0 10px red;"></div>
+        </div>
+        <div id="live-clicks-log" style="height:100px;background:rgba(255,255,255,0.05);margin-top:1rem;border-radius:8px;padding:0.5rem;overflow-y:auto;font-family:monospace;font-size:0.8rem;"></div>
+      </div>
+    </div>
+
     <!-- Logs -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-        <h2 style="font-size:1.4rem;font-weight:800;color:var(--success);">Loglar (${safeLogs.length})</h2>
+        <h2 style="font-size:1.4rem;font-weight:800;color:var(--accent);">Sistem Logları <span id="log-count"></span></h2>
         <div style="display:flex;gap:0.5rem;">
-          <select id="log-filter" style="width:auto;margin-bottom:0;font-size:0.85rem;">
+          <select id="log-filter" style="width:auto;margin-bottom:0;font-size:0.85rem;" onchange="renderLogs()">
             <option value="">Tümü</option>
             <option value="ERROR">ERROR</option>
             <option value="WARN">WARN</option>
             <option value="INFO">INFO</option>
           </select>
-          <button class="btn btn-sm btn-ghost" onclick="renderLogs()">Filtrele</button>
         </div>
       </div>
       <div id="log-output" style="max-height:500px;overflow-y:auto;font-family:monospace;font-size:0.8rem;"></div>
     </div>
 
     <script>
-      const rawLogs = ${JSON.stringify(safeLogs.slice().reverse())};
+      let rawLogs = \${JSON.stringify(safeLogs.slice().reverse())};
+      let liveUsers = [];
+      let watchingUserId = null;
 
+      // ── LOG RENDERER ──
       function renderLogs() {
         const filter = document.getElementById('log-filter').value;
         const list   = filter ? rawLogs.filter(l => l.type === filter) : rawLogs;
-        const colors = { ERROR:'#f87171', WARN:'#fbbf24', INFO:'#60a5fa' };
+        const colors = { ERROR:'#f87171', WARN:'#fbbf24', INFO:'#60a5fa', admin:'#a78bfa' };
 
+        document.getElementById('log-count').innerText = \`(\${list.length})\`;
         document.getElementById('log-output').innerHTML = list.length
           ? list.map(l => {
               const time    = (l.timestamp || '').split('T')[1] || l.timestamp || '';
               const timeStr = time.split('.')[0] || time;
               const col     = colors[l.type] || '#a0a0c0';
-              return \`<div style="border-bottom:1px solid rgba(255,255,255,0.07);padding:0.5rem 0;">
-                <span style="color:#555;">[&thinsp;\${timeStr}&thinsp;]</span>
-                <span style="color:\${col};font-weight:\${l.type==='ERROR'?'bold':'normal'};">&nbsp;\${l.type || '?'}</span>:
-                <span>&nbsp;\${l.msg || ''}</span>
-                \${l.details ? \`<div style="color:#888;margin-left:2rem;margin-top:0.2rem;">\${l.details}</div>\` : ''}
-              </div>\`;
+              return \\\`<div style="border-bottom:1px solid rgba(255,255,255,0.07);padding:0.5rem 0;">
+                <span style="color:#555;">[&thinsp;\\\${timeStr}&thinsp;]</span>
+                <span style="color:\\\${col};font-weight:\\\${l.type==='ERROR'?'bold':'normal'};">&nbsp;\\\${l.type || '?'}</span>:
+                <span>&nbsp;\\\${l.msg || ''}</span>
+                \\\${l.details ? \\\`<div style="color:#888;margin-left:2rem;margin-top:0.2rem;">\\\${l.details}</div>\\\` : ''}
+              </div>\\\`;
             }).join('')
           : '<div style="color:var(--muted);padding:1rem;text-align:center;">Log bulunamadı.</div>';
       }
+
+      // ── LIVE USERS RENDERER ──
+      function renderLiveUsers() {
+        const container = document.getElementById('live-users-output');
+        if (liveUsers.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted);">Şu an aktif kullanıcı yok.</div>';
+        } else {
+          container.innerHTML = liveUsers.map(u => \\\`
+            <div class="card" style="padding:1rem;display:flex;align-items:center;gap:1rem;cursor:pointer;border:1px solid \\\${watchingUserId === u.userId ? 'var(--success)' : 'rgba(255,255,255,0.1)'}" onclick="openLiveModal('\\\${u.userId}')">
+              <img src="\\\${u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:40px;height:40px;border-radius:50%;">
+              <div>
+                <div style="font-weight:bold;">\\\${u.username}</div>
+                <div style="font-size:0.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">\\\${u.url}</div>
+              </div>
+            </div>
+          \\\`).join('');
+        }
+
+        // Update active modal if watching
+        if (watchingUserId) {
+          const user = liveUsers.find(u => u.userId === watchingUserId);
+          if (user) {
+            document.getElementById('live-modal-title').innerText = "Canlı İzleme: " + user.username;
+            document.getElementById('live-modal-url').innerText = "Aktif Sayfa: " + user.url + " (" + user.w + "x" + user.h + ")";
+            
+            const box = document.getElementById('live-screen-box');
+            const cursor = document.getElementById('live-cursor');
+            
+            // Calculate scale
+            const scaleX = box.clientWidth / user.w;
+            const scaleY = box.clientHeight / user.h;
+            
+            cursor.style.left = (user.x * scaleX) + 'px';
+            cursor.style.top = (user.y * scaleY) + 'px';
+
+            const clicksLog = document.getElementById('live-clicks-log');
+            clicksLog.innerHTML = (user.clicks || []).map(c => 
+              \\\`<div>[\\\${new Date(c.t).toLocaleTimeString()}] Tıkladı: X=\\\${c.x}, Y=\\\${c.y}</div>\\\`
+            ).reverse().join('');
+          }
+        }
+      }
+
+      window.openLiveModal = function(userId) {
+        watchingUserId = userId;
+        document.getElementById('live-modal').style.display = 'block';
+        renderLiveUsers();
+      }
+      
+      window.closeLiveModal = function() {
+        watchingUserId = null;
+        document.getElementById('live-modal').style.display = 'none';
+        renderLiveUsers();
+      }
+
+      // ── AUTO POLLING ──
+      setInterval(async () => {
+        try {
+          const res = await fetch('/api/activity/users');
+          const data = await res.json();
+          if (data.success) {
+            liveUsers = data.users;
+            renderLiveUsers();
+          }
+        } catch (e) {}
+        
+        try {
+          const res = await fetch('/api/logs');
+          const data = await res.json();
+          if (data.success) {
+            rawLogs = data.logs.reverse();
+            renderLogs();
+          }
+        } catch (e) {}
+      }, 2000);
 
       renderLogs();
     </script>

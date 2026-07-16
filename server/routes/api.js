@@ -6,6 +6,7 @@ const Economy = require("../../models/Economy");
 const { wikiArticles, saveStoreNow } = require("../../models/Store");
 const { isSiteAdmin, isSiteStaff } = require("../../utils/adminCheck");
 const { SHOP_ITEMS, findItem } = require("../../bot/config/shopItems");
+const logger = require("../../utils/logger");
 
 const router = express.Router();
 
@@ -25,6 +26,27 @@ function requireAdmin(req, res) {
   }
   return true;
 }
+
+// --- ACTIVITY TRACKER ENDPOINTS ---
+const { updateActivity, getActiveUsers } = require("../services/activityTracker");
+
+router.post("/api/activity/ping", (req, res) => {
+  if (req.user) {
+    updateActivity(req.user, req.body);
+  }
+  res.json({ success: true });
+});
+
+router.get("/api/activity/users", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ success: true, users: getActiveUsers() });
+});
+
+router.get("/api/logs", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ success: true, logs: logger.getLogs() });
+});
+// ----------------------------------
 
 router.get("/api/tickets", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Yetkilendirme gerekli" });
@@ -2607,6 +2629,9 @@ router.post("/api/group-admin/admins", async (req, res) => {
 
   const created = groupAdmins.create({ username, createdAt: new Date() });
   await saveStoreNow();
+  
+  logger.log(`[GRUP YÖNETİCİSİ] ${req.user.discordUsername || req.user.username}, "${username}" kullanıcısını yönetici olarak ekledi.`, "admin");
+  
   res.json({ success: true, admin: created });
 });
 
@@ -2632,6 +2657,9 @@ router.delete("/api/group-admin/admins/:username", async (req, res) => {
   }
   
   await saveStoreNow();
+  
+  logger.log(\`[GRUP YÖNETİCİSİ] \${req.user.discordUsername || req.user.username}, "\${username}" kullanıcısının yönetici yetkisini kaldırdı.\`, "admin");
+  
   res.json({ success: true, message: "Kullanıcı yetkisi kaldırıldı." });
 });
 
@@ -2702,6 +2730,9 @@ router.patch("/api/group-admin/groups/:groupId/description", async (req, res) =>
       "PATCH",
       { description }
     );
+    
+    logger.log(`[GRUP YÖNETİCİSİ] ${req.user.discordUsername || req.user.username}, ${groupId} ID'li grubun açıklamasını güncelledi.`, "admin");
+    
     res.json({ success: true, message: "Grup açıklaması güncellendi." });
   } catch (err) {
     console.error("Update description error:", err.response?.data || err.message);
@@ -2869,6 +2900,9 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
     }
 
     await saveStoreNow();
+    
+    logger.log("[GRUP YÖNETİCİSİ] " + (req.user.discordUsername || req.user.username) + ", " + groupId + " ID'li grubun rütbe sıralarını/isimlerini/renklerini güncelledi.", "admin");
+    
     res.json({ success: true, message: "Rütbeler başarıyla güncellendi." });
   } catch (err) {
     console.error("Update roles error:", err.response?.data || err.message);
@@ -2962,6 +2996,7 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
       }
     }
 
+    logger.log("[GRUP YÖNETİCİSİ] " + (req.user.discordUsername || req.user.username) + ", " + groupId + " ID'li grubun rütbelerini 5'erli olarak sıraladı.", "admin");
     res.json({ success: true, message: "Rütbeler başarıyla 5'erli olarak sıralandı." });
   } catch (err) {
     console.error("Reorder 5 error:", err.response?.data || err.message);
@@ -3010,6 +3045,7 @@ router.patch("/api/group-admin/groups/:groupId/roles/:roleId/permissions", async
       "PATCH",
       permissions
     );
+    logger.log("[GRUP YÖNETİCİSİ] " + (req.user.discordUsername || req.user.username) + ", " + groupId + " ID'li grubun " + roleId + " ID'li rolünün izinlerini güncelledi.", "admin");
     res.json({ success: true, data });
   } catch (err) {
     console.error("Update permissions error:", err.message);
