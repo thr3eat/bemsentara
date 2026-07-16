@@ -409,7 +409,6 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       ${navLink('/leaderboard', 'Sıralama')}
       ${navLink('/shop', 'Mağaza')}
       ${navLink('/wiki', 'Wiki')}
-      ${navLink('/webhook', '🔗 Webhook')}
       ${navLink('/settings', 'Ayarlar')}
       ${groupAdminLink}
       ${staffLinks}

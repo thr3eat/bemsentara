@@ -4,6 +4,7 @@ const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
 } = require('discord.js');
 const noblox = require('noblox.js');
+const { chatWithAI } = require('./aiService');
 const StaffProgress = require('../../models/StaffProgress');
 const User = require('../../models/User');
 const logger = require('../../utils/logger');
@@ -109,6 +110,9 @@ const EXAM_QUESTIONS = [
   "Eko & Yıldız Moderatörü olmak nasıl bir his senin için? 🌸"
 ];
 
+const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const REMINDER_ATTEMPT_LIMIT = 3;
+
 // Active sessions in memory
 const activeTrainings = new Map(); // userId -> { phase, step, timeout, lastMessageId }
 const activeExams = new Map();      // userId -> { questionIndex, answers[] }
@@ -153,6 +157,183 @@ async function saveExamToDB(userId, session) {
     );
   } catch (err) {
     logger.error(`[ModeratorSchool] saveExamToDB error for ${userId}:`, err.message);
+  }
+}
+
+function formatPhaseLabel(phase) {
+  return phase === 2 ? '2. Aşama' : '1. Aşama';
+}
+
+async function sendAIFrustratedMessage(userId, client, level = 1) {
+  try {
+    const user = await client.users.fetch(userId);
+    if (!user) return;
+
+    const intensity = level === 1 ? 'Nazikçe' : 'Biraz daha sinirli şekilde';
+    const prompt = `Sen Selin'sin. Moderatör okulunun DM asistanısın. Kullanıcı, aşama eğitimini yapmayı reddetti.
+
+Görev: ona kısa ve anime tarzı, giderek kızgınlaşan bir mesaj yaz. Mesajda "Artık yapppp!!" ifadesini geçir. ${intensity} ama hâlâ tekrardan gelirse sevinirim havasında ol.
+
+Kurallar:
+- Türkçe konuş.
+- 200 karakteri geçme.
+- Emoji kullanabilirsin, ama fazlaya kaçma.
+- Mesaj sadece kullanıcının alacağı metin olsun.`;
+
+    const aiText = await chatWithAI(prompt, 'Sen sentara moderatör okulunun DM asistanısın. Kısa ve anime uslubunda konuş.', 'ticket', { max_tokens: 150, temperature: 0.9 }).catch(() => null);
+    const content = aiText && aiText.trim().length > 0
+      ? aiText.trim()
+      : 'Tamam.. yapacak bir şey yok ama geri gelirsen çok sevinirim. Artık yapppp!!';
+
+    await user.send({ content }).catch(() => {});
+  } catch (err) {
+    logger.error(`[ModeratorSchool] sendAIFrustratedMessage error for ${userId}:`, err.message);
+  }
+}
+
+async function scheduleSchoolReminders(client) {
+  try {
+    const dueTime = Date.now() - REMINDER_INTERVAL_MS;
+    const candidates = await StaffProgress.find({
+      'schoolSystem.status': { $in: ['pending_contract', 'in_school'] },
+    });
+
+    for (const candidate of candidates) {
+      const { userId, schoolSystem } = candidate;
+      const phase = schoolSystem.phase || 1;
+      const status = schoolSystem.status;
+      const lastSent = schoolSystem.reminderLastSentAt ? new Date(schoolSystem.reminderLastSentAt).getTime() : 0;
+      const isActiveTraining = activeTrainings.has(userId) || activeExams.has(userId);
+
+      if (isActiveTraining) continue;
+      if (status === 'pending_contract') {
+        if (!schoolSystem.reminderLastSentAt || lastSent <= dueTime) {
+          await sendContractDM(userId, client);
+          candidate.schoolSystem.reminderLastSentAt = new Date();
+          await candidate.save().catch(() => {});
+        }
+      }
+
+      if (status === 'in_school') {
+        if (!schoolSystem.reminderLastSentAt || lastSent <= dueTime) {
+          await sendSchoolReminderOffer(userId, client);
+          candidate.schoolSystem.reminderLastSentAt = new Date();
+          candidate.schoolSystem.reminderAttempts = (candidate.schoolSystem.reminderAttempts || 0) + 1;
+          await candidate.save().catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] scheduleSchoolReminders error:', err.message);
+  }
+}
+
+async function sendSchoolReminderOffer(userId, client) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (!p) return;
+    if (!p.schoolSystem) p.schoolSystem = { status: 'in_school', phase: 1, step: 0 };
+    const phase = p.schoolSystem.phase || 1;
+    const user = await client.users.fetch(userId);
+    if (!user) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff75a0)
+      .setTitle('🌸 Selin: Hadi bakalım...')
+      .setDescription(
+        `Merhaba! Görünüşe göre ${formatPhaseLabel(phase)} eğitimini hâlâ tamamlamamışsın. ` +
+        `Eğer şimdi kabul edersen, sana bu aşamayı çok hızlıca, metinleri tek tek okutmadan geçireceğim!` +
+        `
+
+Şimdi karar ver: eğitimi başlatmak ister misin?`
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('school_reminder_accept')
+        .setLabel('EVET, BAŞLAT')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('school_reminder_reject')
+        .setLabel('HAYIR, ŞİMDİ DEĞİL')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+    p.schoolSystem.reminderState = 'pending_initial';
+    p.schoolSystem.reminderLastSentAt = new Date();
+    await p.save().catch(() => {});
+  } catch (err) {
+    logger.error(`[ModeratorSchool] sendSchoolReminderOffer error for ${userId}:`, err.message);
+  }
+}
+
+async function startFastPassTraining(userId, client) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (!p) return;
+    const phase = p.schoolSystem?.phase || 1;
+    p.schoolSystem = p.schoolSystem || {};
+    p.schoolSystem.status = 'in_school';
+    p.schoolSystem.phase = phase;
+    p.schoolSystem.step = 0;
+    p.schoolSystem.reminderState = 'accepted';
+    p.schoolSystem.fastPassUsed = true;
+    p.schoolSystem.reminderLastSentAt = new Date();
+    await p.save().catch(() => {});
+
+    if (activeTrainings.has(userId)) return;
+    activeTrainings.set(userId, { phase, step: 0, lastMessageId: null });
+    await saveTrainingToDB(userId, activeTrainings.get(userId)).catch(() => {});
+    await sendTrainingBlock(userId, client);
+  } catch (err) {
+    logger.error(`[ModeratorSchool] startFastPassTraining error for ${userId}:`, err.message);
+  }
+}
+
+async function handleReminderRejection(userId, client, finalReject = false) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    const user = await client.users.fetch(userId);
+    if (!user) return;
+    if (!p) return;
+    if (!p.schoolSystem) p.schoolSystem = { status: 'in_school', phase: 1, step: 0 };
+
+    if (!finalReject) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff75a0)
+        .setTitle('🤔 Emin misin?')
+        .setDescription(
+          `Şimdi kabul edersen sana bu aşamayı hızlıca geçiririm. Eğer reddedersen, bu fırsatı kaçırmış olacaksın. Tekrar düşünmek ister misin?`
+        );
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('school_reminder_accept')
+          .setLabel('EVET, KABUL ET')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('school_reminder_reject_confirm')
+          .setLabel('EVET, KAÇIRIYORUM')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+      p.schoolSystem.reminderState = 'pending_fastpass';
+      p.schoolSystem.reminderLastSentAt = new Date();
+      await p.save().catch(() => {});
+      return;
+    }
+
+    p.schoolSystem.reminderState = 'declined';
+    p.schoolSystem.reminderLastSentAt = new Date();
+    p.schoolSystem.reminderAttempts = (p.schoolSystem.reminderAttempts || 0) + 1;
+    await p.save().catch(() => {});
+
+    await user.send({ content: 'Tamam.. yapacak bir şey yok ama geri gelirsen çok sevinirim. 💕' }).catch(() => {});
+    await sendAIFrustratedMessage(userId, client, p.schoolSystem.reminderAttempts || 1);
+  } catch (err) {
+    logger.error(`[ModeratorSchool] handleReminderRejection error for ${userId}:`, err.message);
   }
 }
 
@@ -330,6 +511,11 @@ async function initializeModeratorSchool(client) {
         logger.error('[ModeratorSchool] Error scanning voice channels on startup:', scanErr.message);
       }
     }, 7000);
+
+    await scheduleSchoolReminders(client);
+    setInterval(() => {
+      scheduleSchoolReminders(client).catch(err => logger.error('[ModeratorSchool] scheduleSchoolReminders interval error:', err.message));
+    }, REMINDER_INTERVAL_MS);
 
   } catch (err) {
     logger.error('[ModeratorSchool] Startup hook hatası:', err.message);
@@ -562,12 +748,33 @@ async function handleSchoolButtons(interaction, client) {
     return;
   }
 
+  if (customId === 'school_reminder_accept') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: '✅ Harika! Eğitimin hemen başlatılıyor. Lütfen DM kutunu kontrol et.', embeds: [], components: [] }).catch(() => { });
+    await startFastPassTraining(userId, client);
+    return;
+  }
+
+  if (customId === 'school_reminder_reject') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: '🤔 Tamam... ama önce emin ol. Bu fırsatı kaçırmak istemiyorsan tekrar düşünmek için bir şans daha var.', embeds: [], components: [] }).catch(() => { });
+    await handleReminderRejection(userId, client, false);
+    return;
+  }
+
+  if (customId === 'school_reminder_reject_confirm') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: 'Tamam.. yapacak bir şey yok ama geri gelirsen çok sevinirim.', embeds: [], components: [] }).catch(() => { });
+    await handleReminderRejection(userId, client, true);
+    return;
+  }
+
   if (customId === 'school_accept_contract') {
     await interaction.deferUpdate().catch(() => { });
 
     // 1. Reply to DM
     await interaction.editReply({
-      content: ' Tamamdır. Sözleşmeyi kabul ettiğine göre seni moderatör ekibine transfer ediyorum. Orada diğer arkadaşım Selinle tanışacaksın. Ona benden selam gönderirsin.',
+      content: ' Tamamdır. Sözleşmeyi kabul ettiğine göre seni moderatör ekibine transfer ediyorum. Orada diğer arkadaşım Selinle tanışırsın. Ona benden selam gönderirsin.',
       embeds: [], components: []
     }).catch(() => { });
 

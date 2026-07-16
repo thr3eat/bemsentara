@@ -17,7 +17,6 @@ const {
   renderBriefingOnboardingModal,
   renderLeaderboardPage,
   renderShopPage,
-  renderWebhookPage,
   renderGroupAdminPage,
 } = require("../views");
 const { users, tickets, economies, wikiArticles } = require("../../models/Store");
@@ -399,7 +398,7 @@ router.get("/shop", (req, res) => {
 });
 
 router.get("/webhook", (req, res) => {
-  res.send(renderWebhookPage(req.user));
+  return res.redirect("/dashboard");
 });
 
 // Admin Dashboard
