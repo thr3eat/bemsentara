@@ -366,9 +366,9 @@ router.get("/admin", (req, res) => {
 router.get("/group-admin", async (req, res) => {
   if (!req.user) return res.redirect("/login");
   
-  const isOwner = req.user.discordUsername === "ekonqtx";
+  const isOwner = req.user.discordUsername.toLowerCase() === "ekonqtx";
   const { groupAdmins } = require("../../models/Store");
-  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername });
+  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername }) || groupAdmins.findOne({ username: req.user.discordUsername.toLowerCase() });
   
   if (!isOwner && !isAdmin) {
     return res.redirect("/");

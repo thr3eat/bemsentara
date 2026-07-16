@@ -2508,8 +2508,8 @@ function requireGroupAdmin(req, res) {
     res.status(401).json({ error: "Giriş yapmanız gerekli." });
     return false;
   }
-  const isOwner = req.user.discordUsername === "ekonqtx";
-  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername });
+  const isOwner = req.user.discordUsername.toLowerCase() === "ekonqtx";
+  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername }) || groupAdmins.findOne({ username: req.user.discordUsername.toLowerCase() });
   if (!isOwner && !isAdmin) {
     res.status(403).json({ error: "Bu işlem için grup yetkilisi olmanız gerekmektedir." });
     return false;
@@ -2522,7 +2522,7 @@ function requireGroupOwner(req, res) {
     res.status(401).json({ error: "Giriş yapmanız gerekli." });
     return false;
   }
-  if (req.user.discordUsername !== "ekonqtx") {
+  if (req.user.discordUsername.toLowerCase() !== "ekonqtx") {
     res.status(403).json({ error: "Bu işlem için grup sahibi (ekonqtx) olmanız gerekmektedir." });
     return false;
   }
@@ -2715,11 +2715,17 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
     // 2. Identify the modifications and update colors locally
     const nameOnlyUpdates = [];
     const rankUpdates = [];
+    const newRolesToCreate = [];
     for (const item of roles) {
       const roleId = String(item.id);
       const name = item.name;
       const rank = parseInt(item.rank, 10);
       const color = item.color || "#7c6af7";
+
+      if (roleId.startsWith("new_")) {
+        newRolesToCreate.push({ name, rank, color, roleId });
+        continue;
+      }
 
       // Find current state
       const current = currentRobloxRoles.find(r => String(r.id) === roleId);
@@ -2738,26 +2744,32 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         await meta.save();
       }
 
-      if (isSystemRole) {
-        // Skip calling Roblox API for System roles (Guest/Owner)
-        continue;
-      }
-
       // Identify type of update
-      if (current.name !== name && current.rank === rank) {
-        nameOnlyUpdates.push({
-          id: roleId,
-          name: name,
-          description: current.description || ""
-        });
-      } else if (current.rank !== rank) {
-        rankUpdates.push({
-          id: roleId,
-          oldRank: current.rank,
-          newRank: rank,
-          name: name,
-          description: current.description || ""
-        });
+      if (isSystemRole) {
+        // Cannot modify rank of system roles (Guest/Owner)
+        if (current.name !== name) {
+          nameOnlyUpdates.push({
+            id: roleId,
+            name: name,
+            description: current.description || ""
+          });
+        }
+      } else {
+        if (current.name !== name && current.rank === rank) {
+          nameOnlyUpdates.push({
+            id: roleId,
+            name: name,
+            description: current.description || ""
+          });
+        } else if (current.rank !== rank) {
+          rankUpdates.push({
+            id: roleId,
+            oldRank: current.rank,
+            newRank: rank,
+            name: name,
+            description: current.description || ""
+          });
+        }
       }
     }
 
@@ -2831,6 +2843,29 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         );
         // Wait to avoid rate limits
         await new Promise(r => setTimeout(r, 450));
+      }
+    }
+
+    // Step 3C: Create new roles
+    for (const newRole of newRolesToCreate) {
+      try {
+        const createRes = await robloxApiRequest(
+          `https://groups.roblox.com/v1/groups/${groupId}/rolesets`,
+          "POST",
+          {
+            name: newRole.name || "Yeni Rol",
+            description: "",
+            rank: newRole.rank
+          }
+        );
+        // Save its color locally if a color was provided
+        if (createRes && createRes.id) {
+          rankMetadata.create({ groupId, roleId: String(createRes.id), color: newRole.color, createdAt: new Date() });
+        }
+        await new Promise(r => setTimeout(r, 450));
+      } catch (err) {
+        console.error("Yeni rol oluşturma hatası:", err.response?.data || err.message);
+        throw new Error("Yeni rol oluşturulamadı: " + (err.response?.data?.errors?.[0]?.message || err.message));
       }
     }
 

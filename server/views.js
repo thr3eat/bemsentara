@@ -3356,6 +3356,9 @@ function renderGroupAdminPage(user, isOwner = false) {
               <p id="active-group-id" class="text-muted" style="font-size:0.85rem;margin-top:0.2rem;font-family:monospace;"></p>
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button class="btn btn-success" onclick="addNewRoleRow()">
+                ➕ Yeni Rol Ekle
+              </button>
               <button class="btn btn-ghost" onclick="reorderCurrentGroup5by5()">
                 ⚡ 5'erli Sırala
               </button>
@@ -3587,7 +3590,8 @@ function renderGroupAdminPage(user, isOwner = false) {
 
         // Rütbeleri rank sırasına göre sıralı gösterelim (büyükten küçüğe: Roblox standartı veya küçükten büyüğe)
         // Kolaylık olması için: Owner (255) en üstte, Guest (0) en altta. Aradakiler sürüklenebilir.
-        const sortedRoles = [...rolesData].sort((a, b) => b.rank - a.rank);
+        rolesData = [...rolesData].sort((a, b) => b.rank - a.rank);
+        const sortedRoles = rolesData;
 
         list.innerHTML = sortedRoles.map((role, index) => {
           const isSystem = role.rank === 0 || role.rank === 255;
@@ -3625,6 +3629,21 @@ function renderGroupAdminPage(user, isOwner = false) {
         if (role) {
           role.color = val;
         }
+      }
+
+      function addNewRoleRow() {
+        if (!currentGroupId) return;
+        const newId = 'new_' + Date.now();
+        // Varsayılan olarak rank 1 verebiliriz, recalculateRankNumbers bunu düzenleyecektir
+        rolesData.push({
+          id: newId,
+          name: 'Yeni Rütbe',
+          rank: 1,
+          color: '#ffffff'
+        });
+        recalculateRankNumbers();
+        renderRolesList();
+        showToast('Yeni rol eklendi. Sırasını sürükleyerek ayarlayın ve kaydedin.', 'info');
       }
 
       // Sürükle Bırak Event Yöneticileri
@@ -3703,26 +3722,20 @@ function renderGroupAdminPage(user, isOwner = false) {
 
       // Drag and drop sonrasında rank numaralarını bozmadan 5erli aralıklara oturtalım
       function recalculateRankNumbers() {
-        // Editlenebilir rütbeleri ayıkla ve sıralarını koruyarak (listede aşağıdan yukarıya / küçükten büyüğe) ranklerini güncelle
-        // rolesData içinde Guest (0) ve Owner (255) hariç olanları alalım
-        const reorderable = rolesData.filter(r => r.rank > 0 && r.rank < 255);
-        
-        // Rütbeleri arayüzdeki sıraya göre (büyükten küçüğe listelendiği için ters sıraya alıyoruz)
-        // En düşük olan en sonda olmalı, o yüzden reverse yapıp sıralıyoruz
-        const listOrderIds = Array.from(document.querySelectorAll('.role-row')).map(el => el.getAttribute('data-role-id')).reverse();
-        
-        const reorderableIds = listOrderIds.filter(id => {
-          const r = rolesData.find(x => x.id === id);
-          return r && r.rank > 0 && r.rank < 255;
-        });
-
-        // 5, 10, 15... şeklinde dağıt
-        reorderableIds.forEach((id, index) => {
-          const r = rolesData.find(x => x.id === id);
-          if (r) {
-            r.rank = 5 * (index + 1);
+        // rolesData şu an yeni sıralamasıyla (büyükten küçüğe) duruyor.
+        // En sondaki Owner veya Guest olabilir.
+        // Biz sadece rank > 0 && rank < 255 olanları sıralayacağız.
+        // Aşağıdan yukarıya (küçük rankten büyüğe) 5, 10, 15 şeklinde vermeliyiz.
+        // Bunun için diziyi ters çevirip işleyebiliriz.
+        let currentRank = 5;
+        // rolesData büyükten küçüğe sıralı. Sondan başa doğru gidersek küçükten büyüğe gitmiş oluruz.
+        for (let i = rolesData.length - 1; i >= 0; i--) {
+          const r = rolesData[i];
+          if (r.rank > 0 && r.rank < 255) {
+            r.rank = currentRank;
+            currentRank += 5;
           }
-        });
+        }
       }
 
       // ── API İşlemleri (Description, Save Roles, Reorder 5) ──
