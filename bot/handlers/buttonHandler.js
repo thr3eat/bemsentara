@@ -1124,6 +1124,22 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId === "staff_inactivity_request") {
+    const { handleInactivitySupportRequest } = require("../services/staffSystem");
+    return handleInactivitySupportRequest(interaction, interaction.client);
+  }
+
+  if (customId === "staff_inactivity_proof") {
+    const { handleInactivityProofButton } = require("../services/staffSystem");
+    return handleInactivityProofButton(interaction, interaction.client);
+  }
+
+  if (customId === "staff_inactivity_wellbeing_yes" || customId === "staff_inactivity_wellbeing_no") {
+    const { handleInactivityWellbeingButton } = require("../services/staffSystem");
+    const response = customId === "staff_inactivity_wellbeing_yes" ? "yes" : "no";
+    return handleInactivityWellbeingButton(interaction, interaction.client, response);
+  }
+
   // ── Ayarlar Butonu ────────────────────────────────────────────────────────
   if (customId === "staff_settings") {
     await interaction.deferUpdate().catch(() => { });

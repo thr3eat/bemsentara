@@ -2070,6 +2070,335 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
   } catch (_) { }
 }
 
+function shouldOfferInactivitySupport(progress) {
+  if (!progress || !progress.stats) return false;
+  const highStreak = (progress.stats.consecutiveDays || 0) >= 7;
+  const highPerformance = progress.level >= 3 || (progress.stats.ticketsSolved || 0) >= 75 || (progress.stats.activeDays || 0) >= 14;
+  return highStreak && highPerformance;
+}
+
+async function offerInactivitySupportIfNeeded(progress, client) {
+  if (!shouldOfferInactivitySupport(progress)) return;
+  const today = todayStr();
+  if (!progress.leaves) progress.leaves = {};
+  if (progress.leaves.lastInactivityOfferDate === today) return;
+  progress.leaves.lastInactivityOfferDate = today;
+  await progress.save().catch(() => { });
+  await sendInactivityOfferDM(progress, client).catch(() => { });
+}
+
+async function sendInactivityOfferDM(progress, client) {
+  if (await hasInactivityRole(progress.userId, client)) return;
+  const prompt = `Eko Yıldız personeli ${ROLE_NAMES[progress.level]} uzun süredir düzenli aktif değil. Bu kişinin geçmişteki yüksek performansı ve streaki yüksek. Türkçe, üzgün ama anlayışlı bir destek mesajı yaz. Mesajın sonunda kullanıcının "İnaktiflik Talep Et" butonuna basmasını iste.`;
+  let aiMessage = '';
+  try {
+    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], 'Sen nazik, destekleyici ve empatik bir çalışan koçusun.');
+    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+  } catch (_) { aiMessage = ''; }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x6f42c1)
+    .setTitle('😔 N’oldu? Neden aktif değilsin?')
+    .setDescription(
+      `${aiMessage || 'Uzun süredir seni sunucuda göremiyoruz. N’oldu? Neden aktif değilsin?'}\n\n` +
+      `Eğer istersen inaktiflik talep edebilirsin. Sebebini aşağıdan paylaş, böylece seni daha doğru anlayalım.`
+    )
+    .addFields(
+      { name: '⭐ Seviyen', value: ROLE_NAMES[progress.level], inline: true },
+      { name: '🔥 Ardışık Günler', value: `${progress.stats?.consecutiveDays || 0}`, inline: true },
+      { name: '🏆 Toplam Ticket', value: `${progress.stats?.ticketsSolved || 0}`, inline: true }
+    )
+    .setFooter({ text: 'Eko Yıldız • Personel Desteği' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_inactivity_request')
+        .setLabel('İnaktiflik Talep Et')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('staff_update_progress')
+        .setLabel('👤 Moderatör Anasayfası')
+        .setStyle(ButtonStyle.Secondary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
+  } catch (_) { }
+}
+
+function reasonNeedsProof(reason) {
+  if (!reason) return false;
+  return /sağlık|okul|ders|hastalık|ameliyat|tedavi|psikolojik|mental|aile|kardeş|cenaze|yakın|baba|anne|çocuk|engelli|rapor|rehabilitasyon|okul|sınav|kaza/i.test(reason);
+}
+
+function getLatestPendingInactivityRequest(progress) {
+  if (!progress.leaves || !Array.isArray(progress.leaves.inactivityRequests)) return null;
+  return progress.leaves.inactivityRequests
+    .filter(req => req.type === 'inactivity' && req.status === 'pending')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
+}
+
+async function saveInactivitySummary(progress, request) {
+  if (!progress.coachMemory) progress.coachMemory = new Map();
+  const summary = `İnaktiflik sebebi: ${request.reason || 'Belirtilmedi'}\nKanıt: ${request.evidence || 'Yok'}\nKendini iyi hissediyor mu: ${request.wellbeingResponse || 'Henüz yanıtlanmadı'}`;
+  progress.coachMemory.set(`inactivity_${request.id}`, summary);
+}
+
+async function approveInactivityRequest(progress, request, client) {
+  if (!progress.leaves) progress.leaves = {};
+  request.status = 'approved';
+  request.approved = true;
+  request.approvedAt = new Date();
+  request.type = 'inactivity';
+  if (!progress.leaves.inactivityRequests) progress.leaves.inactivityRequests = [];
+  if (!progress.leaves.usedDays) progress.leaves.usedDays = [];
+  const today = todayStr();
+  if (!progress.leaves.usedDays.includes(today)) {
+    progress.leaves.usedDays.push(today);
+  }
+  await saveInactivitySummary(progress, request).catch(() => {});
+  await progress.save().catch(() => {});
+  await sendInactivityWellbeingPrompt(progress, request, client).catch(() => {});
+  return true;
+}
+
+async function sendInactivityProofRequestDM(progress, request, client) {
+  const embed = new EmbedBuilder()
+    .setColor(0xff9500)
+    .setTitle('📎 İnaktiflik için kanıt gerekli')
+    .setDescription(
+      `Sebebine göre bu inaktiflik talebi sağlık, okul veya benzeri hassas bir durum içeriyor. Lütfen aşağıdan kanıt veya ek açıklama paylaş.`
+    )
+    .addFields(
+      { name: 'Sebep', value: request.reason || 'Belirtilmedi' },
+      { name: 'Nasıl paylaşabilirsin?', value: 'Buraya link, belge ya da kısa açıklama ekle. Eğer dosya eklemek istersen direkt bu DM kanalına da gönderebilirsin.' }
+    )
+    .setFooter({ text: 'Eko Yıldız • İnaktiflik Desteği' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_inactivity_proof')
+        .setLabel('Kanıt / Ek Açıklama Gönder')
+        .setStyle(ButtonStyle.Primary)
+    );
+    await user.send({ embeds: [embed], components: [row] });
+  } catch (_) { }
+}
+
+async function sendInactivityWellbeingPrompt(progress, request, client) {
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('💚 Kendini iyi hissediyor musun?')
+    .setDescription(
+      `İnaktiflik talebin onaylandı. Şu anda biraz dinlenebilirsin. Sana bir soru soracağız çünkü sağlığın ve ruh halin bizim için önemli.
+
+` +
+      `🔹 Eğer kendini iyi hissetmiyorsan, bize haber ver. Eğer iyisen de bunu bilmek güzel.`
+    )
+    .setFooter({ text: 'Eko Yıldız • İyi Olman Önemli' })
+    .setTimestamp();
+
+  try {
+    const user = await client.users.fetch(progress.userId);
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_inactivity_wellbeing_yes')
+        .setLabel('Evet, iyiyim')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('staff_inactivity_wellbeing_no')
+        .setLabel('Hayır, iyi değilim')
+        .setStyle(ButtonStyle.Danger)
+    );
+    await user.send({ embeds: [embed], components: [row] });
+  } catch (_) { }
+}
+
+async function submitInactivityRequest(userId, reason, evidence, client) {
+  try {
+    const progress = await getOrCreate(userId, GUILD_ID, client);
+    if (!progress || progress.status !== 'active') {
+      return { success: false, message: 'Aktif personel değil misin? Bu işlemi yapamazsın.' };
+    }
+    if (!progress.leaves) progress.leaves = {};
+    if (!progress.leaves.inactivityRequests) progress.leaves.inactivityRequests = [];
+
+    const request = {
+      id: `inactivity_${Date.now()}`,
+      createdAt: new Date(),
+      reason: reason?.trim() || '',
+      evidence: evidence?.trim() || '',
+      status: 'pending',
+      approved: false,
+      approvedAt: null,
+      proofRequestedAt: null,
+      wellbeingResponse: null,
+      wellbeingAnsweredAt: null,
+      type: 'inactivity'
+    };
+    progress.leaves.inactivityRequests.push(request);
+    const needsProof = reasonNeedsProof(request.reason);
+    if (needsProof && !request.evidence) {
+      request.proofRequestedAt = new Date();
+      await progress.save();
+      await sendInactivityProofRequestDM(progress, request, client).catch(() => {});
+      return {
+        success: true,
+        message: 'Talebiniz alındı. Sağlık/okul gibi bir durum görüyoruz; lütfen kanıt veya ek açıklama gönderin.'
+      };
+    }
+    if (!request.evidence && !needsProof) {
+      // Yine de onayla, çünkü istek destek amaçlıdır.
+      await approveInactivityRequest(progress, request, client);
+      return { success: true, message: 'İnaktiflik talebin onaylandı. Bugün dinlenebilirsin.' };
+    }
+    // Sağlık/okul gibi durumsa kanıt varsa onayla
+    if (needsProof && request.evidence) {
+      await approveInactivityRequest(progress, request, client);
+      return { success: true, message: 'İnaktiflik talebin kanıtla birlikte alındı ve onaylandı.' };
+    }
+    // Genel durum, yeterli.
+    await approveInactivityRequest(progress, request, client);
+    return { success: true, message: 'İnaktiflik talebin onaylandı. Bugün dinlenebilirsin.' };
+  } catch (err) {
+    console.error('[staffSystem] submitInactivityRequest error:', err.message);
+    return { success: false, message: 'İnaktiflik talebin işlenirken hata oluştu.' };
+  }
+}
+
+async function handleInactivitySupportModal(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const reason = interaction.fields.getTextInputValue('inactivity_reason');
+    const evidence = interaction.fields.getTextInputValue('inactivity_evidence');
+    const result = await submitInactivityRequest(interaction.user.id, reason, evidence, client);
+    await interaction.editReply({ content: result.message });
+  } catch (err) {
+    console.error('[staffSystem] handleInactivitySupportModal error:', err.message);
+    await interaction.editReply({ content: 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin.' });
+  }
+}
+
+async function handleInactivityProofModal(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const evidence = interaction.fields.getTextInputValue('proof_link');
+    const progress = await getOrCreate(interaction.user.id, GUILD_ID, client);
+    if (!progress) {
+      return interaction.editReply({ content: 'Personel kaydın bulunamadı.' });
+    }
+    const request = getLatestPendingInactivityRequest(progress);
+    if (!request) {
+      return interaction.editReply({ content: 'Gönderilecek bekleyen bir inaktiflik talebin yok.' });
+    }
+    request.evidence = evidence?.trim() || request.evidence;
+    await progress.save();
+    const result = await submitInactivityRequest(interaction.user.id, request.reason, request.evidence, client);
+    await interaction.editReply({ content: result.message });
+  } catch (err) {
+    console.error('[staffSystem] handleInactivityProofModal error:', err.message);
+    await interaction.editReply({ content: 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin.' });
+  }
+}
+
+async function recordInactivityWellbeingResponse(userId, response, client) {
+  try {
+    const progress = await getOrCreate(userId, GUILD_ID, client);
+    if (!progress) return { success: false, message: 'Personel kaydın bulunamadı.' };
+    const request = progress.leaves?.inactivityRequests?.slice().reverse().find(r => r.type === 'inactivity' && r.approved);
+    if (!request) {
+      return { success: false, message: 'Onaylanmış bir inaktiflik talebin yok.' };
+    }
+    request.wellbeingResponse = response;
+    request.wellbeingAnsweredAt = new Date();
+    await saveInactivitySummary(progress, request).catch(() => {});
+    await progress.save().catch(() => {});
+
+    const supportPrompt = `Bu kişi inaktiflik için izin aldı. Sebebi: ${request.reason}. Kanıt: ${request.evidence || 'Yok'}. Kendini iyi hissediyor musun? sorusuna verdiği cevap: ${response}. Kısa, nazik ve destekleyici bir mesaj yaz.`;
+    let aiResponse = '';
+    try {
+      aiResponse = await chatWithAI([{ role: 'user', content: supportPrompt }], 'Sen şefkatli ve destekleyici bir iş koçusun.');
+      aiResponse = aiResponse?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+    } catch (_) { aiResponse = ''; }
+
+    if (client) {
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) {
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('💬 Durum Güncellemesi Kaydedildi')
+          .setDescription(aiResponse || 'Cevabınız kaydedildi. Kendine iyi bak, buradayız.')
+          .setFooter({ text: 'Eko Yıldız • Seninle birlikteyiz' })
+          .setTimestamp();
+        await user.send({ embeds: [embed] }).catch(() => { });
+      }
+    }
+    return { success: true, message: 'Cevabın kaydedildi. Sana destek mesajı gönderdim.' };
+  } catch (err) {
+    console.error('[staffSystem] recordInactivityWellbeingResponse error:', err.message);
+    return { success: false, message: 'Cevabın kaydedilirken hata oluştu.' };
+  }
+}
+
+async function handleInactivityButtonResponse(interaction, client, response) {
+  await interaction.deferReply({ ephemeral: true });
+  const result = await recordInactivityWellbeingResponse(interaction.user.id, response, client);
+  await interaction.editReply({ content: result.message });
+}
+
+async function handleInactivityRequestButton(interaction, client) {
+  const modal = new (require('discord.js').ModalBuilder)()
+    .setCustomId('modal_inactivity_support')
+    .setTitle('İnaktiflik Talep Formu');
+  const { TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('inactivity_reason')
+    .setLabel('Neden aktif değilsin?')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true);
+  const evidenceInput = new TextInputBuilder()
+    .setCustomId('inactivity_evidence')
+    .setLabel('Kanıt / Ek Açıklama (opsiyonel)')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(false);
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(reasonInput),
+    new ActionRowBuilder().addComponents(evidenceInput)
+  );
+  return interaction.showModal(modal);
+}
+
+async function handleInactivityProofButton(interaction, client) {
+  const modal = new (require('discord.js').ModalBuilder)()
+    .setCustomId('modal_inactivity_proof')
+    .setTitle('İnaktiflik Kanıtı Gönder');
+  const { TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+  const proofInput = new TextInputBuilder()
+    .setCustomId('proof_link')
+    .setLabel('Kanıt Linki / Açıklama')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(proofInput));
+  return interaction.showModal(modal);
+}
+
+async function handleInactivityWellbeingButton(interaction, client, response) {
+  await interaction.deferReply({ ephemeral: true });
+  const result = await recordInactivityWellbeingResponse(interaction.user.id, response, client);
+  await interaction.editReply({ content: result.message });
+}
+
+async function handleInactivitySupportRequest(interaction, client) {
+  return handleInactivityRequestButton(interaction, client);
+}
+
 async function sendRequirementIncreaseDM(progress, client) {
   if (await hasInactivityRole(progress.userId, client)) return;
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
@@ -4116,4 +4445,9 @@ module.exports = {
   recordGamePlay,
   resetDaily,
   addEkoCoin,
+  handleInactivitySupportRequest,
+  handleInactivityProofButton,
+  handleInactivityWellbeingButton,
+  handleInactivitySupportModal,
+  handleInactivityProofModal,
 };

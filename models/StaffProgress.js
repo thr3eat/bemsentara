@@ -71,6 +71,8 @@ const staffProgressSchema = new mongoose.Schema({
     totalCredits: { type: Number, default: 0 },  // Toplam izin kredileri
     usedDays: { type: [String], default: [] }, // Kullanılan izin günleri [YYYY-MM-DD]
     pendingRequests: { type: [Object], default: [] },  // Bekleyen izin talepleri
+    inactivityRequests: { type: [Object], default: [] }, // İnaktiflik talepleri
+    lastInactivityOfferDate: { type: String, default: null }, // Son inaktiflik teklifinin günü
     lastLeaveDate: { type: String, default: null },   // Son izin tarihi
     monthlyLeaveUsed: { type: Number, default: 0 },      // Bu ay kullanılan izin günü
     weeklyLeaveUsed: { type: Number, default: 0 },      // Bu hafta kullanılan izin günü

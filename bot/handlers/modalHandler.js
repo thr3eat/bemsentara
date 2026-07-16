@@ -132,6 +132,16 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId === 'modal_inactivity_support') {
+    const { handleInactivitySupportModal } = require('../services/staffSystem');
+    return handleInactivitySupportModal(interaction, interaction.client);
+  }
+
+  if (interaction.customId === 'modal_inactivity_proof') {
+    const { handleInactivityProofModal } = require('../services/staffSystem');
+    return handleInactivityProofModal(interaction, interaction.client);
+  }
+
   if (interaction.customId.startsWith('setup_branch_modal_')) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const targetGuildId = interaction.customId.replace('setup_branch_modal_', '');
