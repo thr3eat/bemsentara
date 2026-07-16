@@ -2167,7 +2167,7 @@ function renderDebugPage(user, stats = {}, logs = []) {
     </div>
 
     <script>
-      let rawLogs = \${JSON.stringify(safeLogs.slice().reverse())};
+      let rawLogs = ${JSON.stringify(safeLogs.slice().reverse())};
       let liveUsers = [];
       let watchingUserId = null;
 
@@ -2199,15 +2199,15 @@ function renderDebugPage(user, stats = {}, logs = []) {
         if (liveUsers.length === 0) {
           container.innerHTML = '<div style="color:var(--muted);">Şu an aktif kullanıcı yok.</div>';
         } else {
-          container.innerHTML = liveUsers.map(u => \\\`
-            <div class="card" style="padding:1rem;display:flex;align-items:center;gap:1rem;cursor:pointer;border:1px solid \\\${watchingUserId === u.userId ? 'var(--success)' : 'rgba(255,255,255,0.1)'}" onclick="openLiveModal('\\\${u.userId}')">
-              <img src="\\\${u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:40px;height:40px;border-radius:50%;">
+          container.innerHTML = liveUsers.map(u => \`
+            <div class="card" style="padding:1rem;display:flex;align-items:center;gap:1rem;cursor:pointer;border:1px solid \${watchingUserId === u.userId ? 'var(--success)' : 'rgba(255,255,255,0.1)'}" onclick="openLiveModal('\${u.userId}')">
+              <img src="\${u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:40px;height:40px;border-radius:50%;">
               <div>
-                <div style="font-weight:bold;">\\\${u.username}</div>
-                <div style="font-size:0.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">\\\${u.url}</div>
+                <div style="font-weight:bold;">\${u.username}</div>
+                <div style="font-size:0.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">\${u.url}</div>
               </div>
             </div>
-          \\\`).join('');
+          \`).join('');
         }
 
         // Update active modal if watching
@@ -2229,7 +2229,7 @@ function renderDebugPage(user, stats = {}, logs = []) {
 
             const clicksLog = document.getElementById('live-clicks-log');
             clicksLog.innerHTML = (user.clicks || []).map(c => 
-              \\\`<div>[\\\${new Date(c.t).toLocaleTimeString()}] Tıkladı: X=\\\${c.x}, Y=\\\${c.y}</div>\\\`
+              \`<div>[\${new Date(c.t).toLocaleTimeString()}] Tıkladı: X=\${c.x}, Y=\${c.y}</div>\`
             ).reverse().join('');
           }
         }
