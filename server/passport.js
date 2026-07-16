@@ -1,7 +1,6 @@
 // passport.js
 
 const passport = require("passport");
-const DiscordStrategy = require("passport-discord").Strategy;
 const RobloxStrategy = require("passport-roblox");
 const LocalStrategy = require("passport-local").Strategy;
 const axios = require("axios");
@@ -65,62 +64,6 @@ function extractRobloxId(profile) {
   return raw != null ? String(raw) : null;
 }
 
-// ─── Discord Strategy ─────────────────────────────────────────────────────────
-
-passport.use(
-  new DiscordStrategy(
-    {
-      clientID: process.env.DISCORD_CLIENT_ID,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET,
-      callbackURL: `${BASE_URL}/auth/discord/callback`,
-      scope: ["identify", "email", "role_connections.write"],
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        const discordId = String(profile.id);
-        const envAdmin = isEnvAdmin(discordId);
-        const avatarUrl = buildDiscordAvatarUrl(profile);
-        const bannerUrl = buildDiscordBannerUrl(profile);
-
-        let user = await User.findOne({ discordId });
-
-        if (!user) {
-          user = new User({
-            discordId,
-            discordUsername: profile.username,
-            discordEmail: profile.email,
-            discordAvatar: avatarUrl,
-            discordBanner: bannerUrl,
-            isAdmin: envAdmin,
-            isStaff: envAdmin,
-          });
-        } else {
-          user.discordUsername = profile.username;
-          user.discordEmail = profile.email;
-          user.discordAvatar = avatarUrl;
-          if (bannerUrl) user.discordBanner = bannerUrl;
-          if (envAdmin) {
-            user.isAdmin = true;
-            user.isStaff = true;
-          }
-        }
-
-        user.discordAccessToken = accessToken || null;
-        user.discordRefreshToken = refreshToken || null;
-        user.discordTokenUpdatedAt = new Date();
-
-        await user.save();
-        saveStoreNow();
-
-        return done(null, user);
-      } catch (err) {
-        console.error("[passport] Discord auth hatası:", err);
-        return done(err);
-      }
-    }
-  )
-);
-
 // ─── Local Strategy (Password-based login) ────────────────────────────────────
 
 passport.use(
@@ -174,8 +117,8 @@ if (!ROBLOX_CLIENT_ID || !ROBLOX_CLIENT_SECRET) {
 passport.use(
   new RobloxStrategy(
     {
-      clientID: ROBLOX_CLIENT_ID,
-      clientSecret: ROBLOX_CLIENT_SECRET,
+      clientID: ROBLOX_CLIENT_ID || "dummy",
+      clientSecret: ROBLOX_CLIENT_SECRET || "dummy",
       callbackURL: `${BASE_URL}/auth/roblox/callback`,
       scope: ["openid", "profile"],
       pkce: true,

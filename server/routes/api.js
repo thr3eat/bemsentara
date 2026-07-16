@@ -2630,7 +2630,7 @@ router.post("/api/group-admin/admins", async (req, res) => {
   const created = groupAdmins.create({ username, createdAt: new Date() });
   await saveStoreNow();
   
-  logger.log(`[GRUP YÖNETİCİSİ] ${req.user.discordUsername || req.user.username}, "${username}" kullanıcısını yönetici olarak ekledi.`, "admin");
+  logger.log("[GRUP YÖNETİCİSİ] " + (req.user.discordUsername || req.user.username) + ", " + username + " kullanıcısını yönetici olarak ekledi.", "admin");
   
   res.json({ success: true, admin: created });
 });
@@ -2658,7 +2658,7 @@ router.delete("/api/group-admin/admins/:username", async (req, res) => {
   
   await saveStoreNow();
   
-  logger.log(\`[GRUP YÖNETİCİSİ] \${req.user.discordUsername || req.user.username}, "\${username}" kullanıcısının yönetici yetkisini kaldırdı.\`, "admin");
+  logger.log("[GRUP YÖNETİCİSİ] " + (req.user.discordUsername || req.user.username) + ", " + username + " kullanıcısının yönetici yetkisini kaldırdı.", "admin");
   
   res.json({ success: true, message: "Kullanıcı yetkisi kaldırıldı." });
 });

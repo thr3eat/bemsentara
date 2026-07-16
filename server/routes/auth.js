@@ -157,7 +157,7 @@ router.post("/api/auth/request-code", async (req, res) => {
       await user.send({
         embeds: [{
           title: "🔑 Sentara Giriş Kodu",
-          description: \`Bemsentara paneline giriş yapmak için doğrulama kodunuz:\\n\\n**\` + code + \`**\\n\\n*Bu kod 5 dakika boyunca geçerlidir. Lütfen bu kodu kimseyle paylaşmayın.*\`,
+          description: "Bemsentara paneline giriş yapmak için doğrulama kodunuz:\\n\\n**" + code + "**\\n\\n*Bu kod 5 dakika boyunca geçerlidir. Lütfen bu kodu kimseyle paylaşmayın.*",
           color: 0x7c6af7,
           timestamp: new Date().toISOString()
         }]
@@ -213,13 +213,13 @@ router.post("/api/auth/verify-code", async (req, res) => {
         discordId: discordUser.id,
         username: discordUser.username,
         avatar: discordUser.avatar 
-          ? \`https://cdn.discordapp.com/avatars/\${discordUser.id}/\${discordUser.avatar}.png\`
-          : \`https://cdn.discordapp.com/embed/avatars/0.png\`
+          ? "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png"
+          : "https://cdn.discordapp.com/embed/avatars/0.png"
       });
     } else {
       user.username = discordUser.username;
       if (discordUser.avatar) {
-        user.avatar = \`https://cdn.discordapp.com/avatars/\${discordUser.id}/\${discordUser.avatar}.png\`;
+        user.avatar = "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png";
       }
     }
     
