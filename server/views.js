@@ -5015,6 +5015,195 @@ function renderAdminDashboard(user = null) {
 }
 
 // ─────────────────────────────────────────────
+// BRIEFING ONBOARDING MODAL
+// ─────────────────────────────────────────────
+function renderBriefingOnboardingModal(user = null) {
+  const content = `
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+      <div class="card" style="max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; animation: slideIn 0.3s ease;">
+        <h2 style="margin: 0 0 10px 0; color: var(--accent); font-size: 1.5rem;">🎯 Kişisel Tanışma Formu</h2>
+        <p style="color: var(--muted); margin: 0 0 30px 0; font-size: 0.95rem;">
+          Briefing'e erişmeden önce, seni biraz daha tanımak istiyoruz. 
+          Lütfen aşağıdaki soruları cevapla.
+        </p>
+
+        <div id="questions-container">
+          <!-- Sorular buraya yüklenecek -->
+        </div>
+
+        <div id="form-container" style="display: none; margin-top: 20px;">
+          <textarea id="answers-textarea" placeholder="Cevaplarını buraya yazabilirsin..." 
+            style="width: 100%; height: 150px; padding: 12px; background: rgba(255,255,255,0.05); 
+            border: 1px solid var(--border); border-radius: 8px; color: var(--text); 
+            font-family: 'Outfit', sans-serif; resize: none;"></textarea>
+          
+          <button onclick="submitBriefingForm()" 
+            style="margin-top: 15px; padding: 12px 30px; background: var(--accent); 
+            color: #000; border: none; border-radius: 8px; font-weight: 600; 
+            cursor: pointer; width: 100%; transition: all 0.3s;">
+            ✅ Gönder
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @keyframes slideIn {
+        from { transform: translateY(-20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      .question-item {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .question-item:hover {
+        background: rgba(255,255,255,0.05);
+        border-color: var(--accent);
+      }
+
+      .question-item.selected {
+        background: rgba(167,139,250,0.15);
+        border-color: var(--accent);
+      }
+
+      .question-text {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 8px;
+      }
+
+      .question-num {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+    </style>
+
+    <script>
+      const questions = [
+        {
+          id: "hobbies",
+          text: "🎮 Hobilerin neler? (Müzik, oyun, spor, vs.)",
+          type: "text"
+        },
+        {
+          id: "nocreen",
+          text: "📵 Telefonuna/Bilgisayarına bakmadığında ne yapıyorsun?",
+          type: "text"
+        },
+        {
+          id: "personality",
+          text: "😊 Kendini 3 kelimeyle tanımlayabilir misin?",
+          type: "text"
+        },
+        {
+          id: "goals",
+          text: "🎯 Sentara'da ne yapmak istiyorsun? (Kariyer, eğlence, vs.)",
+          type: "text"
+        },
+        {
+          id: "music",
+          text: "🎵 Sevdiğin müzik türü nedir?",
+          type: "text"
+        }
+      ];
+
+      let currentQuestion = 0;
+      let answers = {};
+
+      function loadQuestion() {
+        const container = document.getElementById('questions-container');
+        const q = questions[currentQuestion];
+        
+        if (currentQuestion < questions.length) {
+          container.innerHTML = \`
+            <div class="question-item">
+              <div class="question-num">Soru \${currentQuestion + 1}/\${questions.length}</div>
+              <div class="question-text">\${q.text}</div>
+              <input type="text" id="answer-input" placeholder="Cevabını yaz..." 
+                value="\${answers[q.id] || ''}"
+                style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); 
+                border: 1px solid var(--border); border-radius: 6px; color: var(--text); 
+                font-family: 'Outfit', sans-serif; margin-top: 10px;" 
+                onkeypress="if(event.key==='Enter') nextQuestion()">
+              <button onclick="nextQuestion()" 
+                style="margin-top: 12px; padding: 10px 20px; background: var(--accent); 
+                color: #000; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                \${currentQuestion === questions.length - 1 ? '✅ Bitir' : '➡️ Devam Et'}
+              </button>
+            </div>
+          \`;
+          document.getElementById('answer-input').focus();
+        }
+      }
+
+      function nextQuestion() {
+        const q = questions[currentQuestion];
+        const input = document.getElementById('answer-input');
+        const answer = input.value.trim();
+        
+        if (!answer) {
+          alert('Lütfen soruyu cevapla!');
+          return;
+        }
+
+        answers[q.id] = answer;
+
+        if (currentQuestion < questions.length - 1) {
+          currentQuestion++;
+          loadQuestion();
+        } else {
+          showForm();
+        }
+      }
+
+      function showForm() {
+        document.getElementById('questions-container').style.display = 'none';
+        document.getElementById('form-container').style.display = 'block';
+        
+        const summary = questions.map((q, i) => 
+          \`Q\${i+1}: \${q.text}\\nA: \${answers[q.id] || 'Boş'}\`
+        ).join('\\n\\n');
+        
+        document.getElementById('answers-textarea').value = summary;
+      }
+
+      async function submitBriefingForm() {
+        try {
+          const response = await fetch('/api/briefing/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answers })
+          });
+
+          const data = await response.json();
+          
+          if (data.success) {
+            alert('✅ Formu gönderdin! Briefing sayfasına yönlendiriliyorsun...');
+            window.location.href = '/briefing';
+          } else {
+            alert('❌ Hata: ' + (data.error || 'Bilinmeyen hata'));
+          }
+        } catch (error) {
+          alert('❌ Sunucu hatası: ' + error.message);
+        }
+      }
+
+      // İlk soruyu yükle
+      loadQuestion();
+    </script>
+  `;
+
+  return content;
+}
+
+// ─────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────
 module.exports = {
@@ -5034,6 +5223,7 @@ module.exports = {
   renderWikiArticlePage,
   renderAdminPage,
   renderAdminDashboard,
+  renderBriefingOnboardingModal,
   renderGroupAdminPage,
   renderLeaderboardPage,
   renderShopPage,

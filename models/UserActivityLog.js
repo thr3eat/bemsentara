@@ -1,17 +1,19 @@
 const { v4: uuidv4 } = require("uuid");
 
+const ACTIVITY_TYPES = {
+  LOGIN: "login",
+  COMMAND: "command",
+  PAGE_VIEW: "page_view",
+  FILE_UPLOAD: "file_upload",
+  MOD_ACTION: "mod_action",
+  PROFILE_UPDATE: "profile_update",
+  LOGOUT: "logout",
+  ERROR: "error"
+};
+
 class UserActivityLog {
-  static get ACTIVITY_TYPES() {
-    return {
-      LOGIN: "login",
-      COMMAND: "command",
-      PAGE_VIEW: "page_view",
-      FILE_UPLOAD: "file_upload",
-      MOD_ACTION: "mod_action",
-      PROFILE_UPDATE: "profile_update",
-      LOGOUT: "logout",
-      ERROR: "error"
-    };
+  get ACTIVITY_TYPES() {
+    return ACTIVITY_TYPES;
   }
 
   constructor() {
