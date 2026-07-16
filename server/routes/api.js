@@ -2978,5 +2978,44 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
   }
 });
 
+// Endpoint: Get Role Permissions
+router.get("/api/group-admin/groups/:groupId/roles/:roleId/permissions", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const { groupId, roleId } = req.params;
+  try {
+    const data = await robloxApiRequest(
+      `https://groups.roblox.com/v1/groups/${groupId}/roles/${roleId}/permissions`,
+      "GET"
+    );
+    res.json(data);
+  } catch (err) {
+    console.error("Get permissions error:", err.message);
+    res.status(500).json({ error: "İzinler alınamadı: " + err.message });
+  }
+});
+
+// Endpoint: Update Role Permissions
+router.patch("/api/group-admin/groups/:groupId/roles/:roleId/permissions", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const { groupId, roleId } = req.params;
+  
+  if (String(groupId) === "11517908") {
+    return res.status(403).json({ error: "TMT Turkish Armed Forces grubunda izin yönetimi kapalıdır." });
+  }
+
+  try {
+    const permissions = req.body;
+    const data = await robloxApiRequest(
+      `https://groups.roblox.com/v1/groups/${groupId}/roles/${roleId}/permissions`,
+      "PATCH",
+      permissions
+    );
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("Update permissions error:", err.message);
+    res.status(500).json({ error: "İzinler güncellenemedi: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+  }
+});
+
 module.exports = router;
 

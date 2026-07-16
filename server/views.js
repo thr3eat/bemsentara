@@ -3379,11 +3379,12 @@ function renderGroupAdminPage(user, isOwner = false) {
 
           <!-- Rütbeler Listesi -->
           <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem;color:var(--accent2);">🛡️ Rütbe Yapılandırması</h3>
-          <div id="roles-headers" style="display:grid;grid-template-columns:50px 80px 1fr 100px;gap:1rem;padding:0.5rem 1rem;font-size:0.8rem;color:var(--muted);font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border);margin-bottom:0.5rem;">
+          <div id="roles-headers" style="display:grid;grid-template-columns:50px 80px 1fr 80px auto;gap:1rem;padding:0.5rem 1rem;font-size:0.8rem;color:var(--muted);font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border);margin-bottom:0.5rem;">
             <div>Sıra</div>
             <div>Rank</div>
             <div>Rütbe Adı</div>
             <div style="text-align:center;">Renk</div>
+            <div style="text-align:center;">İzinler</div>
           </div>
           <div id="roles-list" style="display:flex;flex-direction:column;gap:0.5rem;">
             <!-- Rütbe Satırları -->
@@ -3396,7 +3397,7 @@ function renderGroupAdminPage(user, isOwner = false) {
     <style>
       .role-row {
         display: grid;
-        grid-template-columns: 50px 80px 1fr 100px;
+        grid-template-columns: 50px 80px 1fr 80px auto;
         gap: 1rem;
         align-items: center;
         background: rgba(255,255,255,0.02);
@@ -3535,7 +3536,30 @@ function renderGroupAdminPage(user, isOwner = false) {
       if (isOwner) {
         loadAdmins();
       }
+    </script>
 
+    <!-- İzinler Modalı -->
+    <div id="permissions-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+      <div class="card" style="width:100%;max-width:500px;max-height:90vh;overflow-y:auto;">
+        <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:0.5rem;color:var(--accent);">⚙️ Rol İzinleri</h2>
+        <p id="perm-role-name" style="color:var(--muted);margin-bottom:1.5rem;"></p>
+        
+        <div id="perm-loading" style="display:none;text-align:center;padding:2rem;">
+          <p style="color:var(--muted);">İzinler yükleniyor...</p>
+        </div>
+        
+        <div id="perm-content" style="display:flex;flex-direction:column;gap:1rem;">
+          <!-- İzinler buraya JS ile yüklenecek -->
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);">
+          <button class="btn btn-ghost" onclick="closePermissionsModal()">İptal</button>
+          <button class="btn btn-success" id="btn-save-perms" onclick="savePermissions()">💾 Kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
       // ── Grup Seçimi ve Veri Çekme ──
       async function selectGroup(groupId, groupName) {
         currentGroupId = groupId;
@@ -3588,8 +3612,6 @@ function renderGroupAdminPage(user, isOwner = false) {
           return;
         }
 
-        // Rütbeleri rank sırasına göre sıralı gösterelim (büyükten küçüğe: Roblox standartı veya küçükten büyüğe)
-        // Kolaylık olması için: Owner (255) en üstte, Guest (0) en altta. Aradakiler sürüklenebilir.
         rolesData = [...rolesData].sort((a, b) => b.rank - a.rank);
         const sortedRoles = rolesData;
 
@@ -3609,11 +3631,13 @@ function renderGroupAdminPage(user, isOwner = false) {
               <div class="color-picker-wrapper">
                 <input type="color" value="\${role.color || '#7c6af7'}" onchange="updateRoleColor('\${role.id}', this.value)">
               </div>
+              <div style="display:flex;align-items:center;justify-content:center;">
+                \${String(currentGroupId) !== "11517908" ? \`<button class="btn btn-sm btn-ghost" style="padding:0.35rem 0.6rem;font-size:0.8rem;" onclick="openPermissionsModal('\${role.id}', '\${cleanQuote(role.name)}')">İzinler</button>\` : \`<span style="color:var(--muted);font-size:0.75rem;">Kapalı</span>\`}
+              </div>
             </div>
           \`;
         }).join('');
 
-        // Sürükle bırak eventlerini bağla
         addDragAndDropEvents();
       }
 
@@ -3634,7 +3658,6 @@ function renderGroupAdminPage(user, isOwner = false) {
       function addNewRoleRow() {
         if (!currentGroupId) return;
         const newId = 'new_' + Date.now();
-        // Varsayılan olarak rank 1 verebiliriz, recalculateRankNumbers bunu düzenleyecektir
         rolesData.push({
           id: newId,
           name: 'Yeni Rütbe',
@@ -3646,7 +3669,6 @@ function renderGroupAdminPage(user, isOwner = false) {
         showToast('Yeni rol eklendi. Sırasını sürükleyerek ayarlayın ve kaydedin.', 'info');
       }
 
-      // Sürükle Bırak Event Yöneticileri
       function addDragAndDropEvents() {
         const rows = document.querySelectorAll('.role-row.draggable');
         rows.forEach(row => {
@@ -3814,6 +3836,114 @@ function renderGroupAdminPage(user, isOwner = false) {
           }
         } catch {
           showToast('Bağlantı hatası.', 'error');
+        }
+      }
+
+      // --- PERMISSIONS MANAGEMENT ---
+      let currentEditingRoleId = null;
+      let currentPermissionsData = null;
+
+      function closePermissionsModal() {
+        document.getElementById('permissions-modal').style.display = 'none';
+        currentEditingRoleId = null;
+        currentPermissionsData = null;
+      }
+
+      async function openPermissionsModal(roleId, roleName) {
+        if (String(currentGroupId) === "11517908") {
+          showToast("Bu grupta izin yönetimi devre dışıdır.", "warning");
+          return;
+        }
+
+        currentEditingRoleId = roleId;
+        document.getElementById('perm-role-name').innerText = roleName + " (ID: " + roleId + ")";
+        document.getElementById('permissions-modal').style.display = 'flex';
+        document.getElementById('perm-loading').style.display = 'block';
+        document.getElementById('perm-content').innerHTML = '';
+        document.getElementById('btn-save-perms').disabled = true;
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/roles/\${roleId}/permissions\`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'İzinler alınamadı');
+
+          currentPermissionsData = data;
+          renderPermissionsForm(data.permissions);
+        } catch (err) {
+          document.getElementById('perm-content').innerHTML = \`<p style="color:var(--danger);">❌ \${err.message}</p>\`;
+        } finally {
+          document.getElementById('perm-loading').style.display = 'none';
+          if (currentPermissionsData) document.getElementById('btn-save-perms').disabled = false;
+        }
+      }
+
+      function renderPermissionsForm(perms) {
+        if (!perms) {
+          document.getElementById('perm-content').innerHTML = '<p>İzin bilgisi bulunamadı.</p>';
+          return;
+        }
+
+        let html = '';
+        for (const [categoryName, categoryObj] of Object.entries(perms)) {
+          // Format category name: groupPostsPermissions -> Group Posts Permissions
+          const formattedTitle = categoryName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          html += \`
+            <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:1rem;">
+              <h4 style="font-weight:700;margin-bottom:0.5rem;color:var(--accent2);font-size:0.9rem;">\${formattedTitle}</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          \`;
+
+          for (const [permName, permValue] of Object.entries(categoryObj)) {
+            const labelName = permName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+            html += \`
+              <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;cursor:pointer;">
+                <input type="checkbox" id="perm_\${categoryName}_\${permName}" \${permValue ? 'checked' : ''}>
+                <span>\${labelName}</span>
+              </label>
+            \`;
+          }
+          html += \`</div></div>\`;
+        }
+
+        document.getElementById('perm-content').innerHTML = html;
+      }
+
+      async function savePermissions() {
+        if (!currentEditingRoleId || !currentPermissionsData || String(currentGroupId) === "11517908") return;
+
+        const btn = document.getElementById('btn-save-perms');
+        btn.disabled = true;
+        btn.textContent = '⏳ Kaydediliyor...';
+
+        // Gather checkbox values and update currentPermissionsData
+        for (const [categoryName, categoryObj] of Object.entries(currentPermissionsData.permissions)) {
+          for (const permName of Object.keys(categoryObj)) {
+            const cb = document.getElementById(\`perm_\${categoryName}_\${permName}\`);
+            if (cb) {
+              currentPermissionsData.permissions[categoryName][permName] = cb.checked;
+            }
+          }
+        }
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/roles/\${currentEditingRoleId}/permissions\`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentPermissionsData)
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            showToast('İzinler başarıyla güncellendi.', 'success');
+            closePermissionsModal();
+          } else {
+            showToast(data.error || 'İzinler güncellenemedi.', 'error');
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası.', 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '💾 Kaydet';
         }
       }
 
