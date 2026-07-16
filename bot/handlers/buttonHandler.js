@@ -1063,6 +1063,33 @@ async function handleButtonInteraction(interaction) {
     return startCoachSession(interaction);
   }
 
+  if (customId === "staff_accept_nightshift") {
+    await interaction.deferUpdate().catch(() => { });
+    const { recordOvertimeTask } = require("../services/staffSystem");
+    const result = await recordOvertimeTask(interaction.user.id, 'night_shift', interaction.client);
+    if (result.success) {
+      await interaction.followUp({
+        content: `⚡ **Gece Mesaisi Başlatıldı!** ${result.description} Ödül: ${result.reward}`,
+        ephemeral: true
+      }).catch(() => {});
+    } else {
+      await interaction.followUp({
+        content: `❌ Gece mesaisi başlatılamadı: ${result.message}`,
+        ephemeral: true
+      }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId === "staff_decline_nightshift") {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.followUp({
+      content: '✅ Bu gece dinlenme seçildi. Sabah tekrar göz atabilirsin.',
+      ephemeral: true
+    }).catch(() => {});
+    return;
+  }
+
   // ── Görev Başlat butonu ──────────────────────────────────────────────────
   if (customId === "staff_start_task_1") {
     await interaction.deferUpdate().catch(() => { });

@@ -482,6 +482,8 @@ function resetDaily(progress) {
       overtimeCompleted: false,
       overtimeProgress: 0,
       overtimeTarget: 0,
+      nightShiftActive: false,
+      nightShiftAcceptedAt: null,
       postponedToday: false,
       transferredVoiceMinutes: 0,
       transferredGreets: 0,
@@ -531,6 +533,8 @@ function resetDaily(progress) {
     progress.daily.overtimeCompleted = false;
     progress.daily.overtimeProgress = 0;
     progress.daily.overtimeTarget = 0;
+    progress.daily.nightShiftActive = false;
+    progress.daily.nightShiftAcceptedAt = null;
 
     // Görev eksiltme/aktarma alanlarını güncelle
     progress.daily.postponedToday = false;
@@ -1643,9 +1647,8 @@ async function sendMorningBriefing(progress, client) {
   // AI'dan kısa motivasyon mesajı al
   let aiMessage = '';
   try {
-    const prompt = `Sen Eko Yıldız sunucusunun AI Personel Koçusun.
-Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kısa (max 100 karakter), neşeli ve motive edici Türkçe bir karşılama yaz.`;
-    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+    const prompt = `Bu kişi henüz günlük görevlerine başlamadı. Ona sıcak, kişisel ve tatlı bir motivasyon mesajı yaz. İçinde ismi olmasa bile samimi bir dil kullan, nazikçe harekete geçmesini iste.`;
+    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
@@ -1781,14 +1784,13 @@ async function generateMorningBriefingEmbed(progress, client) {
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
   try {
-    const prompt = `Sen Eko Yıldız Discord sunucusunun AI Personel Koçusun.
-${progress.level === 1 ? '⚠️ Bu kişi YENİ bir stajyer, çok motive et ve cesaretlen!' : ''}
-Bu personelin günlük brifingini yapıcı ve motive edici olacak şekilde yaz. Kısa (max 150 karakter), neşeli, Türkçe.
-Seviyesi: ${ROLE_NAMES[progress.level]}
-Arka arkaya aktif gün: ${progress.stats?.consecutiveDays || 0}
-Uyarı sayısı: ${progress.warnings?.count || 0}/7
-Bugünkü görevleri hatırlat ve cesaretlen.`;
-    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
+    const prompt = `Bu personel için kısa, samimi ve kişiye özel bir görev brifingi hazırla.
+- Moderatör seviyesi: ${ROLE_NAMES[progress.level]}
+- Sürekli aktif gün: ${progress.stats?.consecutiveDays || 0}
+- Uyarı sayısı: ${progress.warnings?.count || 0}/7
+- Bugünkü hedef: selamlaşma + ses aktifliği ve mevcut görevi tamamlamak.
+Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
+    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
 
@@ -2913,12 +2915,28 @@ function startStaffScheduler(client) {
     const today = todayStr();
     const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    const activeVoice = new Set();
+    if (guild) {
+      guild.voiceStates.cache.forEach((voiceState, userId) => {
+        if (voiceState.channelId && !voiceState.member?.user.bot) {
+          activeVoice.add(userId);
+        }
+      });
+    }
+
     for (const p of allProgress) {
       const isOnLeave = p.leaves?.usedDays?.includes(today) || (await hasInactivityRole(p.userId, client));
       if (isOnLeave) continue;
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
       const isComplete = p.daily?.date === today && p.daily?.greeted && (p.daily?.voiceMinutes || 0) >= targetVoice;
+
+      // Gece aktif olanlara önce gece mesaisi teklifi gönder
+      if (!isComplete && activeVoice.has(p.userId) && !p.daily?.overtimeActive) {
+        await sendNightShiftOffer(p, client).catch(() => { });
+        continue;
+      }
 
       // Tamamlayanları tebrik et, tamamlayamayanlara son çağrı yap
       if (isComplete) {
@@ -2969,6 +2987,11 @@ function startStaffScheduler(client) {
   // 23:30 — Günlük kapanış kontrol + uyarı
   scheduleAt(23, 30, async () => {
     console.log('[staffSystem] 23:30 günlük kapanış...');
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    for (const p of rawProgress) {
+      await applyNightShiftMorningCarryover(p).catch(() => { });
+      await p.save().catch(() => { });
+    }
     await runDailyCheck(client);
   });
 
@@ -3628,6 +3651,13 @@ async function sendFunMessage(userId, client) {
 async function completeOvertime(progress, client) {
   try {
     progress.daily.overtimeCompleted = true;
+    progress.daily.overtimeActive = false;
+
+    const isNightShift = progress.daily.nightShiftActive && progress.daily.overtimeTask === 'overtime_voice';
+    if (isNightShift) {
+      progress.daily.nightShiftActive = false;
+      progress.daily.nightShiftAcceptedAt = null;
+    }
 
     // Determine rewards
     let coinsReward = 50;
@@ -3635,9 +3665,15 @@ async function completeOvertime(progress, client) {
     let taskNameText = 'Ek Görev';
 
     if (progress.daily.overtimeTask === 'overtime_voice') {
-      coinsReward = 100;
-      xpReward = 300;
-      taskNameText = 'Ses Ek Mesaisi (20 Dakika)';
+      if (isNightShift) {
+        coinsReward = 150;
+        xpReward = 450;
+        taskNameText = 'Gece Mesaisi (20 Dakika)';
+      } else {
+        coinsReward = 100;
+        xpReward = 300;
+        taskNameText = 'Ses Ek Mesaisi (20 Dakika)';
+      }
     } else {
       const taskLabels = {
         'task_chat': 'Ek Sohbet Görevi (10 Mesaj)',
@@ -3689,6 +3725,74 @@ async function completeOvertime(progress, client) {
   }
 }
 
+async function sendNightShiftOffer(progress, client) {
+  if (!progress || !client) return;
+  if (progress.daily?.overtimeActive || progress.daily?.nightShiftActive) return;
+  if (await hasInactivityRole(progress.userId, client)) return;
+
+  try {
+    const user = await client.users.fetch(progress.userId).catch(() => null);
+    if (!user) return;
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+    const today = todayStr();
+    const greetsDone = progress.daily?.date === today ? (progress.daily?.greetCount || 0) : 0;
+    const voiceDone = progress.daily?.date === today ? (progress.daily?.voiceMinutes || 0) : 0;
+    const remainingGreets = Math.max(0, req.greets - greetsDone);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x6b21a8)
+      .setTitle('🌙 GECE MESAİSİ TEKLİFİ')
+      .setDescription(
+        `Selam <@${progress.userId}>, gece aktif olduğunu gördüm. Eğer bu gece ekstra bir mesai yaparsan **1.5x ödül** kazanabilirsin! 💫\n\n` +
+        `Bu gece saat 23:30'a kadar kalan günlük görevlerini bitirirsen, ayrıca ek gece mesaisi bonusu kazanabilirsin.`
+      )
+      .addFields(
+        { name: '📌 Kalan Hedeflerin', value: `• Selamlaşma: **${remainingGreets}** adet\n• Ses: **${Math.max(0, req.voiceMinutes - voiceDone)}** dk`, inline: false },
+        { name: '⚡ Gece Mesaisi Avantajı', value: '• +150 E.C. ve +450 XP bonuslu ek görev\n• Gece aktifliğini kazanca dönüştür', inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız • Gece Mesaisi Sistemi' })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_accept_nightshift')
+        .setLabel('⚡ Gece Mesaisi Al')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('staff_decline_nightshift')
+        .setLabel('❌ Bu Gece Dinlen')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await user.send({ embeds: [embed], components: [row] }).catch(() => { });
+  } catch (err) {
+    console.error('[staffSystem] sendNightShiftOffer error:', err.message);
+  }
+}
+
+async function applyNightShiftMorningCarryover(progress) {
+  if (!progress || !progress.daily || !progress.daily.nightShiftActive) return;
+
+  const today = todayStr();
+  if (progress.daily.date !== today) return;
+
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const remainingVoice = Math.max(0, req.voiceMinutes - (progress.daily.voiceMinutes || 0));
+  const remainingGreets = progress.daily.greeted ? 0 : req.greets;
+
+  if (remainingVoice > 0) {
+    progress.daily.transferToTomorrowVoice = (progress.daily.transferToTomorrowVoice || 0) + remainingVoice;
+  }
+  if (remainingGreets > 0) {
+    progress.daily.transferToTomorrowGreets = (progress.daily.transferToTomorrowGreets || 0) + remainingGreets;
+  }
+
+  progress.daily.nightShiftActive = false;
+  progress.daily.nightShiftAcceptedAt = null;
+}
+
 async function recordOvertimeTask(userId, type, client) {
   try {
     const p = await getOrCreate(userId, GUILD_ID, client);
@@ -3700,6 +3804,24 @@ async function recordOvertimeTask(userId, type, client) {
 
     if (p.daily.overtimeActive) {
       return { success: false, message: 'Bugün zaten aktif bir ek göreviniz veya ek mesainiz var!' };
+    }
+
+    if (type === 'night_shift') {
+      p.daily.overtimeActive = true;
+      p.daily.overtimeTask = 'overtime_voice';
+      p.daily.overtimeTarget = 20; // 20 dk seste kal
+      p.daily.overtimeProgress = 0;
+      p.daily.overtimeCompleted = false;
+      p.daily.nightShiftActive = true;
+      p.daily.nightShiftAcceptedAt = new Date();
+      await p.save();
+
+      return {
+        success: true,
+        taskName: '🌙 Gece Mesaisi',
+        description: 'Gece aktifliğini ekstra ödüle çevir. Ses kanallarında fazladan **20 dakika** kal.',
+        reward: '💰 +150 E.C. ve ✨ +450 XP (1.5x bonus)'
+      };
     }
 
     if (type === 'ek_mesai') {

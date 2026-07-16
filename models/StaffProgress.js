@@ -35,6 +35,8 @@ const staffProgressSchema = new mongoose.Schema({
     overtimeCompleted: { type: Boolean, default: false },
     overtimeProgress: { type: Number, default: 0 },
     overtimeTarget: { type: Number, default: 0 },
+    nightShiftActive: { type: Boolean, default: false },
+    nightShiftAcceptedAt: { type: Date, default: null },
 
     // Görev Eksiltme & Sonraya Aktarma
     postponedToday: { type: Boolean, default: false },

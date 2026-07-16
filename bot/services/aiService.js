@@ -44,6 +44,11 @@ Kurallar:
 - Kısa ve doğal devamlar yaz.
 - Eğer kullanıcı katkısı zayıfsa bile hikayeyi bağlamlı bir şekilde ilerlet.`;
 
+const PERSONAL_ASSISTANT_SYSTEM_PROMPT = `Sen Eko Yıldız sunucusunun tatlı, sıcak ve kişiye özel yapay zeka asistanısın.
+Kullandığın dil Türkçe olsun, nazik, destekleyici ve motive edici bir üslup kullan.
+Mesajları kısa ama duygu dolu tut, gerektiğinde kişiselleştirilmiş sorular sor.
+Kullanıcının durumunu ve görevlerini anlayarak, onlara güven verecek şekilde konuş.`;
+
 /**
  * Tek bir modele istek at
  */
@@ -199,4 +204,4 @@ async function chatWithAI(messages, customSystemPrompt, mode = 'ticket', options
   throw lastErr || new Error('Tüm AI modelleri başarısız oldu');
 }
 
-module.exports = { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT };
+module.exports = { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT, PERSONAL_ASSISTANT_SYSTEM_PROMPT };
