@@ -31,7 +31,7 @@ function renderEmailTemplate(aiResponse) {
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EkoYıldız | Resmi E-Posta Tasarımı</title>
+    <title>Başlık</title>
     <style>
       body {
         margin: 0;
@@ -121,6 +121,7 @@ function renderEmailTemplate(aiResponse) {
                                     EkoYıldız için hazırlanan bu tasarım, profesyonel bir kurumsal izlenim sunmanın yanında, yüksek kalite ve modern estetik duygusunu da bir araya getirir.
                                   </div>
                                   <div style="font-size:15px; line-height:25px; color:#b9cbe0; margin-bottom:24px;">
+                                    aiservice<br />
                                     ${safeBody}
                                   </div>
                                   <table role="presentation" cellspacing="0" cellpadding="0" border="0">
@@ -715,6 +716,7 @@ router.post("/api/make/ai-process", async (req, res) => {
     return res.json({
       success: true,
       message: "AI yanıtı oluşturuldu ve Make webhook’una gönderildi.",
+      ai_response: aiResponse,
       html: emailHtml
     });
   } catch (err) {
