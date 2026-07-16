@@ -3808,7 +3808,7 @@ function renderGroupAdminPage(user, isOwner = false) {
           const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/reorder-5\`, { method: 'POST' });
           const d = await res.json();
           if (res.ok) {
-            showToast('Grup rütbeleri başarıyla 5erli sıralandı. Roblox\'un yansıtması 1-2 dakika sürebilir, ardından sayfayı yenileyebilirsiniz.', 'success');
+            showToast("Grup rütbeleri başarıyla 5erli sıralandı. Roblox'un yansıtması 1-2 dakika sürebilir, ardından sayfayı yenileyebilirsiniz.", 'success');
           } else {
             showToast(d.error || 'Sıralama hatası.', 'error');
           }
