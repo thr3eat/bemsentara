@@ -4426,6 +4426,7 @@ module.exports = {
   renderWikiListPage,
   renderWikiArticlePage,
   renderAdminPage,
+  renderGroupAdminPage,
   renderLeaderboardPage,
   renderShopPage,
   renderWebhookPage,
