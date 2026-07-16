@@ -932,16 +932,102 @@ function renderLoginPage(errorMsg = null) {
     <div class="card">
       <span class="logo">sentara</span>
       <h1>Hoş Geldiniz</h1>
-      <p class="subtitle">Platforma erişmek için Discord hesabınızla devam edin</p>
+      <p class="subtitle">Platforma erişmek için Discord ID'nizi girin</p>
 
       ${errorMsg ? `<div class="error-box">⚠️ ${_esc(errorMsg)}</div>` : ''}
 
-      <a href="/auth/discord" class="btn-discord">
-        <svg width="22" height="22" viewBox="0 0 127.14 96.36" fill="currentColor">
-          <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a67.59,67.59,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.33,46,96.22,53,91.08,65.69,84.69,65.69Z"/>
-        </svg>
-        Discord ile Giriş Yap
-      </a>
+      <div id="step-1">
+        <input type="text" id="discord-id" placeholder="Discord ID (örn: 123456789012345678)" style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#fff; margin-bottom:1rem; font-family:'Outfit',sans-serif; font-size:0.95rem;">
+        <button id="btn-request" onclick="requestCode()" class="btn-discord" style="background:rgba(124,106,247,0.85);">
+          Kod Gönder
+        </button>
+      </div>
+
+      <div id="step-2" style="display:none;">
+        <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem; text-align:left;">Discord özel mesajlarınıza gelen 4 haneli kodu girin:</p>
+        <input type="text" id="otp-code" placeholder="____" maxlength="4" style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#fff; margin-bottom:1rem; font-family:'Outfit',sans-serif; font-size:1.5rem; text-align:center; letter-spacing:0.5rem;">
+        <button id="btn-verify" onclick="verifyCode()" class="btn-discord" style="background:rgba(16,185,129,0.85);">
+          Doğrula ve Giriş Yap
+        </button>
+        <button onclick="resetFlow()" style="background:none;border:none;color:var(--muted);font-size:0.8rem;margin-top:1rem;cursor:pointer;width:100%;">← Geri dön</button>
+      </div>
+
+      <script>
+        async function requestCode() {
+          const discordId = document.getElementById('discord-id').value.trim();
+          if (!discordId || !/^\\d{17,20}$/.test(discordId)) {
+            alert("Lütfen geçerli bir Discord ID girin.");
+            return;
+          }
+          
+          const btn = document.getElementById('btn-request');
+          btn.disabled = true;
+          btn.innerText = "Gönderiliyor...";
+
+          try {
+            const res = await fetch('/api/auth/request-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ discordId })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+              document.getElementById('step-1').style.display = 'none';
+              document.getElementById('step-2').style.display = 'block';
+              document.getElementById('otp-code').focus();
+            } else {
+              alert(data.error || "Kod gönderilemedi.");
+            }
+          } catch (err) {
+            alert("Bağlantı hatası oluştu.");
+          } finally {
+            btn.disabled = false;
+            btn.innerText = "Kod Gönder";
+          }
+        }
+
+        async function verifyCode() {
+          const discordId = document.getElementById('discord-id').value.trim();
+          const code = document.getElementById('otp-code').value.trim();
+          
+          if (!code || code.length !== 4) {
+            alert("Lütfen 4 haneli kodu girin.");
+            return;
+          }
+
+          const btn = document.getElementById('btn-verify');
+          btn.disabled = true;
+          btn.innerText = "Doğrulanıyor...";
+
+          try {
+            const res = await fetch('/api/auth/verify-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ discordId, code })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+              window.location.href = "/dashboard";
+            } else {
+              alert(data.error || "Doğrulama hatası.");
+              btn.disabled = false;
+              btn.innerText = "Doğrula ve Giriş Yap";
+            }
+          } catch (err) {
+            alert("Bağlantı hatası oluştu.");
+            btn.disabled = false;
+            btn.innerText = "Doğrula ve Giriş Yap";
+          }
+        }
+
+        function resetFlow() {
+          document.getElementById('step-2').style.display = 'none';
+          document.getElementById('step-1').style.display = 'block';
+          document.getElementById('otp-code').value = '';
+        }
+      </script>
 
       <p class="terms">
         Giriş yaparak <a href="/legal/tos">Hizmet Koşullarını</a> ve

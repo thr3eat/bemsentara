@@ -120,53 +120,125 @@ router.get("/auth/authorize", (req, res) => {
   return res.redirect("/auth/roblox");
 });
 
-router.get("/auth/discord", passport.authenticate("discord"));
+// OTP Store: Map<discordId, { code: string, expiresAt: number }>
+const otpStore = new Map();
 
-router.get(
-  "/auth/discord/callback",
-  (req, res, next) => {
-    passport.authenticate("discord", (err, user, info) => {
-      if (err) {
-        console.warn("[auth] Discord authentication failed:", err.message || err);
-        return res.redirect("/auth/discord"); // Redirect back to retry authentication
-      }
-      if (!user) {
-        return res.redirect("/login");
-      }
-      req.logIn(user, (loginErr) => {
-        if (loginErr) {
-          console.error("[auth] Login session setup error:", loginErr);
-          return res.redirect("/login");
-        }
-        return next();
-      });
-    })(req, res, next);
-  },
-  async (req, res) => {
-    try {
-      const linkId = req.session.linkDiscordId;
-      if (linkId && req.user && String(req.user.discordId) === String(linkId)) {
-        delete req.session.linkDiscordId;
-        return res.redirect("/auth/roblox");
-      }
-
-      const freshUser = await User.findOne({ discordId: String(req.user.discordId) });
-      if (freshUser) {
-        req.session.discordAccessToken = freshUser.discordAccessToken || req.session.discordAccessToken;
-        try {
-          await syncLinkedRoleMetadata(freshUser, req.session);
-        } catch (err) {
-          console.warn("[auth] Discord role connection sync failed:", err.message);
-        }
-      }
-
-      res.redirect("/dashboard");
-    } catch (err) {
-      console.error("[auth] Discord callback error:", err);
-      res.redirect("/dashboard");
-    }
+/**
+ * Endpoint to request a login code via Discord DM
+ */
+router.post("/api/auth/request-code", async (req, res) => {
+  const { discordId } = req.body;
+  if (!discordId || !/^\d{17,20}$/.test(discordId)) {
+    return res.status(400).json({ error: "Geçerli bir Discord ID girin." });
   }
-);
+
+  try {
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (!client || !client.isReady()) {
+      return res.status(503).json({ error: "Discord botu aktif değil, lütfen daha sonra tekrar deneyin." });
+    }
+
+    // Check if there is an existing valid code to prevent spam
+    const existing = otpStore.get(discordId);
+    if (existing && existing.expiresAt > Date.now()) {
+      // Allow sending another code, but maybe throttle? For now just overwrite.
+    }
+
+    // Generate 4-digit code
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    otpStore.set(discordId, { code, expiresAt });
+
+    // Send DM
+    try {
+      const user = await client.users.fetch(discordId);
+      await user.send({
+        embeds: [{
+          title: "🔑 Sentara Giriş Kodu",
+          description: \`Bemsentara paneline giriş yapmak için doğrulama kodunuz:\\n\\n**\` + code + \`**\\n\\n*Bu kod 5 dakika boyunca geçerlidir. Lütfen bu kodu kimseyle paylaşmayın.*\`,
+          color: 0x7c6af7,
+          timestamp: new Date().toISOString()
+        }]
+      });
+    } catch (dmErr) {
+      console.warn("DM Send Error:", dmErr.message);
+      return res.status(400).json({ error: "Size DM gönderilemedi! Lütfen bot ile aynı sunucuda olduğunuza ve DMs'lerinizin açık olduğuna emin olun." });
+    }
+
+    res.json({ success: true, message: "Kod Discord özel mesajlarınıza gönderildi." });
+  } catch (err) {
+    console.error("Request Code Error:", err);
+    res.status(500).json({ error: "Sunucu hatası: " + err.message });
+  }
+});
+
+/**
+ * Endpoint to verify the login code
+ */
+router.post("/api/auth/verify-code", async (req, res) => {
+  const { discordId, code } = req.body;
+  
+  if (!discordId || !code) {
+    return res.status(400).json({ error: "Discord ID ve Kod gereklidir." });
+  }
+
+  const record = otpStore.get(discordId);
+  if (!record) {
+    return res.status(400).json({ error: "Geçerli bir kod bulunamadı veya süresi dolmuş." });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(discordId);
+    return res.status(400).json({ error: "Kodun süresi dolmuş. Lütfen yeni bir kod isteyin." });
+  }
+
+  if (record.code !== String(code).trim()) {
+    return res.status(401).json({ error: "Hatalı kod." });
+  }
+
+  // Code is valid! Delete it from store
+  otpStore.delete(discordId);
+
+  try {
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    const discordUser = await client.users.fetch(discordId);
+
+    // Upsert user in database
+    let user = await User.findOne({ discordId });
+    if (!user) {
+      user = new User({
+        discordId: discordUser.id,
+        username: discordUser.username,
+        avatar: discordUser.avatar 
+          ? \`https://cdn.discordapp.com/avatars/\${discordUser.id}/\${discordUser.avatar}.png\`
+          : \`https://cdn.discordapp.com/embed/avatars/0.png\`
+      });
+    } else {
+      user.username = discordUser.username;
+      if (discordUser.avatar) {
+        user.avatar = \`https://cdn.discordapp.com/avatars/\${discordUser.id}/\${discordUser.avatar}.png\`;
+      }
+    }
+    
+    await user.save();
+    saveStoreNow();
+
+    // Login via Passport
+    req.login(user, (err) => {
+      if (err) {
+        console.error("Login session setup error:", err);
+        return res.status(500).json({ error: "Oturum açılamadı." });
+      }
+      res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
+    });
+  } catch (err) {
+    console.error("Verify Code Error:", err);
+    res.status(500).json({ error: "Sunucu hatası: " + err.message });
+  }
+});
 
 router.get("/auth/roblox", passport.authenticate("roblox"));
 
