@@ -2551,17 +2551,32 @@ async function robloxApiRequest(url, method, data = null) {
     throw new Error("Roblox CSRF token alınamadı.");
   }
 
-  // 2. Perform Request
-  const response = await axios({
-    url,
-    method,
-    data,
-    headers: {
-      Cookie: formattedCookie,
-      "X-CSRF-TOKEN": csrfToken,
-      "Content-Type": "application/json"
+  // 2. Perform Request with Retry Logic
+  let response;
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      response = await axios({
+        url,
+        method,
+        data,
+        headers: {
+          Cookie: formattedCookie,
+          "X-CSRF-TOKEN": csrfToken,
+          "Content-Type": "application/json"
+        }
+      });
+      break;
+    } catch (err) {
+      if (err.response && err.response.status === 429 && retries > 1) {
+        retries--;
+        console.warn("Roblox API Rate Limit (429). Bekleniyor... 5 saniye");
+        await new Promise(r => setTimeout(r, 5000));
+      } else {
+        throw err;
+      }
     }
-  });
+  }
 
   return response.data;
 }
@@ -2783,7 +2798,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         }
       );
       // Wait to avoid rate limits
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     // Step 3B: Perform rank updates with conflict resolution (requires Owner privileges)
@@ -2824,7 +2839,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
           }
         );
         // Wait to avoid rate limits
-        await new Promise(r => setTimeout(r, 450));
+        await new Promise(r => setTimeout(r, 2000));
       }
 
       // Step B: Set roles to their final target ranks
@@ -2839,7 +2854,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
           }
         );
         // Wait to avoid rate limits
-        await new Promise(r => setTimeout(r, 450));
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
 
@@ -2859,7 +2874,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         if (createRes && createRes.id) {
           rankMetadata.create({ groupId, roleId: String(createRes.id), color: newRole.color, createdAt: new Date() });
         }
-        await new Promise(r => setTimeout(r, 450));
+        await new Promise(r => setTimeout(r, 2000));
       } catch (err) {
         console.error("Yeni rol oluşturma hatası:", err.response?.data || err.message);
         throw new Error("Yeni rol oluşturulamadı: " + (err.response?.data?.errors?.[0]?.message || err.message));
@@ -2950,7 +2965,7 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
           rank: tempRank
         }
       );
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     // Step B: Shift to final 5-by-5 ranks
@@ -2964,7 +2979,7 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
           rank: update.newRank
         }
       );
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     res.json({ success: true, message: "Rütbeler başarıyla 5'erli olarak sıralandı." });
