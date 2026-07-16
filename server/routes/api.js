@@ -715,7 +715,6 @@ router.post("/api/make/ai-process", async (req, res) => {
     return res.json({
       success: true,
       message: "AI yanıtı oluşturuldu ve Make webhook’una gönderildi.",
-      webhookUrl: MAKE_WEBHOOK_URL,
       html: emailHtml
     });
   } catch (err) {

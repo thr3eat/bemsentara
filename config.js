@@ -111,7 +111,7 @@ const SERVER_INVITE_LINKS = {
 };
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || null;
-const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/aslk5xd9oi60iybk8ts7oyeyl4iod75o";
+const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL || null;
 const DATA_DIR = process.env.DATA_DIR || null;
 const RESTORE_ROLES_ON_START = process.env.RESTORE_ROLES_ON_START === "true";
 
@@ -120,6 +120,7 @@ module.exports = {
   BASE_URL,
   SESSION_SECRET,
   WEBHOOK_SECRET,
+  MAKE_WEBHOOK_URL,
   RESTORE_ROLES_ON_START,
   BOT_ID,
   TOKEN,
