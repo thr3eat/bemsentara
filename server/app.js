@@ -15,12 +15,16 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-// Debug Middleware
+// Debug Middleware (noisy polling endpoints filtered)
+const SILENT_PATHS = ['/api/activity/', '/api/logs', '/api/health'];
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
-    const duration = Date.now() - start;
-    logger.info(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    const isSilent = SILENT_PATHS.some(p => req.path.startsWith(p));
+    if (!isSilent) {
+      const duration = Date.now() - start;
+      logger.info(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    }
   });
   next();
 });

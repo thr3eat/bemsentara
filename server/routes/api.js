@@ -39,6 +39,8 @@ router.post("/api/activity/ping", (req, res) => {
 
 router.get("/api/activity/users", (req, res) => {
   if (!requireAdmin(req, res)) return;
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
   res.json({ success: true, users: getActiveUsers() });
 });
 

@@ -22,10 +22,14 @@ function updateActivity(user, activityData) {
   const now = Date.now();
 
   const existing = activeUsers.get(userId) || {
-    username: user.username || user.discordUsername || "Bilinmiyor",
-    avatar: user.avatar || "",
+    username: user.discordUsername || user.username || "Bilinmiyor",
+    avatar: user.discordAvatar || user.avatar || "",
     clicks: []
   };
+
+  // Always update username/avatar in case they changed
+  existing.username = user.discordUsername || user.username || existing.username || "Bilinmiyor";
+  existing.avatar = user.discordAvatar || user.avatar || existing.avatar || "";
 
   const newClicks = (activityData.clicks && activityData.clicks.length > 0) ? activityData.clicks : [];
   
@@ -33,7 +37,7 @@ function updateActivity(user, activityData) {
     const logger = require("../../utils/logger");
     newClicks.forEach(click => {
       if (click.element) {
-        logger.log(`[USER_ACTIVITY] ${user.discordUsername || user.username} (${userId}) tıkladı: "${click.element}" (${activityData.url || existing.url})`, "debug");
+        logger.log(`[USER_ACTIVITY] ${existing.username} (${userId}) tıkladı: "${click.element}" (${activityData.url || existing.url})`, "debug");
       }
     });
   }
@@ -41,8 +45,8 @@ function updateActivity(user, activityData) {
   activeUsers.set(userId, {
     ...existing,
     lastSeen: now,
-    x: activityData.x || existing.x || 0,
-    y: activityData.y || existing.y || 0,
+    x: activityData.x != null ? activityData.x : (existing.x || 0),
+    y: activityData.y != null ? activityData.y : (existing.y || 0),
     w: activityData.w || existing.w || 1920,
     h: activityData.h || existing.h || 1080,
     url: activityData.url || existing.url || "/",
