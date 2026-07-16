@@ -3456,6 +3456,10 @@ function renderGroupAdminPage(user, isOwner = false) {
       let rolesData = [];
       let dragSrcEl = null;
 
+      function cleanQuote(s) {
+        return (s == null ? "" : String(s)).replace(/"/g, '&quot;');
+      }
+
       // ── Yetkilileri Yükle (Owner-only) ──
       const isOwner = ${isOwner};
       async function loadAdmins() {
@@ -3596,7 +3600,7 @@ function renderGroupAdminPage(user, isOwner = false) {
               <div class="drag-handle">\${handle}</div>
               <div class="role-rank-badge">\${role.rank}</div>
               <div>
-                <input type="text" id="name-\${role.id}" class="role-name-input" value="\${_esc(role.name)}" \${isSystem ? 'disabled style="background:transparent;border:none;margin-bottom:0;"' : 'style="margin-bottom:0;padding:0.5rem 0.75rem;"'} onchange="updateRoleName('\${role.id}', this.value)">
+                <input type="text" id="name-\${role.id}" class="role-name-input" value="\${cleanQuote(role.name)}" \${isSystem ? 'disabled style="background:transparent;border:none;margin-bottom:0;"' : 'style="margin-bottom:0;padding:0.5rem 0.75rem;"'} onchange="updateRoleName('\${role.id}', this.value)">
               </div>
               <div class="color-picker-wrapper">
                 <input type="color" value="\${role.color || '#7c6af7'}" onchange="updateRoleColor('\${role.id}', this.value)">

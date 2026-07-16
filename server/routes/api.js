@@ -2713,7 +2713,8 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
     const currentRobloxRoles = response.data.roles || [];
     
     // 2. Identify the modifications and update colors locally
-    const updates = [];
+    const nameOnlyUpdates = [];
+    const rankUpdates = [];
     for (const item of roles) {
       const roleId = String(item.id);
       const name = item.name;
@@ -2742,9 +2743,15 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
         continue;
       }
 
-      // If name or rank has changed, add to Roblox updates queue
-      if (current.name !== name || current.rank !== rank) {
-        updates.push({
+      // Identify type of update
+      if (current.name !== name && current.rank === rank) {
+        nameOnlyUpdates.push({
+          id: roleId,
+          name: name,
+          description: current.description || ""
+        });
+      } else if (current.rank !== rank) {
+        rankUpdates.push({
           id: roleId,
           oldRank: current.rank,
           newRank: rank,
@@ -2754,68 +2761,93 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
       }
     }
 
-    // 3. Perform Roblox updates with conflict resolution
-    // To prevent duplicate rank errors, we temporarily shift all changing ranks to a safe range (200+).
-    // First, verify which ranks are available in 200+ (from 200 to 254)
-    const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
-    
-    // Filter out ranks that are going to be vacated by updates
-    for (const update of updates) {
-      occupiedRanks.delete(update.oldRank);
+    // Step 3A: Perform name-only updates directly (does not change rank numbers, so safe for non-owners)
+    for (const update of nameOnlyUpdates) {
+      await robloxApiRequest(
+        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+        "PATCH",
+        {
+          name: update.name,
+          description: update.description
+        }
+      );
+      // Wait to avoid rate limits
+      await new Promise(r => setTimeout(r, 450));
     }
 
-    const tempRanks = [];
-    let nextTemp = 200;
-    
-    // Assign temporary unique ranks
-    for (let i = 0; i < updates.length; i++) {
-      while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
+    // Step 3B: Perform rank updates with conflict resolution (requires Owner privileges)
+    if (rankUpdates.length > 0) {
+      // To prevent duplicate rank errors, we temporarily shift all changing ranks to a safe range (200+).
+      // First, verify which ranks are available in 200+ (from 200 to 254)
+      const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
+      
+      // Filter out ranks that are going to be vacated by updates
+      for (const update of rankUpdates) {
+        occupiedRanks.delete(update.oldRank);
+      }
+
+      const tempRanks = [];
+      let nextTemp = 200;
+      
+      // Assign temporary unique ranks
+      for (let i = 0; i < rankUpdates.length; i++) {
+        while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
+          nextTemp++;
+        }
+        tempRanks.push(nextTemp);
+        occupiedRanks.add(nextTemp);
         nextTemp++;
       }
-      tempRanks.push(nextTemp);
-      occupiedRanks.add(nextTemp);
-      nextTemp++;
-    }
 
-    // Step A: Shift changing roles to their temporary ranks
-    for (let i = 0; i < updates.length; i++) {
-      const update = updates[i];
-      const tempRank = tempRanks[i];
-      
-      await robloxApiRequest(
-        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-        "PATCH",
-        {
-          name: update.name,
-          description: update.description,
-          rank: tempRank
-        }
-      );
-      // Wait to avoid rate limits
-      await new Promise(r => setTimeout(r, 450));
-    }
+      // Step A: Shift changing roles to their temporary ranks
+      for (let i = 0; i < rankUpdates.length; i++) {
+        const update = rankUpdates[i];
+        const tempRank = tempRanks[i];
+        
+        await robloxApiRequest(
+          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+          "PATCH",
+          {
+            name: update.name,
+            description: update.description,
+            rank: tempRank
+          }
+        );
+        // Wait to avoid rate limits
+        await new Promise(r => setTimeout(r, 450));
+      }
 
-    // Step B: Set roles to their final target ranks
-    for (let i = 0; i < updates.length; i++) {
-      const update = updates[i];
-      await robloxApiRequest(
-        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
-        "PATCH",
-        {
-          name: update.name,
-          description: update.description,
-          rank: update.newRank
-        }
-      );
-      // Wait to avoid rate limits
-      await new Promise(r => setTimeout(r, 450));
+      // Step B: Set roles to their final target ranks
+      for (let i = 0; i < rankUpdates.length; i++) {
+        const update = rankUpdates[i];
+        await robloxApiRequest(
+          `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+          "PATCH",
+          {
+            name: update.name,
+            description: update.description,
+            rank: update.newRank
+          }
+        );
+        // Wait to avoid rate limits
+        await new Promise(r => setTimeout(r, 450));
+      }
     }
 
     await saveStoreNow();
     res.json({ success: true, message: "Rütbeler başarıyla güncellendi." });
   } catch (err) {
     console.error("Update roles error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Rütbeler güncellenemedi: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+    const robloxError = err.response?.data?.errors?.[0];
+    let errMsg = err.message;
+    if (robloxError) {
+      if (robloxError.code === 24 || robloxError.message?.includes("membership relationship rank")) {
+        errMsg = "Bu grubun sahibi (Owner) bot hesabı olmadığı için rütbe sıraları (Rank numaraları) değiştirilemez. Sadece rütbe isimlerini ve renklerini düzenleyebilirsiniz.";
+      } else {
+        errMsg = robloxError.message;
+      }
+    }
+    res.status(500).json({ error: "Rütbeler güncellenemedi: " + errMsg });
   }
 });
 
@@ -2908,7 +2940,16 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
     res.json({ success: true, message: "Rütbeler başarıyla 5'erli olarak sıralandı." });
   } catch (err) {
     console.error("Reorder 5 error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Rütbeler 5'erli sıralanamadı: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+    const robloxError = err.response?.data?.errors?.[0];
+    let errMsg = err.message;
+    if (robloxError) {
+      if (robloxError.code === 24 || robloxError.message?.includes("membership relationship rank")) {
+        errMsg = "Bu grubun sahibi (Owner) bot hesabı olmadığı için rütbe sıraları (Rank numaraları) değiştirilemez. Sadece rütbe isimlerini ve renklerini düzenleyebilirsiniz.";
+      } else {
+        errMsg = robloxError.message;
+      }
+    }
+    res.status(500).json({ error: "Rütbeler 5'erli sıralanamadı: " + errMsg });
   }
 });
 
