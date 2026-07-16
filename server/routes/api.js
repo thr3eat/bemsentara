@@ -2877,7 +2877,7 @@ router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
     let errMsg = err.message;
     if (robloxError) {
       if (robloxError.code === 24 || robloxError.message?.includes("membership relationship rank")) {
-        errMsg = "Bu grubun sahibi (Owner) bot hesabı olmadığı için rütbe sıraları (Rank numaraları) değiştirilemez. Sadece rütbe isimlerini ve renklerini düzenleyebilirsiniz.";
+        errMsg = "Roblox API Hatası: İşlemi yapan hesabın (TMTCOOKIE) grubun Yegane Sahibi (Owner) olması gerekmektedir. Eğer TMTCOOKIE'ye bir bot veya sadece yetkili bir hesap ekli ise rank sıraları değiştirilemez. Lütfen Render.com'da TMTCOOKIE değişkenine grubu kuran ana hesabın çerezini girin.";
       } else {
         errMsg = robloxError.message;
       }
@@ -2979,7 +2979,7 @@ router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
     let errMsg = err.message;
     if (robloxError) {
       if (robloxError.code === 24 || robloxError.message?.includes("membership relationship rank")) {
-        errMsg = "Bu grubun sahibi (Owner) bot hesabı olmadığı için rütbe sıraları (Rank numaraları) değiştirilemez. Sadece rütbe isimlerini ve renklerini düzenleyebilirsiniz.";
+        errMsg = "Roblox API Hatası: İşlemi yapan hesabın (TMTCOOKIE) grubun Yegane Sahibi (Owner) olması gerekmektedir. Eğer TMTCOOKIE'ye bir bot veya sadece yetkili bir hesap ekli ise rank sıraları değiştirilemez. Lütfen Render.com'da TMTCOOKIE değişkenine grubu kuran ana hesabın çerezini girin.";
       } else {
         errMsg = robloxError.message;
       }
