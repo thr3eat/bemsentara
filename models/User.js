@@ -24,6 +24,8 @@ const User = {
       canSetRole: false,
       canManageMembers: false,
       canManageTickets: false,
+      botVerified: false,
+      botPin: null,
       profileBio: null,
       profileColor: "#7c6af7",
       joinedAt: new Date(),
@@ -47,6 +49,8 @@ function UserConstructor(data) {
     canSetRole: false,
     canManageMembers: false,
     canManageTickets: false,
+    botVerified: false,
+    botPin: null,
     profileBio: null,
     profileColor: "#7c6af7",
     loginPassword: null, // 6-digit PIN for password-based login

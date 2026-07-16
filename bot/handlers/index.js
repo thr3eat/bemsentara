@@ -3128,6 +3128,23 @@ function initializeDiscordHandlers(client) {
         }
       }
 
+      // ── Bot Doğrulama (PIN) Kontrolü ──
+      const { findOne } = require("../../models/User");
+      const botUser = await findOne({ discordId: interaction.user.id });
+      
+      const isDogrulaCmd = interaction.isCommand() && interaction.commandName === 'dogrula';
+      const isErrorAck = interaction.isButton() && interaction.customId?.startsWith('error_ack_');
+      
+      if (!isDogrulaCmd && !isErrorAck && (!botUser || !botUser.botVerified)) {
+        if (interaction.isRepliable()) {
+          return interaction.reply({ 
+            content: "❌ **Doğrulama Gerekli!**\nBotu kullanabilmek için öncelikle sitemize giriş yapmalı, kuralları kabul etmeli ve size verilen 4 haneli PIN ile \`/dogrula <PIN>\` komutunu girmelisiniz.\n\n🌐 **Site Linki:** https://bemsentara-4cyc.onrender.com/", 
+            ephemeral: true 
+          }).catch(() => {});
+        }
+        return;
+      }
+
       // ── AI Sunucu Yönetim Butonları ──────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith('ai_mgmt_approve_') || interaction.customId?.startsWith('ai_mgmt_reject_'))) {
         const { handleManagementButton } = require("../services/aiManagementService");

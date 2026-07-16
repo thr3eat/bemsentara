@@ -80,7 +80,7 @@ async function init(client) {
 /**
  * Send a log message to the appropriate channel
  */
-async function sendLog(system, message, details = null, level = "INFO") {
+async function sendLog(system, message, details = null, level = "INFO", actionRow = null) {
   if (!discordClient || !discordClient.isReady()) return;
 
   const config = LOG_SYSTEMS[system] || LOG_SYSTEMS.bot;
@@ -110,7 +110,10 @@ async function sendLog(system, message, details = null, level = "INFO") {
       }
     }
 
-    await channel.send({ embeds: [embed] });
+    const payload = { embeds: [embed] };
+    if (actionRow) payload.components = [actionRow];
+
+    await channel.send(payload);
   } catch (err) {
     console.error(`[discordLogger] ${system} kanalına log gönderilemedi:`, err.message);
   }

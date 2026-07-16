@@ -30,6 +30,38 @@ async function tryAutoSyncRoles(user) {
   await syncMemberRoles(guild, member, parseInt(user.robloxId, 10), user.robloxUsername);
 }
 
+const axios = require('axios');
+const discordLogger = require('../../bot/services/discordLogger');
+
+async function logWebLogin(user, req) {
+  try {
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'Bilinmiyor';
+    let location = 'Bilinmiyor';
+    
+    if (ip && ip !== '::1' && ip !== '127.0.0.1' && ip !== 'Bilinmiyor') {
+      try {
+        const geoRes = await axios.get(`http://ip-api.com/json/${ip.split(',')[0].trim()}`);
+        if (geoRes.data && geoRes.data.status === 'success') {
+          location = `${geoRes.data.city}, ${geoRes.data.country}`;
+        }
+      } catch (e) {}
+    }
+
+    const message = `**Web Girişi Yapıldı**\n**Kullanıcı:** ${user.username || user.discordUsername || "Bilinmiyor"} (${user.discordId})\n**IP:** ${ip}\n**Konum:** ${location}`;
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const btn = new ButtonBuilder()
+      .setLabel('Canlı İzle / Geçmişi Gör')
+      .setStyle(ButtonStyle.Link)
+      .setURL(`${process.env.BASE_URL || 'https://bemsentara-4cyc.onrender.com'}/debug?watch=${user.discordId}`);
+
+    const row = new ActionRowBuilder().addComponents(btn);
+    await discordLogger.sendLog('web', message, null, 'INFO', row);
+  } catch (err) {
+    console.error("[logWebLogin] Error:", err.message);
+  }
+}
+
 /**
  * Generate a random 6-digit password
  */
@@ -79,6 +111,7 @@ router.get("/auth/discord/callback", passport.authenticate("discord", { failureR
   tryAutoSyncRoles(req.user).catch(() => {});
   syncLinkedRoleMetadata(req.user, req.session).catch(() => {});
   logger.log("[AUTH] " + (req.user.username || req.user.discordUsername) + " (" + req.user.discordId + ") Discord OAuth ile giriş yaptı.", "auth");
+  logWebLogin(req.user, req);
   res.redirect("/dashboard");
 });
 
@@ -242,6 +275,7 @@ router.post("/api/auth/verify-code", async (req, res) => {
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: "Oturum açılamadı." });
       logger.log("[AUTH] " + user.discordUsername + " (" + user.discordId + ") OTP ile giriş yaptı.", "auth");
+      logWebLogin(user, req);
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
     });
   } catch (err) {
@@ -270,7 +304,8 @@ router.post("/api/auth/site-login", async (req, res) => {
     
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: "Oturum açılamadı." });
-      logger.log("[AUTH] " + (user.discordUsername || username) + " (" + user.discordId + ") Site Şifresi ile giriş yaptı.", "auth");
+      logger.log("[AUTH] " + (user.discordUsername || username) + " (" + user.discordId + ") Site şifresi ile giriş yaptı.", "auth");
+      logWebLogin(user, req);
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
     });
   } catch (err) {
@@ -453,7 +488,29 @@ router.get("/auth/roblox/unlink", async (req, res) => {
     res.redirect("/settings?robloxUnlinked=true");
   } catch (err) {
     console.error("Roblox unlink error:", err);
-    res.redirect("/settings?error=true");
+    res.redirect("/dashboard?error=1");
+  }
+});
+
+// Generate Bot Verification PIN
+router.post("/api/auth/generate-pin", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmalısınız." });
+  try {
+    const user = await User.findOne({ discordId: req.user.discordId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    
+    // Always generate a new 4-digit code if they aren't verified yet
+    if (user.botVerified) {
+      return res.status(400).json({ error: "Zaten botu doğruladınız." });
+    }
+    
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    user.botPin = pin;
+    await saveStoreNow(); // Ensure it saves
+    
+    res.json({ success: true, pin });
+  } catch (err) {
+    res.status(500).json({ error: "Sunucu hatası." });
   }
 });
 

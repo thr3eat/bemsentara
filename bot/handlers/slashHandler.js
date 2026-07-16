@@ -15,6 +15,34 @@ async function handleSlashCommand(interaction) {
       return null;
     });
 
+    if (commandName === "dogrula") {
+      const pin = interaction.options.getString("pin").trim();
+      const { saveStoreNow } = require("../../models/Store");
+      const logger = require("../../utils/logger");
+
+      if (!user) {
+        return interaction.editReply({ content: "❌ Sitemize giriş yapmış bir hesabınız bulunamadı. Lütfen önce siteye giriş yapın." });
+      }
+
+      if (user.botVerified) {
+        return interaction.editReply({ content: "✅ Hesabınız zaten doğrulanmış. Botu kullanabilirsiniz." });
+      }
+
+      if (!user.botPin) {
+        return interaction.editReply({ content: "❌ Siteden henüz bir PIN oluşturmamışsınız. Lütfen siteye gidip 'Kodu Al' butonuna tıklayın." });
+      }
+
+      if (user.botPin === pin) {
+        user.botVerified = true;
+        user.botPin = null;
+        await saveStoreNow();
+        logger.log(`[BOT] ${interaction.user.tag} botu başarıyla doğruladı.`);
+        return interaction.editReply({ content: "🎉 **Tebrikler!** Hesabınız başarıyla doğrulandı. Artık Sentara Premium botunu özgürce kullanabilirsiniz." });
+      } else {
+        return interaction.editReply({ content: "❌ **Hatalı PIN!** Lütfen sitede gördüğünüz 4 haneli PIN kodunu doğru girdiğinizden emin olun." });
+      }
+    }
+
     if (commandName === "support") {
       if (!interaction.guild) {
         return interaction.editReply({ content: "❌ Bu komut sadece sunucu'da çalışır" });

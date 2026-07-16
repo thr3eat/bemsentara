@@ -2,6 +2,16 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const generalCommands = [
   new SlashCommandBuilder()
+    .setName("dogrula")
+    .setDescription("Siteden aldığınız 4 haneli PIN kodu ile hesabınızı doğrulayın.")
+    .addStringOption((option) =>
+      option
+        .setName("pin")
+        .setDescription("Siteden aldığınız 4 haneli PIN")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
     .setName("support")
     .setDescription("Destek menüsünü aç"),
 
