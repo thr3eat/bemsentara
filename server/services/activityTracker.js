@@ -27,6 +27,17 @@ function updateActivity(user, activityData) {
     clicks: []
   };
 
+  const newClicks = (activityData.clicks && activityData.clicks.length > 0) ? activityData.clicks : [];
+  
+  if (newClicks.length > 0) {
+    const logger = require("../../utils/logger");
+    newClicks.forEach(click => {
+      if (click.element) {
+        logger.log(`[USER_ACTIVITY] ${user.discordUsername || user.username} (${userId}) tıkladı: "${click.element}" (${activityData.url || existing.url})`, "debug");
+      }
+    });
+  }
+
   activeUsers.set(userId, {
     ...existing,
     lastSeen: now,
@@ -35,8 +46,8 @@ function updateActivity(user, activityData) {
     w: activityData.w || existing.w || 1920,
     h: activityData.h || existing.h || 1080,
     url: activityData.url || existing.url || "/",
-    clicks: (activityData.clicks && activityData.clicks.length > 0) 
-      ? [...existing.clicks, ...activityData.clicks].slice(-20) // Keep last 20 clicks
+    clicks: newClicks.length > 0 
+      ? [...existing.clicks, ...newClicks].slice(-20) // Keep last 20 clicks
       : existing.clicks
   });
 }

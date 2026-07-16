@@ -41,6 +41,47 @@ router.get("/login", (req, res) => {
   res.send(renderLoginPage());
 });
 
+const bcrypt = require("bcrypt");
+
+async function resolveDiscordUser(username) {
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const { TARGET_GUILD_ID } = require("../../config");
+  const client = getDiscordClient();
+  if (!client || !client.isReady()) throw new Error("Discord botu aktif değil.");
+  
+  if (/^\d{17,20}$/.test(username)) {
+    return await client.users.fetch(username).catch(() => null);
+  }
+  
+  const guild = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+  if (!guild) return null;
+  const members = await guild.members.fetch();
+  const member = members.find(m => m.user.username.toLowerCase() === username.toLowerCase());
+  return member ? member.user : null;
+}
+
+// --- Discord Auth Routes ---
+router.get("/auth/discord", (req, res, next) => {
+  const rememberMe = req.query.remember === 'true';
+  if (rememberMe) {
+    req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+  }
+  next();
+}, passport.authenticate("discord"));
+
+router.get("/auth/discord/callback", passport.authenticate("discord", { failureRedirect: "/login?error=discord" }), async (req, res) => {
+  if (req.session.linkDiscordId) {
+    if (String(req.user.discordId) !== req.session.linkDiscordId) {
+      return res.redirect("/dashboard?wrongDiscord=1");
+    }
+    return res.redirect("/auth/roblox");
+  }
+  tryAutoSyncRoles(req.user).catch(() => {});
+  syncLinkedRoleMetadata(req.user, req.session).catch(() => {});
+  logger.log("[AUTH] " + (req.user.username || req.user.discordUsername) + " (" + req.user.discordId + ") Discord OAuth ile giriş yaptı.", "auth");
+  res.redirect("/dashboard");
+});
+
 // Password-based login endpoint
 router.post("/auth/login-password", async (req, res) => {
   const { password } = req.body;
@@ -128,51 +169,34 @@ const otpStore = new Map();
  * Endpoint to request a login code via Discord DM
  */
 router.post("/api/auth/request-code", async (req, res) => {
-  const { discordId } = req.body;
-  if (!discordId || !/^\d{17,20}$/.test(discordId)) {
-    return res.status(400).json({ error: "Geçerli bir Discord ID girin." });
-  }
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: "Kullanıcı adı gereklidir." });
 
   try {
-    const { getDiscordClient } = require("../../bot/discordClient");
-    const client = getDiscordClient();
-    if (!client || !client.isReady()) {
-      return res.status(503).json({ error: "Discord botu aktif değil, lütfen daha sonra tekrar deneyin." });
-    }
+    const discordUser = await resolveDiscordUser(username);
+    if (!discordUser) return res.status(404).json({ error: "Kullanıcı bulunamadı. Lütfen bot ile aynı sunucuda olduğunuzdan emin olun." });
 
-    // Check if there is an existing valid code to prevent spam
-    const existing = otpStore.get(discordId);
-    if (existing && existing.expiresAt > Date.now()) {
-      // Allow sending another code, but maybe throttle? For now just overwrite.
-    }
-
-    // Generate 4-digit code
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+    otpStore.set(discordUser.id, { code, expiresAt });
 
-    otpStore.set(discordId, { code, expiresAt });
-
-    // Send DM
     try {
-      const user = await client.users.fetch(discordId);
-      await user.send({
+      await discordUser.send({
         embeds: [{
           title: "🔑 Sentara Giriş Kodu",
-          description: "Bemsentara paneline giriş yapmak için doğrulama kodunuz:\\n\\n**" + code + "**\\n\\n*Bu kod 5 dakika boyunca geçerlidir. Lütfen bu kodu kimseyle paylaşmayın.*",
+          description: "Bemsentara paneline giriş yapmak için doğrulama kodunuz:\n\n**" + code + "**\n\n*Bu kod 5 dakika boyunca geçerlidir.*",
           color: 0x7c6af7,
           timestamp: new Date().toISOString()
         }]
       });
-    } catch (dmErr) {
-      console.warn("DM Send Error:", dmErr.message);
-      return res.status(400).json({ error: "Size DM gönderilemedi! Lütfen bot ile aynı sunucuda olduğunuza ve DMs'lerinizin açık olduğuna emin olun." });
+    } catch (err) {
+      return res.status(400).json({ error: "Size DM gönderilemedi! DM'lerinizin açık olduğundan emin olun." });
     }
 
-    logger.log("[AUTH] " + discordId + " ID'li kullanıcı giriş kodu talep etti.", "auth");
-    res.json({ success: true, message: "Kod Discord özel mesajlarınıza gönderildi." });
+    logger.log("[AUTH] " + discordUser.id + " ID'li kullanıcı giriş kodu talep etti.", "auth");
+    res.json({ success: true, message: "Kod Discord özel mesajlarınıza gönderildi.", discordId: discordUser.id });
   } catch (err) {
-    console.error("Request Code Error:", err);
-    res.status(500).json({ error: "Sunucu hatası: " + err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -180,66 +204,161 @@ router.post("/api/auth/request-code", async (req, res) => {
  * Endpoint to verify the login code
  */
 router.post("/api/auth/verify-code", async (req, res) => {
-  const { discordId, code } = req.body;
-  
-  if (!discordId || !code) {
-    return res.status(400).json({ error: "Discord ID ve Kod gereklidir." });
-  }
+  const { discordId, code, rememberMe } = req.body;
+  if (!discordId || !code) return res.status(400).json({ error: "Eksik bilgi." });
 
   const record = otpStore.get(discordId);
-  if (!record) {
-    return res.status(400).json({ error: "Geçerli bir kod bulunamadı veya süresi dolmuş." });
-  }
-
-  if (Date.now() > record.expiresAt) {
+  if (!record || Date.now() > record.expiresAt) {
     otpStore.delete(discordId);
-    return res.status(400).json({ error: "Kodun süresi dolmuş. Lütfen yeni bir kod isteyin." });
+    return res.status(400).json({ error: "Geçersiz veya süresi dolmuş kod." });
   }
-
-  if (record.code !== String(code).trim()) {
-    return res.status(401).json({ error: "Hatalı kod." });
-  }
-
-  // Code is valid! Delete it from store
+  
+  if (record.code !== String(code).trim()) return res.status(401).json({ error: "Hatalı kod." });
   otpStore.delete(discordId);
 
   try {
-    const { getDiscordClient } = require("../../bot/discordClient");
-    const client = getDiscordClient();
-    const discordUser = await client.users.fetch(discordId);
+    const discordUser = await resolveDiscordUser(discordId);
+    if (!discordUser) return res.status(404).json({ error: "Kullanıcı bilgileri doğrulanamadı." });
 
-    // Upsert user in database
     let user = await User.findOne({ discordId });
     if (!user) {
       user = new User({
         discordId: discordUser.id,
-        username: discordUser.username,
-        avatar: discordUser.avatar 
-          ? "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png"
-          : "https://cdn.discordapp.com/embed/avatars/0.png"
+        discordUsername: discordUser.username,
+        discordAvatar: discordUser.avatar ? "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png" : "https://cdn.discordapp.com/embed/avatars/0.png"
       });
     } else {
-      user.username = discordUser.username;
-      if (discordUser.avatar) {
-        user.avatar = "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png";
-      }
+      user.discordUsername = discordUser.username;
+      if (discordUser.avatar) user.discordAvatar = "https://cdn.discordapp.com/avatars/" + discordUser.id + "/" + discordUser.avatar + ".png";
     }
-    
+
+    if (user.isBanned) return res.status(403).json({ error: "Hesabınız yasaklandı." });
+
     await user.save();
     saveStoreNow();
 
-    // Login via Passport
+    if (rememberMe) req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+
     req.login(user, (err) => {
-      if (err) {
-        console.error("Login session setup error:", err);
-        return res.status(500).json({ error: "Oturum açılamadı." });
-      }
-      logger.log("[AUTH] " + user.username + " (" + user.discordId + ") sisteme başarıyla giriş yaptı.", "auth");
+      if (err) return res.status(500).json({ error: "Oturum açılamadı." });
+      logger.log("[AUTH] " + user.discordUsername + " (" + user.discordId + ") OTP ile giriş yaptı.", "auth");
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
     });
   } catch (err) {
-    console.error("Verify Code Error:", err);
-    res.status(500).json({ error: "Sunucu hatası: " + err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Custom Password Login
+router.post("/api/auth/site-login", async (req, res) => {
+  const { username, password, rememberMe } = req.body;
+  if (!username || !password) return res.status(400).json({ error: "Kullanıcı adı ve şifre gereklidir." });
+  
+  try {
+    const discordUser = await resolveDiscordUser(username);
+    if (!discordUser) return res.status(404).json({ error: "Kullanıcı bulunamadı. Bota erişiminiz olduğundan emin olun." });
+    
+    const user = await User.findOne({ discordId: discordUser.id });
+    if (!user || !user.sitePassword) return res.status(401).json({ error: "Bu hesaba ait site şifresi bulunmuyor." });
+    
+    if (user.isBanned) return res.status(403).json({ error: "Hesabınız yasaklandı." });
+    
+    const match = await bcrypt.compare(password, user.sitePassword);
+    if (!match) return res.status(401).json({ error: "Hatalı şifre." });
+    
+    if (rememberMe) req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+    
+    req.login(user, (err) => {
+      if (err) return res.status(500).json({ error: "Oturum açılamadı." });
+      logger.log("[AUTH] " + (user.discordUsername || username) + " (" + user.discordId + ") Site Şifresi ile giriş yaptı.", "auth");
+      res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Forgot Password
+router.post("/api/auth/forgot-password", async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: "Kullanıcı adı gereklidir." });
+  
+  try {
+    const discordUser = await resolveDiscordUser(username);
+    if (!discordUser) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    
+    const user = await User.findOne({ discordId: discordUser.id });
+    if (!user || !user.sitePassword) return res.status(400).json({ error: "Bu hesaba ait oluşturulmuş bir site şifresi bulunmuyor." });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    otpStore.set(discordUser.id + "_reset", { code, expiresAt });
+    
+    const { BASE_URL } = require("../../config");
+    // We can also just send the code instead of a link if we don't have a reset page
+    
+    try {
+      await discordUser.send({
+        embeds: [{
+          title: "🔐 Sentara Şifre Sıfırlama",
+          description: "Şifrenizi sıfırlamak için onay kodunuz:\n\n**" + code + "**\n\n*Bu kod 10 dakika geçerlidir.*",
+          color: 0xed4245,
+          timestamp: new Date().toISOString()
+        }]
+      });
+    } catch (err) {
+      return res.status(400).json({ error: "Size DM gönderilemedi!" });
+    }
+    
+    logger.log("[AUTH] " + discordUser.id + " şifre sıfırlama talep etti.", "auth");
+    res.json({ success: true, message: "Şifre sıfırlama kodu DM kutunuza gönderildi.", discordId: discordUser.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset Password
+router.post("/api/auth/reset-password", async (req, res) => {
+  const { discordId, code, password } = req.body;
+  if (!discordId || !code || !password || password.length < 8) return res.status(400).json({ error: "Geçersiz istek veya çok kısa şifre (en az 8 karakter)." });
+  
+  const record = otpStore.get(discordId + "_reset");
+  if (!record || Date.now() > record.expiresAt || record.code !== String(code).trim()) {
+    return res.status(400).json({ error: "Geçersiz veya süresi dolmuş sıfırlama kodu." });
+  }
+  
+  try {
+    const user = await User.findOne({ discordId });
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    
+    user.sitePassword = await bcrypt.hash(password, 10);
+    user.passwordCreatedAt = new Date();
+    await user.save();
+    saveStoreNow();
+    
+    otpStore.delete(discordId + "_reset");
+    res.json({ success: true, message: "Şifreniz başarıyla sıfırlandı! Artık yeni şifrenizle giriş yapabilirsiniz." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Set Custom Password (Requires Login)
+router.post("/api/auth/set-site-password", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmalısınız." });
+  const { password } = req.body;
+  if (!password || password.length < 8) return res.status(400).json({ error: "Şifre en az 8 karakter olmalıdır." });
+  
+  try {
+    const user = await User.findById(req.user._id);
+    user.sitePassword = await bcrypt.hash(password, 10);
+    user.passwordCreatedAt = new Date();
+    await user.save();
+    saveStoreNow();
+    
+    res.json({ success: true, message: "Site şifreniz başarıyla ayarlandı!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

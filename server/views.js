@@ -465,7 +465,9 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
     }, { passive: true });
 
     document.addEventListener('click', (e) => {
-      actClicks.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+      let tText = (e.target.innerText || e.target.tagName || "").trim().replace(/\n/g, ' ');
+      if (tText.length > 50) tText = tText.substring(0, 50) + "...";
+      actClicks.push({ x: e.clientX, y: e.clientY, t: Date.now(), element: tText });
     }, { passive: true });
 
     setInterval(() => {
@@ -834,29 +836,25 @@ function renderMainPage() {
       <div class="feature">
         <div class="feature-icon">📊</div>
         <h3>Detaylı İstatistikler</h3>
-        <p>Ticket metrikleri, personel performansı ve kullanıcı aktivitesi hakkında kapsamlı raporlar.</p>
+        <p>Ticket metrikleri, personel performansı ve anlık durum raporlaması.</p>
       </div>
-      <div class="feature">
-        <div class="feature-icon">🤖</div>
-        <h3>Otomasyon</h3>
-        <p>Otomatik atama, kategorizasyon ve yanıt şablonları ile verimliliği maksimuma taşıyın.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <footer>
-    <a href="/" class="logo">sentara</a>
-    <div class="footer-links">
-      <a href="/legal/tos">Hizmet Koşulları</a>
-      <a href="/legal/privacy">Gizlilik Politikası</a>
-      <a href="/wiki">Wiki</a>
-    </div>
-    <p style="font-size:0.85rem;">&copy; 2026 Sentara Premium Support. Tüm hakları saklıdır.</p>
-  </footer>
+    <!-- FOOTER -->
+    <footer>
+      <div class="footer-links">
+        <a href="/legal/tos">Hizmet Şartları</a>
+        <a href="/legal/privacy">Gizlilik Politikası</a>
+        <a href="https://discord.gg/sentara">Destek Sunucusu</a>
+      </div>
+      <div class="copy">
+        &copy; 2024 Sentara Premium. Tüm hakları saklıdır.
+      </div>
+    </footer>
+  </main>
 </body>
 </html>`;
 }
-
 
 // ─────────────────────────────────────────────
 // LOGIN PAGE
@@ -927,34 +925,39 @@ function renderLoginPage(errorMsg = null) {
       color:var(--danger); padding:0.8rem 1rem; border-radius:12px;
       margin-bottom:1.5rem; font-size:0.88rem;
       backdrop-filter:blur(8px);
+      display: none;
     }
-    .btn-discord {
+    .btn {
       width:100%; padding:1.05rem; border:none; border-radius:14px;
       font-family:'Outfit',sans-serif; font-weight:600; font-size:1rem;
-      cursor:pointer; background:rgba(88,101,242,0.85); color:white;
+      cursor:pointer; color:white;
       display:flex; align-items:center; justify-content:center; gap:10px;
       text-decoration:none;
       transition:all 0.3s ease;
-      box-shadow:0 4px 20px rgba(88,101,242,0.2);
-      backdrop-filter:blur(8px);
+      margin-bottom: 0.8rem;
     }
-    .btn-discord:hover {
-      background:rgba(71,82,196,0.9);
-      transform:translateY(-2px);
-      box-shadow:0 8px 28px rgba(88,101,242,0.3);
+    .btn-discord { background:rgba(88,101,242,0.85); box-shadow:0 4px 20px rgba(88,101,242,0.2); }
+    .btn-discord:hover { background:rgba(71,82,196,0.9); transform:translateY(-2px); box-shadow:0 8px 28px rgba(88,101,242,0.3); }
+    .btn-primary { background:rgba(124,106,247,0.85); box-shadow:0 4px 20px rgba(124,106,247,0.2); }
+    .btn-primary:hover { background:rgba(100,80,240,0.9); transform:translateY(-2px); box-shadow:0 8px 28px rgba(124,106,247,0.3); }
+    .btn-success { background:rgba(16,185,129,0.85); box-shadow:0 4px 20px rgba(16,185,129,0.2); }
+    .btn-success:hover { background:rgba(5,150,105,0.9); transform:translateY(-2px); box-shadow:0 8px 28px rgba(16,185,129,0.3); }
+    
+    .divider { color:var(--muted); font-size:0.85rem; margin:1.5rem 0; position:relative; display:flex; align-items:center; justify-content:center; }
+    .divider::before, .divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.06); margin:0 10px; }
+    
+    .input-field {
+      width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); 
+      background:rgba(0,0,0,0.2); color:#fff; margin-bottom:1rem; 
+      font-family:'Outfit',sans-serif; font-size:0.95rem;
     }
-    .divider { color:var(--muted); font-size:0.85rem; margin:1.5rem 0; position:relative; }
-    .divider::before, .divider::after {
-      content:''; position:absolute; top:50%; width:40%; height:1px; background:rgba(255,255,255,0.06);
+    .remember-me {
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 1.5rem; color: var(--muted); font-size: 0.9rem;
     }
-    .divider::before { left:0; }
-    .divider::after  { right:0; }
-    .back { display:inline-block; margin-top:1.5rem; color:var(--muted); text-decoration:none; font-size:0.88rem; transition:color 0.2s; font-weight:300; }
-    .back:hover { color:var(--text); }
-    .terms { margin-top:1.5rem; font-size:0.75rem; color:var(--muted); line-height:1.5; font-weight:300; }
-    .terms a { color:var(--accent); text-decoration:none; }
-    .terms a:hover { text-decoration:underline; }
-    ::selection { background:rgba(167,139,250,0.3); color:#fff; }
+    .remember-me input { accent-color: var(--accent); width: 16px; height: 16px; }
+    
+    .link-btn { background:none;border:none;color:var(--muted);font-size:0.85rem;cursor:pointer;text-decoration:underline; font-family:'Outfit',sans-serif; }
+    .link-btn:hover { color:var(--text); }
   </style>
 </head>
 <body>
@@ -964,108 +967,186 @@ function renderLoginPage(errorMsg = null) {
     <div class="card">
       <span class="logo">sentara</span>
       <h1>Hoş Geldiniz</h1>
-      <p class="subtitle">Platforma erişmek için Discord ID'nizi girin</p>
+      <p class="subtitle">Sisteme giriş yapmak için bir yöntem seçin</p>
 
-      ${errorMsg ? `<div class="error-box">⚠️ ${_esc(errorMsg)}</div>` : ''}
+      <div class="error-box" id="error-box">\${errorMsg ? _esc(errorMsg) : ''}</div>
 
-      <div id="step-1">
-        <input type="text" id="discord-id" placeholder="Discord ID (örn: 123456789012345678)" style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#fff; margin-bottom:1rem; font-family:'Outfit',sans-serif; font-size:0.95rem;">
-        <button id="btn-request" onclick="requestCode()" class="btn-discord" style="background:rgba(124,106,247,0.85);">
-          Kod Gönder
-        </button>
+      <!-- MAIN OPTIONS -->
+      <div id="view-main">
+        <div class="remember-me">
+          <input type="checkbox" id="remember-discord">
+          <label for="remember-discord">Beni Hatırla</label>
+        </div>
+        <a href="#" onclick="goDiscordAuth()" class="btn btn-discord">Discord ile Giriş Yap</a>
+        <div class="divider">veya</div>
+        <button onclick="showView('view-otp')" class="btn btn-primary">Discord Kod Gönder (DM)</button>
+        <button onclick="showView('view-password')" class="btn btn-primary" style="background:rgba(255,255,255,0.1); color:#fff; box-shadow:none;">Site Şifresi ile Giriş</button>
       </div>
 
-      <div id="step-2" style="display:none;">
-        <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem; text-align:left;">Discord özel mesajlarınıza gelen 4 haneli kodu girin:</p>
-        <input type="text" id="otp-code" placeholder="____" maxlength="4" style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#fff; margin-bottom:1rem; font-family:'Outfit',sans-serif; font-size:1.5rem; text-align:center; letter-spacing:0.5rem;">
-        <button id="btn-verify" onclick="verifyCode()" class="btn-discord" style="background:rgba(16,185,129,0.85);">
-          Doğrula ve Giriş Yap
-        </button>
-        <button onclick="resetFlow()" style="background:none;border:none;color:var(--muted);font-size:0.8rem;margin-top:1rem;cursor:pointer;width:100%;">← Geri dön</button>
+      <!-- OTP VIEW -->
+      <div id="view-otp" style="display:none;">
+        <h2 style="font-size:1.1rem; margin-bottom:1rem;">Discord Kodu ile Giriş</h2>
+        <div class="remember-me">
+          <input type="checkbox" id="remember-otp">
+          <label for="remember-otp">Beni Hatırla</label>
+        </div>
+        <div id="otp-step-1">
+          <input type="text" id="otp-username" class="input-field" placeholder="Discord Kullanıcı Adı (Örn: ekoyildiz)">
+          <button id="btn-request" onclick="requestCode()" class="btn btn-primary">Kod Gönder</button>
+        </div>
+        <div id="otp-step-2" style="display:none;">
+          <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">Discord özel mesajlarınıza gelen 4 haneli kodu girin:</p>
+          <input type="text" id="otp-code" class="input-field" placeholder="____" maxlength="4" style="text-align:center; letter-spacing:0.5rem; font-size:1.5rem;">
+          <input type="hidden" id="otp-resolved-id">
+          <button id="btn-verify" onclick="verifyCode()" class="btn btn-success">Doğrula ve Giriş Yap</button>
+        </div>
+        <button onclick="showView('view-main')" class="link-btn" style="margin-top:1rem;">← Geri dön</button>
+      </div>
+
+      <!-- PASSWORD VIEW -->
+      <div id="view-password" style="display:none;">
+        <h2 style="font-size:1.1rem; margin-bottom:1rem;">Site Şifresi ile Giriş</h2>
+        <div class="remember-me">
+          <input type="checkbox" id="remember-pwd">
+          <label for="remember-pwd">Beni Hatırla</label>
+        </div>
+        <input type="text" id="pwd-username" class="input-field" placeholder="Discord Kullanıcı Adı">
+        <input type="password" id="pwd-password" class="input-field" placeholder="Site Şifresi">
+        <button id="btn-pwd-login" onclick="passwordLogin()" class="btn btn-success">Giriş Yap</button>
+        <button onclick="forgotPassword()" class="link-btn" style="display:block; margin: 1rem auto 0.5rem;">Şifremi Unuttum</button>
+        <button onclick="showView('view-main')" class="link-btn" style="display:block; margin:0 auto;">← Geri dön</button>
       </div>
 
       <script>
+        // Init error box
+        const srvErr = "\${errorMsg || ''}";
+        if (srvErr) { document.getElementById('error-box').style.display = 'block'; }
+
+        function showError(msg) {
+          const box = document.getElementById('error-box');
+          box.innerText = "⚠️ " + msg;
+          box.style.display = 'block';
+        }
+        function hideError() {
+          document.getElementById('error-box').style.display = 'none';
+        }
+        function showView(id) {
+          hideError();
+          document.getElementById('view-main').style.display = 'none';
+          document.getElementById('view-otp').style.display = 'none';
+          document.getElementById('view-password').style.display = 'none';
+          document.getElementById(id).style.display = 'block';
+        }
+
+        // Discord OAuth2
+        function goDiscordAuth() {
+          const rem = document.getElementById('remember-discord').checked;
+          window.location.href = '/auth/discord?remember=' + (rem ? 'true' : 'false');
+        }
+
+        // OTP Auth
         async function requestCode() {
-          const discordId = document.getElementById('discord-id').value.trim();
-          if (!discordId || !/^\\d{17,20}$/.test(discordId)) {
-            alert("Lütfen geçerli bir Discord ID girin.");
-            return;
-          }
+          hideError();
+          const username = document.getElementById('otp-username').value.trim();
+          if (!username) return showError("Lütfen Discord Kullanıcı Adınızı girin.");
           
           const btn = document.getElementById('btn-request');
-          btn.disabled = true;
-          btn.innerText = "Gönderiliyor...";
-
+          btn.disabled = true; btn.innerText = "Gönderiliyor...";
           try {
             const res = await fetch('/api/auth/request-code', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ discordId })
+              method: 'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ username })
             });
             const data = await res.json();
-            
-            if (res.ok) {
-              document.getElementById('step-1').style.display = 'none';
-              document.getElementById('step-2').style.display = 'block';
-              document.getElementById('otp-code').focus();
+            if(data.success) {
+              document.getElementById('otp-resolved-id').value = data.discordId;
+              document.getElementById('otp-step-1').style.display = 'none';
+              document.getElementById('otp-step-2').style.display = 'block';
             } else {
-              alert(data.error || "Kod gönderilemedi.");
+              showError(data.error || "Bilinmeyen hata");
             }
-          } catch (err) {
-            alert("Bağlantı hatası oluştu.");
-          } finally {
-            btn.disabled = false;
-            btn.innerText = "Kod Gönder";
-          }
+          } catch(e) { showError("Bağlantı hatası."); }
+          btn.disabled = false; btn.innerText = "Kod Gönder";
         }
 
         async function verifyCode() {
-          const discordId = document.getElementById('discord-id').value.trim();
+          hideError();
+          const discordId = document.getElementById('otp-resolved-id').value;
           const code = document.getElementById('otp-code').value.trim();
+          const rem = document.getElementById('remember-otp').checked;
+          if(!code || code.length !== 4) return showError("Lütfen 4 haneli kodu girin.");
           
-          if (!code || code.length !== 4) {
-            alert("Lütfen 4 haneli kodu girin.");
-            return;
-          }
-
           const btn = document.getElementById('btn-verify');
-          btn.disabled = true;
-          btn.innerText = "Doğrulanıyor...";
-
+          btn.disabled = true; btn.innerText = "Doğrulanıyor...";
           try {
             const res = await fetch('/api/auth/verify-code', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ discordId, code })
+              method: 'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ discordId, code, rememberMe: rem })
             });
             const data = await res.json();
-            
-            if (res.ok) {
-              window.location.href = "/dashboard";
-            } else {
-              alert(data.error || "Doğrulama hatası.");
-              btn.disabled = false;
-              btn.innerText = "Doğrula ve Giriş Yap";
-            }
-          } catch (err) {
-            alert("Bağlantı hatası oluştu.");
-            btn.disabled = false;
-            btn.innerText = "Doğrula ve Giriş Yap";
-          }
+            if(data.success) window.location.href = '/dashboard';
+            else showError(data.error || "Hatalı kod.");
+          } catch(e) { showError("Bağlantı hatası."); }
+          btn.disabled = false; btn.innerText = "Doğrula ve Giriş Yap";
         }
 
-        function resetFlow() {
-          document.getElementById('step-2').style.display = 'none';
-          document.getElementById('step-1').style.display = 'block';
-          document.getElementById('otp-code').value = '';
+        // Custom Password Auth
+        async function passwordLogin() {
+          hideError();
+          const username = document.getElementById('pwd-username').value.trim();
+          const password = document.getElementById('pwd-password').value.trim();
+          const rem = document.getElementById('remember-pwd').checked;
+          
+          if (!username || !password) return showError("Lütfen tüm alanları doldurun.");
+          
+          const btn = document.getElementById('btn-pwd-login');
+          btn.disabled = true; btn.innerText = "Giriş Yapılıyor...";
+          
+          try {
+            const res = await fetch('/api/auth/site-login', {
+              method: 'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ username, password, rememberMe: rem })
+            });
+            const data = await res.json();
+            if(data.success) window.location.href = '/dashboard';
+            else showError(data.error || "Bilinmeyen hata");
+          } catch(e) { showError("Bağlantı hatası."); }
+          
+          btn.disabled = false; btn.innerText = "Giriş Yap";
+        }
+
+        async function forgotPassword() {
+          hideError();
+          const username = prompt("Lütfen Discord Kullanıcı Adınızı girin:");
+          if(!username) return;
+          
+          try {
+            const res = await fetch('/api/auth/forgot-password', {
+              method: 'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ username })
+            });
+            const data = await res.json();
+            if(data.success) {
+              alert(data.message);
+              // Wait for code
+              const code = prompt("DM kutunuza gelen 6 haneli sıfırlama kodunu girin:");
+              if(!code) return;
+              const newPassword = prompt("Lütfen yeni Site Şifrenizi belirleyin (En az 8 karakter):");
+              if(!newPassword || newPassword.length < 8) return alert("Geçersiz şifre.");
+              
+              const res2 = await fetch('/api/auth/reset-password', {
+                method: 'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ discordId: data.discordId, code, password: newPassword })
+              });
+              const data2 = await res2.json();
+              if(data2.success) alert("Şifreniz başarıyla sıfırlandı!");
+              else alert("Sıfırlama başarısız: " + data2.error);
+            } else {
+              showError(data.error || "Hata oluştu.");
+            }
+          } catch(e) { showError("Bağlantı hatası."); }
         }
       </script>
-
-      <p class="terms">
-        Giriş yaparak <a href="/legal/tos">Hizmet Koşullarını</a> ve
-        <a href="/legal/privacy">Gizlilik Politikasını</a> kabul etmiş olursunuz.
-      </p>
-      <a href="/" class="back">← Ana Sayfaya Dön</a>
     </div>
   </div>
 </body>
@@ -2102,12 +2183,12 @@ function renderDebugPage(user, stats = {}, logs = []) {
               const time    = (l.timestamp || '').split('T')[1] || l.timestamp || '';
               const timeStr = time.split('.')[0] || time;
               const col     = colors[l.type] || '#a0a0c0';
-              return \\\`<div style="border-bottom:1px solid rgba(255,255,255,0.07);padding:0.5rem 0;">
-                <span style="color:#555;">[&thinsp;\\\${timeStr}&thinsp;]</span>
-                <span style="color:\\\${col};font-weight:\\\${l.type==='ERROR'?'bold':'normal'};">&nbsp;\\\${l.type || '?'}</span>:
-                <span>&nbsp;\\\${l.msg || ''}</span>
-                \\\${l.details ? \\\`<div style="color:#888;margin-left:2rem;margin-top:0.2rem;">\\\${l.details}</div>\\\` : ''}
-              </div>\\\`;
+              return \`<div style="border-bottom:1px solid rgba(255,255,255,0.07);padding:0.5rem 0;">
+                <span style="color:#555;">[&thinsp;\${timeStr}&thinsp;]</span>
+                <span style="color:\${col};font-weight:\${l.type==='ERROR'?'bold':'normal'};">&nbsp;\${l.type || '?'}</span>:
+                <span>&nbsp;\${l.msg || ''}</span>
+                \${l.details ? \`<div style="color:#888;margin-left:2rem;margin-top:0.2rem;">\${l.details}</div>\` : ''}
+              </div>\`;
             }).join('')
           : '<div style="color:var(--muted);padding:1rem;text-align:center;">Log bulunamadı.</div>';
       }
@@ -2167,26 +2248,32 @@ function renderDebugPage(user, stats = {}, logs = []) {
       }
 
       // ── AUTO POLLING ──
-      setInterval(async () => {
+      async function fetchData() {
         try {
           const res = await fetch('/api/activity/users');
           const data = await res.json();
-          if (data.success) {
-            liveUsers = data.users;
-            renderLiveUsers();
+          if (data && data.success) {
+            liveUsers = data.users || [];
+          } else {
+            liveUsers = [];
           }
-        } catch (e) {}
+        } catch (e) {
+          liveUsers = [];
+        }
+        renderLiveUsers();
         
         try {
           const res = await fetch('/api/logs');
           const data = await res.json();
-          if (data.success) {
+          if (data && data.success) {
             rawLogs = data.logs.reverse();
             renderLogs();
           }
         } catch (e) {}
-      }, 2000);
+      }
 
+      setInterval(fetchData, 2000);
+      fetchData(); // İlk çalıştırma
       renderLogs();
     </script>
   `;

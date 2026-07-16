@@ -10,6 +10,7 @@
   "dependencies": {
     "@discordjs/voice": "^0.19.2",
     "axios": "^1.6.7",
+    "bcrypt": "^6.0.0",
     "chalk": "^4.1.2",
     "cors": "^2.8.5",
     "discord.js": "^14.14.1",

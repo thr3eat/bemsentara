@@ -50,6 +50,7 @@ function UserConstructor(data) {
     profileBio: null,
     profileColor: "#7c6af7",
     loginPassword: null, // 6-digit PIN for password-based login
+    sitePassword: null, // bcrypt hashed strong password
     passwordCreatedAt: null,
     joinedAt: new Date(),
   };
