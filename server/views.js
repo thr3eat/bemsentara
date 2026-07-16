@@ -2273,7 +2273,13 @@ function renderDebugPage(user, stats = {}, logs = []) {
       }
 
       setInterval(fetchData, 2000);
-      fetchData(); // İlk çalıştırma
+      fetchData().then(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const watchId = urlParams.get('watch');
+        if (watchId) {
+          window.openLiveModal(watchId);
+        }
+      });
       renderLogs();
     </script>
   `;

@@ -46,9 +46,26 @@ function cancelPendingAIBan(guildId, userId) {
   return false;
 }
 
+const daytimePendingActions = new Map();
+
+function cancelPendingDaytimeAction(guildId, userId) {
+  const key = `${guildId}_${userId}`;
+  if (daytimePendingActions.has(key)) {
+    const pending = daytimePendingActions.get(key);
+    if (pending.timeoutId) {
+      clearTimeout(pending.timeoutId);
+    }
+    daytimePendingActions.delete(key);
+    console.log(`[DaytimeBackup] ❌ ${key} için bekleyen 5 dakikalık otonom yedek işlem iptal edildi.`);
+    return true;
+  }
+  return false;
+}
+
 function cancelPendingNightBan(guildId, userId) {
   const key = `${guildId}_${userId}`;
   cancelPendingAIBan(guildId, userId);
+  cancelPendingDaytimeAction(guildId, userId);
   if (nightModePendingBans.has(key)) {
     const pending = nightModePendingBans.get(key);
     if (pending.timeoutId) {
@@ -546,6 +563,130 @@ Lütfen cevabına sadece 'EVET' veya 'HAYIR' ile başla ve kısa bir açıklama 
       });
 
       console.log(`[NightMode] ⏳ ${guild.name} — ${executor.tag} için 1 dakika bekleme başlandı`);
+    } else {
+      // ─── GÜNDÜZ MODU: 5 Dakikalık otonom yedek zamanlayıcı başlat ───────────
+      const timeoutId = setTimeout(async () => {
+        const pending = daytimePendingActions.get(key);
+        if (!pending) return;
+
+        // Run AI decision or execute default
+        let decisionUpper = "BAN";
+        let aiDecision = "5 dakika boyunca yanıt gelmediği için otomatik yedek ban işlemi uygulandı.";
+        try {
+          const { chatWithAI } = require("./aiService");
+          const finalPrompt = `Sunucu: ${guild.name}, Şüpheli: ${executor.tag} (ID: ${executor.id}), Olay Tipi: ${cfg.label}. 
+5 dakika boyunca yöneticilerden bir yanıt/müdahale gelmedi. Bu durumda bota otonom yetki verilmiştir.
+Lütfen bu kullanıcıya uygulanacak en uygun eylemi seç. Seçenekler: 'BAN', 'KICK', 'MUTE', 'JAIL'.
+Yanıtının ilk kelimesi sadece bu seçeneklerden biri olsun (Örn: 'BAN' veya 'MUTE') ve ardından kısa bir gerekçe yaz (Türkçe olsun).`;
+          
+          aiDecision = await chatWithAI([{ role: "user", content: finalPrompt }]);
+          decisionUpper = aiDecision.toUpperCase();
+        } catch (err) {
+          console.error("[DaytimeBackup] AI karar hatası:", err.message);
+        }
+
+        let actionLabel = "";
+        let finalAction = "";
+
+        if (decisionUpper.startsWith("BAN") || decisionUpper.includes("BAN")) {
+          finalAction = "BAN";
+          actionLabel = "🚫 Otomatik Banlandı";
+          await guild.members.ban(executor.id, { reason: `Otonom Abuse Engelleme: 5 dk yanıtsız kaldı (${type})` }).catch(() => {});
+        } else if (decisionUpper.startsWith("KICK") || decisionUpper.includes("KICK")) {
+          finalAction = "KICK";
+          actionLabel = "🚫 Otomatik Atıldı";
+          const member = await guild.members.fetch(executor.id).catch(() => null);
+          if (member) await member.kick(`Otonom Abuse Engelleme: 5 dk yanıtsız kaldı (${type})`).catch(() => {});
+        } else if (decisionUpper.startsWith("JAIL") || decisionUpper.includes("JAIL")) {
+          finalAction = "JAIL";
+          actionLabel = "🚫 Otomatik Rol Alındı + Timeout";
+          const member = await guild.members.fetch(executor.id).catch(() => null);
+          if (member) {
+            const removableRoles = member.roles.cache.filter(r =>
+              r.id !== guild.id &&
+              !r.managed &&
+              guild.members.me?.roles.highest.comparePositionTo(r) > 0
+            );
+            if (removableRoles.size > 0) {
+              await member.roles.remove(removableRoles, "Otonom Abuse Engelleme").catch(() => {});
+            }
+            await member.timeout(28 * 24 * 60 * 60 * 1000, "Otonom Abuse Engelleme").catch(() => {});
+          }
+        } else {
+          finalAction = "MUTE";
+          actionLabel = "🚫 Otomatik Mute";
+          const member = await guild.members.fetch(executor.id).catch(() => null);
+          if (member) {
+            await member.timeout(24 * 60 * 60 * 1000, `Otonom Abuse Engelleme: 5 dk yanıtsız kaldı (${type})`).catch(() => {});
+          }
+        }
+
+        // Update alert message
+        try {
+          const freshMsg = await alertMsg.channel.messages.fetch(alertMsg.id);
+          if (freshMsg) {
+            const currentEmbed = freshMsg.embeds[0];
+            if (currentEmbed) {
+              const updatedEmbed = EmbedBuilder.from(currentEmbed)
+                .setColor(0xFF0000)
+                .setTitle(`🚨 OTONOM MÜDAHALE SÜRESİ DOLDU`)
+                .setDescription(
+                  (currentEmbed.description || "") +
+                  `\n\n⛔ **5 Dakika Süre Doldu:** Yönetici müdahalesi gelmediği için sistem otomatik olarak **${finalAction}** kararı aldı.\n\n**AI Gerekçesi:**\n${aiDecision}`
+                );
+
+              const disabledRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`disc_abuse_removeroles_${guild.id}_${executor.id}`).setLabel("🗑️ Rolleri Al").setStyle(ButtonStyle.Secondary).setDisabled(true),
+                new ButtonBuilder().setCustomId(`disc_abuse_kick_${guild.id}_${executor.id}`).setLabel("At").setStyle(ButtonStyle.Danger).setDisabled(true),
+                new ButtonBuilder().setCustomId(`disc_abuse_ban_${guild.id}_${executor.id}`).setLabel("Banla").setStyle(ButtonStyle.Danger).setDisabled(true),
+                new ButtonBuilder().setCustomId(`disc_abuse_ignore_${guild.id}_${executor.id}`).setLabel(actionLabel).setStyle(ButtonStyle.Secondary).setDisabled(true)
+              );
+
+              await freshMsg.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+            }
+          }
+        } catch (e) {
+          console.warn("[DaytimeBackup] Mesaj güncellenirken hata:", e.message);
+        }
+
+        // Log to banLogChannel
+        try {
+          const banLogChannel = guild.channels.cache.get("1504201531551907941");
+          if (banLogChannel && banLogChannel.isTextBased()) {
+            const logEmbed = new EmbedBuilder()
+              .setTitle("🚨 5 Dk Yanıtsız Abuse Otonom Müdahalesi")
+              .setColor(0xFF0000)
+              .setDescription(
+                `**${executor.tag}** kullanıcısı için 5 dakika boyunca admin müdahalesi gelmediği için AI kararıyla otomatik işlem uygulandı.\n\n` +
+                `**AI Kararı ve Gerekçesi:**\n*${aiDecision}*`
+              )
+              .addFields(
+                { name: "👤 Cezalandırılan Üye", value: `${executor.toString()}\nTag: \`${executor.tag}\`\nID: \`${executor.id}\``, inline: true },
+                { name: "⚠️ İhlal Türü", value: type, inline: true },
+                { name: "🛠️ Uygulanan Ceza", value: actionLabel, inline: true }
+              )
+              .setThumbnail(executor.displayAvatarURL({ dynamic: true }))
+              .setTimestamp();
+            await banLogChannel.send({ embeds: [logEmbed] }).catch(() => {});
+          }
+        } catch (e) {}
+
+        daytimePendingActions.delete(key);
+      }, 5 * 60 * 1000); // 5 dakika
+
+      daytimePendingActions.set(key, {
+        timestamp: Date.now(),
+        type,
+        guild,
+        executor,
+        detailLines,
+        client,
+        timeoutId,
+        messageId: alertMsg.id,
+        channelId: alertMsg.channel.id
+      });
+
+      console.log(`[DaytimeBackup] ⏳ ${guild.name} — ${executor.tag} için 5 dakikalık otonom yedek bekleme başlandı`);
     }
   }
 }
@@ -1053,5 +1194,7 @@ module.exports = {
   handleAbuseDismissButton,
   cancelPendingNightBan,
   cancelPendingAIBan,
-  nightModePendingBans
+  cancelPendingDaytimeAction,
+  nightModePendingBans,
+  daytimePendingActions
 };
