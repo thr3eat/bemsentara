@@ -2005,13 +2005,14 @@ async function sendWarningDM(progress, client) {
 
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
-  const warnLeft = MAX_WARNINGS - (progress.warnings?.count || 0);
+  const warnCount = progress.warnings?.count || 0;
+  const warnLeft = Math.max(0, MAX_WARNINGS - warnCount);
 
   // AI'dan uyarı mesajı
   let aiWarn = '';
   try {
     const prompt = `Eko Yıldız personeli ${ROLE_NAMES[progress.level]} günlük görevlerini yapmadı.
-Bu ${progress.warnings?.count || 1}. uyarısı. ${warnLeft} hakkı kaldı.
+Bu ${warnCount || 1}. uyarısı. ${warnLeft} hakkı kaldı.
 Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı ol!`;
     aiWarn = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiWarn = aiWarn?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
@@ -2033,7 +2034,7 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
 
   const embed = new EmbedBuilder()
     .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
-    .setTitle(`⏰ Günlük Görev Uyarısı — ${progress.warnings?.count}/${MAX_WARNINGS}`)
+    .setTitle(`⏰ Günlük Görev Uyarısı — ${warnCount}/${MAX_WARNINGS}`)
     .setDescription(
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
       (bothTasksDone 
@@ -2047,7 +2048,7 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
       `Bugün yaparsan uyarı sayacın sıfırlanır! İçin rahat olsun. 💚`
     )
     .addFields(
-      { name: '⚠️ Uyarı', value: `${progress.warnings?.count}/${MAX_WARNINGS}`, inline: true },
+      { name: '⚠️ Uyarı', value: `${warnCount}/${MAX_WARNINGS}`, inline: true },
       { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
       { name: '🕐 Kalan Hakkı', value: warnLeft === 1 ? '🔴 1 gün (SON)' : `${warnLeft} gün`, inline: true },
     )

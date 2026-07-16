@@ -1332,6 +1332,47 @@ function initializeDiscordHandlers(client) {
   });
 
   client.on("messageCreate", async (message) => {
+    if (message.author.bot) return;
+
+    if (message.partial) {
+      try {
+        await message.fetch();
+      } catch (_) {
+        return;
+      }
+    }
+
+    const content = (message.content || "").trim();
+    const lowerContent = content.toLowerCase();
+
+    const accidentalGreetingPattern = /yanlış(?:lıkla|lıkla)|uwu|oops|ne yazık ki|yanlışlıkla bu mesajı/;
+    const greetingKeywords = /iyi geceler|iyi akşamlar|iyi günler|günaydın|akşamlar|geceler|hayırlı işler/;
+
+    if (content.length > 10 && accidentalGreetingPattern.test(lowerContent) && greetingKeywords.test(lowerContent)) {
+      try {
+        const { chatWithAI } = require("../services/aiService");
+        const hour = new Date().getHours();
+        let timeGreeting = "Merhaba";
+        if (hour >= 6 && hour < 12) timeGreeting = "Günaydın";
+        else if (hour >= 12 && hour < 18) timeGreeting = "İyi akşamlar";
+        else timeGreeting = "İyi geceler";
+
+        const systemPrompt = `Sen Türkçe yazan nazik bir Discord yardım asistanısın. Kullanıcının yanlışlıkla gönderdiği mesajı, günün saatine uygun, kısa ve kibar bir selamlamaya çevir. Mesajı düzeltilmiş şekilde yaz.`;
+        const aiReply = await chatWithAI(
+          `Kullanıcı şöyle bir mesaj gönderdi: "${content}". Bu mesaj yanlışlıkla gönderilmiş olabilir. Günün saatine göre uygun bir Türkçe selamlamaya çevir. Örnek olarak: "${timeGreeting}! Mesajınız yanlışlıkla gitmiş olabilir, sorun yok. :)"`,
+          systemPrompt,
+          "ticket",
+          { max_tokens: 80, temperature: 0.6 }
+        );
+
+        if (aiReply) {
+          await message.reply({ content: `<@${message.author.id}> ${aiReply}` }).catch(() => {});
+        }
+      } catch (err) {
+        console.error("[messageCreate] accidental greeting auto-fix error:", err.message);
+      }
+    }
+
     // ── Moderatör Okulu Eğitim İstekleri ─────────────────────────────────────
     if (message.guild && !message.author.bot) {
       try {
@@ -3149,7 +3190,7 @@ function initializeDiscordHandlers(client) {
       if (!isDogrulaCmd && !isErrorAck && (!botUser || !botUser.botVerified)) {
         if (interaction.isRepliable()) {
           return interaction.reply({ 
-            content: "❌ **Doğrulama Gerekli!**\nBotu kullanabilmek için öncelikle sitemize giriş yapmalı, kuralları kabul etmeli ve size verilen 4 haneli PIN ile \`/dogrula <PIN>\` komutunu girmelisiniz.\n\n🌐 **Site Linki:** https://bemsentara-4cyc.onrender.com/", 
+            content: "❌ **Doğrulama Gerekli!**\nDoğrulamak için lütfen direkt olarak `/dogrula <PIN>` komutunu kullanın. Anında doğrulanacaksınız!", 
             ephemeral: true 
           }).catch(() => {});
         }
