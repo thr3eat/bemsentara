@@ -2479,4 +2479,438 @@ router.post("/api/avukat/direct", async (req, res) => {
   }
 });
 
+
+// ─── Group Administration APIs ──────────────────────────────────────────────
+const axios = require("axios");
+const { groupAdmins, rankMetadata } = require("../../models/Store");
+const { ROBLOX_GROUPS } = require("../../bot/services/robloxGroupManager");
+
+// List of TMT Group IDs specifically for filtering/verification
+const TMT_GROUP_IDS = new Set([
+  "35212138", // TMT Akademi
+  "33709461", // TMT Askeri İnzibat
+  "35430592", // TMT Birimler Bölükler
+  "5415548",  // TMT Deniz Kuvvetleri Komutanlığı
+  "35212127", // TMT Genel Branş Komutanlığı
+  "33709391", // TMT Hava Kuvvetleri
+  "35432150", // TMT Hudut Müfettişleri
+  "12008462", // TMT Jandarma Genel Komutanlığı
+  "33714381", // TMT Kara Kuvvetleri Komutanlığı
+  "35528574", // TMT Ministry of Foreign Affairs
+  "33708598", // TMT Özel Kuvvetler Komutanlığı
+  "11517908", // TMT Turkish Armed Forces
+  "35528598", // TMT RAIDERS
+  "35528556", // TMT Sürücü Okulu
+]);
+
+function requireGroupAdmin(req, res) {
+  if (!req.user) {
+    res.status(401).json({ error: "Giriş yapmanız gerekli." });
+    return false;
+  }
+  const isOwner = req.user.discordUsername === "ekonqtx";
+  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername });
+  if (!isOwner && !isAdmin) {
+    res.status(403).json({ error: "Bu işlem için grup yetkilisi olmanız gerekmektedir." });
+    return false;
+  }
+  return true;
+}
+
+function requireGroupOwner(req, res) {
+  if (!req.user) {
+    res.status(401).json({ error: "Giriş yapmanız gerekli." });
+    return false;
+  }
+  if (req.user.discordUsername !== "ekonqtx") {
+    res.status(403).json({ error: "Bu işlem için grup sahibi (ekonqtx) olmanız gerekmektedir." });
+    return false;
+  }
+  return true;
+}
+
+// Roblox API helper with CSRF and cookie handling
+async function robloxApiRequest(url, method, data = null) {
+  const cookie = process.env.TMTCOOKIE;
+  if (!cookie) {
+    throw new Error("Roblox TMTCOOKIE ortam değişkeni ayarlanmamış.");
+  }
+  const formattedCookie = cookie.includes(".ROBLOSECURITY=") ? cookie : `.ROBLOSECURITY=${cookie};`;
+
+  // 1. Get X-CSRF-TOKEN
+  let csrfToken = null;
+  try {
+    await axios.post("https://auth.roblox.com/v2/logout", {}, {
+      headers: { Cookie: formattedCookie }
+    });
+  } catch (err) {
+    csrfToken = err.response?.headers?.["x-csrf-token"];
+  }
+
+  if (!csrfToken) {
+    throw new Error("Roblox CSRF token alınamadı.");
+  }
+
+  // 2. Perform Request
+  const response = await axios({
+    url,
+    method,
+    data,
+    headers: {
+      Cookie: formattedCookie,
+      "X-CSRF-TOKEN": csrfToken,
+      "Content-Type": "application/json"
+    }
+  });
+
+  return response.data;
+}
+
+// Endpoint: Get Owner / Group Admins config
+router.get("/api/group-admin/config", (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const admins = groupAdmins.find({});
+  res.json({
+    success: true,
+    owner: "ekonqtx",
+    admins: admins.map(a => ({ _id: a._id, username: a.username, createdAt: a.createdAt }))
+  });
+});
+
+// Endpoint: Add Group Admin
+router.post("/api/group-admin/admins", async (req, res) => {
+  if (!requireGroupOwner(req, res)) return;
+  const username = (req.body.username || "").trim().toLowerCase();
+  if (!username) {
+    return res.status(400).json({ error: "Geçerli bir kullanıcı adı girilmelidir." });
+  }
+
+  const existing = groupAdmins.findOne({ username });
+  if (existing) {
+    return res.status(400).json({ error: "Bu kullanıcı zaten yetkili." });
+  }
+
+  const created = groupAdmins.create({ username, createdAt: new Date() });
+  await saveStoreNow();
+  res.json({ success: true, admin: created });
+});
+
+// Endpoint: Remove Group Admin
+router.delete("/api/group-admin/admins/:username", async (req, res) => {
+  if (!requireGroupOwner(req, res)) return;
+  const username = String(req.params.username).trim().toLowerCase();
+  
+  const found = groupAdmins.findOne({ username });
+  if (!found) {
+    return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  }
+
+  // Remove the record by deleting from Map and persisting
+  const { data } = require("../../models/Store").groupAdmins;
+  data.delete(found._id);
+  
+  // Also delete from MongoDB if active
+  const db = require("../../models/db");
+  if (db.isMongoActive()) {
+    const Record = db.getRecord();
+    await Record.deleteOne({ collection: "groupAdmins", _storeId: found._id }).catch(() => {});
+  }
+  
+  await saveStoreNow();
+  res.json({ success: true, message: "Kullanıcı yetkisi kaldırıldı." });
+});
+
+// Endpoint: List TMT groups
+router.get("/api/group-admin/groups", (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  
+  // Build groups list matching TMT groups
+  const tmtGroupsList = Object.entries(ROBLOX_GROUPS)
+    .filter(([id]) => TMT_GROUP_IDS.has(id))
+    .map(([id, name]) => ({ id, name }));
+
+  res.json({ success: true, groups: tmtGroupsList });
+});
+
+// Endpoint: Fetch roles for a group
+router.get("/api/group-admin/groups/:groupId/roles", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const groupId = String(req.params.groupId);
+  if (!TMT_GROUP_IDS.has(groupId)) {
+    return res.status(403).json({ error: "Bu grup üzerinde yetkiniz yok veya TMT grubu değil." });
+  }
+
+  try {
+    const [rolesResponse, groupResponse] = await Promise.all([
+      axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`),
+      axios.get(`https://groups.roblox.com/v1/groups/${groupId}`).catch(() => ({ data: { description: "" } }))
+    ]);
+    
+    const robloxRoles = rolesResponse.data.roles || [];
+    const description = groupResponse.data.description || "";
+
+    // Map each role and load local color metadata
+    const roles = robloxRoles.map(role => {
+      const meta = rankMetadata.findOne({ groupId, roleId: String(role.id) });
+      return {
+        id: String(role.id),
+        name: role.name,
+        rank: role.rank,
+        description: role.description || "",
+        color: meta ? meta.color : "#7c6af7"
+      };
+    });
+
+    res.json({ success: true, roles, description });
+  } catch (err) {
+    console.error("Fetch group roles error:", err.message);
+    res.status(500).json({ error: "Roblox grubundan rütbeler çekilemedi: " + err.message });
+  }
+});
+
+// Endpoint: Update description
+router.patch("/api/group-admin/groups/:groupId/description", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const groupId = String(req.params.groupId);
+  if (!TMT_GROUP_IDS.has(groupId)) {
+    return res.status(403).json({ error: "Bu grup üzerinde yetkiniz yok veya TMT grubu değil." });
+  }
+
+  const { description } = req.body;
+  if (description === undefined) {
+    return res.status(400).json({ error: "description parametresi gereklidir." });
+  }
+
+  try {
+    await robloxApiRequest(
+      `https://groups.roblox.com/v1/groups/${groupId}/description`,
+      "PATCH",
+      { description }
+    );
+    res.json({ success: true, message: "Grup açıklaması güncellendi." });
+  } catch (err) {
+    console.error("Update description error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Roblox grup açıklaması güncellenemedi: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+  }
+});
+
+// Endpoint: Save role updates (ranks, names, colors)
+router.patch("/api/group-admin/groups/:groupId/roles", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const groupId = String(req.params.groupId);
+  if (!TMT_GROUP_IDS.has(groupId)) {
+    return res.status(403).json({ error: "Bu grup üzerinde yetkiniz yok veya TMT grubu değil." });
+  }
+
+  const { roles } = req.body; // Array of { id, name, rank, color }
+  if (!Array.isArray(roles)) {
+    return res.status(400).json({ error: "roles dizisi gereklidir." });
+  }
+
+  try {
+    // 1. Fetch current roles from Roblox to calculate current state and check constraints
+    const response = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`);
+    const currentRobloxRoles = response.data.roles || [];
+    
+    // 2. Identify the modifications and update colors locally
+    const updates = [];
+    for (const item of roles) {
+      const roleId = String(item.id);
+      const name = item.name;
+      const rank = parseInt(item.rank, 10);
+      const color = item.color || "#7c6af7";
+
+      // Find current state
+      const current = currentRobloxRoles.find(r => String(r.id) === roleId);
+      if (!current) continue;
+
+      // Restrict Guest (rank 0) and Owner (rank 255) modifications on Roblox
+      const isSystemRole = current.rank === 0 || current.rank === 255 || rank === 0 || rank === 255;
+      
+      // Save color locally for all roles
+      let meta = rankMetadata.findOne({ groupId, roleId });
+      if (!meta) {
+        rankMetadata.create({ groupId, roleId, color, createdAt: new Date() });
+      } else if (meta.color !== color) {
+        meta.color = color;
+        meta.updatedAt = new Date();
+        await meta.save();
+      }
+
+      if (isSystemRole) {
+        // Skip calling Roblox API for System roles (Guest/Owner)
+        continue;
+      }
+
+      // If name or rank has changed, add to Roblox updates queue
+      if (current.name !== name || current.rank !== rank) {
+        updates.push({
+          id: roleId,
+          oldRank: current.rank,
+          newRank: rank,
+          name: name,
+          description: current.description || ""
+        });
+      }
+    }
+
+    // 3. Perform Roblox updates with conflict resolution
+    // To prevent duplicate rank errors, we temporarily shift all changing ranks to a safe range (200+).
+    // First, verify which ranks are available in 200+ (from 200 to 254)
+    const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
+    
+    // Filter out ranks that are going to be vacated by updates
+    for (const update of updates) {
+      occupiedRanks.delete(update.oldRank);
+    }
+
+    const tempRanks = [];
+    let nextTemp = 200;
+    
+    // Assign temporary unique ranks
+    for (let i = 0; i < updates.length; i++) {
+      while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
+        nextTemp++;
+      }
+      tempRanks.push(nextTemp);
+      occupiedRanks.add(nextTemp);
+      nextTemp++;
+    }
+
+    // Step A: Shift changing roles to their temporary ranks
+    for (let i = 0; i < updates.length; i++) {
+      const update = updates[i];
+      const tempRank = tempRanks[i];
+      
+      await robloxApiRequest(
+        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+        "PATCH",
+        {
+          name: update.name,
+          description: update.description,
+          rank: tempRank
+        }
+      );
+      // Wait to avoid rate limits
+      await new Promise(r => setTimeout(r, 450));
+    }
+
+    // Step B: Set roles to their final target ranks
+    for (let i = 0; i < updates.length; i++) {
+      const update = updates[i];
+      await robloxApiRequest(
+        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+        "PATCH",
+        {
+          name: update.name,
+          description: update.description,
+          rank: update.newRank
+        }
+      );
+      // Wait to avoid rate limits
+      await new Promise(r => setTimeout(r, 450));
+    }
+
+    await saveStoreNow();
+    res.json({ success: true, message: "Rütbeler başarıyla güncellendi." });
+  } catch (err) {
+    console.error("Update roles error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Rütbeler güncellenemedi: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+  }
+});
+
+// Endpoint: 5-by-5 Reorder Single Group
+router.post("/api/group-admin/groups/:groupId/reorder-5", async (req, res) => {
+  if (!requireGroupAdmin(req, res)) return;
+  const groupId = String(req.params.groupId);
+  if (!TMT_GROUP_IDS.has(groupId)) {
+    return res.status(403).json({ error: "Bu grup üzerinde yetkiniz yok veya TMT grubu değil." });
+  }
+
+  try {
+    // 1. Fetch current roles
+    const response = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`);
+    const currentRobloxRoles = response.data.roles || [];
+
+    // 2. Filter out Guest (0) and Owner (255), and sort the remaining roles by current rank ascending
+    const reorderable = currentRobloxRoles
+      .filter(r => r.rank > 0 && r.rank < 255)
+      .sort((a, b) => a.rank - b.rank);
+
+    if (reorderable.length === 0) {
+      return res.json({ success: true, message: "Grupta düzenlenebilir rütbe bulunamadı." });
+    }
+
+    // 3. Prepare target ranks starting from 5 increasing by 5
+    const updates = reorderable.map((role, index) => ({
+      id: String(role.id),
+      oldRank: role.rank,
+      newRank: 5 * (index + 1),
+      name: role.name,
+      description: role.description || ""
+    }));
+
+    // Filter updates that don't need changes
+    const actualUpdates = updates.filter(u => u.oldRank !== u.newRank);
+    if (actualUpdates.length === 0) {
+      return res.json({ success: true, message: "Rütbe sıraları zaten 5'erli şekilde düzenli." });
+    }
+
+    // 4. Temporary shift to avoid duplicates
+    const occupiedRanks = new Set(currentRobloxRoles.map(r => r.rank));
+    for (const update of actualUpdates) {
+      occupiedRanks.delete(update.oldRank);
+    }
+
+    const tempRanks = [];
+    let nextTemp = 200;
+    
+    for (let i = 0; i < actualUpdates.length; i++) {
+      while (occupiedRanks.has(nextTemp) || nextTemp === 255) {
+        nextTemp++;
+      }
+      tempRanks.push(nextTemp);
+      occupiedRanks.add(nextTemp);
+      nextTemp++;
+    }
+
+    // Step A: Shift to temporary ranks
+    for (let i = 0; i < actualUpdates.length; i++) {
+      const update = actualUpdates[i];
+      const tempRank = tempRanks[i];
+      await robloxApiRequest(
+        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+        "PATCH",
+        {
+          name: update.name,
+          description: update.description,
+          rank: tempRank
+        }
+      );
+      await new Promise(r => setTimeout(r, 450));
+    }
+
+    // Step B: Shift to final 5-by-5 ranks
+    for (let i = 0; i < actualUpdates.length; i++) {
+      const update = actualUpdates[i];
+      await robloxApiRequest(
+        `https://groups.roblox.com/v1/groups/${groupId}/rolesets/${update.id}`,
+        "PATCH",
+        {
+          name: update.name,
+          description: update.description,
+          rank: update.newRank
+        }
+      );
+      await new Promise(r => setTimeout(r, 450));
+    }
+
+    res.json({ success: true, message: "Rütbeler başarıyla 5'erli olarak sıralandı." });
+  } catch (err) {
+    console.error("Reorder 5 error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Rütbeler 5'erli sıralanamadı: " + (err.response?.data?.errors?.[0]?.message || err.message) });
+  }
+});
+
 module.exports = router;
+

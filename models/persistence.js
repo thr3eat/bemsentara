@@ -81,6 +81,8 @@ function flushSave(collections) {
       economies: serializeMap(collections.economies.data),
       wikiArticles: serializeMap(collections.wikiArticles.data),
       errorReports: serializeMap(collections.errorReports.data),
+      groupAdmins: serializeMap(collections.groupAdmins.data),
+      rankMetadata: serializeMap(collections.rankMetadata.data),
     };
     const tmp = `${STORE_FILE}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
@@ -144,6 +146,8 @@ function loadIntoCollections(collections) {
       saved.wikiArticles || saved.wikis
     ),
     errorReports: hydrateCollection(collections.errorReports, saved.errorReports),
+    groupAdmins: hydrateCollection(collections.groupAdmins, saved.groupAdmins),
+    rankMetadata: hydrateCollection(collections.rankMetadata, saved.rankMetadata),
   };
 
   migrateLegacyWikis(collections, saved);

@@ -13,6 +13,13 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
     ? `<a href="/admin" class="nav-link debug-link${activePath === '/admin' ? ' nav-active' : ''}">⚙️ Admin</a>`
     : '';
 
+  const isOwner = user && user.discordUsername === "ekonqtx";
+  const { groupAdmins } = require("./models/Store");
+  const isGrpAdmin = user && (isOwner || groupAdmins.findOne({ username: user.discordUsername }));
+  const groupAdminLink = isGrpAdmin
+    ? `<a href="/group-admin" class="nav-link${activePath === '/group-admin' ? ' nav-active' : ''}">⚙️ Grup Yönetimi</a>`
+    : '';
+
   function navLink(href, label) {
     const active = activePath === href ? ' nav-active' : '';
     return `<a href="${href}" class="nav-link${active}">${label}</a>`;
@@ -404,6 +411,7 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       ${navLink('/wiki', 'Wiki')}
       ${navLink('/webhook', '🔗 Webhook')}
       ${navLink('/settings', 'Ayarlar')}
+      ${groupAdminLink}
       ${staffLinks}
       ${adminLink}
       ${user ? `<a href="/logout" class="nav-link logout-link">Çıkış</a>` : `<a href="/login" class="nav-link">Giriş</a>`}
@@ -3245,6 +3253,621 @@ function renderAdminPage(user) {
     <\/script>
   `;
   return _layout('Admin', user, content, '', '/admin');
+}
+
+function renderGroupAdminPage(user, isOwner = false) {
+  const tmtGroups = {
+    "35212138": "TMT Akademi",
+    "33709461": "TMT Askeri İnzibat",
+    "35430592": "TMT Birimler Bölükler",
+    "5415548": "TMT Deniz Kuvvetleri Komutanlığı",
+    "35212127": "TMT Genel Branş Komutanlığı",
+    "33709391": "TMT Hava Kuvvetleri",
+    "35432150": "TMT Hudut Müfettişleri",
+    "12008462": "TMT Jandarma Genel Komutanlığı",
+    "33714381": "TMT Kara Kuvvetleri Komutanlığı",
+    "35528574": "TMT Ministry of Foreign Affairs",
+    "33708598": "TMT Özel Kuvvetler Komutanlığı",
+    "11517908": "TMT Turkish Armed Forces",
+    "35528598": "TMT RAIDERS",
+    "35528556": "TMT Sürücü Okulu"
+  };
+
+  const groupListHtml = Object.entries(tmtGroups).map(([id, name]) => {
+    return `
+      <button class="btn btn-ghost w-full group-select-btn" data-group-id="${id}" onclick="selectGroup('${id}', '${_esc(name)}')" style="justify-content:flex-start;text-align:left;margin-bottom:0.4rem;padding:0.6rem 1rem;">
+        🏢 ${_esc(name)}
+      </button>
+    `;
+  }).join('');
+
+  const ownerSection = isOwner ? `
+    <div id="owner-panel" style="margin-top:2rem;background:rgba(124,106,247,0.05);border:1px solid rgba(124,106,247,0.12);border-radius:18px;padding:1.5rem;">
+      <h3 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+        👑 Kurucu Özel Alanı (ekonqtx)
+      </h3>
+      
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem;">
+        <!-- Yetkili Ekle -->
+        <div style="flex:1;min-width:240px;">
+          <label style="font-weight:700;">Grup Yetkilisi Ekle</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="text" id="new-admin-username" placeholder="Discord kullanıcı adı" style="margin-bottom:0;">
+            <button class="btn btn-success" onclick="addGroupAdmin()">Ekle</button>
+          </div>
+        </div>
+
+        <!-- Tüm Grupları Düzenleme -->
+        <div style="flex:1;min-width:240px;display:flex;flex-direction:column;justify-content:flex-end;">
+          <label style="font-weight:700;">Toplu İşlemler</label>
+          <button class="btn btn-danger w-full" onclick="reorderAllGroups5by5()">
+            🔄 Tüm Grupları 5'erli Sırala (Teker Teker)
+          </button>
+        </div>
+      </div>
+
+      <!-- Yetkililer Listesi -->
+      <h4 style="font-size:0.95rem;font-weight:800;margin-bottom:0.75rem;">📋 Yetkili Discord Kullanıcıları</h4>
+      <div id="admins-list" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <p style="color:var(--muted);font-size:0.9rem;">Yükleniyor...</p>
+      </div>
+
+      <!-- Bulk Sıralama Log Paneli -->
+      <div id="bulk-log-container" style="display:none;margin-top:1.5rem;">
+        <h4 style="font-size:0.95rem;font-weight:800;margin-bottom:0.5rem;color:var(--danger);">🤖 İşlem Konsolu</h4>
+        <div id="bulk-log" style="background:#000;font-family:monospace;font-size:0.8rem;color:#39ff14;padding:1rem;border-radius:12px;max-height:200px;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);line-height:1.4;">
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  const content = `
+    <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;position:relative;">
+      <!-- Sol Panel: Gruplar -->
+      <div class="card" style="flex:1;min-width:280px;max-width:320px;padding:1.5rem;position:sticky;top:6rem;">
+        <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:1rem;color:var(--accent);">🏢 TMT Roblox Grupları</h3>
+        <div style="max-height:60vh;overflow-y:auto;padding-right:0.25rem;">
+          ${groupListHtml}
+        </div>
+      </div>
+
+      <!-- Sağ Panel: Editör / Global Görünüm -->
+      <div style="flex:3;min-width:320px;display:flex;flex-direction:column;gap:1.5rem;">
+        <!-- Global Bilgi / Başlangıç Paneli -->
+        <div id="global-panel" class="card">
+          <h1 style="font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem;">
+            ⚙️ Grup ve Rütbe Yönetimi
+          </h1>
+          <p class="text-muted" style="line-height:1.5;margin-bottom:1rem;">
+            Sol taraftaki listeden işlem yapmak istediğiniz grubu seçin. Yetkili olduğunuz grupların rütbe isimlerini, renklerini değiştirebilir, sıralarını sürükleyip bırakarak düzenleyebilir ve grup açıklamasını güncelleyebilirsiniz.
+          </p>
+          <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:1rem;font-size:0.88rem;color:var(--muted);line-height:1.5;">
+            <p><strong>💡 Bilgilendirme:</strong> Rütbe sıralamasını (Rank numaraları) değiştirmek için rütbe satırlarının başındaki sürükleme simgesinden tutup aşağı/yukarı taşıyabilirsiniz. Kaydet butonuna basılana kadar Roblox üzerinde rütbeler güncellenmez.</p>
+          </div>
+          ${ownerSection}
+        </div>
+
+        <!-- Grup Rütbe Editörü -->
+        <div id="editor-panel" class="card" style="display:none;">
+          <!-- Grup Detayları Başlığı -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <h2 id="active-group-title" style="font-size:1.6rem;font-weight:800;color:#fff;"></h2>
+              <p id="active-group-id" class="text-muted" style="font-size:0.85rem;margin-top:0.2rem;font-family:monospace;"></p>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="reorderCurrentGroup5by5()">
+                ⚡ 5'erli Sırala
+              </button>
+              <button class="btn" style="background:var(--accent);color:#fff;" onclick="saveGroupRoles()">
+                💾 Değişiklikleri Kaydet
+              </button>
+            </div>
+          </div>
+
+          <!-- Grup Açıklaması -->
+          <div style="margin-bottom:1.5rem;background:rgba(255,255,255,0.015);border:1px solid var(--border);border-radius:14px;padding:1.25rem;">
+            <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem;color:var(--accent2);">✍️ Grup Açıklaması</h3>
+            <textarea id="group-description" rows="3" placeholder="Grup açıklaması..." style="margin-bottom:0.75rem;resize:vertical;"></textarea>
+            <div style="display:flex;justify-content:flex-end;">
+              <button id="btn-save-desc" class="btn btn-sm btn-ghost" onclick="saveGroupDescription()">Açıklamayı Güncelle</button>
+            </div>
+          </div>
+
+          <!-- Rütbeler Listesi -->
+          <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:1rem;color:var(--accent2);">🛡️ Rütbe Yapılandırması</h3>
+          <div id="roles-headers" style="display:grid;grid-template-columns:50px 80px 1fr 100px;gap:1rem;padding:0.5rem 1rem;font-size:0.8rem;color:var(--muted);font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border);margin-bottom:0.5rem;">
+            <div>Sıra</div>
+            <div>Rank</div>
+            <div>Rütbe Adı</div>
+            <div style="text-align:center;">Renk</div>
+          </div>
+          <div id="roles-list" style="display:flex;flex-direction:column;gap:0.5rem;">
+            <!-- Rütbe Satırları -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sürükle Bırak CSS Stilleri -->
+    <style>
+      .role-row {
+        display: grid;
+        grid-template-columns: 50px 80px 1fr 100px;
+        gap: 1rem;
+        align-items: center;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+      }
+      .role-row.draggable {
+        cursor: grab;
+      }
+      .role-row.draggable:active {
+        cursor: grabbing;
+      }
+      .role-row.over {
+        border-color: var(--accent);
+        background: rgba(167, 139, 250, 0.08);
+      }
+      .drag-handle {
+        color: var(--muted);
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+      }
+      .role-rank-badge {
+        font-family: monospace;
+        font-weight: 700;
+        color: var(--accent2);
+        background: rgba(129, 140, 248, 0.08);
+        border: 1px solid rgba(129, 140, 248, 0.2);
+        border-radius: 6px;
+        padding: 0.25rem 0.5rem;
+        text-align: center;
+      }
+      .color-picker-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .color-picker-wrapper input[type="color"] {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        width: 38px;
+        height: 38px;
+        padding: 0.15rem;
+        background: transparent;
+        cursor: pointer;
+        margin-bottom: 0;
+      }
+      .system-role {
+        opacity: 0.65;
+        background: rgba(255,255,255,0.01);
+      }
+    </style>
+
+    <script>
+      let currentGroupId = '';
+      let rolesData = [];
+      let dragSrcEl = null;
+
+      // ── Yetkilileri Yükle (Owner-only) ──
+      const isOwner = ${isOwner};
+      async function loadAdmins() {
+        if (!isOwner) return;
+        try {
+          const res = await fetch('/api/group-admin/config');
+          const d = await res.json();
+          if (res.ok && d.admins) {
+            const list = document.getElementById('admins-list');
+            if (d.admins.length === 0) {
+              list.innerHTML = '<p style="color:var(--muted);font-size:0.9rem;">Kayıtlı grup yetkilisi bulunmuyor.</p>';
+              return;
+            }
+            list.innerHTML = d.admins.map(a => {
+              return \`
+                <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.02);padding:0.75rem 1rem;border-radius:12px;border:1px solid var(--border);">
+                  <div style="font-weight:600;color:var(--text);">\${a.username}</div>
+                  <button class="btn btn-sm btn-danger" onclick="removeGroupAdmin('\${a.username}')">Kaldır</button>
+                </div>
+              \`;
+            }).join('');
+          }
+        } catch (err) {
+          console.error("Yetkililer yüklenemedi:", err);
+        }
+      }
+
+      async function addGroupAdmin() {
+        const usernameEl = document.getElementById('new-admin-username');
+        const username = usernameEl.value.trim();
+        if (!username) { showToast('Bir kullanıcı adı girin.', 'warning'); return; }
+        
+        try {
+          const res = await fetch('/api/group-admin/admins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast('Yetkili başarıyla eklendi.', 'success');
+            usernameEl.value = '';
+            loadAdmins();
+          } else {
+            showToast(d.error || 'Hata oluştu.', 'error');
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        }
+      }
+
+      async function removeGroupAdmin(username) {
+        if (!confirm(username + ' yetkisini kaldırmak istediğinize emin misiniz?')) return;
+        try {
+          const res = await fetch('/api/group-admin/admins/' + encodeURIComponent(username), {
+            method: 'DELETE'
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast('Yetkili kaldırıldı.', 'success');
+            loadAdmins();
+          } else {
+            showToast(d.error || 'Hata oluştu.', 'error');
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        }
+      }
+
+      if (isOwner) {
+        loadAdmins();
+      }
+
+      // ── Grup Seçimi ve Veri Çekme ──
+      async function selectGroup(groupId, groupName) {
+        currentGroupId = groupId;
+        
+        // Aktif buton rengi
+        document.querySelectorAll('.group-select-btn').forEach(btn => {
+          btn.classList.add('btn-ghost');
+          btn.style.background = 'transparent';
+          btn.style.borderColor = 'rgba(255,255,255,0.08)';
+        });
+        const activeBtn = document.querySelector(\`[data-group-id="\${groupId}"]\`);
+        if (activeBtn) {
+          activeBtn.classList.remove('btn-ghost');
+          activeBtn.style.background = 'rgba(167,139,250,0.15)';
+          activeBtn.style.borderColor = 'var(--accent)';
+        }
+
+        // Arayüz geçişi
+        document.getElementById('global-panel').style.display = 'none';
+        const editor = document.getElementById('editor-panel');
+        editor.style.display = 'block';
+        
+        document.getElementById('active-group-title').innerText = groupName;
+        document.getElementById('active-group-id').innerText = 'ID: ' + groupId;
+
+        const rolesList = document.getElementById('roles-list');
+        rolesList.innerHTML = '<div style="color:var(--muted);text-align:center;padding:3rem;">Rütbeler yükleniyor...</div>';
+        document.getElementById('group-description').value = '';
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${groupId}/roles\`);
+          const d = await res.json();
+          if (res.ok && d.roles) {
+            rolesData = d.roles;
+            document.getElementById('group-description').value = d.description || '';
+            renderRolesList();
+          } else {
+            rolesList.innerHTML = \`<div style="color:var(--danger);text-align:center;padding:3rem;">❌ Hata: \${d.error || 'Rütbeler yüklenemedi.'}</div>\`;
+          }
+        } catch (err) {
+          rolesList.innerHTML = '<div style="color:var(--danger);text-align:center;padding:3rem;">❌ Bağlantı hatası.</div>';
+        }
+      }
+
+      // Rütbeleri Arayüze Çiz
+      function renderRolesList() {
+        const list = document.getElementById('roles-list');
+        if (rolesData.length === 0) {
+          list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem;">Grupta rütbe bulunamadı.</div>';
+          return;
+        }
+
+        // Rütbeleri rank sırasına göre sıralı gösterelim (büyükten küçüğe: Roblox standartı veya küçükten büyüğe)
+        // Kolaylık olması için: Owner (255) en üstte, Guest (0) en altta. Aradakiler sürüklenebilir.
+        const sortedRoles = [...rolesData].sort((a, b) => b.rank - a.rank);
+
+        list.innerHTML = sortedRoles.map((role, index) => {
+          const isSystem = role.rank === 0 || role.rank === 255;
+          const dragAttr = isSystem ? '' : 'draggable="true"';
+          const dragClass = isSystem ? 'system-role' : 'draggable';
+          const handle = isSystem ? '🔒' : '☰';
+
+          return \`
+            <div class="role-row \${dragClass}" data-role-id="\${role.id}" \${dragAttr}>
+              <div class="drag-handle">\${handle}</div>
+              <div class="role-rank-badge">\${role.rank}</div>
+              <div>
+                <input type="text" id="name-\${role.id}" class="role-name-input" value="\${_esc(role.name)}" \${isSystem ? 'disabled style="background:transparent;border:none;margin-bottom:0;"' : 'style="margin-bottom:0;padding:0.5rem 0.75rem;"'} onchange="updateRoleName('\${role.id}', this.value)">
+              </div>
+              <div class="color-picker-wrapper">
+                <input type="color" value="\${role.color || '#7c6af7'}" onchange="updateRoleColor('\${role.id}', this.value)">
+              </div>
+            </div>
+          \`;
+        }).join('');
+
+        // Sürükle bırak eventlerini bağla
+        addDragAndDropEvents();
+      }
+
+      function updateRoleName(id, val) {
+        const role = rolesData.find(r => r.id === id);
+        if (role) {
+          role.name = val.trim();
+        }
+      }
+
+      function updateRoleColor(id, val) {
+        const role = rolesData.find(r => r.id === id);
+        if (role) {
+          role.color = val;
+        }
+      }
+
+      // Sürükle Bırak Event Yöneticileri
+      function addDragAndDropEvents() {
+        const rows = document.querySelectorAll('.role-row.draggable');
+        rows.forEach(row => {
+          row.addEventListener('dragstart', handleDragStart, false);
+          row.addEventListener('dragenter', handleDragEnter, false);
+          row.addEventListener('dragover', handleDragOver, false);
+          row.addEventListener('dragleave', handleDragLeave, false);
+          row.addEventListener('drop', handleDrop, false);
+          row.addEventListener('dragend', handleDragEnd, false);
+        });
+      }
+
+      function handleDragStart(e) {
+        this.style.opacity = '0.4';
+        dragSrcEl = this;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', this.getAttribute('data-role-id'));
+      }
+
+      function handleDragOver(e) {
+        if (e.preventDefault) {
+          e.preventDefault();
+        }
+        e.dataTransfer.dropEffect = 'move';
+        return false;
+      }
+
+      function handleDragEnter() {
+        this.classList.add('over');
+      }
+
+      function handleDragLeave() {
+        this.classList.remove('over');
+      }
+
+      function handleDrop(e) {
+        if (e.stopPropagation) {
+          e.stopPropagation();
+        }
+        
+        const srcId = e.dataTransfer.getData('text/plain');
+        const destId = this.getAttribute('data-role-id');
+        
+        if (srcId !== destId) {
+          const srcIndex = rolesData.findIndex(r => r.id === srcId);
+          const destIndex = rolesData.findIndex(r => r.id === destId);
+          
+          if (srcIndex > -1 && destIndex > -1) {
+            // Sadece taşınabilir rütbeleri değiştir
+            const srcRole = rolesData[srcIndex];
+            const destRole = rolesData[destIndex];
+            
+            if (srcRole.rank !== 0 && srcRole.rank !== 255 && destRole.rank !== 0 && destRole.rank !== 255) {
+              const [removed] = rolesData.splice(srcIndex, 1);
+              rolesData.splice(destIndex, 0, removed);
+              
+              // Sürükle bırak bittikten sonra rankleri 5'erli sıralayalım (veya koruyup güncelleyelim)
+              // Rütbeleri rank sırasına göre (büyükten küçüğe) tutup aradakileri 5erli sıralayabiliriz:
+              recalculateRankNumbers();
+              renderRolesList();
+            }
+          }
+        }
+        return false;
+      }
+
+      function handleDragEnd() {
+        this.style.opacity = '1';
+        document.querySelectorAll('.role-row').forEach(row => {
+          row.classList.remove('over');
+        });
+      }
+
+      // Drag and drop sonrasında rank numaralarını bozmadan 5erli aralıklara oturtalım
+      function recalculateRankNumbers() {
+        // Editlenebilir rütbeleri ayıkla ve sıralarını koruyarak (listede aşağıdan yukarıya / küçükten büyüğe) ranklerini güncelle
+        // rolesData içinde Guest (0) ve Owner (255) hariç olanları alalım
+        const reorderable = rolesData.filter(r => r.rank > 0 && r.rank < 255);
+        
+        // Rütbeleri arayüzdeki sıraya göre (büyükten küçüğe listelendiği için ters sıraya alıyoruz)
+        // En düşük olan en sonda olmalı, o yüzden reverse yapıp sıralıyoruz
+        const listOrderIds = Array.from(document.querySelectorAll('.role-row')).map(el => el.getAttribute('data-role-id')).reverse();
+        
+        const reorderableIds = listOrderIds.filter(id => {
+          const r = rolesData.find(x => x.id === id);
+          return r && r.rank > 0 && r.rank < 255;
+        });
+
+        // 5, 10, 15... şeklinde dağıt
+        reorderableIds.forEach((id, index) => {
+          const r = rolesData.find(x => x.id === id);
+          if (r) {
+            r.rank = 5 * (index + 1);
+          }
+        });
+      }
+
+      // ── API İşlemleri (Description, Save Roles, Reorder 5) ──
+
+      async function saveGroupDescription() {
+        if (!currentGroupId) return;
+        const description = document.getElementById('group-description').value;
+        const btn = document.getElementById('btn-save-desc');
+        
+        btn.disabled = true;
+        btn.innerText = 'Güncelleniyor...';
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/description\`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast('Grup açıklaması başarıyla güncellendi.', 'success');
+          } else {
+            showToast(d.error || 'Açıklama güncellenemedi.', 'error');
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        } finally {
+          btn.disabled = false;
+          btn.innerText = 'Açıklamayı Güncelle';
+        }
+      }
+
+      async function saveGroupRoles() {
+        if (!currentGroupId) return;
+        if (!confirm('Rütbe düzenlemelerini kaydetmek istediğinize emin misiniz? Bu işlem Roblox API üzerinden rütbeleri güncelleyecektir.')) return;
+
+        // Buton kilitle
+        const btns = document.querySelectorAll('.btn');
+        btns.forEach(b => b.disabled = true);
+
+        showToast('Değişiklikler kaydediliyor, lütfen bekleyin...', 'info');
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/roles\`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roles: rolesData })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast('Rütbeler başarıyla kaydedildi.', 'success');
+            selectGroup(currentGroupId, document.getElementById('active-group-title').innerText);
+          } else {
+            showToast(d.error || 'Kaydetme hatası.', 'error');
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası oluştu.', 'error');
+        } finally {
+          btns.forEach(b => b.disabled = false);
+        }
+      }
+
+      async function reorderCurrentGroup5by5() {
+        if (!currentGroupId) return;
+        if (!confirm('Grubun sıralarını bozmadan en aşağıdan başlayarak 5, 10, 15... şeklinde yeniden sıralamak istediğinize emin misiniz?')) return;
+
+        showToast('Sıralama işlemi başlatıldı...', 'info');
+
+        try {
+          const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/reorder-5\`, { method: 'POST' });
+          const d = await res.json();
+          if (res.ok) {
+            showToast('Grup rütbeleri başarıyla 5erli sıralandı.', 'success');
+            selectGroup(currentGroupId, document.getElementById('active-group-title').innerText);
+          } else {
+            showToast(d.error || 'Sıralama hatası.', 'error');
+          }
+        } catch {
+          showToast('Bağlantı hatası.', 'error');
+        }
+      }
+
+      // ── Kurucu Toplu Sıralama Fonksiyonu (Owner-only) ──
+      async function reorderAllGroups5by5() {
+        if (!isOwner) return;
+        if (!confirm('TMT grubunun sahip olduğu tüm grupları sıralarını bozmadan 5erli olarak sıralamak istiyor musunuz? Bu işlem her grup için sırayla çalışacaktır ve bir miktar zaman alacaktır.')) return;
+
+        const logContainer = document.getElementById('bulk-log-container');
+        const logBox = document.getElementById('bulk-log');
+        logContainer.style.display = 'block';
+        logBox.innerHTML = '🤖 Toplu 5erli sıralama başlatıldı...\\n';
+        
+        // Butonları kilitle
+        const btns = document.querySelectorAll('.btn');
+        btns.forEach(b => b.disabled = true);
+
+        try {
+          // 1. Grupları listele
+          logBox.innerHTML += '👉 Gruplar listeleniyor...\\n';
+          const groupsRes = await fetch('/api/group-admin/groups');
+          const groupsData = await groupsRes.json();
+          
+          if (!groupsRes.ok || !groupsData.groups) {
+            logBox.innerHTML += '❌ Gruplar listelenemedi: ' + (groupsData.error || 'Bilinmeyen hata') + '\\n';
+            return;
+          }
+
+          const groups = groupsData.groups;
+          logBox.innerHTML += \`✅ Toplam \${groups.length} grup bulundu.\\n\\n\`;
+
+          // 2. Sırayla her grup için API'yi tetikle
+          for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            logBox.innerHTML += \`⏳ [\${i+1}/\${groups.length}] \${g.name} sıralanıyor...\\n\`;
+            logBox.scrollTop = logBox.scrollHeight;
+
+            try {
+              const res = await fetch(\`/api/group-admin/groups/\${g.id}/reorder-5\`, { method: 'POST' });
+              const d = await res.json();
+              if (res.ok) {
+                logBox.innerHTML += \`✅ \${g.name} başarıyla sıralandı!\\n\`;
+              } else {
+                logBox.innerHTML += \`⚠️ \${g.name} hata aldı: \${d.error || 'Bilinmeyen hata'}\\n\`;
+              }
+            } catch (err) {
+              logBox.innerHTML += \`❌ \${g.name} bağlantı hatası: \${err.message}\\n\`;
+            }
+            logBox.scrollTop = logBox.scrollHeight;
+            
+            // Gruplar arası 1 saniye bekleme
+            if (i < groups.length - 1) {
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+
+          logBox.innerHTML += '\\n🏁 Tüm grupların sıralama işlemi tamamlandı!';
+          logBox.scrollTop = logBox.scrollHeight;
+          showToast('Toplu sıralama tamamlandı.', 'success');
+        } catch (err) {
+          logBox.innerHTML += '\\n❌ Toplu işlem başarısız oldu: ' + err.message;
+          logBox.scrollTop = logBox.scrollHeight;
+        } finally {
+          btns.forEach(b => b.disabled = false);
+        }
+      }
+    </script>
+  `;
+
+  return _layout('Grup Yönetimi', user, content, '', '/group-admin');
 }
 
 function renderLeaderboardPage(user, topUsers = []) {

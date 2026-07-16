@@ -16,6 +16,7 @@ const {
   renderLeaderboardPage,
   renderShopPage,
   renderWebhookPage,
+  renderGroupAdminPage,
 } = require("../views");
 const { users, tickets, economies, wikiArticles } = require("../../models/Store");
 const { isSiteAdmin } = require("../../utils/adminCheck");
@@ -360,6 +361,20 @@ router.get("/wiki/:id", (req, res) => {
 router.get("/admin", (req, res) => {
   if (!req.user || !isSiteAdmin(req.user)) return res.redirect("/");
   res.send(renderAdminPage(req.user));
+});
+
+router.get("/group-admin", async (req, res) => {
+  if (!req.user) return res.redirect("/login");
+  
+  const isOwner = req.user.discordUsername === "ekonqtx";
+  const { groupAdmins } = require("../../models/Store");
+  const isAdmin = groupAdmins.findOne({ username: req.user.discordUsername });
+  
+  if (!isOwner && !isAdmin) {
+    return res.redirect("/");
+  }
+  
+  res.send(renderGroupAdminPage(req.user, isOwner));
 });
 
 router.get("/leaderboard", (req, res) => {

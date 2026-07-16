@@ -118,6 +118,8 @@ const collections = {
   economies: null,
   wikiArticles: null,
   errorReports: null,
+  groupAdmins: null,
+  rankMetadata: null,
 };
 
 function onStoreMutate() {
@@ -130,12 +132,16 @@ collections.tickets     = new InMemoryCollection("tickets",     onStoreMutate);
 collections.economies   = new InMemoryCollection("economies",   onStoreMutate);
 collections.wikiArticles = new InMemoryCollection("wikiArticles", onStoreMutate);
 collections.errorReports = new InMemoryCollection("errorReports", onStoreMutate);
+collections.groupAdmins  = new InMemoryCollection("groupAdmins",  onStoreMutate);
+collections.rankMetadata = new InMemoryCollection("rankMetadata", onStoreMutate);
 
 const users       = collections.users;
 const tickets     = collections.tickets;
 const economies   = collections.economies;
 const wikiArticles = collections.wikiArticles;
 const errorReports = collections.errorReports;
+const groupAdmins  = collections.groupAdmins;
+const rankMetadata = collections.rankMetadata;
 /** @deprecated eski importlar için */
 const wikis = wikiArticles;
 
@@ -149,7 +155,7 @@ async function initStore() {
 
   if (mongoOk) {
     // MongoDB'den yükle
-    const colNames = ["users", "tickets", "economies", "wikiArticles"];
+    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata"];
     const counts = {};
 
     for (const name of colNames) {
@@ -193,7 +199,7 @@ async function initStore() {
 
 /** Dosyadaki tüm verileri MongoDB'ye toplu yazar */
 async function migrateFileToMongo() {
-  const colNames = ["users", "tickets", "economies", "wikiArticles"];
+  const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata"];
   for (const name of colNames) {
     await db.saveCollectionToMongo(name, collections[name].data);
   }
@@ -203,7 +209,7 @@ async function saveStoreNow() {
   // Her iki sisteme de yaz
   flushSave(collections);
   if (db.isMongoActive()) {
-    const colNames = ["users", "tickets", "economies", "wikiArticles"];
+    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata"];
     const promises = colNames.map(name => 
       db.saveCollectionToMongo(name, collections[name].data)
         .catch(err => console.error(`[Store] Toplu kayıt hatası (${name}):`, err.message))
@@ -248,6 +254,8 @@ module.exports = {
   economies,
   wikiArticles,
   errorReports,
+  groupAdmins,
+  rankMetadata,
   wikis,
   InMemoryCollection,
   initStore,
