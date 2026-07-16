@@ -16,6 +16,17 @@ const {
 } = require("../embeds");
 
 async function handleModalSubmit(interaction) {
+  // ── Hata Sihirbazı Modal ──────────────────────────────────────────────────
+  if (interaction.customId === 'error_wizard_modal') {
+    const { handleErrorWizardSubmit } = require('../services/errorWizardService');
+    return handleErrorWizardSubmit(interaction);
+  }
+
+  if (interaction.customId.startsWith('wizard_reply_modal_')) {
+    const { handleWizardReplyModal } = require('../services/errorWizardService');
+    return handleWizardReplyModal(interaction);
+  }
+
   // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
   if (interaction.customId === 'investigation_start_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

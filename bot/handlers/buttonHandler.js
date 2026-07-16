@@ -97,6 +97,12 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  // ── Hata Sihirbazı Butonları ────────────────────────────────────────────
+  if (customId.startsWith("wizard_ack_") || customId.startsWith("wizard_resolve_") || customId.startsWith("wizard_reply_") || customId.startsWith("wizard_ai_detail_")) {
+    const { handleWizardButton } = require("../services/errorWizardService");
+    return handleWizardButton(interaction);
+  }
+
   // ── Okul Sistemi Butonları ──────────────────────────────────────────────
   if (customId.startsWith("school_confirm_req_")) {
     const { handleTrainingRequestConfirm } = require("../services/moderatorSchool");

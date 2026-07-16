@@ -1,23 +1,28 @@
 'use strict';
 
 const https = require('https');
-const http  = require('http');
+const http = require('http');
 
 const OLLAMA_BASE = 'https://api.groq.com/openai/v1';
-const OLLAMA_KEY  = process.env.OPENROUTER_API_KEY
-                 || process.env.OLLAMA_API_KEY
-                 || process.env.GROQ_API_KEY
-                 || '';
+const OLLAMA_KEY = process.env.OPENROUTER_API_KEY
+  || process.env.OLLAMA_API_KEY
+  || process.env.GROQ_API_KEY
+  || '';
 const MODELS = process.env.AI_MODEL
   ? [process.env.AI_MODEL]
   : [
-      'llama-3.1-8b-instant',
-      'llama-3.3-70b-versatile',
-      'llama-3.2-3b-preview',
-      'llama-3.2-1b-preview',
-      'deepseek-r1-distill-llama-70b',
-      'deepseek-r1-distill-qwen-32b'
-    ];
+    'llama-3.1-8b-instant',
+    'llama-3.3-70b-versatile',
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'meta-llama/llama-4-scout-17b-16e-instruct',
+    'qwen/qwen3-32b',
+    'qwen/qwen3.6-27b',
+    'deepseek-r1-distill-llama-70b',
+    'deepseek-r1-distill-qwen-32b',
+    'compound',
+    'compound-mini'
+  ];
 
 const TICKET_SYSTEM_PROMPT = `Sen Sentara destek sisteminin yapay zeka asistanısın.
 Görevin: Kullanıcı bir destek ticket'ı açtığında önce onlarla konuşarak sorunlarını net anlamak.
@@ -47,7 +52,7 @@ function requestModel(model, messages, systemContent, options = {}) {
   if (!OLLAMA_KEY || OLLAMA_KEY.trim() === '') {
     return Promise.reject(new Error('❌ AI API anahtarı yapılandırılmamış'));
   }
-  
+
   if (!Array.isArray(messages) || messages.length === 0) {
     return Promise.reject(new Error('❌ Geçersiz mesaj formatı'));
   }
@@ -93,7 +98,7 @@ function requestModel(model, messages, systemContent, options = {}) {
     try {
       request = lib.request(options, (res) => {
         let data = '';
-        
+
         // Handle non-200 status codes
         if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
           res.on('data', chunk => (data += chunk));
@@ -109,14 +114,14 @@ function requestModel(model, messages, systemContent, options = {}) {
           });
           return;
         }
-        
+
         res.on('data', chunk => (data += chunk));
         res.on('end', () => {
           try {
             if (!data || data.trim() === '') {
               return reject(new Error(`Boş yanıt (HTTP ${res.statusCode})`));
             }
-            
+
             const parsed = JSON.parse(data);
 
             // Error response handling
@@ -124,7 +129,7 @@ function requestModel(model, messages, systemContent, options = {}) {
               const msg = typeof parsed.error === 'string'
                 ? parsed.error
                 : (parsed.error.message || JSON.stringify(parsed.error));
-              
+
               if (msg.includes('rate limit') || msg.includes('429')) {
                 return reject(new Error(`Rate limit: ${msg}`));
               }
@@ -145,7 +150,7 @@ function requestModel(model, messages, systemContent, options = {}) {
             reject(new Error(`JSON parse hatası (HTTP ${res.statusCode}): ${e.message}`));
           }
         });
-        
+
         res.on('error', (err) => {
           reject(new Error(`Response stream hatası: ${err.message}`));
         });

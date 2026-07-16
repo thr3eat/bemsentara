@@ -7,6 +7,13 @@ const { SUPPORT_CATEGORIES, BASE_URL } = require("../../config");
 async function handleSlashCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // Modal-based commands must be handled BEFORE deferReply
+  if (commandName === "hata-sihirbazi") {
+    const { showErrorWizardModal } = require("../services/errorWizardService");
+    return showErrorWizardModal(interaction);
+  }
+
   await interaction.deferReply({ ephemeral: true });
 
   try {

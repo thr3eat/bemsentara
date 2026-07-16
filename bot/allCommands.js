@@ -12,6 +12,10 @@ const generalCommands = [
     ),
 
   new SlashCommandBuilder()
+    .setName("hata-sihirbazi")
+    .setDescription("🧙 AI destekli hata raporlama sihirbazını aç"),
+
+  new SlashCommandBuilder()
     .setName("support")
     .setDescription("Destek menüsünü aç"),
 
