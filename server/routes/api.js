@@ -10,6 +10,164 @@ const { SHOP_ITEMS, findItem } = require("../../bot/config/shopItems");
 const { BASE_URL, WEBHOOK_SECRET, MAKE_WEBHOOK_URL } = require("../../config");
 const logger = require("../../utils/logger");
 
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderEmailTemplate(aiResponse) {
+  const safeBody = escapeHtml(aiResponse)
+    .replace(/\r\n/g, '\n')
+    .replace(/\n/g, '<br />');
+
+  return `<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EkoYıldız | Resmi E-Posta Tasarımı</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #040816 0%, #0d1b2d 45%, #14253f 100%);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      table {
+        border-spacing: 0;
+      }
+      img {
+        border: 0;
+      }
+      a {
+        text-decoration: none;
+      }
+      .hero-glow {
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 1px rgba(255,255,255,0.02);
+      }
+      .glass-card {
+        background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(45,108,223,0.28);
+      }
+      .btn-secondary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(31,157,119,0.25);
+      }
+      .accent-line {
+        height: 3px;
+        width: 84px;
+        background: linear-gradient(90deg, #2d6cdf 0%, #67e8f9 100%);
+        border-radius: 999px;
+        margin: 8px 0 18px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#07111f; padding:32px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px; width:100%;">
+            <tr>
+              <td>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:linear-gradient(135deg,#0f172a 0%,#11243f 100%); border:1px solid #2b4364; border-radius:28px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,0.45);">
+                  <tr>
+                    <td style="padding:0;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0b1220;">
+                        <tr>
+                          <td style="padding:24px 28px 18px 28px; border-bottom:1px solid #24384f;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                              <tr>
+                                <td valign="middle" width="64">
+                                  <div class="hero-glow" style="width:62px; height:62px; border-radius:50%; overflow:hidden; display:inline-block; background:linear-gradient(135deg,#11253f,#2d6cdf); padding:2px;">
+                                    <img src="https://yt3.googleusercontent.com/-FXtUrat6SH-K90Xc0CUtKmVaCwffoAuU0rUaQAE-GH9VZnPb9yQJHvw2lVnSgSe-G3K4SEylfs=s160-c-k-c0x00ffffff-no-rj" alt="EkoYıldız logo" width="58" height="58" style="display:block; border-radius:50%;" />
+                                  </div>
+                                </td>
+                                <td valign="middle" style="padding-left:14px;">
+                                  <div style="font-size:24px; line-height:28px; font-weight:bold; color:#f8fafc; letter-spacing:0.5px;">EkoYıldız</div>
+                                  <div style="font-size:12px; line-height:16px; color:#8fa4bf; text-transform:uppercase; letter-spacing:2.2px; margin-top:4px;">YouTube Kanalı · Resmi İletişim</div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:0;">
+                            <div class="glass-card" style="padding:8px; background:linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03));">
+                              <div style="background-image:linear-gradient(rgba(255,255,255,0.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.08) 1px,transparent 1px); background-size:24px 24px; border-radius:20px; overflow:hidden;">
+                                <img src="https://yt3.googleusercontent.com/EuUJlYqW2qF32abl3kXM9wWFc1HHzJro-tTva7R93LmDCZvKLngJxCpo0PFuREoAS9TGZpP70eM=w1707-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj" alt="EkoYıldız banner" width="100%" style="display:block; max-width:100%; height:auto;" />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:36px 28px 30px 28px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                              <tr>
+                                <td>
+                                  <div style="font-size:30px; line-height:36px; font-weight:bold; color:#f8fafc; margin-bottom:10px;">Premium, modern ve dikkat çekici</div>
+                                  <div class="accent-line"></div>
+                                  <div style="font-size:16px; line-height:27px; color:#dbe8f7; margin-bottom:16px;">
+                                    EkoYıldız için hazırlanan bu tasarım, profesyonel bir kurumsal izlenim sunmanın yanında, yüksek kalite ve modern estetik duygusunu da bir araya getirir.
+                                  </div>
+                                  <div style="font-size:15px; line-height:25px; color:#b9cbe0; margin-bottom:24px;">
+                                    ${safeBody}
+                                  </div>
+                                  <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                    <tr>
+                                      <td align="center" class="btn-primary" style="background:linear-gradient(135deg,#2d6cdf 0%,#4c8dff 100%); border-radius:999px; transition:all 0.2s ease;">
+                                        <a href="https://www.youtube.com/@EkoYildiz" target="_blank" style="display:inline-block; padding:14px 24px; font-size:15px; font-weight:bold; color:#ffffff;">YouTube Kanalı</a>
+                                      </td>
+                                      <td width="12"></td>
+                                      <td align="center" class="btn-secondary" style="background:linear-gradient(135deg,#1f9d77 0%,#2dcf9c 100%); border-radius:999px; transition:all 0.2s ease;">
+                                        <a href="https://discord.com/channels/1367646464804655104/1518692475189854218" target="_blank" style="display:inline-block; padding:14px 24px; font-size:15px; font-weight:bold; color:#ffffff;">Discord Destek</a>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:0 28px 28px 28px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #24384f; padding-top:18px;">
+                              <tr>
+                                <td style="font-size:12px; line-height:20px; color:#7f93b2;">
+                                  EkoYıldız · Resmi iletişim ve destek alanı<br />
+                                  Daha fazla bilgi için yukarıdaki bağlantıları kullanabilirsiniz.
+                                </td>
+                                <td align="right" style="font-size:12px; line-height:20px; color:#5e7b9b;">
+                                  © 2026 EkoYıldız
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 const router = express.Router();
 
 function requireLogin(req, res) {
@@ -535,6 +693,7 @@ router.post("/api/make/ai-process", async (req, res) => {
     const { chatWithAI } = require("../../bot/services/aiService");
     const prompt = `Aşağıdaki e-postaya Türkçe, nazik ve net bir yanıt hazırla.\n\nGönderen: ${sender_email}\nKonu: ${subject || "(Boş konu)"}\n\nMesaj:\n${content}`;
     const aiResponse = await chatWithAI([{ role: "user", content: prompt }], "Sen bir yardımcı e-posta yanıtlayıcısısın. Türkçe yaz.", "ticket", { max_tokens: 400, temperature: 0.7 });
+    const emailHtml = renderEmailTemplate(aiResponse);
 
     if (!MAKE_WEBHOOK_URL) {
       return res.status(500).json({ error: "Make webhook URL yapılandırılmamış." });
@@ -544,7 +703,8 @@ router.post("/api/make/ai-process", async (req, res) => {
       recipient_email: sender_email,
       subject: `Re: ${subject || "Yanıt"}`,
       ai_response: aiResponse,
-      in_reply_to_id: message_id
+      in_reply_to_id: message_id,
+      html: emailHtml
     }, {
       headers: {
         "Content-Type": "application/json"
@@ -556,6 +716,7 @@ router.post("/api/make/ai-process", async (req, res) => {
       success: true,
       message: "AI yanıtı oluşturuldu ve Make webhook’una gönderildi.",
       webhookUrl: MAKE_WEBHOOK_URL,
+      html: emailHtml
     });
   } catch (err) {
     console.error("/api/make/ai-process error:", err);
