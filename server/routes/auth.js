@@ -514,4 +514,294 @@ router.post("/api/auth/generate-pin", async (req, res) => {
   }
 });
 
+// ── OAuth Verification System ──
+
+// Request verification - generates a code and sends OAuth link to Discord
+router.post("/api/auth/verify-request", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmalısınız." });
+  
+  try {
+    const VerificationCode = require("../../models/VerificationCode");
+    const user = await User.findOne({ discordId: req.user.discordId });
+    
+    if (!user) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+    
+    if (user.botVerified) {
+      return res.status(400).json({ error: "Zaten botu doğruladınız." });
+    }
+    
+    // Create verification code
+    const code = VerificationCode.create(req.user.discordId);
+    const { BASE_URL } = require("../../config");
+    
+    // Send Discord DM with verification link
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    
+    if (!client || !client.isReady()) {
+      return res.status(500).json({ error: "Discord botu aktif değil." });
+    }
+    
+    const discordUser = await client.users.fetch(req.user.discordId).catch(() => null);
+    if (!discordUser) {
+      return res.status(404).json({ error: "Discord hesabınıza erişilemedi." });
+    }
+    
+    const verifyUrl = `${BASE_URL || 'https://bemsentara-4cyc.onrender.com'}/verify?code=${code}`;
+    
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+    const button = new ButtonBuilder()
+      .setLabel("🔐 Doğrulamak İçin Tıkla")
+      .setStyle(ButtonStyle.Link)
+      .setURL(verifyUrl);
+    
+    const row = new ActionRowBuilder().addComponents(button);
+    
+    const embed = new EmbedBuilder()
+      .setTitle("🔐 Discord Doğrulaması Gerekli")
+      .setDescription(
+        `Sentara botunu kullanmak için hesabınızı doğrulamanız gerekir.\n\n` +
+        `**Doğrulama Kodu:** \`${code}\`\n\n` +
+        `Aşağıdaki butona tıklayarak veya kodu bot komutunda kullanarak doğrulamanızı yapabilirsiniz.\n\n` +
+        `_Bu kod 30 dakika boyunca geçerlidir._`
+      )
+      .setColor(0x7c6af7)
+      .setFooter({ text: "Sentara Doğrulama Sistemi" })
+      .setTimestamp();
+    
+    await discordUser.send({ embeds: [embed], components: [row] });
+    
+    res.json({ 
+      success: true, 
+      message: "Doğrulama linki Discord DM'inize gönderildi!",
+      code: code,
+      expiresIn: 30 * 60 * 1000 // 30 minutes in ms
+    });
+  } catch (err) {
+    console.error("[verify-request]", err);
+    res.status(500).json({ error: err.message || "Sunucu hatası." });
+  }
+});
+
+// Verify code endpoint - called when user clicks link or enters code
+router.post("/api/auth/verify-code", async (req, res) => {
+  const { code } = req.body;
+  
+  if (!code) {
+    return res.status(400).json({ error: "Doğrulama kodu gereklidir." });
+  }
+  
+  try {
+    const VerificationCode = require("../../models/VerificationCode");
+    const verificationRecord = await VerificationCode.findOne({ code });
+    
+    if (!verificationRecord) {
+      return res.status(400).json({ error: "Geçersiz veya süresi dolmuş kod." });
+    }
+    
+    const user = await User.findOne({ discordId: verificationRecord.discordId });
+    if (!user) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+    
+    // Mark as verified
+    user.botVerified = true;
+    await user.save();
+    saveStoreNow();
+    
+    // Mark verification as verified
+    await VerificationCode.verify(code);
+    
+    // Send confirmation to Discord
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (client && client.isReady()) {
+      const discordUser = await client.users.fetch(verificationRecord.discordId).catch(() => null);
+      if (discordUser) {
+        const { EmbedBuilder } = require("discord.js");
+        const confirmEmbed = new EmbedBuilder()
+          .setTitle("✅ Doğrulama Başarılı!")
+          .setDescription(
+            `Hesabınız başarıyla doğrulandı!\n\n` +
+            `Artık Sentara botunun tüm komutlarını ve özelliklerini kullanabilirsiniz.\n\n` +
+            `Botun komutlarını görmek için \`/yardim\` yazabilirsiniz.`
+          )
+          .setColor(0x2ecc71)
+          .setFooter({ text: "Sentara" })
+          .setTimestamp();
+        
+        await discordUser.send({ embeds: [confirmEmbed] }).catch(() => {});
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: "✅ Doğrulama başarılı! Artık botu kullanabilirsiniz."
+    });
+  } catch (err) {
+    console.error("[verify-code]", err);
+    res.status(500).json({ error: err.message || "Sunucu hatası." });
+  }
+});
+
+// Web Verification Page (GET endpoint)
+router.get("/verify", async (req, res) => {
+  const { code } = req.query;
+  
+  if (!code) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Sentara Doğrulama</title>
+        <style>
+          body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; }
+          h1 { color: #7c6af7; margin-bottom: 20px; }
+          input { padding: 10px; border: 2px solid #7c6af7; background: #1e1e2e; color: #fff; border-radius: 5px; width: 200px; }
+          button { padding: 10px 20px; background: #7c6af7; color: #fff; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; }
+          button:hover { background: #6b5adb; }
+        </style>
+      </head>
+      <body>
+        <div class="box">
+          <h1>🔐 Sentara Doğrulama</h1>
+          <p>Doğrulama kodunuzu girin:</p>
+          <form onsubmit="verify(event)">
+            <input type="text" id="code" placeholder="Kod" maxlength="6" required>
+            <button type="submit">Doğrula</button>
+          </form>
+          <p id="msg"></p>
+        </div>
+        <script>
+          async function verify(e) {
+            e.preventDefault();
+            const code = document.getElementById('code').value;
+            const res = await fetch('/api/auth/verify-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+            const msg = document.getElementById('msg');
+            if (data.success) {
+              msg.style.color = '#2ecc71';
+              msg.textContent = '✅ ' + data.message;
+              setTimeout(() => window.location.href = '/', 2000);
+            } else {
+              msg.style.color = '#e74c3c';
+              msg.textContent = '❌ ' + (data.error || 'Hata oluştu');
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  }
+  
+  try {
+    const VerificationCode = require("../../models/VerificationCode");
+    const verificationRecord = await VerificationCode.findOne({ code });
+    
+    if (!verificationRecord) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Hata</title>
+          <style>
+            body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; color: #e74c3c; }
+          </style>
+        </head>
+        <body>
+          <div class="box">
+            <h1>❌ Geçersiz Kod</h1>
+            <p>Bu doğrulama kodu geçersiz veya süresi dolmuş.</p>
+            <a href="/" style="color: #7c6af7;">Geri Dön</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    const user = await User.findOne({ discordId: verificationRecord.discordId });
+    if (!user) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Hata</title>
+          <style>
+            body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; color: #e74c3c; }
+          </style>
+        </head>
+        <body>
+          <div class="box">
+            <h1>❌ Kullanıcı Bulunamadı</h1>
+            <p>Hesabınız bulunamadı. Lütfen Discord botu ile giriş yapınız.</p>
+            <a href="/" style="color: #7c6af7;">Geri Dön</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    // Mark as verified
+    user.botVerified = true;
+    await user.save();
+    saveStoreNow();
+    await VerificationCode.verify(code);
+    
+    // Send Discord confirmation
+    const { getDiscordClient } = require("../../bot/discordClient");
+    const client = getDiscordClient();
+    if (client && client.isReady()) {
+      const discordUser = await client.users.fetch(verificationRecord.discordId).catch(() => null);
+      if (discordUser) {
+        const { EmbedBuilder } = require("discord.js");
+        const confirmEmbed = new EmbedBuilder()
+          .setTitle("✅ Doğrulama Başarılı!")
+          .setDescription(
+            `Hesabınız başarıyla doğrulandı!\n\n` +
+            `Artık Sentara botunun tüm komutlarını ve özelliklerini kullanabilirsiniz.`
+          )
+          .setColor(0x2ecc71)
+          .setFooter({ text: "Sentara" })
+          .setTimestamp();
+        
+        await discordUser.send({ embeds: [confirmEmbed] }).catch(() => {});
+      }
+    }
+    
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Başarılı</title>
+        <style>
+          body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; }
+          .success { color: #2ecc71; font-size: 24px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="box">
+          <h1 class="success">✅ Doğrulama Başarılı!</h1>
+          <p>Hesabınız başarıyla doğrulandı.</p>
+          <p>Artık Sentara botunun tüm komutlarını kullanabilirsiniz.</p>
+          <a href="/" style="color: #7c6af7; text-decoration: none;">Anasayfaya Dön</a>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error("[verify GET]", err);
+    res.status(500).send("Sunucu hatası");
+  }
+});
+
 module.exports = router;

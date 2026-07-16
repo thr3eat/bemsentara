@@ -1,15 +1,12 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const generalCommands = [
+  
+
   new SlashCommandBuilder()
     .setName("dogrula")
-    .setDescription("Siteden aldığınız 4 haneli PIN kodu ile hesabınızı doğrulayın.")
-    .addStringOption((option) =>
-      option
-        .setName("pin")
-        .setDescription("Siteden aldığınız 4 haneli PIN")
-        .setRequired(true)
-    ),
+    .setDescription("🔐 Sentara botunu kullanmak için Discord hesabınızı doğrulayın")
+    .setDMPermission(true),
 
   new SlashCommandBuilder()
     .setName("hata-sihirbazi")

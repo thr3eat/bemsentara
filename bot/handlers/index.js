@@ -3120,6 +3120,17 @@ function initializeDiscordHandlers(client) {
         return;
       }
 
+      // ── Verification Code Butonu ──────────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith('verify_show_code_')) {
+        const code = interaction.customId.split('_')[3];
+        const { EmbedBuilder } = require("discord.js");
+        const embed = new EmbedBuilder()
+          .setTitle("📋 Doğrulama Kodunuz")
+          .setDescription(`\`${code}\`\n\nBu kodu sitede giriş yaparken kullanabilirsiniz.`)
+          .setColor(0x7c6af7);
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
       if (interaction.guild) {
         const { isGuildAuthorized } = require("../services/guildAuthService");
         const authorized = await isGuildAuthorized(interaction.guild);

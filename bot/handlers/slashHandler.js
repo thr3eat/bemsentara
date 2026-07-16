@@ -22,33 +22,381 @@ async function handleSlashCommand(interaction) {
       return null;
     });
 
+    // ── Doğrulama Komutu (OAuth-based) ──
     if (commandName === "dogrula") {
-      const pin = interaction.options.getString("pin").trim();
+      const pin = interaction.options.getString("pin")?.trim();
       const { saveStoreNow } = require("../../models/Store");
       const logger = require("../../utils/logger");
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
       if (!user) {
-        return interaction.editReply({ content: "❌ Sitemize giriş yapmış bir hesabınız bulunamadı. Lütfen önce siteye giriş yapın." });
+        const embed = new EmbedBuilder()
+          .setTitle("❌ Siteye Giriş Yapılmamış")
+          .setDescription("Doğrulama yapmadan önce siteye giriş yapmalısınız.")
+          .setColor(0xe74c3c);
+        
+        const btn = new ButtonBuilder()
+          .setLabel("🌐 Siteye Git")
+          .setStyle(ButtonStyle.Link)
+          .setURL(BASE_URL || 'https://bemsentara-4cyc.onrender.com');
+        
+        const row = new ActionRowBuilder().addComponents(btn);
+        return interaction.editReply({ embeds: [embed], components: [row] });
       }
 
       if (user.botVerified) {
-        return interaction.editReply({ content: "✅ Hesabınız zaten doğrulanmış. Botu kullanabilirsiniz." });
+        const embed = new EmbedBuilder()
+          .setTitle("✅ Zaten Doğrulanmış")
+          .setDescription("Hesabınız zaten doğrulanmış. Botu kullanabilirsiniz!")
+          .setColor(0x2ecc71);
+        return interaction.editReply({ embeds: [embed] });
       }
 
-      if (!user.botPin) {
-        return interaction.editReply({ content: "❌ Siteden henüz bir PIN oluşturmamışsınız. Lütfen siteye gidip 'Kodu Al' butonuna tıklayın." });
+      // Eğer PIN verilmişse, eski sistemi kullan (geriye uyumluluk)
+      if (pin) {
+        if (!user.botPin) {
+          return interaction.editReply({ content: "❌ Siteden henüz bir PIN oluşturmamışsınız." });
+        }
+
+        if (user.botPin === pin) {
+          user.botVerified = true;
+          user.botPin = null;
+          await saveStoreNow();
+          logger.log(`[BOT] ${interaction.user.tag} botu PIN ile doğruladı.`);
+          
+          const embed = new EmbedBuilder()
+            .setTitle("🎉 Doğrulama Başarılı!")
+            .setDescription("Hesabınız başarıyla doğrulandı. Artık tüm komutları kullanabilirsiniz.")
+            .setColor(0x2ecc71);
+          return interaction.editReply({ embeds: [embed] });
+        } else {
+          return interaction.editReply({ content: "❌ **Hatalı PIN!**" });
+        }
       }
 
-      if (user.botPin === pin) {
-        user.botVerified = true;
-        user.botPin = null;
-        await saveStoreNow();
-        logger.log(`[BOT] ${interaction.user.tag} botu başarıyla doğruladı.`);
-        return interaction.editReply({ content: "🎉 **Tebrikler!** Hesabınız başarıyla doğrulandı. Artık Sentara Premium botunu özgürce kullanabilirsiniz." });
-      } else {
-        return interaction.editReply({ content: "❌ **Hatalı PIN!** Lütfen sitede gördüğünüz 4 haneli PIN kodunu doğru girdiğinizden emin olun." });
+      // Komut parametresi olmadan → Doğrulama kodu ile OAuth akışı
+      const VerificationCode = require("../../models/VerificationCode");
+      const code = VerificationCode.create(interaction.user.id);
+      const verifyUrl = `${BASE_URL || 'https://bemsentara-4cyc.onrender.com'}/verify?code=${code}`;
+
+      const verifyBtn = new ButtonBuilder()
+        .setLabel("🔐 Doğrulamak İçin Tıkla")
+        .setStyle(ButtonStyle.Link)
+        .setURL(verifyUrl);
+
+      const codeBtn = new ButtonBuilder()
+        .setCustomId("verify_show_code_" + code)
+        .setLabel("📋 Kodu Göster")
+        .setStyle(ButtonStyle.Secondary);
+
+      const row = new ActionRowBuilder().addComponents(verifyBtn, codeBtn);
+
+      const embed = new EmbedBuilder()
+        .setTitle("🔐 Discord Doğrulaması")
+        .setDescription(
+          `Sentara botunu kullanmak için hesabınızı doğrulayın.\n\n` +
+          `**Doğrulama Kodu:** \`${code}\`\n\n` +
+          `İki yöntemden biri ile doğrulama yapabilirsiniz:\n\n` +
+          `1️⃣ **"Doğrulamak İçin Tıkla"** butonuna tıkla\n` +
+          `2️⃣ Kodu kopyala ve sitede gir\n\n` +
+          `_Bu kod 30 dakika boyunca geçerlidir._`
+        )
+        .setColor(0x7c6af7)
+        .setFooter({ text: "Sentara Doğrulama Sistemi" })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    }
+
+    if (commandName === "support") {
+      if (!interaction.guild) {
+        return interaction.editReply({ content: "❌ Bu komut sadece sunucu'da çalışır" });
+      }
+
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return interaction.editReply({ content: "❌ Bunu yapmaya yetkili değilsiniz" });
+      }
+
+      const embed = getSupportMenuEmbed();
+      const button = getSupportButton();
+      await interaction.channel.send({ embeds: [embed], components: [button] });
+      return interaction.editReply({ content: "✅ Destek menüsü gönderildi" });
+    }
+
+    if (commandName === "mytickets") {
+      const tickets = await Ticket.find({ userId: interaction.user.id, status: "open" });
+      if (tickets.length === 0) {
+        return interaction.editReply({ content: "📭 Açık ticket'ınız yok" });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle("🎫 Açık Ticket'larınız")
+        .setColor(0x7c6af7)
+        .setDescription(
+          tickets
+            .map(
+              (t) =>
+                `**${t.ticketId}** - ${t.subject}\n Kategori: ${SUPPORT_CATEGORIES[t.category].name} | Durum: ${t.status}`
+            )
+            .join("\n\n")
+        )
+        .setFooter({ text: "Sentara Support" })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "profile") {
+      if (!user) {
+        const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
+        return interaction.editReply({ content: `❌ Henüz yetkilendirmediniz. [Yetkilendirin](${authUrl})` });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`👤 ${user.robloxUsername || user.discordUsername}`)
+        .setColor(user.profileColor || 0x7c6af7)
+        .addFields(
+          {
+            name: "🎮 Roblox",
+            value: `**Username:** ${user.robloxUsername || "Yok"}\n**ID:** ${user.robloxId || "Yok"}`,
+            inline: false,
+          },
+          {
+            name: "💬 Discord",
+            value: `**Username:** ${user.discordUsername}\n**ID:** ${user.discordId}`,
+            inline: false,
+          }
+        )
+        .setTimestamp();
+
+      if (user.profileBio) {
+        embed.addFields({ name: "📝 Hakkında", value: user.profileBio, inline: false });
+      }
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "authorize") {
+      const authUrl = `${BASE_URL}/auth/authorize?discordId=${interaction.user.id}`;
+      const embed = new EmbedBuilder()
+        .setTitle("🔐 Hesabınızı Yetkilendirin")
+        .setDescription(`[Tıklayın ve Roblox hesabınızla giriş yapın](${authUrl})`)
+        .setColor(0x7c6af7);
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === "verify") {
+      try {
+        const { TARGET_GUILD_ID, TMT_GUILD_ID, ALLIED_GUILD_ID, GUILD2_ID } = require("../../config");
+        const guildId = String(interaction.guildId).trim();
+        const normalizedTMT = String(TMT_GUILD_ID).trim();
+        const normalizedBEM = String(TARGET_GUILD_ID).trim();
+        const normalizedEKO = String(GUILD2_ID).trim();
+        const normalizedAllied = String(ALLIED_GUILD_ID).trim();
+        
+        if (!guildId) {
+          return interaction.editReply({ content: "❌ Bu komut sunucuda kullanılmalıdır" });
+        }
+
+        const guild = await interaction.client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+          return interaction.editReply({ content: "❌ Sunucu bulunamadı" });
+        }
+
+        const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) {
+          return interaction.editReply({ content: "❌ Bu sunucuda bulunmuyorsunuz" });
+        }
+
+        const dbUser = await User.findOne({ discordId: interaction.user.id });
+
+        if (!dbUser || !dbUser.robloxId) {
+          return interaction.editReply({ 
+            content: "❌ Roblox hesabınızı yetkilendirmediniz. `/authorize` komutunu kullanın" 
+          });
+        }
+
+        let success = false;
+        if (guildId === normalizedAllied || guildId === normalizedEKO) {
+          const { syncAlliedRoles } = require("../services/alliedRoleSyncService");
+          const result = await syncAlliedRoles(interaction.client, interaction.user.id, parseInt(dbUser.robloxId, 10), guild);
+          success = result.success;
+        } else if (guildId === normalizedTMT) {
+          const { syncTMTRoles } = require("../services/tmtRoleSyncService");
+          const result = await syncTMTRoles(interaction.client, interaction.user.id, parseInt(dbUser.robloxId, 10), member);
+          success = result?.success || false;
+        } else if (guildId === normalizedBEM) {
+          const { syncMemberRoles } = require("../services/roleSyncService");
+          const result = await syncMemberRoles(guild, member, parseInt(dbUser.robloxId, 10), dbUser.robloxUsername);
+          success = result?.success || false;
+        }
+
+        if (success) {
+          return interaction.editReply({ content: "✅ Rolleriniz senkronize edildi" });
+        } else {
+          return interaction.editReply({ content: "❌ Rol senkronizasyonunda bir hata oluştu" });
+        }
+      } catch (error) {
+        console.error("[verify] Error:", error);
+        return interaction.editReply({ content: "❌ Hata oluştu: " + error.message });
       }
     }
+
+    return null;
+  } catch (err) {
+    console.error("[handleSlashCommand]", err);
+    return null;
+  }
+}
+
+module.exports = { handleSlashCommand };
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const Ticket = require("../../models/Ticket");
+const User = require("../../models/User");
+const { getSupportMenuEmbed, getSupportButton } = require("../embeds");
+const { SUPPORT_CATEGORIES, BASE_URL } = require("../../config");
+
+async function handleSlashCommand(interaction) {
+  if (!interaction.isChatInputCommand()) return null;
+  const { commandName } = interaction;
+
+  // Modal-based commands must be handled BEFORE deferReply
+  if (commandName === "hata-sihirbazi") {
+    const { showErrorWizardModal } = require("../services/errorWizardService");
+    return showErrorWizardModal(interaction);
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const user = await User.findOne({ discordId: interaction.user.id }).catch(err => {
+      console.warn('[slashHandler] User lookup error:', err.message);
+      return null;
+    });
+
+    // ── Doğrulama Komutu (OAuth-based) ──
+    if (commandName === "dogrula") {
+      const pin = interaction.options.getString("pin")?.trim();
+      const { saveStoreNow } = require("../../models/Store");
+      const logger = require("../../utils/logger");
+      const { BASE_URL } = require("../../config");
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+
+      if (!user) {
+        const embed = new EmbedBuilder()
+          .setTitle("❌ Siteye Giriş Yapılmamış")
+          .setDescription("Doğrulama yapmadan önce siteye giriş yapmalısınız.")
+          .setColor(0xe74c3c);
+        
+        const btn = new ButtonBuilder()
+          .setLabel("🌐 Siteye Git")
+          .setStyle(ButtonStyle.Link)
+          .setURL(BASE_URL || 'https://bemsentara-4cyc.onrender.com');
+        
+        const row = new ActionRowBuilder().addComponents(btn);
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      }
+
+      if (user.botVerified) {
+        const embed = new EmbedBuilder()
+          .setTitle("✅ Zaten Doğrulanmış")
+          .setDescription("Hesabınız zaten doğrulanmış. Botu kullanabilirsiniz!")
+          .setColor(0x2ecc71);
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      // Eğer PIN verilmişse, eski sistemi kullan (geriye uyumluluk)
+      if (pin) {
+        if (!user.botPin) {
+          return interaction.editReply({ content: "❌ Siteden henüz bir PIN oluşturmamışsınız. Lütfen siteye gidip 'Doğrulamayı İstemek' butonuna tıklayın." });
+        }
+
+        if (user.botPin === pin) {
+          user.botVerified = true;
+          user.botPin = null;
+          await saveStoreNow();
+          logger.log(`[BOT] ${interaction.user.tag} botu PIN ile doğruladı.`);
+          
+          const embed = new EmbedBuilder()
+            .setTitle("🎉 Doğrulama Başarılı!")
+            .setDescription("Hesabınız başarıyla doğrulandı. Artık tüm komutları kullanabilirsiniz.")
+            .setColor(0x2ecc71);
+          return interaction.editReply({ embeds: [embed] });
+        } else {
+          return interaction.editReply({ content: "❌ **Hatalı PIN!** Lütfen sitede gördüğünüz kodu doğru girdiğinizden emin olun." });
+        }
+      }
+
+      // Komut parametresi olmadan → Doğrulama kodu ile OAuth akışı
+      const VerificationCode = require("../../models/VerificationCode");
+      const code = VerificationCode.create(interaction.user.id);
+      const verifyUrl = `${BASE_URL || 'https://bemsentara-4cyc.onrender.com'}/verify?code=${code}`;
+
+      const verifyBtn = new ButtonBuilder()
+        .setLabel("🔐 Doğrulamak İçin Tıkla")
+        .setStyle(ButtonStyle.Link)
+        .setURL(verifyUrl);
+
+      const codeBtn = new ButtonBuilder()
+        .setCustomId("verify_show_code_" + code)
+        .setLabel("📋 Kodu Göster")
+        .setStyle(ButtonStyle.Secondary);
+
+      const row = new ActionRowBuilder().addComponents(verifyBtn, codeBtn);
+
+      const embed = new EmbedBuilder()
+        .setTitle("🔐 Discord Doğrulaması")
+        .setDescription(
+          `Sentara botunu kullanmak için hesabınızı doğrulayın.\n\n` +
+          `**Doğrulama Kodu:** \`${code}\`\n\n` +
+          `İki yöntemden biri ile doğrulama yapabilirsiniz:\n\n` +
+          `1️⃣ **"Doğrulamak İçin Tıkla"** butonuna tıkla\n` +
+          `2️⃣ Kodu kopyala ve sitede gir\n\n` +
+          `_Bu kod 30 dakika boyunca geçerlidir._`
+        )
+        .setColor(0x7c6af7)
+        .setFooter({ text: "Sentara Doğrulama Sistemi" })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    }
+      
+      const guild = await interaction.client.guilds.fetch(guildId).catch(err => {
+        console.warn(`[slashHandler] Guild ${guildId} not found:`, err.code);
+        return null;
+      });
+      
+      if (!guild) {
+        console.error(`[slashHandler] Cannot access guild ${guildId} to log ticket`);
+      } else {
+        const channel = await guild.channels.fetch(ticket.channelId).catch(err => {
+          console.warn(`[slashHandler] Channel ${ticket.channelId} not found:`, err.code);
+          return null;
+        });
+
+        if (channel) {
+          await logTicketMessages(channel, ticket).catch(err => {
+            console.error('[slashHandler] logTicketMessages error:', err.message);
+          });
+        }
+      }
+
+      logTicketClosed(ticket, {
+        closedBy: interaction.user.id,
+        closedByName: interaction.user.username,
+        reason,
+        source: "/closeticket komutu",
+      });
+
+      // ── Moderatörse "aferin!" mesajı gönder ───────────────────────────────────
+      const isModerator = interaction.member?.permissions.has('ManageMessages') ||
+                          interaction.member?.permissions.has('ModerateMembers');
+      
+      if (isModerator && interaction.user.id !== ticket.userId) {
+        try {
+          const { sendModerationPraise } = require("../services/ticketAI");
+          await sendModerationPraise(interaction.user.id, ticket, interaction.client);
 
     if (commandName === "support") {
       if (!interaction.guild) {
