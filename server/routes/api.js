@@ -519,6 +519,35 @@ router.get("/api/health", (req, res) => {
   });
 });
 
+router.post("/api/make/ai-process", async (req, res) => {
+  const secret = req.headers["x-webhook-secret"] || req.headers["x-make-secret"];
+  if (!WEBHOOK_SECRET || !secret || secret !== WEBHOOK_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { sender_email, subject, message_id, content } = req.body || {};
+  if (!sender_email || !message_id || !content) {
+    return res.status(400).json({ error: "sender_email, message_id ve content alanları gerekli." });
+  }
+
+  try {
+    const { chatWithAI } = require("../../bot/services/aiService");
+    const prompt = `Aşağıdaki e-postaya Türkçe, nazik ve net bir yanıt hazırla.\n\nGönderen: ${sender_email}\nKonu: ${subject || "(Boş konu)"}\n\nMesaj:\n${content}`;
+    const aiResponse = await chatWithAI([{ role: "user", content: prompt }], "Sen bir yardımcı e-posta yanıtlayıcısısın. Türkçe yaz.", "ticket", { max_tokens: 400, temperature: 0.7 });
+
+    return res.json({
+      success: true,
+      recipient_email: sender_email,
+      subject: `Re: ${subject || "Yanıt"}`,
+      in_reply_to_id: message_id,
+      ai_response: aiResponse,
+    });
+  } catch (err) {
+    console.error("/api/make/ai-process error:", err);
+    return res.status(500).json({ error: err.message || "AI işleme başarısız oldu." });
+  }
+});
+
 // ── Wiki: Makale listesi ─────────────────────────────────────────────────────
 router.get("/api/wiki/articles", (req, res) => {
   const list = wikiArticles
