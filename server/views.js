@@ -3786,8 +3786,8 @@ function renderGroupAdminPage(user, isOwner = false) {
           });
           const d = await res.json();
           if (res.ok) {
-            showToast('Rütbeler başarıyla kaydedildi.', 'success');
-            selectGroup(currentGroupId, document.getElementById('active-group-title').innerText);
+            showToast('Rütbeler başarıyla kaydedildi! Roblox sunucularına yansıması 1-2 dakika sürebilir.', 'success');
+            // Cache sorununu önlemek için hemen tekrar fetch atmıyoruz, mevcut görünüme dokunmuyoruz.
           } else {
             showToast(d.error || 'Kaydetme hatası.', 'error');
           }
@@ -3808,8 +3808,7 @@ function renderGroupAdminPage(user, isOwner = false) {
           const res = await fetch(\`/api/group-admin/groups/\${currentGroupId}/reorder-5\`, { method: 'POST' });
           const d = await res.json();
           if (res.ok) {
-            showToast('Grup rütbeleri başarıyla 5erli sıralandı.', 'success');
-            selectGroup(currentGroupId, document.getElementById('active-group-title').innerText);
+            showToast('Grup rütbeleri başarıyla 5erli sıralandı. Roblox\'un yansıtması 1-2 dakika sürebilir, ardından sayfayı yenileyebilirsiniz.', 'success');
           } else {
             showToast(d.error || 'Sıralama hatası.', 'error');
           }
