@@ -13,7 +13,6 @@ const {
   renderWikiListPage,
   renderWikiArticlePage,
   renderAdminPage,
-  renderAdminDashboard,
   renderBriefingOnboardingModal,
   renderLeaderboardPage,
   renderShopPage,
@@ -401,40 +400,6 @@ router.get("/webhook", (req, res) => {
   return res.redirect("/dashboard");
 });
 
-// Admin Dashboard
-router.get("/admin", (req, res) => {
-  if (!req.user) return res.redirect("/login");
-  
-  const isAdmin = req.user.isAdmin || 
-    req.user.discordId === process.env.DISCORD_OWNER_ID ||
-    (req.user.rolesInRobloxGroup && req.user.rolesInRobloxGroup.includes("Admin"));
-  
-  if (!isAdmin) {
-    return res.status(403).send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Erişim Reddedildi</title>
-        <style>
-          body { background: #1e1e2e; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: Arial; }
-          .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; border: 1px solid #7c6af7; }
-          h1 { color: #e74c3c; margin-bottom: 20px; }
-          p { color: #aaa; }
-        </style>
-      </head>
-      <body>
-        <div class="box">
-          <h1>❌ Erişim Reddedildi</h1>
-          <p>Buna erişme yetkiniz yok.</p>
-        </div>
-      </body>
-      </html>
-    `);
-  }
-  
-  res.send(renderAdminDashboard(req.user));
-});
 
 // Briefing Onboarding
 router.get("/briefing-form", (req, res) => {

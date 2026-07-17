@@ -92,12 +92,7 @@ async function handleSlashCommand(interaction) {
         .setStyle(ButtonStyle.Link)
         .setURL(verifyUrl);
 
-      const codeBtn = new ButtonBuilder()
-        .setCustomId("verify_show_code_" + code)
-        .setLabel("📋 Kodu Göster")
-        .setStyle(ButtonStyle.Secondary);
-
-      const row = new ActionRowBuilder().addComponents(verifyBtn, codeBtn);
+      const row = new ActionRowBuilder().addComponents(verifyBtn);
 
       const embed = new EmbedBuilder()
         .setTitle("🔐 Discord Doğrulaması")

@@ -968,7 +968,7 @@ function renderLoginPage(errorMsg = null) {
       <h1>Hoş Geldiniz</h1>
       <p class="subtitle">Sisteme giriş yapmak için bir yöntem seçin</p>
 
-      <div class="error-box" id="error-box">\${errorMsg ? _esc(errorMsg) : ''}</div>
+      <div class="error-box" id="error-box">${errorMsg ? errorMsg : ''}</div>
 
       <!-- MAIN OPTIONS -->
       <div id="view-main">
@@ -1018,7 +1018,7 @@ function renderLoginPage(errorMsg = null) {
 
       <script>
         // Init error box
-        const srvErr = "\${errorMsg || ''}";
+        const srvErr = ${JSON.stringify(errorMsg || '')};
         if (srvErr) { document.getElementById('error-box').style.display = 'block'; }
 
         function showError(msg) {
@@ -2974,9 +2974,13 @@ function renderWikiArticlePage(user, article, canManage = false) {
 function renderAdminPage(user) {
   const content = `
     <!-- Sekme başlıkları -->
-    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border);">
-      <button class="adm-tab adm-tab-active" onclick="admTab('users',this)"
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <button class="adm-tab adm-tab-active" onclick="admTab('stats',this)"
         style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
+        📊 İstatistikler
+      </button>
+      <button class="adm-tab" onclick="admTab('users',this)"
+        style="padding:.75rem 1.5rem;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:1rem;cursor:pointer;">
         👥 Kullanıcılar
       </button>
 
@@ -2998,8 +3002,44 @@ function renderAdminPage(user) {
       </button>
     </div>
 
+    <!-- İstatistikler -->
+    <div id="adm-stats" class="card">
+      <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">📊 İstatistikler</h1>
+      <p class="text-muted mb-3">Sunucu ve kullanıcı aktiflik istatistikleri.</p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="card" style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); padding: 1.5rem;">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--success); margin-bottom: 10px;" id="stat-active">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">🟢 Aktif Kullanıcılar (24s)</div>
+        </div>
+        <div class="card" style="background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.3); padding: 1.5rem;">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--danger); margin-bottom: 10px;" id="stat-inactive">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">🔴 İnaktif Kullanıcılar (24s+)</div>
+        </div>
+        <div class="card" style="background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3); padding: 1.5rem;">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--accent); margin-bottom: 10px;" id="stat-rules">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">📋 Kurallar Kabul</div>
+        </div>
+        <div class="card" style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); padding: 1.5rem;">
+          <div style="font-size: 2rem; font-weight: 800; color: var(--warning); margin-bottom: 10px;" id="stat-activities">0</div>
+          <div style="color: var(--muted); font-size: 0.9rem;">📊 Toplam Aktiviteler</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border); padding: 1.5rem; border-radius: 12px;">
+          <h3 style="margin-bottom: 15px; color: var(--success); font-size: 1.1rem; font-weight: 700;">🟢 Aktif Kullanıcılar (Son 24s)</h3>
+          <div id="active-list" style="max-height: 300px; overflow-y: auto;"></div>
+        </div>
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border); padding: 1.5rem; border-radius: 12px;">
+          <h3 style="margin-bottom: 15px; color: var(--danger); font-size: 1.1rem; font-weight: 700;">🔴 İnaktif Kullanıcılar</h3>
+          <div id="inactive-list" style="max-height: 300px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Kullanıcı yönetimi -->
-    <div id="adm-users" class="card">
+    <div id="adm-users" class="card" style="display:none;">
       <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">⚙️ Admin Paneli</h1>
       <p class="text-muted mb-3">Kullanıcı yetkileri ve ban yönetimi.</p>
       <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
@@ -3125,6 +3165,7 @@ function renderAdminPage(user) {
     <script>
       // ── Sekme geçişi ──────────────────────────────────────────────────────
       function admTab(name, btn) {
+        document.getElementById('adm-stats').style.display  = name === 'stats'  ? '' : 'none';
         document.getElementById('adm-users').style.display  = name === 'users'  ? '' : 'none';
         document.getElementById('adm-coins').style.display  = name === 'coins'  ? '' : 'none';
         document.getElementById('adm-bans').style.display   = name === 'bans'   ? '' : 'none';
@@ -3137,6 +3178,7 @@ function renderAdminPage(user) {
         btn.style.borderBottomColor = 'var(--accent)';
         btn.style.color = 'var(--text)';
         if (name === 'bans') loadBans();
+        if (name === 'stats') loadStats();
       }
 
       async function startAvukatAI() {
@@ -3561,6 +3603,54 @@ function renderAdminPage(user) {
           showToast(d.error || 'Hata', 'error');
         }
       }
+
+      async function loadStats() {
+        try {
+          const statsRes = await fetch('/api/admin/istatistikler');
+          const statsData = await statsRes.json().catch(() => ({}));
+          if (statsRes.ok && statsData.success) {
+            document.getElementById('stat-active').textContent = statsData.stats.aktifKullanicilar || 0;
+            document.getElementById('stat-inactive').textContent = statsData.stats.inaktifKullanicilar || 0;
+            document.getElementById('stat-rules').textContent = statsData.stats.kurallarKabul || 0;
+            document.getElementById('stat-activities').textContent = statsData.stats.toplamAktivite || 0;
+          }
+
+          const activeRes = await fetch('/api/admin/aktif-kullanicilar');
+          const activeData = await activeRes.json().catch(() => ({}));
+          if (activeRes.ok && activeData.success) {
+            const html = activeData.users.slice(0, 50).map(id => 
+              `<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 \${adminEsc(id)}</span></div>`
+            ).join('');
+            document.getElementById('active-list').innerHTML = html || '<p style="color:var(--muted); text-align:center; padding:1rem;">Aktif kullanıcı yok</p>';
+          }
+
+          const inactiveRes = await fetch('/api/admin/inaktif-kullanicilar');
+          const inactiveData = await inactiveRes.json().catch(() => ({}));
+          if (inactiveRes.ok && inactiveData.success) {
+            const html = inactiveData.users.slice(0, 50).map(id => 
+              `<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 \${adminEsc(id)}</span></div>`
+            ).join('');
+            document.getElementById('inactive-list').innerHTML = html || '<p style="color:var(--muted); text-align:center; padding:1rem;">İnaktif kullanıcı yok</p>';
+          }
+
+          const rulesRes = await fetch('/api/admin/kurallar-kabul');
+          const rulesData = await rulesRes.json().catch(() => ({}));
+          if (rulesRes.ok && rulesData.success) {
+            document.getElementById('stat-rules').textContent = rulesData.count || 0;
+          }
+        } catch (error) {
+          console.error('Admin istatistik veri yükleme hatası:', error);
+        }
+      }
+
+      // İlk yükleme
+      document.addEventListener('DOMContentLoaded', loadStats);
+      // Her 30 saniyede bir otomatik yenile
+      setInterval(() => {
+        if (document.getElementById('adm-stats').style.display !== 'none') {
+          loadStats();
+        }
+      }, 30000);
 
     <\/script>
   `;
@@ -4865,153 +4955,6 @@ sendWebhook("Merhaba Discord! 👋", "Oyun Bildirimi", "Bir oyuncu sunucuya kat�
   return _layout('Webhook Proxy', user, content, '', '/webhook');
 }
 
-// ─────────────────────────────────────────────
-// ADMIN DASHBOARD PAGE
-// ─────────────────────────────────────────────
-function renderAdminDashboard(user = null) {
-  const content = `
-    <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
-      <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 30px; color: var(--accent);">
-        ⚙️ Admin Paneli
-      </h1>
-
-      <!-- İstatistikler -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px;">
-        <div class="card" style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3);">
-          <div style="font-size: 2rem; font-weight: 800; color: var(--success); margin-bottom: 10px;" id="stat-active">0</div>
-          <div style="color: var(--muted); font-size: 0.9rem;">🟢 Aktif Kullanıcılar (24h)</div>
-        </div>
-        <div class="card" style="background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.3);">
-          <div style="font-size: 2rem; font-weight: 800; color: var(--danger); margin-bottom: 10px;" id="stat-inactive">0</div>
-          <div style="color: var(--muted); font-size: 0.9rem;">🔴 İnaktif Kullanıcılar (24h+)</div>
-        </div>
-        <div class="card" style="background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3);">
-          <div style="font-size: 2rem; font-weight: 800; color: var(--accent); margin-bottom: 10px;" id="stat-rules">0</div>
-          <div style="color: var(--muted); font-size: 0.9rem;">📋 Kurallar Kabul</div>
-        </div>
-        <div class="card" style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);">
-          <div style="font-size: 2rem; font-weight: 800; color: var(--warning); margin-bottom: 10px;" id="stat-activities">0</div>
-          <div style="color: var(--muted); font-size: 0.9rem;">📊 Toplam Aktiviteler</div>
-        </div>
-      </div>
-
-      <!-- Sekmeler -->
-      <div style="display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-        <button class="tab-btn active" data-tab="active" style="background: none; border: none; color: var(--text); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid var(--accent); font-weight: 600;">🟢 Aktif Kullanıcılar</button>
-        <button class="tab-btn" data-tab="inactive" style="background: none; border: none; color: var(--muted); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid transparent; font-weight: 600;">🔴 İnaktif Kullanıcılar</button>
-        <button class="tab-btn" data-tab="rules" style="background: none; border: none; color: var(--muted); cursor: pointer; padding: 10px 20px; border-bottom: 2px solid transparent; font-weight: 600;">📋 Kurallar Kabul</button>
-      </div>
-
-      <!-- İçerik Alanları -->
-      <div id="tab-active" class="tab-content card" style="display: block;">
-        <h2 style="margin-bottom: 20px; color: var(--success);">🟢 Son 24 Saatte Aktif Olan Kullanıcılar</h2>
-        <div id="active-list" style="max-height: 400px; overflow-y: auto;"></div>
-      </div>
-
-      <div id="tab-inactive" class="tab-content card" style="display: none;">
-        <h2 style="margin-bottom: 20px; color: var(--danger);">🔴 24 Saatin Üzerinde İnaktif Kullanıcılar</h2>
-        <div id="inactive-list" style="max-height: 400px; overflow-y: auto;"></div>
-      </div>
-
-      <div id="tab-rules" class="tab-content card" style="display: none;">
-        <h2 style="margin-bottom: 20px; color: var(--accent);">📋 Kuralları Kabul Edenler</h2>
-        <div id="rules-list" style="max-height: 400px; overflow-y: auto;"></div>
-      </div>
-    </div>
-
-    <style>
-      .tab-btn { transition: all 0.3s ease; }
-      .tab-btn:hover { color: var(--text); }
-      .tab-content { display: none; }
-      .tab-content.active { display: block; }
-      .user-item {
-        padding: 12px;
-        background: rgba(255,255,255,0.02);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .user-item:hover { background: rgba(255,255,255,0.05); }
-    </style>
-
-    <script>
-      // Tab Switching
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.tab-btn').forEach(b => {
-            b.style.borderBottomColor = 'transparent';
-            b.style.color = 'var(--muted)';
-          });
-          btn.style.borderBottomColor = 'var(--accent)';
-          btn.style.color = 'var(--text)';
-
-          document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
-          document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
-        });
-      });
-
-      // Veri Yükleme
-      async function loadAdminData() {
-        try {
-          // İstatistikler
-          const statsRes = await fetch('/api/admin/istatistikler');
-          const statsData = await statsRes.json();
-          if (statsData.success) {
-            document.getElementById('stat-active').textContent = statsData.stats.aktifKullanicilar;
-            document.getElementById('stat-inactive').textContent = statsData.stats.inaktifKullanicilar;
-            document.getElementById('stat-rules').textContent = statsData.stats.kurallarKabul;
-            document.getElementById('stat-activities').textContent = statsData.stats.toplamAktivite;
-          }
-
-          // Aktif Kullanıcılar
-          const activeRes = await fetch('/api/admin/aktif-kullanicilar');
-          const activeData = await activeRes.json();
-          if (activeData.success) {
-            const html = activeData.users.slice(0, 50).map(id => 
-              \`<div class="user-item"><span><@\${id}> (ID: \${id})</span></div>\`
-            ).join('');
-            document.getElementById('active-list').innerHTML = html || '<p style="color: var(--muted);">Aktif kullanıcı yok</p>';
-          }
-
-          // İnaktif Kullanıcılar
-          const inactiveRes = await fetch('/api/admin/inaktif-kullanicilar');
-          const inactiveData = await inactiveRes.json();
-          if (inactiveData.success) {
-            const html = inactiveData.users.slice(0, 50).map(id => 
-              \`<div class="user-item"><span><@\${id}> (ID: \${id})</span></div>\`
-            ).join('');
-            document.getElementById('inactive-list').innerHTML = html || '<p style="color: var(--muted);">İnaktif kullanıcı yok</p>';
-          }
-
-          // Kurallar Kabul
-          const rulesRes = await fetch('/api/admin/kurallar-kabul');
-          const rulesData = await rulesRes.json();
-          if (rulesData.success) {
-            const html = rulesData.acceptances.slice(0, 50).map(a => 
-              \`<div class="user-item">
-                <span><@\${a.discordId}> (ID: \${a.discordId})</span>
-                <span style="font-size: 0.85rem; color: var(--muted);">\${new Date(a.acceptedAt).toLocaleString('tr-TR')}</span>
-              </div>\`
-            ).join('');
-            document.getElementById('rules-list').innerHTML = html || '<p style="color: var(--muted);">Kuralları kabul eden yok</p>';
-          }
-        } catch (error) {
-          console.error('Admin veri yükleme hatası:', error);
-        }
-      }
-
-      // Sayfa yüklenince veri yükle
-      document.addEventListener('DOMContentLoaded', loadAdminData);
-      // Her 30 saniyede bir yenile
-      setInterval(loadAdminData, 30000);
-    </script>
-  `;
-
-  return _layout('Admin Paneli', user, content, '', '/admin');
-}
 
 // ─────────────────────────────────────────────
 // BRIEFING ONBOARDING MODAL
@@ -5221,7 +5164,6 @@ module.exports = {
   renderWikiListPage,
   renderWikiArticlePage,
   renderAdminPage,
-  renderAdminDashboard,
   renderBriefingOnboardingModal,
   renderGroupAdminPage,
   renderLeaderboardPage,

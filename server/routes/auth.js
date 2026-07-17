@@ -78,7 +78,16 @@ function generatePassword() {
 }
 
 router.get("/login", (req, res) => {
-  res.send(renderLoginPage());
+  const { error } = req.query;
+  let errorMsg = null;
+  if (error === "discord") {
+    errorMsg = "Discord ile giriş yapılırken bir hata oluştu.";
+  } else if (error === "unauthorized") {
+    errorMsg = "Bu sayfaya erişmek için giriş yapmalısınız.";
+  } else if (error) {
+    errorMsg = "Giriş başarısız oldu.";
+  }
+  res.send(renderLoginPage(errorMsg));
 });
 
 const bcrypt = require("bcrypt");
@@ -105,11 +114,17 @@ router.get("/auth/discord", (req, res, next) => {
   const rememberMe = req.query.remember === 'true';
   if (rememberMe) {
     req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+    req.session.rememberMe = true;
+  } else {
+    req.session.rememberMe = false;
   }
   next();
 }, passport.authenticate("discord"));
 
 router.get("/auth/discord/callback", passport.authenticate("discord", { failureRedirect: "/login?error=discord" }), async (req, res) => {
+  if (req.session.rememberMe) {
+    req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+  }
   if (req.session.linkDiscordId) {
     if (String(req.user.discordId) !== req.session.linkDiscordId) {
       return res.redirect("/dashboard?wrongDiscord=1");
@@ -278,10 +293,11 @@ router.post("/api/auth/verify-code", async (req, res) => {
     await user.save();
     saveStoreNow();
 
-    if (rememberMe) req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
-
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: "Oturum açılamadı." });
+      if (rememberMe) {
+        req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+      }
       logger.log("[AUTH] " + user.discordUsername + " (" + user.discordId + ") OTP ile giriş yaptı.", "auth");
       logWebLogin(user, req);
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
@@ -354,10 +370,11 @@ router.post("/api/auth/site-login", async (req, res) => {
     const match = await bcrypt.compare(password, user.sitePassword);
     if (!match) return res.status(401).json({ error: "Hatalı şifre." });
     
-    if (rememberMe) req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
-    
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: "Oturum açılamadı." });
+      if (rememberMe) {
+        req.session.cookie.maxAge = 365 * 24 * 60 * 60 * 1000;
+      }
       logger.log("[AUTH] " + (user.discordUsername || username) + " (" + user.discordId + ") Site şifresi ile giriş yaptı.", "auth");
       logWebLogin(user, req);
       res.json({ success: true, message: "Başarıyla giriş yapıldı!" });
@@ -641,13 +658,33 @@ router.post("/api/auth/verify-request", async (req, res) => {
 
 // Verify bot verification code endpoint - called when user clicks link or enters code
 router.post("/api/auth/bot-verify-code", async (req, res) => {
-  const { code } = req.body;
+  const { code, captchaToken } = req.body;
   
   if (!code) {
     return res.status(400).json({ error: "Doğrulama kodu gereklidir." });
   }
+  if (!captchaToken) {
+    return res.status(400).json({ error: "reCAPTCHA doğrulaması gereklidir." });
+  }
   
   try {
+    // reCAPTCHA doğrulaması yap
+    const axios = require("axios");
+    const captchaResponse = await axios.post(
+      "https://www.google.com/recaptcha/api/siteverify",
+      null,
+      {
+        params: {
+          secret: "6LfdbVgtAAAAAD-7iW5Cc8bEgIRjwQt5oyQ_kBta",
+          response: captchaToken,
+        },
+      }
+    ).catch(() => null);
+
+    if (!captchaResponse || !captchaResponse.data || !captchaResponse.data.success) {
+      return res.status(400).json({ error: "reCAPTCHA doğrulaması başarısız oldu. Lütfen tekrar deneyin." });
+    }
+
     const VerificationCode = require("../../models/VerificationCode");
     const verificationRecord = await VerificationCode.findOne({ code });
     
@@ -691,7 +728,7 @@ router.post("/api/auth/bot-verify-code", async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: "✅ Doğrulama başarılı! Artık botu kullanabilirsiniz."
+      message: "Doğrulama başarılı! Artık botu kullanabilirsiniz."
     });
   } catch (err) {
     console.error("[bot-verify-code]", err);
@@ -703,158 +740,169 @@ router.post("/api/auth/bot-verify-code", async (req, res) => {
 router.get("/verify", async (req, res) => {
   const { code } = req.query;
   
-  if (!code) {
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Sentara Doğrulama</title>
-        <style>
-          body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-          .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; }
-          h1 { color: #7c6af7; margin-bottom: 20px; }
-          input { padding: 10px; border: 2px solid #7c6af7; background: #1e1e2e; color: #fff; border-radius: 5px; width: 200px; }
-          button { padding: 10px 20px; background: #7c6af7; color: #fff; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; }
-          button:hover { background: #6b5adb; }
-        </style>
-      </head>
-      <body>
-        <div class="box">
-          <h1>🔐 Sentara Doğrulama</h1>
-          <p>Doğrulama kodunuzu girin:</p>
+  return res.send(`
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>🔐 Bot Doğrulaması — Sentara Premium</title>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+      <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+      <style>
+        :root {
+          --bg:      #06060e;
+          --border:  rgba(255,255,255,0.08);
+          --accent:  #a78bfa;
+          --accent2: #818cf8;
+          --text:    #f0f0f8;
+          --muted:   #7c7c9a;
+          --danger:  #fb7185;
+          --success: #34d399;
+        }
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        body {
+          background: var(--bg);
+          background-image:
+            radial-gradient(ellipse 60% 50% at 50% 40%, rgba(99,102,241,0.06) 0%, transparent 60%);
+          color: var(--text);
+          font-family: 'Outfit', sans-serif;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .glow {
+          position: fixed; width: 500px; height: 500px; border-radius: 50%;
+          filter: blur(200px); pointer-events: none; z-index: 0;
+          animation: pulse 12s infinite alternate;
+        }
+        .glow-1 { background: var(--accent); top: -200px; left: -200px; opacity: 0.05; }
+        .glow-2 { background: var(--accent2); bottom: -200px; right: -200px; opacity: 0.05; animation-delay: -6s; }
+        @keyframes pulse {
+          0%   { transform: scale(1); opacity: 0.04; }
+          100% { transform: scale(1.15); opacity: 0.08; }
+        }
+        .container { position: relative; z-index: 10; width: 100%; max-width: 440px; padding: 1.5rem; }
+        .card {
+          background: rgba(255,255,255,0.035);
+          backdrop-filter: blur(28px) saturate(1.2);
+          -webkit-backdrop-filter: blur(28px) saturate(1.2);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 24px; padding: 3rem 2.5rem;
+          text-align: center;
+          box-shadow: 0 24px 48px -12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        .logo {
+          font-size: 2.2rem; font-weight: 800; letter-spacing: -0.5px;
+          background: linear-gradient(135deg, var(--accent), var(--accent2));
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+          margin-bottom: 0.5rem; display: block;
+        }
+        h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.4rem; }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.92rem; font-weight: 300; }
+        
+        .input-field {
+          width: 100%; padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(0,0,0,0.2); color: #fff; margin-bottom: 1.5rem;
+          font-family: 'Outfit', sans-serif; font-size: 1.1rem; text-align: center;
+          letter-spacing: 2px;
+        }
+        .btn {
+          width: 100%; padding: 1.05rem; border: none; border-radius: 14px;
+          font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1rem;
+          cursor: pointer; color: white;
+          display: flex; align-items: center; justify-content: center; gap: 10px;
+          background: rgba(124,106,247,0.85);
+          box-shadow: 0 4px 20px rgba(124,106,247,0.2);
+          transition: all 0.3s ease;
+        }
+        .btn:hover { background: rgba(100,80,240,0.9); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(124,106,247,0.3); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .message-box {
+          margin-top: 1.5rem; padding: 0.8rem 1rem; border-radius: 12px;
+          font-size: 0.9rem; display: none; text-align: center;
+        }
+        .message-success { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); color: var(--success); }
+        .message-error { background: rgba(251,113,133,0.08); border: 1px solid rgba(251,113,133,0.2); color: var(--danger); }
+      </style>
+    </head>
+    <body>
+      <div class="glow glow-1"></div>
+      <div class="glow glow-2"></div>
+      <div class="container">
+        <div class="card">
+          <span class="logo">sentara</span>
+          <h1>🔐 Bot Doğrulaması</h1>
+          <p class="subtitle">Botu kullanabilmek için reCAPTCHA testini tamamlayın.</p>
+          
           <form onsubmit="verify(event)">
-            <input type="text" id="code" placeholder="Kod" maxlength="6" required>
-            <button type="submit">Doğrula</button>
+            <input type="text" id="code" class="input-field" placeholder="Doğrulama Kodu" maxlength="6" value="${code || ''}" required>
+            
+            <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+              <div class="g-recaptcha" data-sitekey="6LfdbVgtAAAAAImZR_e9BbJWRRMAt3F3zAU7uirC" data-theme="dark"></div>
+            </div>
+            
+            <button type="submit" id="btn-submit" class="btn">Doğrula ve Başlat</button>
           </form>
-          <p id="msg"></p>
+          
+          <div id="msg" class="message-box"></div>
         </div>
-        <script>
-          async function verify(e) {
-            e.preventDefault();
-            const code = document.getElementById('code').value;
+      </div>
+      
+      <script>
+        async function verify(e) {
+          e.preventDefault();
+          const code = document.getElementById('code').value.trim();
+          const captchaToken = grecaptcha.getResponse();
+          const msg = document.getElementById('msg');
+          const btn = document.getElementById('btn-submit');
+          
+          if (!captchaToken) {
+            msg.className = 'message-box message-error';
+            msg.textContent = '❌ Lütfen reCAPTCHA doğrulamasını yapın.';
+            msg.style.display = 'block';
+            return;
+          }
+          
+          btn.disabled = true;
+          btn.innerText = 'Doğrulanıyor...';
+          msg.style.display = 'none';
+          
+          try {
             const res = await fetch('/api/auth/bot-verify-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code })
+              body: JSON.stringify({ code, captchaToken })
             });
             const data = await res.json();
-            const msg = document.getElementById('msg');
-            if (data.success) {
-              msg.style.color = '#2ecc71';
+            if (res.ok && data.success) {
+              msg.className = 'message-box message-success';
               msg.textContent = '✅ ' + data.message;
-              setTimeout(() => window.location.href = '/', 2000);
+              msg.style.display = 'block';
+              setTimeout(() => window.location.href = '/', 2500);
             } else {
-              msg.style.color = '#e74c3c';
-              msg.textContent = '❌ ' + (data.error || 'Hata oluştu');
+              msg.className = 'message-box message-error';
+              msg.textContent = '❌ ' + (data.error || 'Doğrulama başarısız.');
+              msg.style.display = 'block';
+              btn.disabled = false;
+              btn.innerText = 'Doğrula ve Başlat';
+              grecaptcha.reset();
             }
+          } catch (err) {
+            msg.className = 'message-box message-error';
+            msg.textContent = '❌ Bağlantı hatası oluştu.';
+            msg.style.display = 'block';
+            btn.disabled = false;
+            btn.innerText = 'Doğrula ve Başlat';
           }
-        </script>
-      </body>
-      </html>
-    `);
-  }
-  
-  try {
-    const VerificationCode = require("../../models/VerificationCode");
-    const verificationRecord = await VerificationCode.findOne({ code });
-    
-    if (!verificationRecord) {
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Hata</title>
-          <style>
-            body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; color: #e74c3c; }
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <h1>❌ Geçersiz Kod</h1>
-            <p>Bu doğrulama kodu geçersiz veya süresi dolmuş.</p>
-            <a href="/" style="color: #7c6af7;">Geri Dön</a>
-          </div>
-        </body>
-        </html>
-      `);
-    }
-    
-    const user = await User.findOne({ discordId: verificationRecord.discordId });
-    if (!user) {
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Hata</title>
-          <style>
-            body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; color: #e74c3c; }
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <h1>❌ Kullanıcı Bulunamadı</h1>
-            <p>Hesabınız bulunamadı. Lütfen Discord botu ile giriş yapınız.</p>
-            <a href="/" style="color: #7c6af7;">Geri Dön</a>
-          </div>
-        </body>
-        </html>
-      `);
-    }
-    
-    // Mark as verified
-    user.botVerified = true;
-    await user.save();
-    saveStoreNow();
-    await VerificationCode.verify(code);
-    
-    // Send Discord confirmation
-    const { getDiscordClient } = require("../../bot/discordClient");
-    const client = getDiscordClient();
-    if (client && client.isReady()) {
-      const discordUser = await client.users.fetch(verificationRecord.discordId).catch(() => null);
-      if (discordUser) {
-        const { EmbedBuilder } = require("discord.js");
-        const confirmEmbed = new EmbedBuilder()
-          .setTitle("✅ Doğrulama Başarılı!")
-          .setDescription(
-            `Hesabınız başarıyla doğrulandı!\n\n` +
-            `Artık Sentara botunun tüm komutlarını ve özelliklerini kullanabilirsiniz.`
-          )
-          .setColor(0x2ecc71)
-          .setFooter({ text: "Sentara" })
-          .setTimestamp();
-        
-        await discordUser.send({ embeds: [confirmEmbed] }).catch(() => {});
-      }
-    }
-    
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Başarılı</title>
-        <style>
-          body { font-family: Arial; background: #1e1e2e; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-          .box { background: #2d2d44; padding: 40px; border-radius: 10px; text-align: center; }
-          .success { color: #2ecc71; font-size: 24px; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="box">
-          <h1 class="success">✅ Doğrulama Başarılı!</h1>
-          <p>Hesabınız başarıyla doğrulandı.</p>
-          <p>Artık Sentara botunun tüm komutlarını kullanabilirsiniz.</p>
-          <a href="/" style="color: #7c6af7; text-decoration: none;">Anasayfaya Dön</a>
-        </div>
-      </body>
-      </html>
-    `);
-  } catch (err) {
-    console.error("[verify GET]", err);
-    res.status(500).send("Sunucu hatası");
-  }
+        }
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 // ── ADMIN PANEL ENDPOINTS ──
@@ -877,10 +925,6 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// Admin Dashboard
-router.get("/admin", isAdmin, (req, res) => {
-  res.send(renderAdminDashboard());
-});
 
 // Aktif Kullanıcılar (24 saatte aktif olanlar)
 router.get("/api/admin/aktif-kullanicilar", isAdmin, (req, res) => {

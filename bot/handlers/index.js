@@ -3201,12 +3201,7 @@ function initializeDiscordHandlers(client) {
             .setStyle(ButtonStyle.Link)
             .setURL(verifyUrl);
 
-          const codeBtn = new ButtonBuilder()
-            .setCustomId("verify_show_code_" + code)
-            .setLabel("📋 Kodu Göster")
-            .setStyle(ButtonStyle.Secondary);
-
-          const row = new ActionRowBuilder().addComponents(verifyBtn, codeBtn);
+          const row = new ActionRowBuilder().addComponents(verifyBtn);
 
           const embed = new EmbedBuilder()
             .setTitle("🔐 Bot Doğrulaması Gerekli")
@@ -3214,7 +3209,7 @@ function initializeDiscordHandlers(client) {
               `❌ **Doğrulama Gerekli!**\nBotu kullanabilmek için aşağıdaki linkten hesabını doğrulaman gerek.\n\n` +
               `**Doğrulama Kodu:** \`${code}\`\n\n` +
               `1️⃣ **"Doğrulamak İçin Tıkla"** butonuna tıklayarak hesabınızı bağlayın/doğrulayın.\n` +
-              `2️⃣ Alternatif olarak kodunuzu kopyalayıp doğrulama sayfasında manuel olarak da girebilirsiniz.\n\n` +
+              `2️⃣ Alternatif olarak yukarıdaki kodu kopyalayıp doğrulama sayfasında manuel olarak da girebilirsiniz.\n\n` +
               `_Bu kod 30 dakika boyunca geçerlidir._`
             )
             .setColor(0xe74c3c)
