@@ -3185,9 +3185,8 @@ function initializeDiscordHandlers(client) {
       const botUser = await findOne({ discordId: interaction.user.id });
       
       const isDogrulaCmd = interaction.isCommand() && interaction.commandName === 'dogrula';
-      const isErrorAck = interaction.isButton() && interaction.customId?.startsWith('error_ack_');
       
-      if (!isDogrulaCmd && !isErrorAck && (!botUser || !botUser.botVerified)) {
+      if (interaction.isCommand() && !isDogrulaCmd && (!botUser || !botUser.botVerified)) {
         if (interaction.isRepliable()) {
           const VerificationCode = require("../../models/VerificationCode");
           const { BASE_URL } = require("../../config");

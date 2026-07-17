@@ -3619,7 +3619,7 @@ function renderAdminPage(user) {
           const activeData = await activeRes.json().catch(() => ({}));
           if (activeRes.ok && activeData.success) {
             const html = activeData.users.slice(0, 50).map(id => 
-              `<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 \${adminEsc(id)}</span></div>`
+              '<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 ' + adminEsc(id) + '</span></div>'
             ).join('');
             document.getElementById('active-list').innerHTML = html || '<p style="color:var(--muted); text-align:center; padding:1rem;">Aktif kullanıcı yok</p>';
           }
@@ -3628,7 +3628,7 @@ function renderAdminPage(user) {
           const inactiveData = await inactiveRes.json().catch(() => ({}));
           if (inactiveRes.ok && inactiveData.success) {
             const html = inactiveData.users.slice(0, 50).map(id => 
-              `<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 \${adminEsc(id)}</span></div>`
+              '<div style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span>👤 ' + adminEsc(id) + '</span></div>'
             ).join('');
             document.getElementById('inactive-list').innerHTML = html || '<p style="color:var(--muted); text-align:center; padding:1rem;">İnaktif kullanıcı yok</p>';
           }
