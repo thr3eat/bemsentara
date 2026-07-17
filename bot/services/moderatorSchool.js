@@ -1983,6 +1983,17 @@ async function graduateStudent(userId, adminName, client, evalResult = null) {
     p.schoolSystem.completedAt = new Date();
     await p.save();
 
+    try {
+      const { addNotification } = require('../../utils/notification');
+      await addNotification(userId, {
+        title: "🎉 Tebrikler, Mezun Oldunuz!",
+        message: "Moderatör okulundan başarıyla mezun oldunuz ve rütbeniz teslim edildi!",
+        icon: "🎉"
+      });
+    } catch (nErr) {
+      console.error("[ModeratorSchool] graduateStudent notification error:", nErr.message);
+    }
+
   } catch (err) {
     logger.error('[ModeratorSchool] graduateStudent error:', err.message);
   }
@@ -2005,6 +2016,17 @@ async function passPhase1(userId, adminName, client, evalResult = null) {
     p.schoolSystem.phase = 2;
     p.schoolSystem.step = 0;
     await p.save();
+
+    try {
+      const { addNotification } = require('../../utils/notification');
+      await addNotification(userId, {
+        title: "🎉 1. Aşamayı Geçtiniz!",
+        message: `1. Aşama sınavını başarıyla geçtiniz. Sınav Puanı: ${evalResult ? evalResult.score : 'N/A'}`,
+        icon: "🎉"
+      });
+    } catch (nErr) {
+      console.error("[ModeratorSchool] passPhase1 notification error:", nErr.message);
+    }
 
     if (user) {
       const embed = new EmbedBuilder()
@@ -2047,6 +2069,17 @@ async function passPhase2(userId, adminName, client, evalResult = null) {
     p.schoolSystem.phase = 3;
     p.schoolSystem.step = 0;
     await p.save();
+
+    try {
+      const { addNotification } = require('../../utils/notification');
+      await addNotification(userId, {
+        title: "🎉 2. Aşamayı Geçtiniz!",
+        message: `2. Aşama sınavını başarıyla geçtiniz. Sınav Puanı: ${evalResult ? evalResult.score : 'N/A'}`,
+        icon: "🎉"
+      });
+    } catch (nErr) {
+      console.error("[ModeratorSchool] passPhase2 notification error:", nErr.message);
+    }
 
     if (user) {
       const embed = new EmbedBuilder()

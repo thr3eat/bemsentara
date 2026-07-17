@@ -1053,6 +1053,17 @@ async function checkChosenTaskCompletion(progress, client) {
         console.error('[staffSystem] Save failed in checkChosenTaskCompletion:', err.message);
       });
 
+      try {
+        const { addNotification } = require("../../utils/notification");
+        await addNotification(progress.userId, {
+          title: "🎯 Seçmeli Görev Tamamlandı!",
+          message: `Bugünün seçimli görevi olan "${CHOSEN_TASKS[task] || task}" başarıyla tamamlandı. Terfi hedeflerinize %25 doğrudan katkı sağlandı!`,
+          icon: "🎉"
+        });
+      } catch (nErr) {
+        console.error("[staffSystem] checkChosenTaskCompletion notification error:", nErr.message);
+      }
+
       // DM tebrik mesajı gönder
       if (client) {
         const discordUser = await client.users.fetch(progress.userId).catch(() => null);
@@ -1377,6 +1388,17 @@ async function checkPromotion(progress, client) {
             lastExamAttempt: null
           };
           await progress.save();
+
+          try {
+            const { addNotification } = require("../../utils/notification");
+            await addNotification(progress.userId, {
+              title: "🎓 Terfi Sınavına Hak Kazandınız!",
+              message: `Tebrikler! ${targetRoleName} rütbesine terfi etmek için gerekli tüm koşulları başarıyla tamamladınız ve sınava hak kazandınız.`,
+              icon: "🎓"
+            });
+          } catch (nErr) {
+            console.error("[staffSystem] checkPromotion notification error:", nErr.message);
+          }
 
           // DM Gönder
           const user = await client.users.fetch(progress.userId).catch(() => null);
@@ -2010,6 +2032,17 @@ async function sendWarningDM(progress, client) {
   const warnCount = progress.warnings?.count || 0;
   const warnLeft = Math.max(0, MAX_WARNINGS - warnCount);
 
+  try {
+    const { addNotification } = require("../../utils/notification");
+    await addNotification(progress.userId, {
+      title: `⏰ Görev İhmali Uyarısı (${warnCount}/${MAX_WARNINGS})`,
+      message: `Bugün günlük görevlerinizi tamamlamadınız. Rolünüzün alınmasına ${warnLeft} gün kaldı. Lütfen görevlerinizi tamamlayın!`,
+      icon: "⏰"
+    });
+  } catch (nErr) {
+    console.error("[staffSystem] sendWarningDM notification error:", nErr.message);
+  }
+
   // AI'dan uyarı mesajı
   let aiWarn = '';
   try {
@@ -2610,6 +2643,17 @@ async function useLeaveCredit(userId) {
 
 async function removeRole(progress, client) {
   try {
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(progress.userId, {
+        title: "⏸️ Rolünüz Askıya Alındı",
+        message: "3 gün üst üste günlük görev yapılmadığı için personel rolleriniz askıya alındı. Yöneticilerle görüşerek tekrar başlayabilirsiniz.",
+        icon: "⚠️"
+      });
+    } catch (nErr) {
+      console.error("[staffSystem] removeRole notification error:", nErr.message);
+    }
+
     const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     if (!guild) return;
     const member = await guild.members.fetch(progress.userId).catch(() => null);

@@ -661,6 +661,18 @@ router.post("/api/notifications/read-all", async (req, res) => {
   }
 });
 
+router.get("/api/notifications/unread", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    const unread = (user.notifications || []).filter(n => !n.read);
+    res.json({ success: true, notifications: unread });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/api/health", (req, res) => {
   const memory = process.memoryUsage();
   res.json({

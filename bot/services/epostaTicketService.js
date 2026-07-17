@@ -357,6 +357,18 @@ async function forwardModToUserChannel(message, client) {
     ticket.claimedByName = message.author.displayName || message.author.username;
     ticket.claimedAt = new Date();
     await ticket.save();
+
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(ticket.userId, {
+        title: "🙋 Destek Talebi Üstlenildi",
+        message: `\`${ticket.ticketId}\` numaralı destek talebiniz ${message.author.username} tarafından üstlenildi.`,
+        icon: "🙋"
+      });
+    } catch (err) {
+      console.error("[epostaTicketService] Claim notification error:", err.message);
+    }
+
     // Personel istatistiğine kaydet
     try {
       const { recordTicketClaimed } = require('./staffSystem');

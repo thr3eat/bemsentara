@@ -142,6 +142,17 @@ async function handleButtonInteraction(interaction) {
     ticket.claimedByName = interaction.user.username;
     await ticket.save();
 
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(ticket.userId, {
+        title: "🙋 Destek Talebi Üstlenildi",
+        message: `\`${ticket.ticketId}\` numaralı destek talebiniz ${interaction.user.username} tarafından üstlenildi.`,
+        icon: "🙋"
+      });
+    } catch (err) {
+      console.error("[buttonHandler] Claim notification error:", err.message);
+    }
+
     // Clean up active claim routing
     const { activeTicketClaims, deleteActiveClaimDmMessage } = require("../services/reklamTicketService");
     await deleteActiveClaimDmMessage(ticketId);
@@ -821,6 +832,17 @@ async function handleButtonInteraction(interaction) {
     ticket.claimedBy = interaction.user.id;
     ticket.claimedByName = interaction.user.username;
     await ticket.save();
+
+    try {
+      const { addNotification } = require("../../utils/notification");
+      await addNotification(ticket.userId, {
+        title: "🙋 Destek Talebi Üstlenildi",
+        message: `\`${ticket.ticketId}\` numaralı destek talebiniz ${interaction.user.username} tarafından üstlenildi.`,
+        icon: "🙋"
+      });
+    } catch (err) {
+      console.error("[buttonHandler] Second claim notification error:", err.message);
+    }
 
     // Clean up active claim routing and delete DM message
     try {

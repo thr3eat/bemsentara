@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const { saveStoreNow } = require("../models/Store");
 const crypto = require("crypto");
+const { isSiteAdmin, isSiteStaff } = require("./adminCheck");
 
 async function addNotification(discordId, { title, message, icon = "🔔" }) {
   try {
@@ -30,4 +31,34 @@ async function addNotification(discordId, { title, message, icon = "🔔" }) {
   }
 }
 
-module.exports = { addNotification };
+async function notifyAdmins({ title, message, icon = "🚨" }) {
+  try {
+    const allUsers = await User.find({});
+    for (const u of allUsers) {
+      if (isSiteAdmin(u)) {
+        await addNotification(u.discordId, { title, message, icon });
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("notifyAdmins error:", err);
+    return false;
+  }
+}
+
+async function notifyStaff({ title, message, icon = "👨‍💼" }) {
+  try {
+    const allUsers = await User.find({});
+    for (const u of allUsers) {
+      if (isSiteStaff(u)) {
+        await addNotification(u.discordId, { title, message, icon });
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("notifyStaff error:", err);
+    return false;
+  }
+}
+
+module.exports = { addNotification, notifyAdmins, notifyStaff };

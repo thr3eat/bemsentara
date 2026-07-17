@@ -486,6 +486,58 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
         actClicks = [];
       }
     }, ACT_PING_FREQ);
+
+    // ── Browser Notification System ──
+    const userLoggedIn = ${user ? 'true' : 'false'};
+    if (userLoggedIn && window.Notification) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      
+      let shownNotifs = [];
+      try {
+        shownNotifs = JSON.parse(localStorage.getItem('shown_browser_notifications') || '[]');
+      } catch (e) {
+        shownNotifs = [];
+      }
+      
+      function checkBrowserNotifications() {
+        if (Notification.permission !== 'granted') return;
+        
+        fetch('/api/notifications/unread')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.notifications) {
+              let updated = false;
+              data.notifications.forEach(n => {
+                if (!shownNotifs.includes(n.id)) {
+                  shownNotifs.push(n.id);
+                  updated = true;
+                  
+                  // Trigger browser notification
+                  new Notification(n.title || 'Sentara Bildirimi', {
+                    body: n.message || '',
+                    icon: '/favicon.ico'
+                  });
+                }
+              });
+              
+              if (updated) {
+                if (shownNotifs.length > 200) {
+                  shownNotifs = shownNotifs.slice(-100);
+                }
+                localStorage.setItem('shown_browser_notifications', JSON.stringify(shownNotifs));
+              }
+            }
+          })
+          .catch(() => {});
+      }
+      
+      // Poll every 10 seconds
+      setInterval(checkBrowserNotifications, 10000);
+      // Run once immediately on load
+      setTimeout(checkBrowserNotifications, 1500);
+    }
   </script>
 </body>
 </html>`;

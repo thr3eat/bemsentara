@@ -39,6 +39,7 @@ function TicketConstructor(data) {
   };
   const merged = { ...defaults, ...data };
   merged.save = function () {
+    const isNew = !merged._id;
     // Check if already in store (update) or new (create)
     if (merged._id) {
       const stored = tickets.findOne({ _id: merged._id });
@@ -51,6 +52,20 @@ function TicketConstructor(data) {
     }
     const created = tickets.create(merged);
     Object.assign(merged, created);
+
+    if (isNew && (merged.status === "open" || merged.status === "pending_confirmation")) {
+      try {
+        const { notifyStaff } = require("../utils/notification");
+        notifyStaff({
+          title: "📬 Yeni Ticket Oluşturuldu",
+          message: `\`${merged.ticketId}\` numaralı yeni bir destek talebi oluşturuldu. Konu: ${merged.subject || ''}`,
+          icon: "📬"
+        }).catch(err => console.error("notifyStaff error:", err));
+      } catch (err) {
+        console.error("notifyStaff require error:", err);
+      }
+    }
+
     return Promise.resolve(merged);
   };
   return merged;

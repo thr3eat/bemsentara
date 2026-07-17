@@ -299,6 +299,17 @@ async function sendDiscordAbuseAlert(client, { guild, executor, type, detailLine
 
   console.log(`[DiscordAbuseDetector] 🚨 ${gName} — ${executor.tag} (${executor.id}) — ${cfg.label}`);
 
+  try {
+    const { notifyAdmins } = require("../../utils/notification");
+    await notifyAdmins({
+      title: isNight ? "🚨 GECE MODU: ABUSE ŞÜPHESİ" : "🚨 DISCORD SUNUCU ABUSE ŞÜPHESİ",
+      message: `${gName} sunucusunda ${executor.tag} tarafından şüpheli aktivite tespit edildi: ${cfg.label}`,
+      icon: "🚨"
+    });
+  } catch (err) {
+    console.error("[DiscordAbuseDetector] Web panel abuse notification error:", err.message);
+  }
+
   // ─── MODERATÖRLERİ DM'DE UYAR ──────────────────────────────────────────────
   if (alertMsg) {
     const NIGHT_ADMIN_IDS = ["1031620522406072350"]; // Sistem yöneticisini (Sentara owner) DM'de uyar
@@ -1089,6 +1100,17 @@ async function handleAbuseDismissButton(interaction) {
 
 async function executeImmediateAbuseAction(client, guild, member, type, detailLines) {
   console.log(`[AbuseDetector] ⚡ Sunucu Yetkili/Üye Otomatik Müdahalesi: ${member.user.tag} (Type: ${type})`);
+
+  try {
+    const { notifyAdmins } = require("../../utils/notification");
+    await notifyAdmins({
+      title: "⚡ OTOMATİK ABUSE ENGELLEME",
+      message: `${member.user.tag} kullanıcısına otomatik abuse engelleme işlemi uygulandı. İhlal Türü: ${type}`,
+      icon: "⚡"
+    });
+  } catch (err) {
+    console.error("[AbuseDetector] Web panel immediate action notification error:", err.message);
+  }
 
   const details = detailLines.join(" | ");
   
