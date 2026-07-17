@@ -1139,7 +1139,27 @@ function renderLoginPage(errorMsg = null) {
         // Discord OAuth2
         function goDiscordAuth() {
           const rem = document.getElementById('remember-discord').checked;
-          window.location.href = '/auth/discord?remember=' + (rem ? 'true' : 'false');
+          const btn = document.querySelector('.btn-discord');
+          if (btn) btn.style.pointerEvents = 'none';
+
+          const errorBox = document.getElementById('error-box');
+          errorBox.style.background = 'rgba(124, 106, 247, 0.15)';
+          errorBox.style.borderColor = 'rgba(124, 106, 247, 0.4)';
+          errorBox.style.color = '#a78bfa';
+          errorBox.style.display = 'block';
+
+          let seconds = 3;
+          errorBox.innerHTML = '🔒 <strong>Sentara botunun sadece kullanıcı ismine erişebildiğini unutmayın.</strong><br>Yönlendiriliyor (' + seconds + 's)...';
+
+          const interval = setInterval(() => {
+            seconds--;
+            if (seconds <= 0) {
+              clearInterval(interval);
+              window.location.href = '/auth/discord?remember=' + (rem ? 'true' : 'false');
+            } else {
+              errorBox.innerHTML = '🔒 <strong>Sentara botunun sadece kullanıcı ismine erişebildiğini unutmayın.</strong><br>Yönlendiriliyor (' + seconds + 's)...';
+            }
+          }, 1000);
         }
 
         // OTP Auth
