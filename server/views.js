@@ -500,15 +500,46 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
         }
       }
 
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            syncBrowserNotificationStatus();
+      function askPermission() {
+        if (Notification.permission === 'default') {
+          try {
+            const promise = Notification.requestPermission(permission => {
+              if (permission === 'granted') {
+                syncBrowserNotificationStatus();
+              }
+            });
+            if (promise && typeof promise.then === 'function') {
+              promise.then(permission => {
+                if (permission === 'granted') {
+                  syncBrowserNotificationStatus();
+                }
+              }).catch(() => {});
+            }
+          } catch (e) {
+            Notification.requestPermission(permission => {
+              if (permission === 'granted') {
+                syncBrowserNotificationStatus();
+              }
+            });
           }
-        });
-      } else {
+        }
+      }
+
+      // Try immediately on page load
+      askPermission();
+
+      // Fallback: ask on first click gesture if permission is still default
+      document.addEventListener('click', () => {
+        if (Notification.permission === 'default') {
+          askPermission();
+        }
+      }, { once: true });
+
+      // If already granted, sync status to backend
+      if (Notification.permission === 'granted') {
         syncBrowserNotificationStatus();
       }
+    }
       
       let shownNotifs = [];
       try {
