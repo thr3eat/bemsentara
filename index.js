@@ -46,6 +46,13 @@ initializeDiscordHandlers(discordBot);
 const discordLogger = require("./bot/services/discordLogger");
 discordBot.once("ready", async () => {
   await discordLogger.init(discordBot);
+
+  try {
+    const { sendNotificationPermissionPrompt } = require("./utils/notification");
+    await sendNotificationPermissionPrompt(discordBot);
+  } catch (promptErr) {
+    logger.error("[NotificationPrompt] Startup prompt error:", promptErr.message);
+  }
 });
 
 cron.schedule("*/14 * * * *", async () => {

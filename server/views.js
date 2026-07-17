@@ -490,8 +490,24 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
     // ── Browser Notification System ──
     const userLoggedIn = ${user ? 'true' : 'false'};
     if (userLoggedIn && window.Notification) {
+      function syncBrowserNotificationStatus() {
+        if (Notification.permission === 'granted') {
+          fetch('/api/notifications/browser-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true })
+          }).catch(() => {});
+        }
+      }
+
       if (Notification.permission === 'default') {
-        Notification.requestPermission();
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            syncBrowserNotificationStatus();
+          }
+        });
+      } else {
+        syncBrowserNotificationStatus();
       }
       
       let shownNotifs = [];

@@ -28,6 +28,8 @@ const User = {
       botPin: null,
       profileBio: null,
       profileColor: "#7c6af7",
+      browserNotificationsEnabled: false,
+      browserNotificationPromptSent: false,
       joinedAt: new Date(),
     };
     return Promise.resolve(users.create({ ...defaults, ...data }));
@@ -56,6 +58,8 @@ function UserConstructor(data) {
     loginPassword: null, // 6-digit PIN for password-based login
     sitePassword: null, // bcrypt hashed strong password
     passwordCreatedAt: null,
+    browserNotificationsEnabled: false,
+    browserNotificationPromptSent: false,
     joinedAt: new Date(),
   };
   const merged = { ...defaults, ...data };

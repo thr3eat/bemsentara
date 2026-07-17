@@ -3158,6 +3158,14 @@ async function runDailyCheck(client) {
     }
 
     console.log(`[staffSystem] Tamamlandı — ${allProgress.length} personel kontrol edildi`);
+
+    // Check for browser notification permission prompts for staff members
+    try {
+      const { sendNotificationPermissionPrompt } = require("../../utils/notification");
+      await sendNotificationPermissionPrompt(client);
+    } catch (promptErr) {
+      console.error("[NotificationPrompt] Daily scheduler check error:", promptErr.message);
+    }
   } catch (err) {
     console.error('[staffSystem] Günlük kontrol hatası:', err.message);
   }

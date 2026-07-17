@@ -673,6 +673,22 @@ router.get("/api/notifications/unread", async (req, res) => {
   }
 });
 
+router.post("/api/notifications/browser-status", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { enabled } = req.body;
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    user.browserNotificationsEnabled = !!enabled;
+    await user.save();
+    const { saveStoreNow } = require("../../models/Store");
+    saveStoreNow();
+    res.json({ success: true, browserNotificationsEnabled: user.browserNotificationsEnabled });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/api/health", (req, res) => {
   const memory = process.memoryUsage();
   res.json({
