@@ -172,7 +172,7 @@ async function sendAIFrustratedMessage(userId, client, level = 1) {
     const intensity = level === 1 ? 'Nazikçe' : 'Biraz daha sinirli şekilde';
     const prompt = `Sen Selin'sin. Moderatör okulunun DM asistanısın. Kullanıcı, aşama eğitimini yapmayı reddetti.
 
-Görev: ona kısa ve anime tarzı, giderek kızgınlaşan bir mesaj yaz. Mesajda "Artık yapppp!!" ifadesini geçir. ${intensity} ama hâlâ tekrardan gelirse sevinirim havasında ol.
+Görev: ona kısa ve anime tarzı, giderek kızgınlaşan bir mesaj yaz. Mesajda "Artık yapppp!!" ve "Hadi lütfen ol artık!" ifadelerini geçir. ${intensity} ama hâlâ tekrardan gelirse sevinirim havasında ol.
 
 Kurallar:
 - Türkçe konuş.
@@ -183,7 +183,7 @@ Kurallar:
     const aiText = await chatWithAI(prompt, 'Sen sentara moderatör okulunun DM asistanısın. Kısa ve anime uslubunda konuş.', 'ticket', { max_tokens: 150, temperature: 0.9 }).catch(() => null);
     const content = aiText && aiText.trim().length > 0
       ? aiText.trim()
-      : 'Tamam.. yapacak bir şey yok ama geri gelirsen çok sevinirim. Artık yapppp!!';
+      : 'Tamam.. yapacak bir şey yok ama geri gelirsen çok sevinirim. Hadi lütfen ol artık, yapppp!! 💕';
 
     await user.send({ content }).catch(() => {});
   } catch (err) {
@@ -242,10 +242,9 @@ async function sendSchoolReminderOffer(userId, client) {
       .setTitle('🌸 Selin: Hadi bakalım...')
       .setDescription(
         `Merhaba! Görünüşe göre ${formatPhaseLabel(phase)} eğitimini hâlâ tamamlamamışsın. ` +
-        `Eğer şimdi kabul edersen, sana bu aşamayı çok hızlıca, metinleri tek tek okutmadan geçireceğim!` +
-        `
-
-Şimdi karar ver: eğitimi başlatmak ister misin?`
+        `Eğer şimdi kabul edersen, sana bu aşamayı çok hızlıca, metinleri tek tek okutmadan geçireceğim! ` +
+        `Hadi lütfen ol artık, eğitime başla! 🎀\n\n` +
+        `Şimdi karar ver: eğitimi başlatmak ister misin?`
       );
 
     const row = new ActionRowBuilder().addComponents(
