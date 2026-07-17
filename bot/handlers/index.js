@@ -3189,8 +3189,41 @@ function initializeDiscordHandlers(client) {
       
       if (!isDogrulaCmd && !isErrorAck && (!botUser || !botUser.botVerified)) {
         if (interaction.isRepliable()) {
+          const VerificationCode = require("../../models/VerificationCode");
+          const { BASE_URL } = require("../../config");
+          const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require("discord.js");
+          
+          const code = VerificationCode.create(interaction.user.id);
+          const verifyUrl = `${BASE_URL || 'https://bemsentara-4cyc.onrender.com'}/verify?code=${code}`;
+
+          const verifyBtn = new ButtonBuilder()
+            .setLabel("🔐 Doğrulamak İçin Tıkla")
+            .setStyle(ButtonStyle.Link)
+            .setURL(verifyUrl);
+
+          const codeBtn = new ButtonBuilder()
+            .setCustomId("verify_show_code_" + code)
+            .setLabel("📋 Kodu Göster")
+            .setStyle(ButtonStyle.Secondary);
+
+          const row = new ActionRowBuilder().addComponents(verifyBtn, codeBtn);
+
+          const embed = new EmbedBuilder()
+            .setTitle("🔐 Bot Doğrulaması Gerekli")
+            .setDescription(
+              `❌ **Doğrulama Gerekli!**\nBotu kullanabilmek için aşağıdaki linkten hesabını doğrulaman gerek.\n\n` +
+              `**Doğrulama Kodu:** \`${code}\`\n\n` +
+              `1️⃣ **"Doğrulamak İçin Tıkla"** butonuna tıklayarak hesabınızı bağlayın/doğrulayın.\n` +
+              `2️⃣ Alternatif olarak kodunuzu kopyalayıp doğrulama sayfasında manuel olarak da girebilirsiniz.\n\n` +
+              `_Bu kod 30 dakika boyunca geçerlidir._`
+            )
+            .setColor(0xe74c3c)
+            .setFooter({ text: "Sentara Doğrulama Sistemi" })
+            .setTimestamp();
+
           return interaction.reply({ 
-            content: "❌ **Doğrulama Gerekli!**\nDoğrulamak için lütfen direkt olarak `/dogrula <PIN>` komutunu kullanın. Anında doğrulanacaksınız!", 
+            embeds: [embed], 
+            components: [row], 
             ephemeral: true 
           }).catch(() => {});
         }
