@@ -33,6 +33,7 @@ const User = {
       gunsLolUrl: null,
       profileBgUrl: null,
       profileMusicUrl: null,
+      customStatus: null,
       joinedAt: new Date(),
     };
     return Promise.resolve(users.create({ ...defaults, ...data }));
@@ -66,6 +67,7 @@ function UserConstructor(data) {
     gunsLolUrl: null,
     profileBgUrl: null,
     profileMusicUrl: null,
+    customStatus: null,
     joinedAt: new Date(),
   };
   const merged = { ...defaults, ...data };

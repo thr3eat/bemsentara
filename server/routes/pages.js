@@ -17,6 +17,7 @@ const {
   renderLeaderboardPage,
   renderShopPage,
   renderGroupAdminPage,
+  renderSocialPage,
 } = require("../views");
 const { users, tickets, economies, wikiArticles } = require("../../models/Store");
 const { isSiteAdmin } = require("../../utils/adminCheck");
@@ -117,6 +118,11 @@ router.get("/profile/:discordId", async (req, res) => {
 router.get("/settings", (req, res) => {
   if (!req.user) return res.redirect("/login");
   res.send(renderSettingsPage(req.user));
+});
+
+router.get("/social", (req, res) => {
+  if (!req.user) return res.redirect("/login");
+  res.send(renderSocialPage(req.user));
 });
 
 router.get("/notifications", async (req, res) => {

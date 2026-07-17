@@ -92,13 +92,9 @@ async function sendNotificationPermissionPrompt(client) {
           await discordUser.send({ embeds: [promptEmbed] });
           console.log(`[NotificationPrompt] 📨 DM sent to staff user: ${discordUser.username} (${u.discordId})`);
           
-          // Mark as sent
-          const UserConstructor = require("./User");
-          const freshUser = await UserConstructor.findById(u._id);
-          if (freshUser) {
-            freshUser.browserNotificationPromptSent = true;
-            await freshUser.save();
-          }
+          // Mark as sent and persist
+          u.browserNotificationPromptSent = true;
+          await u.save();
         }
       } catch (dmErr) {
         console.warn(`[NotificationPrompt] Failed to send DM to user ${u.discordId}:`, dmErr.message);

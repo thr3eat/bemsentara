@@ -409,6 +409,7 @@ function _layout(title, user, content, extraHead = '', activePath = '') {
       ${navLink('/leaderboard', 'Sıralama')}
       ${navLink('/shop', 'Mağaza')}
       ${navLink('/wiki', 'Wiki')}
+      ${navLink('/social', '📱 Sosyal')}
       ${navLink('/settings', 'Ayarlar')}
       ${groupAdminLink}
       ${staffLinks}
@@ -5326,6 +5327,1204 @@ function renderBriefingOnboardingModal(user = null) {
 }
 
 // ─────────────────────────────────────────────
+// SENTARA SOCIAL PAGE
+// ─────────────────────────────────────────────
+function renderSocialPage(user) {
+  const content = `
+    <style>
+      .social-layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 1.5rem;
+        align-items: start;
+        margin-top: 1rem;
+      }
+      @media(max-width: 900px) {
+        .social-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      
+      /* Stories */
+      .stories-wrapper {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 20px;
+        padding: 1.2rem;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(12px);
+      }
+      .stories-tray {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding: 0.2rem 0;
+      }
+      .stories-tray::-webkit-scrollbar {
+        display: none;
+      }
+      .story-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        cursor: pointer;
+        flex-shrink: 0;
+        width: 76px;
+      }
+      .story-circle {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        padding: 3px;
+        background: linear-gradient(135deg, #ff007f 0%, #7f00ff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+      }
+      .story-item:hover .story-circle {
+        transform: scale(1.06);
+      }
+      .story-img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #06060e;
+      }
+      .story-name {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-align: center;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .story-add-circle {
+        background: rgba(255,255,255,0.06);
+        border: 2px dashed rgba(255,255,255,0.2);
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 300;
+        color: var(--muted);
+        transition: all 0.2s;
+      }
+      .story-item:hover .story-add-circle {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      /* Feed cards */
+      .post-card {
+        margin-bottom: 1.5rem;
+        position: relative;
+        overflow: visible;
+      }
+      .post-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .post-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 2px solid var(--border);
+      }
+      .post-author-info {
+        flex: 1;
+        min-width: 0;
+        text-align: left;
+      }
+      .post-author-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .post-author-status {
+        font-size: 0.72rem;
+        color: var(--muted);
+        background: rgba(255,255,255,0.03);
+        padding: 1px 6px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.05);
+        display: inline-block;
+        margin-top: 0.2rem;
+      }
+      .post-meta {
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      .post-body {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text);
+        margin-bottom: 1.25rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        text-align: left;
+      }
+      
+      /* Repost nested card */
+      .repost-card {
+        background: rgba(255,255,255,0.015);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .post-footer {
+        display: flex;
+        gap: 1.5rem;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        padding-top: 0.85rem;
+        margin-top: 0.5rem;
+      }
+      .post-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-family: inherit;
+        transition: color 0.2s, transform 0.1s;
+      }
+      .post-action:hover {
+        color: var(--text);
+      }
+      .post-action.liked {
+        color: var(--danger);
+      }
+      .post-action.liked svg {
+        fill: var(--danger);
+      }
+      .post-action:active {
+        transform: scale(0.92);
+      }
+
+      /* Comments section */
+      .comments-area {
+        background: rgba(0,0,0,0.15);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+        border: 1px solid rgba(255,255,255,0.03);
+      }
+      .comment-item {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        text-align: left;
+      }
+      .comment-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .comment-content-box {
+        flex: 1;
+        min-width: 0;
+      }
+      .comment-bubble {
+        background: rgba(255,255,255,0.025);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 12px;
+        padding: 0.6rem 0.85rem;
+      }
+      .comment-author {
+        font-weight: 700;
+        font-size: 0.85rem;
+        margin-bottom: 0.15rem;
+      }
+      .comment-text {
+        font-size: 0.85rem;
+        color: var(--text);
+        line-height: 1.4;
+      }
+      .comment-meta-row {
+        display: flex;
+        gap: 0.75rem;
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-top: 0.3rem;
+        padding-left: 0.5rem;
+      }
+      .comment-action-btn {
+        cursor: pointer;
+        background: none;
+        border: none;
+        color: inherit;
+        font-family: inherit;
+        font-weight: 700;
+      }
+      .comment-action-btn:hover {
+        color: var(--text);
+      }
+
+      /* Nested Replies */
+      .replies-list {
+        margin-left: 2rem;
+        margin-top: 0.5rem;
+        border-left: 2px solid rgba(255,255,255,0.05);
+        padding-left: 0.75rem;
+      }
+
+      /* Write Comment inputs */
+      .comment-input-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+      .comment-input {
+        flex: 1;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        color: #fff;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        outline: none;
+        margin-bottom: 0;
+      }
+      .comment-send-btn {
+        background: var(--accent);
+        border: none;
+        color: #fff;
+        border-radius: 10px;
+        padding: 0 1rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      /* Status widget */
+      .status-box {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 16px;
+        padding: 1.2rem;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(12px);
+      }
+
+      /* Live streams sidebar list */
+      .streams-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 20px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(12px);
+      }
+      .stream-list-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        cursor: pointer;
+        text-align: left;
+      }
+      .stream-list-item:last-child {
+        border-bottom: none;
+      }
+      .stream-badge {
+        background: var(--danger);
+        color: white;
+        font-size: 0.62rem;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        animation: pulse 1.5s infinite;
+      }
+      .stream-title {
+        font-weight: 600;
+        font-size: 0.88rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Story Viewer Modal */
+      .story-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.92);
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .story-viewer-content {
+        width: 100%;
+        max-width: 440px;
+        height: 100%;
+        max-height: 800px;
+        position: relative;
+        background: #000;
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 1.5rem;
+      }
+      .story-progress-container {
+        display: flex;
+        gap: 4px;
+        width: 100%;
+        position: absolute;
+        top: 10px;
+        left: 0;
+        padding: 0 10px;
+      }
+      .story-progress-bar {
+        height: 3px;
+        flex: 1;
+        background: rgba(255,255,255,0.25);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .story-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: #fff;
+      }
+      .story-viewer-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        color: #fff;
+        z-index: 2;
+      }
+      .story-viewer-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 1px solid #fff;
+      }
+      .story-viewer-text {
+        color: #fff;
+        font-size: 1.3rem;
+        font-weight: 600;
+        text-align: center;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        word-break: break-word;
+        line-height: 1.5;
+        z-index: 2;
+      }
+      .story-viewer-close {
+        position: absolute;
+        top: 25px;
+        right: 15px;
+        color: #fff;
+        font-size: 1.5rem;
+        cursor: pointer;
+        background: none;
+        border: none;
+        z-index: 3;
+      }
+
+      /* Live Stream Modal */
+      .stream-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(12px);
+      }
+      .stream-window {
+        width: 90%;
+        max-width: 800px;
+        height: 80%;
+        max-height: 600px;
+        background: #0f0f1a;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 24px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        box-shadow: 0 24px 50px rgba(0,0,0,0.6);
+      }
+      @media(max-width: 650px) {
+        .stream-window {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 180px;
+        }
+      }
+      .stream-video-pane {
+        background: linear-gradient(135deg, #1e1e30 0%, #0d0d1a 100%);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .stream-visualizer {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+        opacity: 0.15;
+        animation: pulseVisualizer 2s infinite ease-in-out;
+      }
+      @keyframes pulseVisualizer {
+        0%, 100% { transform: scale(1); opacity: 0.15; }
+        50% { transform: scale(1.4); opacity: 0.3; }
+      }
+      .stream-video-overlay {
+        position: absolute;
+        inset: 0;
+        padding: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        pointer-events: none;
+      }
+      .stream-chat-pane {
+        border-left: 1px solid rgba(255,255,255,0.06);
+        background: rgba(0,0,0,0.2);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+      }
+      .stream-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      .stream-chat-msg {
+        font-size: 0.8rem;
+        line-height: 1.4;
+        text-align: left;
+      }
+      .stream-chat-author {
+        font-weight: 700;
+        color: var(--accent);
+        margin-right: 0.3rem;
+      }
+      .stream-chat-text {
+        color: #fff;
+      }
+      .stream-chat-input-row {
+        padding: 0.75rem;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        display: flex;
+        gap: 0.4rem;
+      }
+
+      /* Floating Hearts */
+      .heart-emitter {
+        position: absolute;
+        bottom: 80px;
+        right: 20px;
+        width: 50px;
+        height: 100px;
+        pointer-events: none;
+      }
+      .float-heart {
+        position: absolute;
+        bottom: 0;
+        font-size: 1.5rem;
+        animation: heartFloatUp 2s ease-out forwards;
+        opacity: 0.9;
+      }
+      @keyframes heartFloatUp {
+        0% { transform: translateY(0) scale(0.6) rotate(0deg); opacity: 0.9; }
+        50% { transform: translateY(-100px) scale(1.1) rotate(15deg); }
+        100% { transform: translateY(-250px) scale(0.8) rotate(-15deg); opacity: 0; }
+      }
+    </style>
+
+    <div class="social-layout">
+      <!-- MAIN FEED COL -->
+      <div>
+        <!-- Stories Wrapper -->
+        <div class="stories-wrapper">
+          <div class="stories-tray" id="stories-tray">
+            <!-- Add story item -->
+            <div class="story-item" onclick="openCreateStory()">
+              <div class="story-add-circle">+</div>
+              <div class="story-name">Hikaye Ekle</div>
+            </div>
+            <!-- Stories lists injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Create Post Card -->
+        <div class="card post-card" style="padding: 1.5rem;">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:1rem;text-align:left;">✍️ Bir şeyler paylaş...</h3>
+          <textarea id="post-textarea" rows="3" placeholder="Bugün aklında ne var?" style="margin-bottom:0.75rem;resize:none;"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <button class="btn btn-sm" onclick="createPost()" id="post-btn">Paylaş</button>
+          </div>
+        </div>
+
+        <!-- Feed List -->
+        <div id="social-feed">
+          <div style="color:var(--muted);font-size:0.9rem;padding:2rem;">Akış yükleniyor...</div>
+        </div>
+      </div>
+
+      <!-- SIDEBAR COL -->
+      <div>
+        <!-- Status Widget -->
+        <div class="status-box">
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;text-align:left;">💬 Durumunu Ayarla</h3>
+          <div style="display:flex;gap:0.4rem;">
+            <input type="text" id="status-input" value="${_esc(user.customStatus || '')}" placeholder="Ne yapıyorsun?" style="margin-bottom:0;padding:0.6rem 0.85rem;font-size:0.85rem;">
+            <button class="btn btn-sm" onclick="updateStatus()" style="padding:0 0.85rem;">Set</button>
+          </div>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.6rem;justify-content:center;">
+            <span style="cursor:pointer;font-size:1.1rem;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:6px;" onclick="setStatusEmoji('☕ Kahve içiyor')">☕</span>
+            <span style="cursor:pointer;font-size:1.1rem;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:6px;" onclick="setStatusEmoji('🔥 Bilet çözüyor')">🔥</span>
+            <span style="cursor:pointer;font-size:1.1rem;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:6px;" onclick="setStatusEmoji('💤 Dinleniyor')">💤</span>
+            <span style="cursor:pointer;font-size:1.1rem;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:6px;" onclick="setStatusEmoji('💻 Kod yazıyor')">💻</span>
+          </div>
+        </div>
+
+        <!-- Live Streams Card -->
+        <div class="streams-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="font-size:1rem;font-weight:700;text-align:left;">🔴 Canlı Yayınlar</h3>
+            <button class="btn btn-sm btn-danger" onclick="startStreamPrompt()" style="padding:0.3rem 0.6rem;font-size:0.75rem;">Yayın Aç</button>
+          </div>
+          <div id="streams-list">
+            <div style="color:var(--muted);font-size:0.8rem;">Aktif yayın bulunmuyor.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Story Viewer Modal -->
+    <div class="story-modal" id="story-modal" onclick="closeStory()">
+      <div class="story-viewer-content" onclick="event.stopPropagation()">
+        <div class="story-progress-container" id="story-progress-container"></div>
+        <button class="story-viewer-close" onclick="closeStory()">✕</button>
+        <div class="story-viewer-header">
+          <img src="" class="story-viewer-avatar" id="story-viewer-avatar">
+          <strong id="story-viewer-name"></strong>
+        </div>
+        <div class="story-viewer-text" id="story-viewer-text"></div>
+        <div></div>
+      </div>
+    </div>
+
+    <!-- Live Stream Modal -->
+    <div class="stream-modal" id="stream-modal">
+      <div class="stream-window">
+        <!-- Video simulated screen -->
+        <div class="stream-video-pane">
+          <div class="stream-visualizer"></div>
+          <div style="position:absolute;z-index:2;text-align:center;color:#fff;">
+            <div style="font-size:3rem;margin-bottom:0.5rem;animation:float 3s ease-in-out infinite;">🎥</div>
+            <h2 id="stream-pane-title" style="font-size:1.2rem;font-weight:800;"></h2>
+            <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-top:0.4rem;">Canlı Video Akışı</div>
+          </div>
+          
+          <div class="stream-video-overlay">
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+              <span class="live-badge">Live</span>
+              <span style="background:rgba(0,0,0,0.5);padding:2px 8px;border-radius:8px;font-size:0.75rem;color:#fff;pointer-events:auto;" id="stream-viewer-count">👁️ 0</span>
+            </div>
+            
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;pointer-events:auto;">
+              <button class="btn btn-sm btn-danger" onclick="endCurrentStream()" id="stream-end-btn" style="display:none;padding:0.4rem 0.8rem;">Yayını Kapat</button>
+              <button class="btn btn-sm btn-ghost" onclick="closeStream()" style="padding:0.4rem 0.8rem;margin-left:auto;">Ayrıl</button>
+            </div>
+          </div>
+
+          <!-- Hearts Emitter -->
+          <div class="heart-emitter" id="heart-emitter"></div>
+        </div>
+        
+        <!-- Chat Area -->
+        <div class="stream-chat-pane">
+          <div style="padding:0.85rem;border-bottom:1px solid rgba(255,255,255,0.06);font-weight:700;font-size:0.85rem;text-align:left;">Sohbet</div>
+          <div class="stream-chat-messages" id="stream-chat-messages"></div>
+          <div class="stream-chat-input-row" style="position:relative;">
+            <input type="text" id="stream-chat-input" placeholder="Sohbete katıl..." style="margin-bottom:0;padding:0.5rem 0.75rem;font-size:0.82rem;" onkeydown="if(event.key==='Enter')sendStreamChat()">
+            <button class="btn btn-sm" onclick="sendStreamChat()" style="padding:0 0.75rem;">Gönder</button>
+            <button onclick="emitHeart()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;padding:0 5px;transition:transform 0.1s;" onmousedown="this.style.transform='scale(1.3)'" onmouseup="this.style.transform='scale(1)'">❤️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentFeed = [];
+      let currentStories = [];
+      let activeStream = null;
+      let streamChatTimer = null;
+      let currentStoryIndex = 0;
+      let currentStoryGroup = null;
+      let storyTimer = null;
+
+      async function loadFeed() {
+        try {
+          const res = await fetch('/api/social/feed');
+          const d = await res.json();
+          if (d.success) {
+            currentFeed = d.posts || [];
+            currentStories = d.stories || [];
+            renderFeed();
+            renderStories();
+          }
+        } catch(e) {
+          console.error("Feed error:", e);
+        }
+      }
+
+      function renderStories() {
+        const tray = document.getElementById('stories-tray');
+        // Clear old list keep add button
+        const items = tray.querySelectorAll('.story-item');
+        for (let i = 1; i < items.length; i++) items[i].remove();
+
+        currentStories.forEach((g, gIdx) => {
+          const item = document.createElement('div');
+          item.className = 'story-item';
+          item.onclick = () => viewStoryGroup(gIdx);
+          
+          item.innerHTML = \`
+            <div class="story-circle">
+              <img class="story-img" src="\\\${g.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}">
+            </div>
+            <div class="story-name">\\\${g.userName}</div>
+          \`;
+          tray.appendChild(item);
+        });
+      }
+
+      function viewStoryGroup(gIdx) {
+        currentStoryGroup = currentStories[gIdx];
+        currentStoryIndex = 0;
+        showStory();
+      }
+
+      function showStory() {
+        if (!currentStoryGroup || !currentStoryGroup.stories[currentStoryIndex]) {
+          closeStory();
+          return;
+        }
+
+        const story = currentStoryGroup.stories[currentStoryIndex];
+        const modal = document.getElementById('story-modal');
+        modal.style.display = 'flex';
+
+        document.getElementById('story-viewer-avatar').src = currentStoryGroup.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        document.getElementById('story-viewer-name').textContent = currentStoryGroup.userName;
+        document.getElementById('story-viewer-text').textContent = story.content;
+
+        // Build progress bars
+        const progContainer = document.getElementById('story-progress-container');
+        progContainer.innerHTML = '';
+        currentStoryGroup.stories.forEach((s, idx) => {
+          const bar = document.createElement('div');
+          bar.className = 'story-progress-bar';
+          const fill = document.createElement('div');
+          fill.className = 'story-progress-fill';
+          if (idx < currentStoryIndex) fill.style.width = '100%';
+          bar.appendChild(fill);
+          progContainer.appendChild(bar);
+        });
+
+        // Animate current bar
+        if (storyTimer) clearInterval(storyTimer);
+        const activeFill = progContainer.children[currentStoryIndex].firstElementChild;
+        let pct = 0;
+        storyTimer = setInterval(() => {
+          pct += 2;
+          activeFill.style.width = pct + '%';
+          if (pct >= 100) {
+            clearInterval(storyTimer);
+            nextStory();
+          }
+        }, 80);
+      }
+
+      function nextStory() {
+        currentStoryIndex++;
+        if (currentStoryIndex >= currentStoryGroup.stories.length) {
+          closeStory();
+        } else {
+          showStory();
+        }
+      }
+
+      function closeStory() {
+        if (storyTimer) clearInterval(storyTimer);
+        document.getElementById('story-modal').style.display = 'none';
+      }
+
+      async function openCreateStory() {
+        const text = prompt("Hikayenize yazmak istediğiniz metni girin:");
+        if (!text) return;
+        try {
+          const res = await fetch('/api/social/stories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: text })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast("Hikaye eklendi!", "success");
+            loadFeed();
+          } else {
+            showToast(d.error || "Hata", "error");
+          }
+        } catch {
+          showToast("Bağlantı hatası", "error");
+        }
+      }
+
+      async function createPost() {
+        const el = document.getElementById('post-textarea');
+        const content = el.value.trim();
+        if (!content) return showToast("Gönderi içeriği yazmalısınız.", "warning");
+
+        const btn = document.getElementById('post-btn');
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/social/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast("Paylaşıldı!", "success");
+            el.value = '';
+            loadFeed();
+          } else {
+            showToast(d.error || "Hata", "error");
+          }
+        } catch {
+          showToast("Bağlantı hatası", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      async function repost(postId) {
+        if (!confirm("Bu gönderiyi kendi profilinizde yeniden paylaşmak istiyor musunuz?")) return;
+        try {
+          const res = await fetch('/api/social/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repostOf: postId })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast("Yeniden paylaşıldı (Repost)!", "success");
+            loadFeed();
+          } else {
+            showToast(d.error || "Hata", "error");
+          }
+        } catch {
+          showToast("Bağlantı hatası", "error");
+        }
+      }
+
+      async function toggleLike(postId, el) {
+        try {
+          const res = await fetch(\`/api/social/posts/\\\${postId}/like\`, { method: 'POST' });
+          const d = await res.json();
+          if (d.success) {
+            const countSpan = el.querySelector('.like-count');
+            countSpan.textContent = d.likesCount;
+            if (d.liked) {
+              el.classList.add('liked');
+            } else {
+              el.classList.remove('liked');
+            }
+          }
+        } catch {}
+      }
+
+      function toggleComments(postId) {
+        const box = document.getElementById(\`comments-box-\\\${postId}\`);
+        if (box.style.display === 'none') {
+          box.style.display = 'block';
+        } else {
+          box.style.display = 'none';
+        }
+      }
+
+      async function addComment(postId) {
+        const input = document.getElementById(\`comment-input-\\\${postId}\`);
+        const content = input.value.trim();
+        if (!content) return;
+
+        try {
+          const res = await fetch(\`/api/social/posts/\\\${postId}/comments\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            input.value = '';
+            loadFeed();
+          }
+        } catch {}
+      }
+
+      function showReplyInput(postId, commentId, authorName) {
+        const input = document.getElementById(\`comment-input-\\\${postId}\`);
+        input.value = \`@\\\${authorName} \`;
+        input.focus();
+        // Change button action temporarily to nested reply
+        const sendBtn = document.getElementById(\`comment-btn-\\\${postId}\`);
+        sendBtn.onclick = () => submitReply(postId, commentId, input);
+      }
+
+      async function submitReply(postId, commentId, input) {
+        const content = input.value.trim();
+        if (!content) return;
+        try {
+          const res = await fetch(\`/api/social/posts/\\\${postId}/comments/\\\${commentId}/replies\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          if (res.ok) {
+            input.value = '';
+            // Reset button action
+            const sendBtn = document.getElementById(\`comment-btn-\\\${postId}\`);
+            sendBtn.onclick = () => addComment(postId);
+            loadFeed();
+          }
+        } catch {}
+      }
+
+      function setStatusEmoji(val) {
+        document.getElementById('status-input').value = val;
+      }
+
+      async function updateStatus() {
+        const val = document.getElementById('status-input').value.trim();
+        try {
+          const res = await fetch('/api/social/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: val })
+          });
+          if (res.ok) {
+            showToast("Durum güncellendi!", "success");
+            loadFeed();
+          }
+        } catch {}
+      }
+
+      function renderFeed() {
+        const list = document.getElementById('social-feed');
+        if (!currentFeed.length) {
+          list.innerHTML = '<div class="card" style="padding:2rem;color:var(--muted)">Henüz hiçbir gönderi paylaşılmamış.</div>';
+          return;
+        }
+
+        list.innerHTML = currentFeed.map(p => {
+          const rawDate = new Date(p.createdAt);
+          const timeStr = rawDate.toLocaleDateString('tr-TR') + ' ' + rawDate.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+          
+          let repostContentHtml = '';
+          if (p.repostOf) {
+            const orig = currentFeed.find(x => x._id === p.repostOf);
+            if (orig) {
+              repostContentHtml = \`
+                <div class="repost-card">
+                  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">
+                    <img src="\\\${orig.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:20px;height:20px;border-radius:50%;">
+                    <strong>\\\${orig.authorUsername || orig.userName}</strong>
+                  </div>
+                  <div class="post-body" style="margin-bottom:0;font-size:0.88rem;">\\\${_esc(orig.content)}</div>
+                </div>
+              \`;
+            } else {
+              repostContentHtml = \`<div class="repost-card" style="color:var(--muted);font-size:0.8rem;">[Gönderi silinmiş veya bulunamadı]</div>\`;
+            }
+          }
+
+          const commentsHtml = (p.comments || []).map(c => {
+            const repliesHtml = (c.replies || []).map(r => \`
+              <div class="comment-item" style="margin-bottom: 0.5rem;">
+                <img src="\\\${r.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="comment-avatar" style="width:24px;height:24px;">
+                <div class="comment-content-box">
+                  <div class="comment-bubble" style="padding: 0.4rem 0.6rem;">
+                    <div class="comment-author" style="font-size:0.8rem;">\\\${r.userName}</div>
+                    <div class="comment-text" style="font-size:0.8rem;">\\\${_esc(r.content)}</div>
+                  </div>
+                </div>
+              </div>
+            \`).join('');
+
+            return \`
+              <div class="comment-item">
+                <img src="\\\${c.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="comment-avatar">
+                <div class="comment-content-box">
+                  <div class="comment-bubble">
+                    <div class="comment-author">\\\${c.userName}</div>
+                    <div class="comment-text">\\\${_esc(c.content)}</div>
+                  </div>
+                  <div class="comment-meta-row">
+                    <button class="comment-action-btn" onclick="showReplyInput('\\\\\\\${p._id}', '\\\\\\\${c.id}', '\\\\\\\${c.userName}')">Yanıtla</button>
+                  </div>
+                  <div class="replies-list">\\\${repliesHtml}</div>
+                </div>
+              </div>
+            \`;
+          }).join('');
+
+          const isLiked = p.likes && p.likes.includes(${JSON.stringify(user.discordId)});
+
+          return \`
+            <div class="card post-card">
+              \\\${p.repostOf ? \`<div style="font-size:0.75rem;color:var(--accent);font-weight:700;margin-bottom:0.5rem;text-align:left;">🔁 \\\${p.repostedBy} Repost Etti</div>\` : ''}
+              <div class="post-header">
+                <img src="\\\${p.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="post-avatar" style="border-color:\\\${p.authorColor}">
+                <div class="post-author-info">
+                  <div class="post-author-name">
+                    \\\${p.authorUsername || p.userName}
+                    \\\${p.authorStatus ? \`<span class="post-author-status">\\\${_esc(p.authorStatus)}</span>\` : ''}
+                  </div>
+                  <div class="post-meta">\\\${timeStr}</div>
+                </div>
+              </div>
+
+              \\\${p.repostOf ? repostContentHtml : \`<div class="post-body">\\\${_esc(p.content)}</div>\`}
+
+              <div class="post-footer">
+                <button class="post-action \\\${isLiked ? 'liked' : ''}" onclick="toggleLike('\\\\\\\${p._id}', this)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                  <span class="like-count">\\\${(p.likes || []).length}</span>
+                </button>
+                <button class="post-action" onclick="toggleComments('\\\\\\\${p._id}')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span>\\\${(p.comments || []).length}</span>
+                </button>
+                \\\${!p.repostOf ? \`
+                  <button class="post-action" onclick="repost('\\\\\\\${p._id}')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1v22M3 5h18M3 19h18"/></svg>
+                    <span>Yeniden Paylaş</span>
+                  </button>
+                \` : ''}
+              </div>
+
+              <!-- Collapsible Comments Area -->
+              <div class="comments-area" id="comments-box-\\\${p._id}" style="display:none;">
+                <div class="comment-list">\\\${commentsHtml}</div>
+                <div class="comment-input-row">
+                  <input type="text" class="comment-input" id="comment-input-\\\${p._id}" placeholder="Yorum yaz..." onkeydown="if(event.key==='Enter')addComment('\\\\\\\${p._id}')">
+                  <button class="comment-send-btn" id="comment-btn-\\\${p._id}" onclick="addComment('\\\\\\\${p._id}')">Gönder</button>
+                </div>
+              </div>
+            </div>
+          \`;
+        }).join('');
+      }
+
+      // Streams functionality
+      async function loadStreams() {
+        try {
+          const res = await fetch('/api/social/streams');
+          const d = await res.json();
+          if (d.success) {
+            const list = document.getElementById('streams-list');
+            if (!d.streams || !d.streams.length) {
+              list.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">Aktif yayın bulunmuyor.</div>';
+            } else {
+              list.innerHTML = d.streams.map(s => \`
+                <div class="stream-list-item" onclick="joinStream('\\\\\\\${s._id}')">
+                  <img src="\\\${s.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:32px;height:32px;border-radius:50%;">
+                  <div style="flex:1;min-width:0;">
+                    <div class="stream-title">\\\${s.title}</div>
+                    <div style="font-size:0.7rem;color:var(--muted)">Yayıncı: \\\${s.userName}</div>
+                  </div>
+                  <span class="stream-badge">LIVE</span>
+                </div>
+              \`).join('');
+            }
+          }
+        } catch(e) {}
+      }
+
+      async function startStreamPrompt() {
+        const title = prompt("Canlı yayın başlığını girin:");
+        if (!title) return;
+        try {
+          const res = await fetch('/api/social/streams', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            showToast("Canlı yayın başlatıldı!", "success");
+            joinStream(d.stream._id);
+            loadStreams();
+          } else {
+            showToast(d.error || "Hata", "error");
+          }
+        } catch {
+          showToast("Bağlantı hatası", "error");
+        }
+      }
+
+      async function joinStream(streamId) {
+        try {
+          const res = await fetch('/api/social/streams');
+          const d = await res.json();
+          if (d.success) {
+            const stream = d.streams.find(s => s._id === streamId);
+            if (!stream) return showToast("Yayın sona ermiş.", "error");
+
+            activeStream = stream;
+            document.getElementById('stream-modal').style.display = 'flex';
+            document.getElementById('stream-pane-title').textContent = stream.title;
+            document.getElementById('stream-viewer-count').textContent = '👁️ ' + (stream.viewerCount || 1);
+            
+            // Show End Stream button if owner
+            const isOwner = stream.userId === \${JSON.stringify(user.discordId)};
+            document.getElementById('stream-end-btn').style.display = isOwner ? 'block' : 'none';
+
+            // Load chat history
+            renderStreamChat();
+
+            // Set chat refresh loop
+            if (streamChatTimer) clearInterval(streamChatTimer);
+            streamChatTimer = setInterval(refreshStreamData, 3000);
+          }
+        } catch {}
+      }
+
+      async function refreshStreamData() {
+        if (!activeStream) return;
+        try {
+          const res = await fetch('/api/social/streams');
+          const d = await res.json();
+          if (d.success) {
+            const stream = d.streams.find(s => s._id === activeStream._id);
+            if (!stream) {
+              showToast("Yayın sahibi yayını kapattı.", "info");
+              closeStream();
+              return;
+            }
+            activeStream = stream;
+            document.getElementById('stream-viewer-count').textContent = '👁️ ' + (stream.viewerCount || 1);
+            renderStreamChat();
+          }
+        } catch {}
+      }
+
+      function renderStreamChat() {
+        if (!activeStream) return;
+        const box = document.getElementById('stream-chat-messages');
+        const msgs = activeStream.chatMessages || [];
+        box.innerHTML = msgs.map(m => \`
+          <div class="stream-chat-msg">
+            <span class="stream-chat-author">\\\${m.userName}:</span>
+            <span class="stream-chat-text">\\\${_esc(m.content)}</span>
+          </div>
+        \`).join('');
+        box.scrollTop = box.scrollHeight;
+      }
+
+      async function sendStreamChat() {
+        if (!activeStream) return;
+        const input = document.getElementById('stream-chat-input');
+        const content = input.value.trim();
+        if (!content) return;
+
+        try {
+          const res = await fetch(\`/api/social/streams/\\\${activeStream._id}/chat\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          const d = await res.json();
+          if (res.ok) {
+            input.value = '';
+            activeStream = d.stream;
+            renderStreamChat();
+          }
+        } catch {}
+      }
+
+      async function endCurrentStream() {
+        if (!activeStream) return;
+        if (!confirm("Yayını sonlandırmak istediğinize emin misiniz?")) return;
+
+        try {
+          const res = await fetch(\`/api/social/streams/\\\${activeStream._id}/end\`, { method: 'POST' });
+          if (res.ok) {
+            showToast("Yayın sonlandırıldı.", "info");
+            closeStream();
+            loadStreams();
+          }
+        } catch {}
+      }
+
+      function closeStream() {
+        activeStream = null;
+        if (streamChatTimer) clearInterval(streamChatTimer);
+        document.getElementById('stream-modal').style.display = 'none';
+      }
+
+      function emitHeart() {
+        const emitter = document.getElementById('heart-emitter');
+        const heart = document.createElement('div');
+        heart.className = 'float-heart';
+        const hearts = ['❤️', '💖', '💝', '💕', '🧡', '💛', '💚', '💙', '💜'];
+        heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+        heart.style.left = Math.floor(Math.random() * 20) + 'px';
+        emitter.appendChild(heart);
+        setTimeout(() => heart.remove(), 2000);
+      }
+
+      // Initial loads
+      loadFeed();
+      loadStreams();
+
+      // Refresh streams list every 10 seconds
+      setInterval(loadStreams, 10000);
+    </script>
+  `;
+  return _layout('Sentara Sosyal', user, content, '', '/social');
+}
+
+// ─────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────
 module.exports = {
@@ -5350,6 +6549,7 @@ module.exports = {
   renderShopPage,
   renderWebhookPage,
   renderErrorPage,
+  renderSocialPage,
   // Internal helpers (exported for testing)
   _esc,
   _layout,

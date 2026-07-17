@@ -3347,5 +3347,306 @@ router.patch("/api/group-admin/groups/:groupId/roles/:roleId/permissions", async
   }
 });
 
+// ─── Sentara Sosyal Medya API Rotaları ─────────────────────────────────────────
+const { posts, stories, liveStreams } = require("../../models/Store");
+
+router.get("/api/social/feed", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const allPosts = posts.find({}).sort({ createdAt: -1 });
+    
+    // Enrich posts with user details
+    const enrichedPosts = allPosts.map(p => {
+      const author = User.findOne({ discordId: p.userId });
+      return {
+        ...p,
+        authorUsername: author ? author.discordUsername : p.userName,
+        authorAvatar: author ? author.discordAvatar : p.userAvatar,
+        authorStatus: author ? author.customStatus : null,
+        authorColor: author ? author.profileColor : "#7c6af7",
+        isLiked: p.likes ? p.likes.includes(req.user.discordId) : false
+      };
+    });
+
+    // Load active stories (less than 24 hours old)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const activeStories = stories.find({}).filter(s => new Date(s.createdAt) > twentyFourHoursAgo);
+    
+    // Group stories by user
+    const groupedStories = [];
+    const userStoryMap = new Map();
+    activeStories.forEach(s => {
+      const author = User.findOne({ discordId: s.userId });
+      if (!userStoryMap.has(s.userId)) {
+        userStoryMap.set(s.userId, {
+          userId: s.userId,
+          userName: author ? author.discordUsername : s.userName,
+          userAvatar: author ? author.discordAvatar : s.userAvatar,
+          stories: []
+        });
+      }
+      userStoryMap.get(s.userId).stories.push(s);
+    });
+    userStoryMap.forEach(v => groupedStories.push(v));
+
+    res.json({ success: true, posts: enrichedPosts, stories: groupedStories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/posts", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { content, repostOf } = req.body;
+  if (!content && !repostOf) return res.status(400).json({ error: "Gönderi içeriği boş olamaz." });
+
+  try {
+    let repostedBy = null;
+    let finalContent = content;
+    if (repostOf) {
+      const orig = posts.findOne({ _id: repostOf });
+      if (!orig) return res.status(404).json({ error: "Yeniden paylaşılacak gönderi bulunamadı." });
+      repostedBy = req.user.discordUsername;
+    }
+
+    const newPost = posts.create({
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      userAvatar: req.user.discordAvatar,
+      content: finalContent || "",
+      repostOf: repostOf || null,
+      repostedBy: repostedBy,
+      likes: [],
+      comments: [],
+      createdAt: new Date()
+    });
+
+    saveStoreNow();
+    res.json({ success: true, post: newPost });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/posts/:id/like", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const post = posts.findOne({ _id: req.params.id });
+    if (!post) return res.status(404).json({ error: "Gönderi bulunamadı." });
+
+    if (!post.likes) post.likes = [];
+    const index = post.likes.indexOf(req.user.discordId);
+    let liked = false;
+    if (index === -1) {
+      post.likes.push(req.user.discordId);
+      liked = true;
+    } else {
+      post.likes.splice(index, 1);
+    }
+    
+    await post.save();
+    saveStoreNow();
+    res.json({ success: true, likesCount: post.likes.length, liked });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/posts/:id/comments", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "Yorum içeriği boş olamaz." });
+
+  try {
+    const post = posts.findOne({ _id: req.params.id });
+    if (!post) return res.status(404).json({ error: "Gönderi bulunamadı." });
+
+    if (!post.comments) post.comments = [];
+    const newComment = {
+      id: crypto.randomBytes(8).toString("hex"),
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      userAvatar: req.user.discordAvatar,
+      content: content,
+      createdAt: new Date(),
+      replies: []
+    };
+
+    post.comments.push(newComment);
+    await post.save();
+    saveStoreNow();
+    res.json({ success: true, comment: newComment });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/posts/:id/comments/:commentId/replies", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "Yanıt içeriği boş olamaz." });
+
+  try {
+    const post = posts.findOne({ _id: req.params.id });
+    if (!post) return res.status(404).json({ error: "Gönderi bulunamadı." });
+
+    const comment = (post.comments || []).find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: "Yorum bulunamadı." });
+
+    if (!comment.replies) comment.replies = [];
+    const newReply = {
+      id: crypto.randomBytes(8).toString("hex"),
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      userAvatar: req.user.discordAvatar,
+      content: content,
+      createdAt: new Date()
+    };
+
+    comment.replies.push(newReply);
+    await post.save();
+    saveStoreNow();
+    res.json({ success: true, reply: newReply });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/stories", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "Hikaye içeriği boş olamaz." });
+
+  try {
+    const newStory = stories.create({
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      userAvatar: req.user.discordAvatar,
+      content: content,
+      createdAt: new Date()
+    });
+
+    saveStoreNow();
+    res.json({ success: true, story: newStory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/status", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { status } = req.body;
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    user.customStatus = status ? String(status).slice(0, 100) : null;
+    await user.save();
+    saveStoreNow();
+    res.json({ success: true, status: user.customStatus });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/api/social/streams", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const activeStreams = liveStreams.find({ active: true });
+    res.json({ success: true, streams: activeStreams });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/streams", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { title } = req.body;
+  if (!title) return res.status(400).json({ error: "Yayın başlığı girilmelidir." });
+
+  try {
+    // End any existing streams by this user
+    const existing = liveStreams.find({ userId: req.user.discordId, active: true });
+    for (const s of existing) {
+      s.active = false;
+      await s.save();
+    }
+
+    const newStream = liveStreams.create({
+      userId: req.user.discordId,
+      userName: req.user.discordUsername,
+      userAvatar: req.user.discordAvatar,
+      title: title,
+      active: true,
+      chatMessages: [],
+      viewerCount: Math.floor(Math.random() * 8) + 1,
+      createdAt: new Date()
+    });
+
+    saveStoreNow();
+    res.json({ success: true, stream: newStream });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/streams/:id/end", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  try {
+    const stream = liveStreams.findOne({ _id: req.params.id });
+    if (!stream) return res.status(404).json({ error: "Yayın bulunamadı." });
+    if (stream.userId !== req.user.discordId) return res.status(403).json({ error: "Yalnızca kendi yayınınızı kapatabilirsiniz." });
+
+    stream.active = false;
+    await stream.save();
+    saveStoreNow();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/social/streams/:id/chat", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: "Mesaj boş olamaz." });
+
+  try {
+    const stream = liveStreams.findOne({ _id: req.params.id, active: true });
+    if (!stream) return res.status(404).json({ error: "Yayın bulunamadı veya kapalı." });
+
+    if (!stream.chatMessages) stream.chatMessages = [];
+    const newMsg = {
+      userName: req.user.discordUsername,
+      content: content,
+      createdAt: new Date()
+    };
+    stream.chatMessages.push(newMsg);
+    
+    // Add random floating message mocks to make it lively!
+    const mocks = [
+      "Harika yayın!", "Efsane gidiyor", "Gözlerim yaşardı", "Başarılar dilerim", 
+      "Sentara premium farkı!", "Helal olsun", "Destekler sonuna kadar", "+++"
+    ];
+    if (Math.random() > 0.4) {
+      const randomUser = "Kullanıcı" + Math.floor(Math.random() * 90 + 10);
+      const randomText = mocks[Math.floor(Math.random() * mocks.length)];
+      stream.chatMessages.push({
+        userName: randomUser,
+        content: randomText,
+        createdAt: new Date()
+      });
+      stream.viewerCount = (stream.viewerCount || 0) + (Math.random() > 0.5 ? 1 : -1);
+      if (stream.viewerCount < 1) stream.viewerCount = 1;
+    }
+
+    await stream.save();
+    saveStoreNow();
+    res.json({ success: true, message: newMsg, stream });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 

@@ -120,6 +120,9 @@ const collections = {
   errorReports: null,
   groupAdmins: null,
   rankMetadata: null,
+  posts: null,
+  stories: null,
+  liveStreams: null,
 };
 
 function onStoreMutate() {
@@ -134,6 +137,9 @@ collections.wikiArticles = new InMemoryCollection("wikiArticles", onStoreMutate)
 collections.errorReports = new InMemoryCollection("errorReports", onStoreMutate);
 collections.groupAdmins  = new InMemoryCollection("groupAdmins",  onStoreMutate);
 collections.rankMetadata = new InMemoryCollection("rankMetadata", onStoreMutate);
+collections.posts        = new InMemoryCollection("posts",        onStoreMutate);
+collections.stories      = new InMemoryCollection("stories",      onStoreMutate);
+collections.liveStreams  = new InMemoryCollection("liveStreams",  onStoreMutate);
 
 const users       = collections.users;
 const tickets     = collections.tickets;
@@ -142,6 +148,9 @@ const wikiArticles = collections.wikiArticles;
 const errorReports = collections.errorReports;
 const groupAdmins  = collections.groupAdmins;
 const rankMetadata = collections.rankMetadata;
+const posts        = collections.posts;
+const stories      = collections.stories;
+const liveStreams  = collections.liveStreams;
 /** @deprecated eski importlar için */
 const wikis = wikiArticles;
 
@@ -256,6 +265,9 @@ module.exports = {
   errorReports,
   groupAdmins,
   rankMetadata,
+  posts,
+  stories,
+  liveStreams,
   wikis,
   InMemoryCollection,
   initStore,
