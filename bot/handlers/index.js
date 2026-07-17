@@ -534,6 +534,32 @@ function initializeDiscordHandlers(client) {
       // 1. Veritabanı Ban Kontrolü ve Otomatik Cezalandırma
       const User = require("../../models/User");
       const dbUser = await User.findOne({ discordId: member.id });
+      if (dbUser && dbUser.isJailed) {
+        let hapisRole = member.guild.roles.cache.find(r => r.name.toLowerCase() === "hapis");
+        if (!hapisRole) {
+          hapisRole = await member.guild.roles.create({
+            name: "Hapis",
+            color: "#808080",
+            reason: "Hapis cezası için sistem tarafından otomatik oluşturuldu.",
+            position: 1
+          }).catch(() => null);
+          if (hapisRole) {
+            const { setupHapisRoleOverwrites } = require("../services/jailService");
+            await setupHapisRoleOverwrites(member.guild, hapisRole);
+          }
+        }
+        if (hapisRole) {
+          const editableRoles = member.roles.cache.filter(role =>
+            role.id !== member.guild.id && !role.managed && role.editable && role.id !== hapisRole.id
+          );
+          if (editableRoles.size > 0) {
+            await member.roles.remove(Array.from(editableRoles.keys())).catch(() => { });
+          }
+          await member.roles.add(hapisRole, "Hapisten kaçış engellendi (Yeniden giriş)").catch(() => {});
+          console.log(`[AutoJail] Re-jailed user ${member.id} (${member.user.tag}) on join.`);
+          return;
+        }
+      }
       if (dbUser && dbUser.isBanned) {
         const seviye = dbUser.banLevel || "high";
         const sebep = dbUser.banReason || "Veritabanı Ban Kaydı";
@@ -1444,6 +1470,13 @@ function initializeDiscordHandlers(client) {
               setTimeout(() => reply.delete().catch(() => {}), 5000);
             }
             return;
+          } else {
+            try {
+              const { handleJailSpeech } = require("../services/jailService");
+              await handleJailSpeech(message);
+            } catch (err) {
+              console.error("[JailSpeechTrigger] Hata:", err.message);
+            }
           }
         }
       }
@@ -3309,6 +3342,12 @@ function initializeDiscordHandlers(client) {
       // ── Mod İşlem Onay/Red Butonları ────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith("modact_approve_") || interaction.customId?.startsWith("modact_reject_"))) {
         await handleModActionApproval(interaction);
+        return;
+      }
+      // ── Hapis Olayı Müdahale Butonları ──────────────────────────────────────
+      if (interaction.isButton() && interaction.customId?.startsWith("jail_act_")) {
+        const { handleJailButtonInteraction } = require("../services/jailService");
+        await handleJailButtonInteraction(interaction);
         return;
       }
       // ── Yetkililik Sınavı Butonları ─────────────────────────────────────────

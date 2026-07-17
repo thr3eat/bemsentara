@@ -1,30 +1,49 @@
 'use strict';
 
-const { EmbedBuilder, ChannelType } = require("discord.js");
+const { EmbedBuilder, ChannelType, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const User = require("../../models/User");
 
+const MODISLEM_ROLE_ID = "1518692389169135666";
+const JOP_LOG_CHANNEL_ID = "1521502699324178492";
+
+// In-memory active jail incidents
+const activeIncidents = new Map();
+
 /**
- * Configure the Hapis role permissions on all categories.
- * Denies viewing all categories except 1521501154339586078.
+ * Configure the Hapis role permissions on all channels.
+ * Denies viewing all channels except jail category 1521501154339586078 and its children.
  */
 async function setupHapisRoleOverwrites(guild, hapisRole) {
   for (const channel of guild.channels.cache.values()) {
-    if (channel.type === ChannelType.GuildCategory) {
-      try {
-        if (channel.id === "1521501154339586078") {
+    try {
+      const isJailCategory = channel.id === "1521501154339586078";
+      const isJailChannel = channel.parentId === "1521501154339586078";
+      
+      if (isJailCategory || isJailChannel) {
+        // Allow View and Send in jail category/channel
+        const existing = channel.permissionOverwrites.cache.get(hapisRole.id);
+        const hasCorrectPerms = existing && 
+          existing.allow.has(PermissionFlagsBits.ViewChannel) && 
+          existing.allow.has(PermissionFlagsBits.SendMessages);
+        if (!hasCorrectPerms) {
           await channel.permissionOverwrites.create(hapisRole, {
             ViewChannel: true,
             SendMessages: true,
             ReadMessageHistory: true
-          }, { reason: "Hapis kategorisi izni" }).catch(() => {});
-        } else {
+          }, { reason: "Hapis kategorisi/kanalı izni" }).catch(() => {});
+        }
+      } else {
+        // Deny ViewChannel on all other channels/categories
+        const existing = channel.permissionOverwrites.cache.get(hapisRole.id);
+        const isDenied = existing && existing.deny.has(PermissionFlagsBits.ViewChannel);
+        if (!isDenied) {
           await channel.permissionOverwrites.create(hapisRole, {
             ViewChannel: false
           }, { reason: "Hapis cezalı erişim engeli" }).catch(() => {});
         }
-      } catch (err) {
-        console.warn(`[JailService] Override set error for category ${channel.name}:`, err.message);
       }
+    } catch (err) {
+      console.warn(`[JailService] Override set error for channel ${channel.name}:`, err.message);
     }
   }
 }
@@ -51,12 +70,12 @@ async function jailUser(client, guild, userId, reason, durationMinutes, moderato
         reason: "Hapis cezası için sistem tarafından otomatik oluşturuldu.",
         position: 1
       }).catch(() => null);
-      if (hapisRole) {
-        await setupHapisRoleOverwrites(guild, hapisRole);
-      }
     }
 
     if (!hapisRole) return false;
+
+    // Always sync permission overwrites to cover any recently created channels
+    await setupHapisRoleOverwrites(guild, hapisRole);
 
     // Save current roles (excluding managed/everyone/hapis role and roles higher than bot) and strip them
     const botHighestRole = guild.members.me.roles.highest;
@@ -183,9 +202,275 @@ function startJailScheduler(client) {
   }, 30000);
 }
 
+/**
+ * Fetch online or idle moderators to assign guards.
+ */
+async function getOnlineMods(guild, excludeIds = []) {
+  const modRole = guild.roles.cache.get(MODISLEM_ROLE_ID);
+  if (!modRole) return [];
+  
+  try {
+    await guild.members.fetch().catch(() => {});
+  } catch (err) {
+    console.warn("[JailService] Failed to fetch members:", err.message);
+  }
+  
+  const onlineMods = modRole.members.filter(member => {
+    if (member.user.bot) return false;
+    if (excludeIds.includes(member.user.id)) return false;
+    
+    const presence = member.presence?.status;
+    if (presence) {
+      return ["online", "idle", "dnd"].includes(presence);
+    }
+    return true; // fallback to considering active if presence details are cached or not available
+  });
+  
+  return Array.from(onlineMods.values());
+}
+
+/**
+ * Handles jailed user speech inside jail category.
+ * Triggers a guard request and starts the rotation process.
+ */
+async function handleJailSpeech(message) {
+  const userId = message.author.id;
+  
+  if (activeIncidents.has(userId)) {
+    return;
+  }
+  
+  const guild = message.guild;
+  const logChannel = guild.channels.cache.get(JOP_LOG_CHANNEL_ID);
+  if (!logChannel || !logChannel.isTextBased()) return;
+  
+  const availableMods = await getOnlineMods(guild);
+  let assignedMod = null;
+  if (availableMods.length > 0) {
+    assignedMod = availableMods[Math.floor(Math.random() * availableMods.length)];
+  }
+  
+  const assignedModId = assignedMod ? assignedMod.id : null;
+  const incidentId = `jailincident_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  
+  const embed = new EmbedBuilder()
+    .setTitle("🚨 HAPİSHANEDE TAŞKINLIK KONTROLÜ")
+    .setColor(0xe74c3c)
+    .setDescription(`🔒 <@${userId}> isimli mahkum zindanda gürültü yapıyor / konuşuyor!\n\n**Gönderdiği Mesaj:**\n\`\`\`${message.content.slice(0, 500)}\`\`\``)
+    .addFields(
+      { name: "👮 Nöbetçi Gardiyan", value: assignedModId ? `<@${assignedModId}>` : "@here (Boşta Gardiyan Yok!)", inline: true },
+      { name: "⏳ Müdahale Süresi", value: "5 Dakika (Müdahale edilmezse görev devredilir!)", inline: true }
+    )
+    .setTimestamp();
+    
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`jail_act_jopla_${userId}_${incidentId}`)
+      .setLabel("💥 JOPLA! (5 dk Sustur)")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`jail_act_hucre_${userId}_${incidentId}`)
+      .setLabel("⛓️ HÜCRE HAPSİ (15 dk Sustur)")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`jail_act_sure_${userId}_${incidentId}`)
+      .setLabel("⏳ SÜRE UZAT (+30 dk)")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`jail_act_kirbac_${userId}_${incidentId}`)
+      .setLabel("⚡ KIRBAÇLA (2 dk Sustur)")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`jail_act_tahliye_${userId}_${incidentId}`)
+      .setLabel("🔓 TAHLİYE ET")
+      .setStyle(ButtonStyle.Success)
+  );
+  
+  const pingContent = assignedModId ? `<@${assignedModId}>` : `<@&${MODISLEM_ROLE_ID}>`;
+  const alertMsg = await logChannel.send({ content: `⚠️ **Gardiyan Çağrısı!** ${pingContent}`, embeds: [embed], components: [row] }).catch(() => null);
+  if (!alertMsg) return;
+  
+  const timer = setTimeout(() => {
+    rotateIncidentMod(guild.id, userId, incidentId);
+  }, 5 * 60 * 1000);
+  
+  activeIncidents.set(userId, {
+    id: incidentId,
+    jailedUserId: userId,
+    jailedUserTag: message.author.tag,
+    channelId: message.channel.id,
+    guildId: guild.id,
+    messageId: alertMsg.id,
+    assignedModId: assignedModId,
+    previousModIds: assignedModId ? [assignedModId] : [],
+    createdAt: Date.now(),
+    timer: timer
+  });
+}
+
+/**
+ * Escalate incident by assigning it to another moderator if the current one has not acted.
+ */
+async function rotateIncidentMod(guildId, userId, incidentId) {
+  const incident = activeIncidents.get(userId);
+  if (!incident || incident.id !== incidentId) return;
+  
+  const { getDiscordClient } = require("../discordClient");
+  const client = getDiscordClient();
+  const guild = client ? client.guilds.cache.get(guildId) : null;
+  if (!guild) return;
+  
+  const logChannel = guild.channels.cache.get(JOP_LOG_CHANNEL_ID);
+  if (!logChannel) return;
+  
+  const alertMsg = await logChannel.messages.fetch(incident.messageId).catch(() => null);
+  if (!alertMsg) return;
+  
+  const availableMods = await getOnlineMods(guild, incident.previousModIds);
+  let newAssignedMod = null;
+  if (availableMods.length > 0) {
+    newAssignedMod = availableMods[Math.floor(Math.random() * availableMods.length)];
+  }
+  
+  const oldModId = incident.assignedModId;
+  const newModId = newAssignedMod ? newAssignedMod.id : null;
+  
+  incident.assignedModId = newModId;
+  if (newModId) {
+    incident.previousModIds.push(newModId);
+  }
+  
+  const oldEmbed = alertMsg.embeds[0];
+  const newEmbed = EmbedBuilder.from(oldEmbed)
+    .setDescription(
+      `🔒 <@${userId}> isimli mahkum zindanda gürültü yapmaya devam ediyor!\n\n` +
+      `⏰ <@${oldModId}> 5 dakika içinde müdahale etmediği için görev başka bir gardiyana devredildi.`
+    )
+    .setFields(
+      { name: "👮 Nöbetçi Gardiyan (Yeni)", value: newModId ? `<@${newModId}>` : "@here (Başka Aktif Gardiyan Yok!)", inline: true },
+      { name: "⏳ Müdahale Süresi", value: "5 Dakika (Görev tekrar devredilebilir!)", inline: true }
+    );
+    
+  const pingContent = newModId ? `<@${newModId}>` : `<@&${MODISLEM_ROLE_ID}>`;
+  await alertMsg.edit({
+    content: `⚠️ **Gardiyan Nöbet Değişimi!** ${pingContent}`,
+    embeds: [newEmbed]
+  }).catch(() => {});
+  
+  clearTimeout(incident.timer);
+  incident.timer = setTimeout(() => {
+    rotateIncidentMod(guildId, userId, incidentId);
+  }, 5 * 60 * 1000);
+}
+
+/**
+ * Handles clicks on the jail action buttons.
+ */
+async function handleJailButtonInteraction(interaction) {
+  const customId = interaction.customId;
+  if (!customId.startsWith("jail_act_")) return;
+  
+  const parts = customId.split("_");
+  const action = parts[2];
+  const targetUserId = parts[3];
+  const incidentId = parts[4];
+  
+  const guild = interaction.guild;
+  const clicker = interaction.member;
+  
+  const hasModRole = clicker.roles.cache.has(MODISLEM_ROLE_ID);
+  const isAdmin = clicker.permissions.has(PermissionFlagsBits.Administrator);
+  if (!hasModRole && !isAdmin) {
+    return interaction.reply({
+      content: "❌ **Dur orada!** Bu zindanın gardiyanı değilsiniz. Hücre işlerine karışırsanız sizi de içeri tıkarız! 🏹",
+      ephemeral: true
+    });
+  }
+  
+  const incident = activeIncidents.get(targetUserId);
+  if (!incident || incident.id !== incidentId) {
+    await interaction.update({ components: [] }).catch(() => {});
+    return interaction.followUp({
+      content: "❌ Bu olaya zaten müdahale edilmiş veya süresi geçmiş.",
+      ephemeral: true
+    });
+  }
+  
+  clearTimeout(incident.timer);
+  activeIncidents.delete(targetUserId);
+  
+  const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+  const logEmbed = EmbedBuilder.from(interaction.message.embeds[0]);
+  let actionResultText = "";
+  let jailChannelMessage = "";
+  
+  const dbUser = await User.findOne({ discordId: targetUserId });
+  
+  if (action === "jopla") {
+    if (targetMember) {
+      await targetMember.timeout(5 * 60 * 1000, `Jopla: Gardiyan ${interaction.user.tag} tarafından hücrede taşkınlık yaptığı için joplandı.`).catch(() => {});
+    }
+    actionResultText = `💥 **JOPLANDI!**\nGardiyan <@${interaction.user.id}> mahkuma jopla müdahale etti. (5 dk susturuldu)`;
+    jailChannelMessage = `💥 **JOPLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından kafasına jop vurularak susturuldu!\n\n*\"Burası babanın çiftliği değil, sesini kes yoksa daha kötüsü olur!\"* diyerek zindanın karanlık köşesine geri fırlatıldı. 🛡️`;
+  } 
+  else if (action === "hucre") {
+    if (targetMember) {
+      await targetMember.timeout(15 * 60 * 1000, `Hücre Hapsi: Gardiyan ${interaction.user.tag} tarafından hücreye kapatıldı.`).catch(() => {});
+    }
+    actionResultText = `⛓️ **HÜCRE HAPSİ!**\nGardiyan <@${interaction.user.id}> mahkumu tek kişilik hücreye kapattı. (15 dk susturuldu)`;
+    jailChannelMessage = `⛓️ **TEK KİŞİLİK HÜCRE HAPSİ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından yaka paça karanlık, rutubetli tek kişilik hücreye sürüklendi ve kapı üzerine kilitlendi!\n\n*\"15 dakika boyunca o zifiri karanlıkta tek başına düşün de aklın başına gelsin!\"* diyerek gardiyan zindandan ayrıldı. 🗝️`;
+  } 
+  else if (action === "sure") {
+    if (dbUser && dbUser.isJailed) {
+      const currentEnd = dbUser.jailedUntil ? new Date(dbUser.jailedUntil).getTime() : Date.now();
+      dbUser.jailedUntil = new Date(currentEnd + 30 * 60 * 1000);
+      await dbUser.save();
+      const { saveStoreNow } = require("../../models/Store");
+      saveStoreNow();
+    }
+    actionResultText = `⏳ **SÜRE UZATILDI!**\nGardiyan <@${interaction.user.id}> mahkumun cezasını 30 dakika uzattı.`;
+    jailChannelMessage = `⏳ **CEZA SÜRESİ UZATILDI!**\n\n<@${targetUserId}> zindanda isyan çıkardığı ve huzursuzluk yarattığı için Gardiyan <@${interaction.user.id}> tarafından cezası **30 dakika** uzatıldı!\n\n*\"Zindandan o kadar kolay çıkamazsın, aklını başına devşirene kadar buradasın!\"* 📜`;
+  } 
+  else if (action === "kirbac") {
+    if (targetMember) {
+      await targetMember.timeout(2 * 60 * 1000, `Kırbaçlama: Gardiyan ${interaction.user.tag} tarafından kırbaçlandı.`).catch(() => {});
+    }
+    actionResultText = `⚡ **KIRBAÇLANDI!**\nGardiyan <@${interaction.user.id}> mahkumu kırbaçladı. (2 dk susturuldu)`;
+    jailChannelMessage = `⚡ **KIRBAÇLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından sert bir şekilde kırbaçlandı!\n\n*\"Zindanda gürültü yapmanın bedeli ağırdır! Bir daha sesini duyarsam fena olur!\"* diyerek gardiyan kırbacını temizledi. 🩸`;
+  } 
+  else if (action === "tahliye") {
+    await unjailUser(interaction.client, guild, targetUserId);
+    actionResultText = `🔓 **TAHLİYE EDİLDİ!**\nGardiyan <@${interaction.user.id}> mahkumu tahliye etti.`;
+    jailChannelMessage = `🔓 **TAHLİYE EDİLDİNİZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> merhamet göstererek sizi zindandan tahliye etti. Eski haklarınız iade edildi.\n\n*\"Hadi yine iyisin, temiz havaya çık ve bir daha buralarda yaramazlık yapma!\"* 🌅`;
+  }
+
+  logEmbed
+    .setTitle("✅ MÜDAHALE EDİLDİ")
+    .setColor(0x2ecc71)
+    .setDescription(
+      `🔒 <@${targetUserId}> isimli mahkumun taşkınlığına müdahale edildi.\n\n` +
+      `**Müdahale Eden Gardiyan:** <@${interaction.user.id}>\n` +
+      `**Uygulanan Eylem:** ${actionResultText}`
+    )
+    .setFields([]);
+
+  await interaction.update({
+    content: `✅ Olay Gardiyan <@${interaction.user.id}> tarafından çözüldü.`,
+    embeds: [logEmbed],
+    components: []
+  }).catch(() => {});
+  
+  const jailChannel = guild.channels.cache.get(incident.channelId);
+  if (jailChannel && jailChannel.isTextBased()) {
+    await jailChannel.send({ content: jailChannelMessage }).catch(() => {});
+  }
+}
+
 module.exports = {
   jailUser,
   unjailUser,
   startJailScheduler,
-  setupHapisRoleOverwrites
+  setupHapisRoleOverwrites,
+  handleJailSpeech,
+  handleJailButtonInteraction
 };

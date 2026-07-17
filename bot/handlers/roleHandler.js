@@ -108,6 +108,12 @@ async function runSyncForMember(interaction, { ephemeral = true, commandName = "
 
   const dbUser = await findUserByDiscordId(user.id);
 
+  if (dbUser && dbUser.isJailed) {
+    return interaction.reply(
+      replyEphemeral("❌ Hapiste olduğunuz için rollerinizi güncelleyemezsiniz veya senkronize edemezsiniz!")
+    );
+  }
+
   if (!hasRobloxLink(dbUser)) {
     const authUrl = `${BASE_URL}/auth/authorize?discordId=${user.id}`;
     logUpdate(interaction, { commandName, dbUser, notLinked: true });
