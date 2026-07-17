@@ -797,11 +797,17 @@ async function handleMessageCreateAbuse(client, message) {
   // 2. Reklam/Invite Link Check
   const hasInviteLink = /(discord\.(gg|io|me|li)\/.+|discord(app)?\.com\/invite\/.+)/i.test(message.content);
   if (hasInviteLink) {
-    const exceeded = trackAction(message.guild.id, message.author.id, "REKLAM");
-    if (exceeded) {
+    try {
+      await message.delete().catch(() => {});
+      if (message.member && message.member.moderatable) {
+        await message.member.timeout(24 * 60 * 60 * 1000, "Otomod: Reklam linki paylaşıldı.").catch(() => {});
+        await message.author.send("⚠️ **UYARI:** Sunucuda reklam / davet linki paylaşmak yasaktır. Mesajınız silindi ve 24 saat susturuldunuz.").catch(() => {});
+      }
       isAbuse = true;
       type = "REKLAM";
-      detailLines.push("• Reklam/Davet linki spamı tespit edildi.");
+      detailLines.push("• Reklam/Davet linki tespit edildi. Mesaj silindi ve kullanıcıya 24 saat timeout uygulandı.");
+    } catch (err) {
+      console.error("[discordAbuseDetector] Reklam timeout error:", err.message);
     }
   }
 

@@ -1920,6 +1920,15 @@ function initializeDiscordHandlers(client) {
         console.error('[messageCreate] Investigation DM sync error:', err.message);
       }
 
+      // Jail Sorgu Sistemi cevabı mı?
+      try {
+        const { routeInterrogationDM } = require('../services/interrogationService');
+        const handled = await routeInterrogationDM(message);
+        if (handled) return;
+      } catch (err) {
+        console.error('[messageCreate] Interrogation DM sync error:', err.message);
+      }
+
       // Avukat Mülakatı cevabı mı?
       try {
         const { handleAvukatDMReply } = require('../services/avukatService');
@@ -2266,6 +2275,17 @@ function initializeDiscordHandlers(client) {
         if (forwarded) return;
       } catch (err) {
         console.warn('[messageCreate] forwardModToUserChannel hata:', err.message);
+      }
+    }
+
+    // ── sorgu- veya sorusturma- kanalından yetkili/avukat mesajını kullanıcının DM'sine ilet ──
+    if ((message.channel.name?.startsWith('sorgu-') || message.channel.name?.startsWith('sorusturma-')) && !message.author.bot) {
+      try {
+        const { routeInterrogationChannelMessage } = require('../services/interrogationService');
+        const handled = await routeInterrogationChannelMessage(message);
+        if (handled) return;
+      } catch (err) {
+        console.warn('[messageCreate] Interrogation Channel routing error:', err.message);
       }
     }
 
@@ -3348,6 +3368,31 @@ function initializeDiscordHandlers(client) {
       if (interaction.isButton() && interaction.customId?.startsWith("jail_act_")) {
         const { handleJailButtonInteraction } = require("../services/jailService");
         await handleJailButtonInteraction(interaction);
+        return;
+      }
+      // ── Hapis Sorgu ve Avukat Sistemi ──────────────────────────────────────
+      if (interaction.isButton() && (
+        interaction.customId?.startsWith('jail_sorgula_') ||
+        interaction.customId?.startsWith('avukat_accept_') ||
+        interaction.customId?.startsWith('interrogation_convert_') ||
+        interaction.customId?.startsWith('interrogation_close_')
+      )) {
+        const {
+          handleSorgulaButton,
+          handleLawyerAcceptButton,
+          handleConvertInvestigationButton,
+          handleCloseInterrogationButton
+        } = require("../services/interrogationService");
+
+        if (interaction.customId.startsWith('jail_sorgula_')) {
+          await handleSorgulaButton(interaction);
+        } else if (interaction.customId.startsWith('avukat_accept_')) {
+          await handleLawyerAcceptButton(interaction);
+        } else if (interaction.customId.startsWith('interrogation_convert_')) {
+          await handleConvertInvestigationButton(interaction);
+        } else if (interaction.customId.startsWith('interrogation_close_')) {
+          await handleCloseInterrogationButton(interaction);
+        }
         return;
       }
       // ── Yetkililik Sınavı Butonları ─────────────────────────────────────────

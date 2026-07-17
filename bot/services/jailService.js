@@ -4,7 +4,8 @@ const { EmbedBuilder, ChannelType, PermissionFlagsBits, ActionRowBuilder, Button
 const User = require("../../models/User");
 
 const MODISLEM_ROLE_ID = "1518692389169135666";
-const JOP_LOG_CHANNEL_ID = "1521502699324178492";
+const JOP_LOG_CHANNEL_ID = "1527752485261934652";
+const JAIL_LOG_CHANNEL_ID = "1527752485261934652";
 
 // In-memory active jail incidents
 const activeIncidents = new Map();
@@ -21,26 +22,19 @@ async function setupHapisRoleOverwrites(guild, hapisRole) {
       
       if (isJailCategory || isJailChannel) {
         // Allow View and Send in jail category/channel
-        const existing = channel.permissionOverwrites.cache.get(hapisRole.id);
-        const hasCorrectPerms = existing && 
-          existing.allow.has(PermissionFlagsBits.ViewChannel) && 
-          existing.allow.has(PermissionFlagsBits.SendMessages);
-        if (!hasCorrectPerms) {
-          await channel.permissionOverwrites.create(hapisRole, {
-            ViewChannel: true,
-            SendMessages: true,
-            ReadMessageHistory: true
-          }, { reason: "Hapis kategorisi/kanalı izni" }).catch(() => {});
-        }
+        await channel.permissionOverwrites.edit(hapisRole, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true
+        }).catch(() => {});
       } else {
         // Deny ViewChannel on all other channels/categories
-        const existing = channel.permissionOverwrites.cache.get(hapisRole.id);
-        const isDenied = existing && existing.deny.has(PermissionFlagsBits.ViewChannel);
-        if (!isDenied) {
-          await channel.permissionOverwrites.create(hapisRole, {
-            ViewChannel: false
-          }, { reason: "Hapis cezalı erişim engeli" }).catch(() => {});
-        }
+        await channel.permissionOverwrites.edit(hapisRole, {
+          ViewChannel: false,
+          SendMessages: false,
+          Connect: false,
+          Speak: false
+        }).catch(() => {});
       }
     } catch (err) {
       console.warn(`[JailService] Override set error for channel ${channel.name}:`, err.message);
@@ -104,8 +98,8 @@ async function jailUser(client, guild, userId, reason, durationMinutes, moderato
       `Cezanız bittiğinde rolleriniz iade edilecektir.`
     ).catch(() => {});
 
-    // Log in channel 1521502699324178492
-    const logChannel = guild.channels.cache.get("1521502699324178492");
+    // Log in channel 1527752485261934652
+    const logChannel = guild.channels.cache.get(JAIL_LOG_CHANNEL_ID);
     if (logChannel && logChannel.isTextBased()) {
       const logEmbed = new EmbedBuilder()
         .setTitle("🔒 HAPİS CEZASI UYGULANDI")
@@ -117,7 +111,15 @@ async function jailUser(client, guild, userId, reason, durationMinutes, moderato
           { name: "📋 Gerekçe", value: reason, inline: false }
         )
         .setTimestamp();
-      await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`jail_sorgula_${userId}`)
+          .setLabel("🕵️‍♂️ Hapistekini Sorgula")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await logChannel.send({ embeds: [logEmbed], components: [row] }).catch(() => {});
     }
 
     return true;
@@ -162,7 +164,7 @@ async function unjailUser(client, guild, userId) {
     await dbUser.save();
 
     // Log unjail
-    const logChannel = guild.channels.cache.get("1521502699324178492");
+    const logChannel = guild.channels.cache.get(JAIL_LOG_CHANNEL_ID);
     if (logChannel && logChannel.isTextBased()) {
       const logEmbed = new EmbedBuilder()
         .setTitle("🔓 HAPİS SÜRESİ BİTTİ (TAHLİYE)")
@@ -408,17 +410,17 @@ async function handleJailButtonInteraction(interaction) {
   
   if (action === "jopla") {
     if (targetMember) {
-      await targetMember.timeout(5 * 60 * 1000, `Jopla: Gardiyan ${interaction.user.tag} tarafından hücrede taşkınlık yaptığı için joplandı.`).catch(() => {});
+      await targetMember.timeout(5 * 60 * 1000, `Jopla: Gardiyan ${interaction.user.tag} tarafından joplandı.`).catch(() => {});
     }
-    actionResultText = `💥 **JOPLANDI!**\nGardiyan <@${interaction.user.id}> mahkuma jopla müdahale etti. (5 dk susturuldu)`;
-    jailChannelMessage = `💥 **JOPLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından kafasına jop vurularak susturuldu!\n\n*\"Burası babanın çiftliği değil, sesini kes yoksa daha kötüsü olur!\"* diyerek zindanın karanlık köşesine geri fırlatıldı. 🛡️`;
+    actionResultText = `💥 **JOPLANDI!**\nGardiyan <@${interaction.user.id}> mahkuma sert müdahale etti. (5 dk susturuldu)`;
+    jailChannelMessage = `💥 **JOPLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** tarafından coplandı!\n\n*\"Burası babanın çiftliği değil, sesini kes yoksa daha kötüsü olur!\"* diyerek gardiyan sırtına ağır bir cop darbesi indirdi. Nefesin kesildi ve karanlık hücrene geri fırlatıldın. 🛡️`;
   } 
   else if (action === "hucre") {
     if (targetMember) {
       await targetMember.timeout(15 * 60 * 1000, `Hücre Hapsi: Gardiyan ${interaction.user.tag} tarafından hücreye kapatıldı.`).catch(() => {});
     }
     actionResultText = `⛓️ **HÜCRE HAPSİ!**\nGardiyan <@${interaction.user.id}> mahkumu tek kişilik hücreye kapattı. (15 dk susturuldu)`;
-    jailChannelMessage = `⛓️ **TEK KİŞİLİK HÜCRE HAPSİ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından yaka paça karanlık, rutubetli tek kişilik hücreye sürüklendi ve kapı üzerine kilitlendi!\n\n*\"15 dakika boyunca o zifiri karanlıkta tek başına düşün de aklın başına gelsin!\"* diyerek gardiyan zindandan ayrıldı. 🗝️`;
+    jailChannelMessage = `⛓️ **TEK KİŞİLİK HÜCRE HAPSİ!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** tarafından yaka paça karanlık, rutubetli tek kişilik hücreye sürüklendi ve kalın demir kapı üzerine sertçe kilitlendi!\n\n*\"15 dakika boyunca o zifiri karanlıkta tek başına düşün de aklın başına gelsin!\"* diyerek gardiyan zindandan ayrıldı. 🗝️`;
   } 
   else if (action === "sure") {
     if (dbUser && dbUser.isJailed) {
@@ -429,19 +431,19 @@ async function handleJailButtonInteraction(interaction) {
       saveStoreNow();
     }
     actionResultText = `⏳ **SÜRE UZATILDI!**\nGardiyan <@${interaction.user.id}> mahkumun cezasını 30 dakika uzattı.`;
-    jailChannelMessage = `⏳ **CEZA SÜRESİ UZATILDI!**\n\n<@${targetUserId}> zindanda isyan çıkardığı ve huzursuzluk yarattığı için Gardiyan <@${interaction.user.id}> tarafından cezası **30 dakika** uzatıldı!\n\n*\"Zindandan o kadar kolay çıkamazsın, aklını başına devşirene kadar buradasın!\"* 📜`;
+    jailChannelMessage = `⏳ **CEZA SÜRESİ UZATILDI!**\n\n<@${targetUserId}> zindanda isyan çıkardığı ve huzursuzluk yarattığı için Gardiyan **${interaction.user.tag}** tarafından cezası **30 dakika** daha uzatıldı!\n\n*\"Zindandan o kadar kolay çıkamazsın, aklını başına devşirene kadar buradasın!\"* 📜`;
   } 
   else if (action === "kirbac") {
     if (targetMember) {
       await targetMember.timeout(2 * 60 * 1000, `Kırbaçlama: Gardiyan ${interaction.user.tag} tarafından kırbaçlandı.`).catch(() => {});
     }
     actionResultText = `⚡ **KIRBAÇLANDI!**\nGardiyan <@${interaction.user.id}> mahkumu kırbaçladı. (2 dk susturuldu)`;
-    jailChannelMessage = `⚡ **KIRBAÇLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> tarafından sert bir şekilde kırbaçlandı!\n\n*\"Zindanda gürültü yapmanın bedeli ağırdır! Bir daha sesini duyarsam fena olur!\"* diyerek gardiyan kırbacını temizledi. 🩸`;
+    jailChannelMessage = `⚡ **KIRBAÇLANDINIZ!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** tarafından acımasızca kırbaçlandı!\n\nŞırak! *\"Zindanda gürültü yapmanın bedeli ağırdır! Bir daha sesini duyarsam fena olur!\"* diyerek gardiyan kırbacını temizledi. Kanın yere damladığını hissediyorsun... 🩸`;
   } 
   else if (action === "tahliye") {
     await unjailUser(interaction.client, guild, targetUserId);
     actionResultText = `🔓 **TAHLİYE EDİLDİ!**\nGardiyan <@${interaction.user.id}> mahkumu tahliye etti.`;
-    jailChannelMessage = `🔓 **TAHLİYE EDİLDİNİZ!**\n\n<@${targetUserId}>, Gardiyan <@${interaction.user.id}> merhamet göstererek sizi zindandan tahliye etti. Eski haklarınız iade edildi.\n\n*\"Hadi yine iyisin, temiz havaya çık ve bir daha buralarda yaramazlık yapma!\"* 🌅`;
+    jailChannelMessage = `🔓 **TAHLİYE EDİLDİNİZ!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** merhamet göstererek sizi zindandan tahliye etti. Ağır zindan kapıları aralandı.\n\n*\"Hadi yine iyisin, temiz havaya çık ve bir daha buralarda yaramazlık yapma!\"* 🌅`;
   }
 
   logEmbed
