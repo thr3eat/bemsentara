@@ -255,7 +255,11 @@ async function sendSchoolReminderOffer(userId, client) {
       new ButtonBuilder()
         .setCustomId('school_reminder_reject')
         .setLabel('HAYIR, ŞİMDİ DEĞİL')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('school_force_complete_all')
+        .setLabel('Hızlı Mezun Ol (Eğitimi ve Sınavı Atla) 🚀')
+        .setStyle(ButtonStyle.Secondary)
     );
 
     await user.send({ embeds: [embed], components: [row] }).catch(() => {});
@@ -743,6 +747,73 @@ async function handleSchoolButtons(interaction, client) {
       }
     } catch (err) {
       logger.error('[ModeratorSchool] graduation exam start failed:', err.message);
+    }
+    return;
+  }
+
+  if (customId === 'school_force_complete_all') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: '🚀 Eğitimi ve sınavı zorla tamamlayarak mezuniyet sürecin başlatılıyor...', embeds: [], components: [] }).catch(() => { });
+    
+    try {
+      await graduateStudent(userId, 'Zorla Mezuniyet (Hatırlatıcı Üzerinden)', client, { score: 100, reason: 'Eğitimi ve sınav sorularını zorla atlatarak başarıyla tamamladı.' });
+      const userObj = await client.users.fetch(userId).catch(() => null);
+      if (userObj) {
+        await userObj.send({
+          content: '🎉 Tebrikler! Eğitimi ve sınav sorularını başarıyla atlatarak okuldan mezun edildiniz! Ana sunucuya gidip `/verify` komutunu kullanarak yetkili rollerinizi alabilirsiniz. 💕'
+        }).catch(() => { });
+      }
+    } catch (err) {
+      logger.error('[ModeratorSchool] force complete all failed:', err.message);
+    }
+    return;
+  }
+
+  if (customId === 'school_training_skip_all') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: '⏭️ Eğitim dökümanları atlanarak doğrudan sınava sevk ediliyorsun...', embeds: [], components: [] }).catch(() => { });
+    
+    let session = activeTrainings.get(userId);
+    let phase = 1;
+    if (session) {
+      phase = session.phase;
+      activeTrainings.delete(userId);
+      await deleteTrainingFromDB(userId).catch(() => {});
+    } else {
+      const p = await StaffProgress.findOne({ userId });
+      if (p && p.schoolSystem) {
+        phase = p.schoolSystem.phase || 1;
+      }
+    }
+    await finishPhase(userId, phase, client);
+    return;
+  }
+
+  if (customId === 'school_exam_skip_all') {
+    await interaction.deferUpdate().catch(() => { });
+    await interaction.editReply({ content: '⏭️ Sınav soruları atlanıyor ve otomatik olarak değerlendiriliyor...', embeds: [], components: [] }).catch(() => { });
+    
+    let session = activeExams.get(userId);
+    if (!session) {
+      const SchoolSession = require('../../models/SchoolSession');
+      const dbSession = await SchoolSession.findOne({ userId }).catch(() => null);
+      if (dbSession && dbSession.exam && dbSession.exam.phase !== undefined) {
+        session = {
+          questionIndex: dbSession.exam.questionIndex,
+          answers: dbSession.exam.answers,
+          phase: dbSession.exam.phase,
+          questions: dbSession.exam.questions,
+        };
+        activeExams.set(userId, session);
+      }
+    }
+    if (session) {
+      while (session.answers.length < session.questions.length) {
+        session.answers.push("Hızlı Geçiş ile Atlandı");
+      }
+      session.questionIndex = session.questions.length;
+      await saveExamToDB(userId, session).catch(() => {});
+      await askExamQuestion(userId, client);
     }
     return;
   }
@@ -1339,7 +1410,11 @@ async function sendTrainingBlock(userId, client) {
             new ButtonBuilder()
               .setCustomId('school_understand_not_ok')
               .setLabel('ANLAMADIM')
-              .setStyle(ButtonStyle.Danger)
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId('school_training_skip_all')
+              .setLabel('Eğitimi Zorla Tamamla ⏭️')
+              .setStyle(ButtonStyle.Secondary)
           );
 
           await user.send({ embeds: [askEmbed], components: [row] });
@@ -1599,8 +1674,21 @@ async function askExamQuestion(userId, client) {
     const questions = session.questions;
 
     if (session.questionIndex < questions.length) {
+      const qEmbed = new EmbedBuilder()
+        .setThumbnail(getSelinImage()).setColor(0xff75a0)
+        .setTitle(`🌸 Soru ${session.questionIndex + 1}:`)
+        .setDescription(questions[session.questionIndex]);
+
+      const qRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('school_exam_skip_all')
+          .setLabel('Soruları Atla & Hızlı Bitir ⏭️')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
       await user.send({
-        content: `🌸 **Soru ${session.questionIndex + 1}:** ${questions[session.questionIndex]}`
+        embeds: [qEmbed],
+        components: [qRow]
       });
 
       // Inactivity timeout (10 minutes)
