@@ -675,7 +675,7 @@ router.post("/api/auth/bot-verify-code", async (req, res) => {
       null,
       {
         params: {
-          secret: "6LfdbVgtAAAAAD-7iW5Cc8bEgIRjwQt5oyQ_kBta",
+          secret: "6Lc6gFgtAAAAABSjLHMiS35uw_Y1ze6zeWLlSj1u",
           response: captchaToken,
         },
       }
@@ -842,7 +842,7 @@ router.get("/verify", async (req, res) => {
             <input type="text" id="code" class="input-field" placeholder="Doğrulama Kodu" maxlength="6" value="${code || ''}" required>
             
             <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
-              <div class="g-recaptcha" data-sitekey="6LfdbVgtAAAAAImZR_e9BbJWRRMAt3F3zAU7uirC" data-theme="dark"></div>
+              <div class="g-recaptcha" data-sitekey="6Lc6gFgtAAAAAH5r3_X-o6zQone_H-0GEN8eoOfq" data-theme="dark"></div>
             </div>
             
             <button type="submit" id="btn-submit" class="btn">Doğrula ve Başlat</button>
