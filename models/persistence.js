@@ -83,6 +83,9 @@ function flushSave(collections) {
       errorReports: serializeMap(collections.errorReports.data),
       groupAdmins: serializeMap(collections.groupAdmins.data),
       rankMetadata: serializeMap(collections.rankMetadata.data),
+      posts: serializeMap(collections.posts.data),
+      stories: serializeMap(collections.stories.data),
+      liveStreams: serializeMap(collections.liveStreams.data),
     };
     const tmp = `${STORE_FILE}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
@@ -148,6 +151,9 @@ function loadIntoCollections(collections) {
     errorReports: hydrateCollection(collections.errorReports, saved.errorReports),
     groupAdmins: hydrateCollection(collections.groupAdmins, saved.groupAdmins),
     rankMetadata: hydrateCollection(collections.rankMetadata, saved.rankMetadata),
+    posts: hydrateCollection(collections.posts, saved.posts),
+    stories: hydrateCollection(collections.stories, saved.stories),
+    liveStreams: hydrateCollection(collections.liveStreams, saved.liveStreams),
   };
 
   migrateLegacyWikis(collections, saved);

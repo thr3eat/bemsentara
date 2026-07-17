@@ -5983,6 +5983,7 @@ function renderSocialPage(user) {
     </div>
 
     <script>
+      const MY_DISCORD_ID = ${JSON.stringify(user.discordId)};
       let currentFeed = [];
       let currentStories = [];
       let activeStream = null;
@@ -6017,12 +6018,11 @@ function renderSocialPage(user) {
           item.className = 'story-item';
           item.onclick = () => viewStoryGroup(gIdx);
           
-          item.innerHTML = \`
-            <div class="story-circle">
-              <img class="story-img" src="\\\${g.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}">
-            </div>
-            <div class="story-name">\\\${g.userName}</div>
-          \`;
+          item.innerHTML = 
+            '<div class="story-circle">' +
+              '<img class="story-img" src="' + (g.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '">' +
+            '</div>' +
+            '<div class="story-name">' + g.userName + '</div>';
           tray.appendChild(item);
         });
       }
@@ -6159,7 +6159,7 @@ function renderSocialPage(user) {
 
       async function toggleLike(postId, el) {
         try {
-          const res = await fetch(\`/api/social/posts/\\\${postId}/like\`, { method: 'POST' });
+          const res = await fetch('/api/social/posts/' + postId + '/like', { method: 'POST' });
           const d = await res.json();
           if (d.success) {
             const countSpan = el.querySelector('.like-count');
@@ -6174,7 +6174,7 @@ function renderSocialPage(user) {
       }
 
       function toggleComments(postId) {
-        const box = document.getElementById(\`comments-box-\\\${postId}\`);
+        const box = document.getElementById('comments-box-' + postId);
         if (box.style.display === 'none') {
           box.style.display = 'block';
         } else {
@@ -6183,12 +6183,12 @@ function renderSocialPage(user) {
       }
 
       async function addComment(postId) {
-        const input = document.getElementById(\`comment-input-\\\${postId}\`);
+        const input = document.getElementById('comment-input-' + postId);
         const content = input.value.trim();
         if (!content) return;
 
         try {
-          const res = await fetch(\`/api/social/posts/\\\${postId}/comments\`, {
+          const res = await fetch('/api/social/posts/' + postId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
@@ -6202,11 +6202,11 @@ function renderSocialPage(user) {
       }
 
       function showReplyInput(postId, commentId, authorName) {
-        const input = document.getElementById(\`comment-input-\\\${postId}\`);
-        input.value = \`@\\\${authorName} \`;
+        const input = document.getElementById('comment-input-' + postId);
+        input.value = '@' + authorName + ' ';
         input.focus();
         // Change button action temporarily to nested reply
-        const sendBtn = document.getElementById(\`comment-btn-\\\${postId}\`);
+        const sendBtn = document.getElementById('comment-btn-' + postId);
         sendBtn.onclick = () => submitReply(postId, commentId, input);
       }
 
@@ -6214,7 +6214,7 @@ function renderSocialPage(user) {
         const content = input.value.trim();
         if (!content) return;
         try {
-          const res = await fetch(\`/api/social/posts/\\\${postId}/comments/\\\${commentId}/replies\`, {
+          const res = await fetch('/api/social/posts/' + postId + '/comments/' + commentId + '/replies', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
@@ -6222,7 +6222,7 @@ function renderSocialPage(user) {
           if (res.ok) {
             input.value = '';
             // Reset button action
-            const sendBtn = document.getElementById(\`comment-btn-\\\${postId}\`);
+            const sendBtn = document.getElementById('comment-btn-' + postId);
             sendBtn.onclick = () => addComment(postId);
             loadFeed();
           }
@@ -6263,95 +6263,92 @@ function renderSocialPage(user) {
           if (p.repostOf) {
             const orig = currentFeed.find(x => x._id === p.repostOf);
             if (orig) {
-              repostContentHtml = \`
-                <div class="repost-card">
-                  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">
-                    <img src="\\\${orig.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:20px;height:20px;border-radius:50%;">
-                    <strong>\\\${orig.authorUsername || orig.userName}</strong>
-                  </div>
-                  <div class="post-body" style="margin-bottom:0;font-size:0.88rem;">\\\${_esc(orig.content)}</div>
-                </div>
-              \`;
+              repostContentHtml = 
+                '<div class="repost-card">' +
+                  '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">' +
+                    '<img src="' + (orig.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '" style="width:20px;height:20px;border-radius:50%;">' +
+                    '<strong>' + (orig.authorUsername || orig.userName) + '</strong>' +
+                  '</div>' +
+                  '<div class="post-body" style="margin-bottom:0;font-size:0.88rem;">' + _esc(orig.content) + '</div>' +
+                '</div>';
             } else {
-              repostContentHtml = \`<div class="repost-card" style="color:var(--muted);font-size:0.8rem;">[Gönderi silinmiş veya bulunamadı]</div>\`;
+              repostContentHtml = '<div class="repost-card" style="color:var(--muted);font-size:0.8rem;">[Gönderi silinmiş veya bulunamadı]</div>';
             }
           }
 
           const commentsHtml = (p.comments || []).map(c => {
-            const repliesHtml = (c.replies || []).map(r => \`
-              <div class="comment-item" style="margin-bottom: 0.5rem;">
-                <img src="\\\${r.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="comment-avatar" style="width:24px;height:24px;">
-                <div class="comment-content-box">
-                  <div class="comment-bubble" style="padding: 0.4rem 0.6rem;">
-                    <div class="comment-author" style="font-size:0.8rem;">\\\${r.userName}</div>
-                    <div class="comment-text" style="font-size:0.8rem;">\\\${_esc(r.content)}</div>
-                  </div>
-                </div>
-              </div>
-            \`).join('');
+            const repliesHtml = (c.replies || []).map(r => 
+              '<div class="comment-item" style="margin-bottom: 0.5rem;">' +
+                '<img src="' + (r.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '" class="comment-avatar" style="width:24px;height:24px;">' +
+                '<div class="comment-content-box">' +
+                  '<div class="comment-bubble" style="padding: 0.4rem 0.6rem;">' +
+                    '<div class="comment-author" style="font-size:0.8rem;">' + r.userName + '</div>' +
+                    '<div class="comment-text" style="font-size:0.8rem;">' + _esc(r.content) + '</div>' +
+                  '</div>' +
+                '</div>' +
+              '</div>'
+            ).join('');
 
-            return \`
-              <div class="comment-item">
-                <img src="\\\${c.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="comment-avatar">
-                <div class="comment-content-box">
-                  <div class="comment-bubble">
-                    <div class="comment-author">\\\${c.userName}</div>
-                    <div class="comment-text">\\\${_esc(c.content)}</div>
-                  </div>
-                  <div class="comment-meta-row">
-                    <button class="comment-action-btn" onclick="showReplyInput('\\\\\\\${p._id}', '\\\\\\\${c.id}', '\\\\\\\${c.userName}')">Yanıtla</button>
-                  </div>
-                  <div class="replies-list">\\\${repliesHtml}</div>
-                </div>
-              </div>
-            \`;
+            return 
+              '<div class="comment-item">' +
+                '<img src="' + (c.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '" class="comment-avatar">' +
+                '<div class="comment-content-box">' +
+                  '<div class="comment-bubble">' +
+                    '<div class="comment-author">' + c.userName + '</div>' +
+                    '<div class="comment-text">' + _esc(c.content) + '</div>' +
+                  '</div>' +
+                  '<div class="comment-meta-row">' +
+                    '<button class="comment-action-btn" onclick="showReplyInput(\'' + p._id + '\', \'' + c.id + '\', \'' + c.userName + '\')">Yanıtla</button>' +
+                  '</div>' +
+                  '<div class="replies-list">' + repliesHtml + '</div>' +
+                '</div>' +
+              '</div>';
           }).join('');
 
-          const isLiked = p.likes && p.likes.includes(${JSON.stringify(user.discordId)});
+          const isLiked = p.likes && p.likes.includes(MY_DISCORD_ID);
 
-          return \`
-            <div class="card post-card">
-              \\\${p.repostOf ? \`<div style="font-size:0.75rem;color:var(--accent);font-weight:700;margin-bottom:0.5rem;text-align:left;">🔁 \\\${p.repostedBy} Repost Etti</div>\` : ''}
-              <div class="post-header">
-                <img src="\\\${p.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="post-avatar" style="border-color:\\\${p.authorColor}">
-                <div class="post-author-info">
-                  <div class="post-author-name">
-                    \\\${p.authorUsername || p.userName}
-                    \\\${p.authorStatus ? \`<span class="post-author-status">\\\${_esc(p.authorStatus)}</span>\` : ''}
-                  </div>
-                  <div class="post-meta">\\\${timeStr}</div>
-                </div>
-              </div>
+          return 
+            '<div class="card post-card">' +
+              (p.repostOf ? '<div style="font-size:0.75rem;color:var(--accent);font-weight:700;margin-bottom:0.5rem;text-align:left;">🔁 ' + p.repostedBy + ' Repost Etti</div>' : '') +
+              '<div class="post-header">' +
+                '<img src="' + (p.authorAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '" class="post-avatar" style="border-color:' + p.authorColor + '">' +
+                '<div class="post-author-info">' +
+                  '<div class="post-author-name">' +
+                    (p.authorUsername || p.userName) +
+                    (p.authorStatus ? '<span class="post-author-status">' + _esc(p.authorStatus) + '</span>' : '') +
+                  '</div>' +
+                  '<div class="post-meta">' + timeStr + '</div>' +
+                '</div>' +
+              '</div>' +
 
-              \\\${p.repostOf ? repostContentHtml : \`<div class="post-body">\\\${_esc(p.content)}</div>\`}
+              (p.repostOf ? repostContentHtml : '<div class="post-body">' + _esc(p.content) + '</div>') +
 
-              <div class="post-footer">
-                <button class="post-action \\\${isLiked ? 'liked' : ''}" onclick="toggleLike('\\\\\\\${p._id}', this)">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-                  <span class="like-count">\\\${(p.likes || []).length}</span>
-                </button>
-                <button class="post-action" onclick="toggleComments('\\\\\\\${p._id}')">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  <span>\\\${(p.comments || []).length}</span>
-                </button>
-                \\\${!p.repostOf ? \`
-                  <button class="post-action" onclick="repost('\\\\\\\${p._id}')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1v22M3 5h18M3 19h18"/></svg>
-                    <span>Yeniden Paylaş</span>
-                  </button>
-                \` : ''}
-              </div>
+              '<div class="post-footer">' +
+                '<button class="post-action ' + (isLiked ? 'liked' : '') + '" onclick="toggleLike(\'' + p._id + '\', this)">' +
+                  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>' +
+                  '<span class="like-count">' + (p.likes || []).length + '</span>' +
+                '</button>' +
+                '<button class="post-action" onclick="toggleComments(\'' + p._id + '\')">' +
+                  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
+                  '<span>' + (p.comments || []).length + '</span>' +
+                '</button>' +
+                (!p.repostOf ? 
+                  '<button class="post-action" onclick="repost(\'' + p._id + '\')">' +
+                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1v22M3 5h18M3 19h18"/></svg>' +
+                    '<span>Yeniden Paylaş</span>' +
+                  '</button>'
+                 : '') +
+              '</div>' +
 
-              <!-- Collapsible Comments Area -->
-              <div class="comments-area" id="comments-box-\\\${p._id}" style="display:none;">
-                <div class="comment-list">\\\${commentsHtml}</div>
-                <div class="comment-input-row">
-                  <input type="text" class="comment-input" id="comment-input-\\\${p._id}" placeholder="Yorum yaz..." onkeydown="if(event.key==='Enter')addComment('\\\\\\\${p._id}')">
-                  <button class="comment-send-btn" id="comment-btn-\\\${p._id}" onclick="addComment('\\\\\\\${p._id}')">Gönder</button>
-                </div>
-              </div>
-            </div>
-          \`;
+              '<!-- Collapsible Comments Area -->' +
+              '<div class="comments-area" id="comments-box-' + p._id + '" style="display:none;">' +
+                '<div class="comment-list">' + commentsHtml + '</div>' +
+                '<div class="comment-input-row">' +
+                  '<input type="text" class="comment-input" id="comment-input-' + p._id + '" placeholder="Yorum yaz..." onkeydown="if(event.key===\'Enter\')addComment(\'' + p._id + '\')">' +
+                  '<button class="comment-send-btn" id="comment-btn-' + p._id + '" onclick="addComment(\'' + p._id + '\')">Gönder</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
         }).join('');
       }
 
@@ -6365,16 +6362,16 @@ function renderSocialPage(user) {
             if (!d.streams || !d.streams.length) {
               list.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">Aktif yayın bulunmuyor.</div>';
             } else {
-              list.innerHTML = d.streams.map(s => \`
-                <div class="stream-list-item" onclick="joinStream('\\\\\\\${s._id}')">
-                  <img src="\\\${s.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:32px;height:32px;border-radius:50%;">
-                  <div style="flex:1;min-width:0;">
-                    <div class="stream-title">\\\${s.title}</div>
-                    <div style="font-size:0.7rem;color:var(--muted)">Yayıncı: \\\${s.userName}</div>
-                  </div>
-                  <span class="stream-badge">LIVE</span>
-                </div>
-              \`).join('');
+              list.innerHTML = d.streams.map(s => 
+                '<div class="stream-list-item" onclick="joinStream(\'' + s._id + '\')">' +
+                  '<img src="' + (s.userAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png') + '" style="width:32px;height:32px;border-radius:50%;">' +
+                  '<div style="flex:1;min-width:0;">' +
+                    '<div class="stream-title">' + s.title + '</div>' +
+                    '<div style="font-size:0.7rem;color:var(--muted)">Yayıncı: ' + s.userName + '</div>' +
+                  '</div>' +
+                  '<span class="stream-badge">LIVE</span>' +
+                '</div>'
+              ).join('');
             }
           }
         } catch(e) {}
@@ -6416,7 +6413,7 @@ function renderSocialPage(user) {
             document.getElementById('stream-viewer-count').textContent = '👁️ ' + (stream.viewerCount || 1);
             
             // Show End Stream button if owner
-            const isOwner = stream.userId === \${JSON.stringify(user.discordId)};
+            const isOwner = stream.userId === MY_DISCORD_ID;
             document.getElementById('stream-end-btn').style.display = isOwner ? 'block' : 'none';
 
             // Load chat history
@@ -6452,12 +6449,12 @@ function renderSocialPage(user) {
         if (!activeStream) return;
         const box = document.getElementById('stream-chat-messages');
         const msgs = activeStream.chatMessages || [];
-        box.innerHTML = msgs.map(m => \`
-          <div class="stream-chat-msg">
-            <span class="stream-chat-author">\\\${m.userName}:</span>
-            <span class="stream-chat-text">\\\${_esc(m.content)}</span>
-          </div>
-        \`).join('');
+        box.innerHTML = msgs.map(m => 
+          '<div class="stream-chat-msg">' +
+            '<span class="stream-chat-author">' + m.userName + ':</span>' +
+            '<span class="stream-chat-text">' + _esc(m.content) + '</span>' +
+          '</div>'
+        ).join('');
         box.scrollTop = box.scrollHeight;
       }
 
@@ -6468,7 +6465,7 @@ function renderSocialPage(user) {
         if (!content) return;
 
         try {
-          const res = await fetch(\`/api/social/streams/\\\${activeStream._id}/chat\`, {
+          const res = await fetch('/api/social/streams/' + activeStream._id + '/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
@@ -6487,7 +6484,7 @@ function renderSocialPage(user) {
         if (!confirm("Yayını sonlandırmak istediğinize emin misiniz?")) return;
 
         try {
-          const res = await fetch(\`/api/social/streams/\\\${activeStream._id}/end\`, { method: 'POST' });
+          const res = await fetch('/api/social/streams/' + activeStream._id + '/end', { method: 'POST' });
           if (res.ok) {
             showToast("Yayın sonlandırıldı.", "info");
             closeStream();
