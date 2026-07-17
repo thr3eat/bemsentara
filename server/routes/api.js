@@ -1770,13 +1770,23 @@ router.post("/api/roles/sync", async (req, res) => {
 router.post("/api/settings", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Giriş yapmanız gerekli." });
   
-  const { profileBio, profileColor } = req.body;
+  const { profileBio, profileColor, sitePassword, gunsLolUrl, profileBgUrl, profileMusicUrl } = req.body;
   
   try {
     const user = await User.findById(req.user._id);
     if (user) {
       if (profileBio !== undefined) user.profileBio = String(profileBio).slice(0, 500);
       if (profileColor !== undefined) user.profileColor = String(profileColor).slice(0, 32);
+      if (gunsLolUrl !== undefined) user.gunsLolUrl = String(gunsLolUrl).slice(0, 150);
+      if (profileBgUrl !== undefined) user.profileBgUrl = String(profileBgUrl).slice(0, 250);
+      if (profileMusicUrl !== undefined) user.profileMusicUrl = String(profileMusicUrl).slice(0, 250);
+
+      if (sitePassword) {
+        const bcrypt = require("bcrypt");
+        user.sitePassword = await bcrypt.hash(sitePassword, 10);
+        user.passwordCreatedAt = new Date();
+      }
+
       await user.save();
       saveStoreNow();
       if (req.session) {

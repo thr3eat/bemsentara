@@ -30,6 +30,9 @@ const User = {
       profileColor: "#7c6af7",
       browserNotificationsEnabled: false,
       browserNotificationPromptSent: false,
+      gunsLolUrl: null,
+      profileBgUrl: null,
+      profileMusicUrl: null,
       joinedAt: new Date(),
     };
     return Promise.resolve(users.create({ ...defaults, ...data }));
@@ -60,6 +63,9 @@ function UserConstructor(data) {
     passwordCreatedAt: null,
     browserNotificationsEnabled: false,
     browserNotificationPromptSent: false,
+    gunsLolUrl: null,
+    profileBgUrl: null,
+    profileMusicUrl: null,
     joinedAt: new Date(),
   };
   const merged = { ...defaults, ...data };

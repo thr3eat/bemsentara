@@ -2413,6 +2413,11 @@ function renderProfilePage(user, profileUser, isOwn = false, robloxGroups = []) 
 
   const css = `<style>
     main{max-width:100%!important;padding:0!important}
+    ${profileUser.profileBgUrl ? `
+      body {
+        background: url('${_esc(profileUser.profileBgUrl)}') center/cover no-repeat fixed !important;
+      }
+    ` : ''}
     @keyframes aurora{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
     @keyframes fireAni{0%,100%{filter:hue-rotate(0deg) brightness(1)}50%{filter:hue-rotate(25deg) brightness(1.25)}}
     @keyframes galaxy{0%{background-position:0% 0%}100%{background-position:200% 200%}}
@@ -2479,6 +2484,21 @@ function renderProfilePage(user, profileUser, isOwn = false, robloxGroups = []) 
             <div class="p-name">${_esc(profileUser.discordUsername)}</div>
             <div class="p-sub">${profileUser.robloxUsername ? `🎮 <span style="color:var(--success);">${_esc(profileUser.robloxUsername)}</span>` : `<span style="color:var(--muted);">Roblox bağlı değil</span>`}</div>
             ${groupRoleHtml}
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+              ${profileUser.gunsLolUrl ? `
+                <a href="${_esc(profileUser.gunsLolUrl)}" target="_blank" class="btn btn-sm" style="background:linear-gradient(135deg, #ff007f 0%, #7f00ff 100%);color:#fff;border:none;box-shadow:0 0 15px rgba(255,0,127,0.4);display:inline-flex;align-items:center;gap:0.4rem;margin-top:0.5rem;font-weight:700;padding: 0.35rem 0.75rem; border-radius: 8px;font-size:0.8rem;text-decoration:none;">
+                  <span>🔗 guns.lol</span>
+                </a>
+              ` : ''}
+              ${profileUser.profileMusicUrl ? `
+                <div style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; backdrop-filter: blur(8px);">
+                  <span style="font-size: 0.9rem;">🎵</span>
+                  <span style="font-size: 0.75rem; color: var(--muted);" id="music-status">Müzik: Durdu</span>
+                  <button onclick="toggleProfileMusic()" id="play-btn" style="background: var(--accent); border: none; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.65rem;">▶</button>
+                  <audio id="profile-audio" src="${_esc(profileUser.profileMusicUrl)}" loop></audio>
+                </div>
+              ` : ''}
+            </div>
           </div>
           ${isOwn ? `<a href="/settings" class="btn btn-ghost btn-sm" style="flex-shrink:0;">✏️ Düzenle</a>` : ''}
         </div>
@@ -2574,6 +2594,27 @@ function renderProfilePage(user, profileUser, isOwn = false, robloxGroups = []) 
       if(res.ok){showToast(d.message||'Aktif edildi!','success');setTimeout(()=>location.reload(),700);}
       else showToast(d.error||'Hata','error');
     }
+    function toggleProfileMusic() {
+      const audio = document.getElementById('profile-audio');
+      const btn = document.getElementById('play-btn');
+      const status = document.getElementById('music-status');
+      if (!audio) return;
+      if (audio.paused) {
+        audio.play().then(() => {
+          btn.textContent = '⏸';
+          status.textContent = 'Müzik: Çalıyor';
+          btn.style.background = 'var(--danger)';
+        }).catch(err => {
+          console.warn("Müzik çalınamadı:", err);
+          showToast("Tarayıcı engeli: Sayfada herhangi bir yere tıkladıktan sonra çal tuşuna tekrar basın.", "warning");
+        });
+      } else {
+        audio.pause();
+        btn.textContent = '▶';
+        status.textContent = 'Müzik: Durdu';
+        btn.style.background = 'var(--accent)';
+      }
+    }
     loadProfile();
   <\/script>`;
 
@@ -2603,6 +2644,21 @@ function renderSettingsPage(user) {
         <div style="text-align:right;color:var(--muted);font-size:0.8rem;margin-top:-1rem;margin-bottom:1rem;">
           <span id="bio-count">${(user.profileBio || '').length}</span>/500
         </div>
+
+        <label>Site Giriş Şifresi</label>
+        <input type="password" id="sitePassword" placeholder="Yeni site şifresi girin (Değiştirmek istemiyorsanız boş bırakın)">
+
+        <hr class="divider">
+        <h2 style="font-size:1.3rem;font-weight:700;margin-bottom:1rem;">🎨 Guns.lol Tarzı Profil Özelleştirme</h2>
+        
+        <label>Guns.lol Bağlantı Linki</label>
+        <input type="text" id="gunsLolUrl" value="${_esc(user.gunsLolUrl || '')}" placeholder="https://guns.lol/kullaniciadi">
+
+        <label>Profil Özel Arkaplan Resim/GIF URL</label>
+        <input type="text" id="profileBgUrl" value="${_esc(user.profileBgUrl || '')}" placeholder="https://ornek.com/resim.gif">
+
+        <label>Profil Özel Arkaplan Müzik (.mp3) URL</label>
+        <input type="text" id="profileMusicUrl" value="${_esc(user.profileMusicUrl || '')}" placeholder="https://ornek.com/muzik.mp3">
 
         <hr class="divider">
 
@@ -2649,11 +2705,16 @@ function renderSettingsPage(user) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               profileColor: colorEl.value,
-              profileBio: bioEl.value
+              profileBio: bioEl.value,
+              sitePassword: document.getElementById('sitePassword').value,
+              gunsLolUrl: document.getElementById('gunsLolUrl').value,
+              profileBgUrl: document.getElementById('profileBgUrl').value,
+              profileMusicUrl: document.getElementById('profileMusicUrl').value
             })
           });
           if (res.ok) {
             showToast('Ayarlar başarıyla kaydedildi!', 'success');
+            document.getElementById('sitePassword').value = ''; // clear password input after success
           } else {
             const d = await res.json().catch(() => ({}));
             showToast(d.error || 'Bir hata oluştu.', 'error');
