@@ -2058,7 +2058,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   };
 
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
-  
+klşi  
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
 
   if (isProbationLocked) {
@@ -2341,8 +2341,7 @@ async function getMorningBriefingComponents(progress) {
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
   // duty flags (declare early to avoid TDZ when components reference them)
-  const isOnDuty = Boolean(progress.duty?.isActive);
-  const isBreakActive = Boolean(progress.duty?.isBreakActive);
+  
 
   if (isProbationLocked) {
     const row = new ActionRowBuilder().addComponents(
@@ -2635,8 +2634,7 @@ async function getMorningBriefingComponents(progress) {
     }
   } catch (_) {}
 
-  const isOnDuty = Boolean(progress.duty?.isActive);
-  const isBreakActive = Boolean(progress.duty?.isBreakActive);
+  
 
   // Build the single select menu
   const combinedSelect = new StringSelectMenuBuilder()
