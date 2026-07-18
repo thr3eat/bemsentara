@@ -103,6 +103,29 @@ async function handleGeneralCommand(interaction) {
         return interaction.editReply({ content: "❌ Personel sisteminde kayıtlı bir profiliniz bulunamadı. Lütfen yöneticilere başvurun." });
       }
 
+      if (!p.city) {
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+        const promptEmbed = new EmbedBuilder()
+          .setColor(0x3b82f6)
+          .setTitle('📍 Şehir Tanımlama Gerekli')
+          .setDescription(
+            `Merhaba <@${interaction.user.id}>,\n\n` +
+            `Personel sistemimizin zaman dilimlerini, günlük sıfırlama saatlerini ve AI Koçunuzun analizlerini Türkiye'deki konumunuza göre özelleştirebilmemiz için **yaşadığınız şehri** tek seferliğine belirtmeniz gerekmektedir.\n\n` +
+            `Lütfen aşağıdaki **\`📍 Şehir Tanımla\`** butonuna tıklayarak yaşadığınız şehri (örn: İstanbul, Ankara, İzmir, Van vb.) giriniz.`
+          )
+          .setFooter({ text: 'Eko Yıldız • Akıllı Konum Entegrasyonu' })
+          .setTimestamp();
+
+        const promptRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('staff_prompt_city_modal')
+            .setLabel('📍 Şehir Tanımla')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [promptEmbed], components: [promptRow] });
+      }
+
       const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
       const embed = await generateMorningBriefingEmbed(p, interaction.client);
       const components = await getMorningBriefingComponents(p);

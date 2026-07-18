@@ -1165,6 +1165,24 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Şehir Tanımla butonu ───────────────────────────────────────────────────
+  if (customId === "staff_prompt_city_modal") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_staff_set_city')
+      .setTitle('📍 Yaşadığınız Şehri Tanımlayın');
+
+    const input = new TextInputBuilder()
+      .setCustomId('user_city')
+      .setLabel('Türkiye\'deki Yaşadığınız Şehir')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Örn: İstanbul, Ankara, İzmir, Bursa, Trabzon, Van vb.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
   // ── AI Asistanı butonu ──────────────────────────────────────────────────────
   if (customId === "staff_ai_assistant") {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
@@ -1235,6 +1253,30 @@ async function handleButtonInteraction(interaction) {
     const StaffProgress = require("../../models/StaffProgress");
     const p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return;
+
+    if (!p.city) {
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+      const promptEmbed = new EmbedBuilder()
+        .setColor(0x3b82f6)
+        .setTitle('📍 Şehir Tanımlama Gerekli')
+        .setDescription(
+          `Merhaba <@${interaction.user.id}>,\n\n` +
+          `Personel sistemimizin zaman dilimlerini, günlük sıfırlama saatlerini ve AI Koçunuzun analizlerini Türkiye'deki konumunuza göre özelleştirebilmemiz için **yaşadığınız şehri** tek seferliğine belirtmeniz gerekmektedir.\n\n` +
+          `Lütfen aşağıdaki **\`📍 Şehir Tanımla\`** butonuna tıklayarak yaşadığınız şehri (örn: İstanbul, Ankara, İzmir, Van vb.) giriniz.`
+        )
+        .setFooter({ text: 'Eko Yıldız • Akıllı Konum Entegrasyonu' })
+        .setTimestamp();
+
+      const promptRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('staff_prompt_city_modal')
+          .setLabel('📍 Şehir Tanımla')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.editReply({ embeds: [promptEmbed], components: [promptRow] }).catch(() => { });
+      return;
+    }
 
     const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
     const embed = await generateMorningBriefingEmbed(p, interaction.client);

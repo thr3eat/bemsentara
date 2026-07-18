@@ -138,6 +138,36 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  // ── Şehir Tanımlama Modal Submit ──────────────────────────────────────────
+  if (interaction.customId === 'modal_staff_set_city') {
+    const rawCity = interaction.fields.getTextInputValue('user_city').trim();
+    const city = rawCity.charAt(0).toUpperCase() + rawCity.slice(1).toLowerCase();
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+
+      p.city = city;
+      await p.save();
+
+      const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
+      const embed = await generateMorningBriefingEmbed(p, interaction.client);
+      const components = await getMorningBriefingComponents(p);
+
+      await interaction.editReply({
+        content: `✅ Yaşadığınız şehir başarıyla **${city}** olarak ayarlandı! Türkiye (GMT+3) zaman dilimi aktif edildi.`,
+        embeds: [embed],
+        components
+      });
+      return;
+    } catch (err) {
+      console.error('[Set-City] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── AI Asistanı Modal Submit ───────────────────────────────────────────────
   if (interaction.customId === 'modal_staff_ai_assistant') {
     const query = interaction.fields.getTextInputValue('assistant_query');

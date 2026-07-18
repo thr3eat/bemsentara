@@ -204,7 +204,10 @@ const staffProgressSchema = new mongoose.Schema({
   disciplinary: {
     warns: { type: [Object], default: [] },        // { date, reason, issuedBy }
     commendations: { type: [Object], default: [] }  // { date, reason, issuedBy }
-  }
+  },
+
+  // Konum Bilgisi (V6.1)
+  city: { type: String, default: '' }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

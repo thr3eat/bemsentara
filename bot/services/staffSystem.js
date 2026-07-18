@@ -1856,8 +1856,10 @@ async function generateMorningBriefingEmbed(progress, client) {
 - Moderatör seviyesi: ${ROLE_NAMES[progress.level]}
 - Sürekli aktif gün: ${progress.stats?.consecutiveDays || 0}
 - Uyarı sayısı: ${progress.warnings?.count || 0}/7
+- Yaşadığı Şehir: ${progress.city || 'Türkiye'}
+- Yerel Saat Dilimi: GMT+3 (Türkiye)
 - Bugünkü hedef: selamlaşma + ses aktifliği ve mevcut görevi tamamlamak.
-Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
+Yetkilinin yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
@@ -1977,7 +1979,8 @@ Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici b
     const warnsCount = progress.disciplinary?.warns?.length || 0;
     const commsCount = progress.disciplinary?.commendations?.length || 0;
     
-    dutyText += `\n📊 **Performans KPI:** \`${kpiScore}/100\` (${kpiGrade.label})\n`;
+    dutyText += `\n📍 **Konum / Şehir:** \`${progress.city || 'Belirtilmedi'}\` (TRT / UTC+3)\n`;
+    dutyText += `📊 **Performans KPI:** \`${kpiScore}/100\` (${kpiGrade.label})\n`;
     dutyText += `🎖️ **Sicil Özeti:** 💚 \`${commsCount} Takdir\` | ⚠️ \`${warnsCount} Disiplin Uyarısı\``;
 
     fields.push({
