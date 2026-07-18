@@ -206,6 +206,34 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // Walkthrough: start interactive help from morning briefing
+  if (customId === 'staff_help_walkthrough') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const { startWalkthrough } = require('../services/staffSystem');
+      await startWalkthrough(interaction.user.id, interaction.client);
+      return interaction.editReply({ content: '❓ Rehber DM olarak gönderildi. DM'ini kontrol et.' });
+    } catch (err) {
+      console.error('[walkthrough_start] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId.startsWith('walkthrough_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const parts = customId.split('_');
+      const action = parts[1]; // prev,next,done
+      const userId = parts.slice(2).join('_');
+      const { handleWalkthroughAction } = require('../services/staffSystem');
+      await handleWalkthroughAction(userId, action, interaction.client);
+      return interaction.editReply({ content: '✅ Rehber ilerletildi.' });
+    } catch (err) {
+      console.error('[walkthrough_action] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Real Estate Buttons ─────────────────────────────────────────────
   if (customId.startsWith('realestate_buy_')) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

@@ -142,6 +142,8 @@ const staffProgressSchema = new mongoose.Schema({
     count: { type: Number, default: 0 },    // Kaç gün üst üste görev yapılmadı
     lastWarned: { type: Date, default: null },
     warnedDays: { type: [String], default: [] }, // Uyarı atılan günler
+    // Rehber (walkthrough) için son gönderilen adım (tarih bazlı kontrol için)
+    lastWalkthroughStepDate: { type: String, default: '' }
   },
 
   // Sunucu Etiketi Ödülü (EKO etiketi)

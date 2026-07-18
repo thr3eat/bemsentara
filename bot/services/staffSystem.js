@@ -2408,6 +2408,14 @@ async function getMorningBriefingComponents(progress) {
       .setStyle(ButtonStyle.Primary)
   );
 
+  // "Ne yapacağımı bilmiyorum?" interaktif rehber butonu
+  rowButtons.addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_help_walkthrough')
+      .setLabel('❓ Ne yapacağımı bilmiyorum?')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
   if (progress.currentQuestion) {
     rowButtons.addComponents(
       new ButtonBuilder()
@@ -5395,6 +5403,78 @@ async function recordGamePlay(userId, gameType, client) {
   }
 }
 
+// ── Interactive Walkthrough (Ne yapacağımı bilmiyorum?) ─────────────────
+const WALK_STEPS = [
+  'Merhaba! Bu kısa rehber seni bugün ne yapman gerektiğine adım adım yönlendirecek. Hazırsan "İleri"ye bas.',
+  '1) Paneli aç: Sol alt köşedeki **Moderasyon Anasayfası** butonuna tıkla. Oradan tüm menülere erişebilirsin.',
+  '2) Günlük Görevler: "Günlük Brifing" kısmında bugün yapman gereken selamlaşma ve ses hedeflerini göreceksin. Hedefleri tamamla.',
+  '3) Nöbete Başla: Ses kanalında aktif olmak ve ticket çözmek istiyorsan "⚡ Nöbete Başla" butonunu kullan. Vardiya süresince otomatik ödül alırsın.',
+  '4) Birim Fonlama: Birim lideriysen "🏢 Birim Fonlama" ile prim dağıtabilir veya birim reklamı alabilirsin.',
+  '5) VIP Mağaza ve Yatırımlar: Cüzdanından TL/Elmas yönetimi için "Kurumsal Kredi & Finans Merkezi"ni kullan.',
+  'Tebrikler! Rehberi tamamladın. Her zaman tekrar çalıştırmak istersen aynı butona tıklayabilirsin.'
+];
+
+async function startWalkthrough(userId, client) {
+  try {
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    p.walkthrough = { active: true, step: 0 };
+    await p.save().catch(() => {});
+    await sendWalkthroughStep(p, client);
+  } catch (err) {
+    console.error('[staffSystem] startWalkthrough error:', err.message);
+  }
+}
+
+async function sendWalkthroughStep(progress, client) {
+  try {
+    if (!progress.walkthrough || !progress.walkthrough.active) return;
+    const stepIndex = Math.max(0, Math.min((progress.walkthrough.step || 0), WALK_STEPS.length - 1));
+    const text = WALK_STEPS[stepIndex];
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+    const embed = new EmbedBuilder()
+      .setTitle(`🧭 Rehber — Adım ${stepIndex + 1} / ${WALK_STEPS.length}`)
+      .setDescription(text)
+      .setColor(0x3498db)
+      .setTimestamp();
+
+    const row = new ActionRowBuilder();
+    if (stepIndex > 0) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_prev_${progress.userId}`).setLabel('◀️ Geri').setStyle(ButtonStyle.Secondary));
+    if (stepIndex < WALK_STEPS.length - 1) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_next_${progress.userId}`).setLabel('İleri ▶️').setStyle(ButtonStyle.Primary));
+    row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_done_${progress.userId}`).setLabel('Bitti ✅').setStyle(ButtonStyle.Success));
+
+    const user = await client.users.fetch(progress.userId).catch(() => null);
+    if (!user) return;
+    await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+  } catch (err) {
+    console.error('[staffSystem] sendWalkthroughStep error:', err.message);
+  }
+}
+
+async function handleWalkthroughAction(userId, action, client) {
+  try {
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    if (!p) return;
+    p.walkthrough = p.walkthrough || { active: false, step: 0 };
+    if (action === 'next') {
+      p.walkthrough.step = Math.min((p.walkthrough.step || 0) + 1, WALK_STEPS.length - 1);
+    } else if (action === 'prev') {
+      p.walkthrough.step = Math.max((p.walkthrough.step || 0) - 1, 0);
+    } else if (action === 'done') {
+      p.walkthrough.active = false;
+      p.walkthrough.step = 0;
+      await p.save().catch(() => {});
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) await user.send('✅ Rehberi tamamladın! Tekrar başlatmak istersen her zaman "Ne yapacağımı bilmiyorum?" butonuna tıklayabilirsin.').catch(() => {});
+      return;
+    }
+    await p.save().catch(() => {});
+    await sendWalkthroughStep(p, client);
+  } catch (err) {
+    console.error('[staffSystem] handleWalkthroughAction error:', err.message);
+  }
+}
+
 module.exports = {
   getOrCreate,
   recordGreet,
@@ -5447,6 +5527,9 @@ module.exports = {
   postponeDailyTask,
   generateMorningBriefingEmbed,
   getMorningBriefingComponents,
+  startWalkthrough,
+  sendWalkthroughStep,
+  handleWalkthroughAction,
   // AI helpers
   chatWithAI,
   PERSONAL_ASSISTANT_SYSTEM_PROMPT,
