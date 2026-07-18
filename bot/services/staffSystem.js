@@ -416,7 +416,7 @@ async function getOrCreate(userId, guildId, client) {
     try {
       const { getDiscordClient } = require('../discordClient');
       client = getDiscordClient();
-    } catch (_) {}
+    } catch (_) { }
   }
 
   let p = await StaffProgress.findOne({ userId });
@@ -440,7 +440,7 @@ async function getOrCreate(userId, guildId, client) {
               hasStaffRole = member.permissions.has(PermissionFlagsBits.Administrator) || staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (hasStaffRole) {
@@ -541,7 +541,7 @@ function resetDaily(progress) {
     progress.stats.lastDayPostponed = !!progress.daily.postponedToday;
 
     const taskKeys = ['task_chat', 'task_double_chat', 'task_voice', 'task_double_voice', 'task_ticket', 'task_mod', 'task_greet', 'task_double_greet', 'task_word_game', 'task_bom_game', 'task_chat_with_people'];
-    
+
     // Filtrele: Dünün göreviyle aynı olmasın
     const prevTask = progress.daily.chosenTask;
     let filteredKeys = taskKeys;
@@ -581,7 +581,7 @@ function resetDaily(progress) {
     progress.daily.transferredGreets = nextTransferredGreets;
     progress.daily.transferToTomorrowVoice = 0;
     progress.daily.transferToTomorrowGreets = 0;
-    
+
     // İlerleme ve Takip Alanlarını Sıfırla
     progress.daily.greetMessageId = '';
     progress.daily.wordGamesPlayed = 0;
@@ -685,7 +685,7 @@ async function recordGreet(userId, client, guildId = null) {
             const sentMsg = await discordUser.send({ embeds: [embed], components }).catch(() => null);
             if (sentMsg) {
               p.daily.greetMessageId = sentMsg.id;
-              await p.save().catch(() => {});
+              await p.save().catch(() => { });
             }
           }
         } catch (dmErr) {
@@ -745,7 +745,7 @@ async function addVoiceMinutes(userId, minutes, client) {
     try {
       const { logDutyActivity } = require('./staffDutyService');
       await logDutyActivity(userId, 'voice', minutes);
-    } catch (_) {}
+    } catch (_) { }
 
     const isVoiceDoneNow = (p.daily.voiceMinutes || 0) >= targetVoice;
 
@@ -825,9 +825,9 @@ async function addEkoCoin(progress, amount, client, reason) {
     let multiplier = 1;
     if (theme && theme.key) {
       if ((theme.key === 'ticket' && /ticket|bilet/i.test(reason)) ||
-          (theme.key === 'trading' && /elmas|borsa|kaldıraç|trade|al-?sat/i.test(reason)) ||
-          (theme.key === 'justice' && /mahkeme|adalet|jüri|sicil/i.test(reason)) ||
-          (theme.key === 'operations' && /redacted|operasyon|istihbarat|ajan/i.test(reason)) ) {
+        (theme.key === 'trading' && /elmas|borsa|kaldıraç|trade|al-?sat/i.test(reason)) ||
+        (theme.key === 'justice' && /mahkeme|adalet|jüri|sicil/i.test(reason)) ||
+        (theme.key === 'operations' && /redacted|operasyon|istihbarat|ajan/i.test(reason))) {
         multiplier = theme.bonusMultiplier || 1.5;
       }
     }
@@ -913,7 +913,7 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
 
     if (p.probationStatus) {
       if (!p.probationSigned) return;
-      
+
       const { ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`probation_approve_${userId}_mod`).setLabel('✅ İşlemi Onayla').setStyle(ButtonStyle.Success),
@@ -966,7 +966,7 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
     try {
       const { logDutyActivity } = require('./staffDutyService');
       await logDutyActivity(userId, 'mod', 1);
-    } catch (_) {}
+    } catch (_) { }
 
     // Ek Görev (Mod) İlerlemesi
     if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_mod') {
@@ -1269,7 +1269,7 @@ async function recordTicketSolved(userId, client) {
 
     if (p.probationStatus) {
       if (!p.probationSigned) return;
-      
+
       const { ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`probation_approve_${userId}_ticket`).setLabel('✅ İşlemi Onayla').setStyle(ButtonStyle.Success),
@@ -1322,7 +1322,7 @@ async function recordTicketSolved(userId, client) {
     try {
       const { logDutyActivity } = require('./staffDutyService');
       await logDutyActivity(userId, 'ticket', 1);
-    } catch (_) {}
+    } catch (_) { }
 
     // Ek Görev (Ticket) İlerlemesi
     if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_ticket') {
@@ -1474,7 +1474,7 @@ async function sendTicketTaskProgressDM(p, client) {
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
       .setTimestamp();
 
-    await discordUser.send({ embeds: [embed] }).catch(() => {});
+    await discordUser.send({ embeds: [embed] }).catch(() => { });
 
   } else if (!hasTicketTask) {
     // Ticket görevi YOK — özel bonus mesajı
@@ -1493,7 +1493,7 @@ async function sendTicketTaskProgressDM(p, client) {
       .setFooter({ text: 'Eko Yıldız • Personel Sistemi — Ek Görev Sistemi' })
       .setTimestamp();
 
-    await discordUser.send({ embeds: [embed] }).catch(() => {});
+    await discordUser.send({ embeds: [embed] }).catch(() => { });
 
     // %30 bonus ekle (extra görev ödülü olarak işaretle)
     if (!p.daily) p.daily = {};
@@ -1508,7 +1508,7 @@ async function sendTicketTaskProgressDM(p, client) {
         p.stats.activeDays = (p.stats.activeDays || 0) + bonus30(null, nextReq.activeDays);
         p.stats.moderationActions = (p.stats.moderationActions || 0) + bonus30(null, nextReq.moderationActions);
       }
-      await p.save().catch(() => {});
+      await p.save().catch(() => { });
     }
   }
   // Görev zaten tamamlandıysa sessizce çık (checkChosenTaskCompletion kendi DM'ini gönderir)
@@ -1876,7 +1876,7 @@ async function sendMorningBriefing(progress, client) {
       filteredTasks = allowedTasks.filter(t => t !== prevTask);
     }
     if (filteredTasks.length === 0) filteredTasks = allowedTasks;
-    
+
     const randomTask = filteredTasks[Math.floor(Math.random() * filteredTasks.length)];
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
@@ -2031,7 +2031,7 @@ async function generateMorningBriefingEmbed(progress, client) {
         displayName = u.globalName || u.username;
         username = u.tag;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     const prompt = `Bu personel için kısa, samimi ve kişiye özel bir görev brifingi hazırla.
 - Yetkili İsmi/Rumuz: ${displayName}
@@ -2058,7 +2058,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   };
 
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
-klşi  
+
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
 
   if (isProbationLocked) {
@@ -2124,11 +2124,11 @@ klşi
   let tasksText = '';
   tasksText += `💬 **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'} *(Gereken: ${req.greets}x selam)*\n`;
   tasksText += `🎤 **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%) *(Gereken: ${req.voiceMinutes} dk)*\n`;
-  
+
   if (progress.daily?.chosenTask) {
     tasksText += `🎯 **Seçimli Görev:** ${CHOSEN_TASKS[progress.daily.chosenTask] || progress.daily.chosenTask} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}\n`;
   }
-  
+
   if (userUnit && userUnit.unitName) {
     const { UNIT_CONFIG } = require('./unitService');
     const unitConf = UNIT_CONFIG[userUnit.unitName];
@@ -2208,11 +2208,11 @@ klşi
 
     const kpiHistoryValues = Array.isArray(progress.performance?.kpiHistory)
       ? progress.performance.kpiHistory.map(entry => {
-          if (typeof entry === 'number') return entry;
-          if (entry && typeof entry.value === 'number') return entry.value;
-          if (entry && typeof entry.score === 'number') return entry.score;
-          return parseInt(entry?.value || entry?.score || entry?.kpi || entry?.scoreValue || 100, 10) || 100;
-        }).filter(v => !Number.isNaN(v))
+        if (typeof entry === 'number') return entry;
+        if (entry && typeof entry.value === 'number') return entry.value;
+        if (entry && typeof entry.score === 'number') return entry.score;
+        return parseInt(entry?.value || entry?.score || entry?.kpi || entry?.scoreValue || 100, 10) || 100;
+      }).filter(v => !Number.isNaN(v))
       : [];
 
     if (kpiHistoryValues.length === 0 && typeof progress.performance?.weeklyKpi === 'number') {
@@ -2280,9 +2280,9 @@ klşi
   fields.push({
     name: '📈 EKO-BORSA DURUMU',
     value: `**${marketSnapshot.state}** ${marketSnapshot.trend}\n` +
-           `• Çarpan: **x${marketSnapshot.multiplier.toFixed(1)}**\n` +
-           `• 1 💎 = **${marketSnapshot.diamondRate} TL**\n` +
-           `• Faiz: **%${marketSnapshot.interestRate}**`,
+      `• Çarpan: **x${marketSnapshot.multiplier.toFixed(1)}**\n` +
+      `• 1 💎 = **${marketSnapshot.diamondRate} TL**\n` +
+      `• Faiz: **%${marketSnapshot.interestRate}**`,
     inline: false
   });
 
@@ -2290,9 +2290,9 @@ klşi
   fields.push({
     name: '🚀 YENİ MODERASYON ENTEGRASYONLARI',
     value: `• **⚡ Nöbet Sistemi:** Nöbete başladığınızda ses ve bilet aktifliğiniz loglanır, bitirdiğinizde **Elmas (💎) ve TL** kazandırır.\n` +
-           `• **🤖 AI Mod Asistanı:** Karşılaştığınız kural ihlallerini AI'a sorarak sunucu kurallarına en uygun cezayı/mute süresini öğrenin.\n` +
-           `• **📝 Vaka Raporu:** Sunucuda yaşanan kritik veya olağanüstü durumları form ile anında üst yönetimin loglarına rapor edin.\n` +
-           `• **⚙️ Yetkili Menüleri:** Sayfanın altındaki menülerden tek tıkla izin kullanabilir, yetkili sicillerini ve performans puanlarını sorgulayabilirsiniz.`,
+      `• **🤖 AI Mod Asistanı:** Karşılaştığınız kural ihlallerini AI'a sorarak sunucu kurallarına en uygun cezayı/mute süresini öğrenin.\n` +
+      `• **📝 Vaka Raporu:** Sunucuda yaşanan kritik veya olağanüstü durumları form ile anında üst yönetimin loglarına rapor edin.\n` +
+      `• **⚙️ Yetkili Menüleri:** Sayfanın altındaki menülerden tek tıkla izin kullanabilir, yetkili sicillerini ve performans puanlarını sorgulayabilirsiniz.`,
     inline: false
   });
 
@@ -2326,7 +2326,7 @@ klşi
       fields.unshift({ name: '📅 Günün Teması', value: `${todayTheme.emoji} ${todayTheme.name}`, inline: false });
       fields.splice(1, 0, { name: '🚩 Günün Tavsiye Edilen Öncelikli Rota Görevi', value: todayTheme.recommended || 'Bugünün öncelikli rotası yok.', inline: false });
     }
-  } catch (_) {}
+  } catch (_) { }
 
   embed.addFields(fields)
     .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} • <t:${Math.floor(Date.now() / 1000)}:T>` })
@@ -2341,7 +2341,7 @@ async function getMorningBriefingComponents(progress) {
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
   // duty flags (declare early to avoid TDZ when components reference them)
-  
+
 
   if (isProbationLocked) {
     const row = new ActionRowBuilder().addComponents(
@@ -2572,34 +2572,34 @@ async function getMorningBriefingComponents(progress) {
 
   // Personal options
   const personalOptions = [
-      { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
-      { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
-      { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
-      { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
-      { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
-      { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
-      { label: '🏢 Birim Fonlama ve Sponsorluk', description: 'Birim bütçesine TL aktararak prestij ve liderlik kazanın.', value: 'staff_action_sponsorship', emoji: '🏢' },
-      { label: '💎 VIP Mağaza', description: 'Profil temasını, rozetini veya lüks görünümünü satın alın.', value: 'staff_action_vip_store', emoji: '💎' },
-      { label: '⚖️ Mahkeme', description: 'Aktif mahkeme davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
-      { label: '🤫 İhbar Hattı (Whistleblower Desk)', description: 'Anonim şekilde yönetime ihbarda bulunun (SHA-256 Korumalı).', value: 'staff_action_whistleblower', emoji: '🤫' },
-      { label: '🕵️ Redacted Ops (Gizli Teşkilat)', description: 'Aktif gizli ajan görevlerinizi sorgulayın ve çözün.', value: 'staff_action_redacted_ops', emoji: '🕵️' },
-      { label: '🗺️ Izgara Kontrol Masası (Grid Control)', description: 'Aktif sektör bölgelerini denetleyin.', value: 'staff_action_grid_control', emoji: '🗺️' }
-    ];
+    { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
+    { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
+    { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
+    { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
+    { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
+    { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
+    { label: '🏢 Birim Fonlama ve Sponsorluk', description: 'Birim bütçesine TL aktararak prestij ve liderlik kazanın.', value: 'staff_action_sponsorship', emoji: '🏢' },
+    { label: '💎 VIP Mağaza', description: 'Profil temasını, rozetini veya lüks görünümünü satın alın.', value: 'staff_action_vip_store', emoji: '💎' },
+    { label: '⚖️ Mahkeme', description: 'Aktif mahkeme davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
+    { label: '🤫 İhbar Hattı (Whistleblower Desk)', description: 'Anonim şekilde yönetime ihbarda bulunun (SHA-256 Korumalı).', value: 'staff_action_whistleblower', emoji: '🤫' },
+    { label: '🕵️ Redacted Ops (Gizli Teşkilat)', description: 'Aktif gizli ajan görevlerinizi sorgulayın ve çözün.', value: 'staff_action_redacted_ops', emoji: '🕵️' },
+    { label: '🗺️ Izgara Kontrol Masası (Grid Control)', description: 'Aktif sektör bölgelerini denetleyin.', value: 'staff_action_grid_control', emoji: '🗺️' }
+  ];
 
-    if (progress.isInspector || progress.level >= 6) {
-      personalOptions.push({ label: '🕵️‍♂️ İç Denetim Masası (Internal Affairs)', description: 'Sızma/Ghosting taraması yapın ve suistimal raporları hazırlayın.', value: 'staff_action_internal_affairs', emoji: '🕵️‍♂️' });
-    }
+  if (progress.isInspector || progress.level >= 6) {
+    personalOptions.push({ label: '🕵️‍♂️ İç Denetim Masası (Internal Affairs)', description: 'Sızma/Ghosting taraması yapın ve suistimal raporları hazırlayın.', value: 'staff_action_internal_affairs', emoji: '🕵️‍♂️' });
+  }
 
-    personalOptions.push(
-      { label: '📊 Yetkili Liderlik Tablosu', description: 'Haftanın en aktif Top 5 yetkilisini görün.', value: 'staff_action_leaderboard', emoji: '📊' },
-      { label: '🚨 Acil Durum / Baskın Alarmı', description: 'Sunucuda baskın, bypass veya acil müdahale gereken durumlarda yönetimi uyarın.', value: 'staff_action_emergency_alarm', emoji: '🚨' },
-      { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
-      { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
-      { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
-    );
+  personalOptions.push(
+    { label: '📊 Yetkili Liderlik Tablosu', description: 'Haftanın en aktif Top 5 yetkilisini görün.', value: 'staff_action_leaderboard', emoji: '📊' },
+    { label: '🚨 Acil Durum / Baskın Alarmı', description: 'Sunucuda baskın, bypass veya acil müdahale gereken durumlarda yönetimi uyarın.', value: 'staff_action_emergency_alarm', emoji: '🚨' },
+    { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
+    { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
+    { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
+  );
 
-    // Append personal options to combined
-    personalOptions.forEach(opt => combinedOptions.push(opt));
+  // Append personal options to combined
+  personalOptions.forEach(opt => combinedOptions.push(opt));
 
   // Manager options (only show if eligible)
   let managerOptions = [];
@@ -2632,9 +2632,9 @@ async function getMorningBriefingComponents(progress) {
       }
       combinedOptions.push({ label: '🔒 İhbarını Kapat', description: 'Mevcut anonim ihbarını kapat ve thread’i sonlandır.', value: 'staff_action_whistleblower_close', emoji: '🔒' });
     }
-  } catch (_) {}
+  } catch (_) { }
 
-  
+
 
   // Build the single select menu
   const combinedSelect = new StringSelectMenuBuilder()
@@ -2667,7 +2667,7 @@ async function getMorningBriefingComponents(progress) {
       new ButtonBuilder().setCustomId('app_open_home').setLabel('🏠 Ana Ekran').setStyle(ButtonStyle.Secondary)
     );
     componentsList.push(dockRow);
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     const StaffUnit = require('../../models/StaffUnit');
@@ -2681,7 +2681,7 @@ async function getMorningBriefingComponents(progress) {
       );
       componentsList.push(rowUnitLeader);
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Kariyer Rotasyon Kontrolü
   try {
@@ -2697,7 +2697,7 @@ async function getMorningBriefingComponents(progress) {
       );
       componentsList.push(rowRotation);
     }
-  } catch (_) {}
+  } catch (_) { }
 
   return componentsList;
 }
@@ -2724,7 +2724,7 @@ async function sendWarningDM(progress, client) {
       console.log(`[staffSystem] sendWarningDM skipped for ${progress.userId} — tasks already completed today.`);
       return;
     }
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     const { addNotification } = require("../../utils/notification");
@@ -2766,8 +2766,8 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     .setTitle(`⏰ Günlük Görev Uyarısı — ${warnCount}/${MAX_WARNINGS}`)
     .setDescription(
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
-      (bothTasksDone 
-        ? `Görevlerini tamamladın ama sistem uyarısı alıyorsun. 😟 Bu bir hata olabilir.\n\n` 
+      (bothTasksDone
+        ? `Görevlerini tamamladın ama sistem uyarısı alıyorsun. 😟 Bu bir hata olabilir.\n\n`
         : `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n`) +
       `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
@@ -2885,9 +2885,9 @@ async function approveInactivityRequest(progress, request, client) {
   if (!progress.leaves.usedDays.includes(today)) {
     progress.leaves.usedDays.push(today);
   }
-  await saveInactivitySummary(progress, request).catch(() => {});
-  await progress.save().catch(() => {});
-  await sendInactivityWellbeingPrompt(progress, request, client).catch(() => {});
+  await saveInactivitySummary(progress, request).catch(() => { });
+  await progress.save().catch(() => { });
+  await sendInactivityWellbeingPrompt(progress, request, client).catch(() => { });
   return true;
 }
 
@@ -2975,7 +2975,7 @@ async function submitInactivityRequest(userId, reason, evidence, client) {
     if (needsProof && !request.evidence) {
       request.proofRequestedAt = new Date();
       await progress.save();
-      await sendInactivityProofRequestDM(progress, request, client).catch(() => {});
+      await sendInactivityProofRequestDM(progress, request, client).catch(() => { });
       return {
         success: true,
         message: 'Talebiniz alındı. Sağlık/okul gibi bir durum görüyoruz; lütfen kanıt veya ek açıklama gönderin.'
@@ -3045,8 +3045,8 @@ async function recordInactivityWellbeingResponse(userId, response, client) {
     }
     request.wellbeingResponse = response;
     request.wellbeingAnsweredAt = new Date();
-    await saveInactivitySummary(progress, request).catch(() => {});
-    await progress.save().catch(() => {});
+    await saveInactivitySummary(progress, request).catch(() => { });
+    await progress.save().catch(() => { });
 
     const supportPrompt = `Bu kişi inaktiflik için izin aldı. Sebebi: ${request.reason}. Kanıt: ${request.evidence || 'Yok'}. Kendini iyi hissediyor musun? sorusuna verdiği cevap: ${response}. Kısa, nazik ve destekleyici bir mesaj yaz.`;
     let aiResponse = '';
@@ -3423,7 +3423,7 @@ async function sendMidDayReminder(progress, client) {
 
   const greetsSent = progress.daily?.date === today ? (progress.daily?.greetCount || 0) : 0;
   const voiceMinutes = progress.daily?.date === today ? (progress.daily?.voiceMinutes || 0) : 0;
-  
+
   const missing = [];
   if (!isGreetDone) missing.push(`✅ Sohbete ${req.greets - greetsSent}x daha selam ver (Gereken: ${req.greets})`);
   if (!voiceDone) missing.push(`🎤 ${req.voiceMinutes - voiceMinutes} dk daha ses kanalında kal (Gereken: ${req.voiceMinutes} dk)`);
@@ -3817,8 +3817,8 @@ async function runDailyCheck(client) {
           await p.save();
           try {
             const user = await client.users.fetch(p.userId);
-            await user.send({ content: "❌ **Performans İyileştirme Planı (PIP) Kontratını imzalamadığınız için** görevinize son verilmiştir/rütbeniz düşürülmüştür." }).catch(() => {});
-          } catch (_) {}
+            await user.send({ content: "❌ **Performans İyileştirme Planı (PIP) Kontratını imzalamadığınız için** görevinize son verilmiştir/rütbeniz düşürülmüştür." }).catch(() => { });
+          } catch (_) { }
           await removeRole(p, client);
           continue;
         }
@@ -3849,8 +3849,8 @@ async function runDailyCheck(client) {
                 .setTitle('🎉 PIP BAŞARIYLA TAMAMLANDI!')
                 .setDescription(`Tebrikler! 3 günlük PIP (Performans İyileştirme Planı) sürecini başarıyla tamamladınız ve yetkilerinizi korudunuz. Görevinize normal hedeflerle devam edebilirsiniz.`)
                 .setTimestamp();
-              await user.send({ embeds: [successEmbed] }).catch(() => {});
-            } catch (_) {}
+              await user.send({ embeds: [successEmbed] }).catch(() => { });
+            } catch (_) { }
           } else {
             await p.save();
           }
@@ -3866,8 +3866,8 @@ async function runDailyCheck(client) {
               .setTitle('❌ PIP BAŞARISIZ OLDU')
               .setDescription(`Performans İyileştirme Planı (PIP) hedeflerini tamamlayamadığınız için rütbeniz düşürülmüştür.`)
               .setTimestamp();
-            await user.send({ embeds: [failEmbed] }).catch(() => {});
-          } catch (_) {}
+            await user.send({ embeds: [failEmbed] }).catch(() => { });
+          } catch (_) { }
           await removeRole(p, client);
         }
         continue;
@@ -3902,7 +3902,7 @@ async function runDailyCheck(client) {
             consecutiveSuccessDays: 0
           };
           await p.save();
-          
+
           try {
             const user = await client.users.fetch(p.userId);
             const pipNotifyEmbed = new EmbedBuilder()
@@ -3917,8 +3917,8 @@ async function runDailyCheck(client) {
               )
               .setFooter({ text: 'Eko Yıldız • İnsan Kaynakları' })
               .setTimestamp();
-            await user.send({ embeds: [pipNotifyEmbed] }).catch(() => {});
-          } catch (_) {}
+            await user.send({ embeds: [pipNotifyEmbed] }).catch(() => { });
+          } catch (_) { }
         } else {
           await sendWarningDM(p, client);
           await p.save();
@@ -3955,7 +3955,7 @@ async function runDailyCheck(client) {
         config = new ServerConfig({ guildId: GUILD_ID });
       }
       config.set('lastDailyCheckRunDate', checkDate);
-      await config.save().catch(() => {});
+      await config.save().catch(() => { });
       console.log(`[staffSystem] Saved lastDailyCheckRunDate in DB: ${checkDate}`);
     } catch (dbErr) {
       console.error('[staffSystem] Failed to save lastDailyCheckRunDate in DB:', dbErr.message);
@@ -3991,7 +3991,7 @@ function startStaffScheduler(client) {
             marketLastUpdatedAt: new Date()
           }
         }
-      ).catch(() => {});
+      ).catch(() => { });
 
       console.log(`[staffSystem] Market snapshot refreshed: ${snapshot.state} x${snapshot.multiplier.toFixed(1)} | 1 💎 = ${snapshot.diamondRate} TL`);
     } catch (err) {
@@ -4017,9 +4017,9 @@ function startStaffScheduler(client) {
       if (targetGmt3 <= nowGmt3) {
         targetGmt3.setUTCDate(targetGmt3.getUTCDate() + 1);
       }
-      
+
       const delay = targetGmt3.getTime() - nowGmt3.getTime();
-      
+
       console.log(`[staffSystem] Scheduled task for ${hour}:${minute} (Istanbul time). Real execution in ${Math.round(delay / 1000 / 60)} minutes.`);
 
       setTimeout(async () => {
@@ -4037,10 +4037,10 @@ function startStaffScheduler(client) {
 
   // Her saat başı market snapshot güncellemesi
   setInterval(() => {
-    refreshMarketState().catch(() => {});
+    refreshMarketState().catch(() => { });
   }, 60 * 60 * 1000).unref();
 
-  refreshMarketState().catch(() => {});
+  refreshMarketState().catch(() => { });
 
   // 09:00 — Sabah brifing (tüm personele)
   scheduleAt(9, 0, async () => {
@@ -4286,7 +4286,7 @@ function startStaffScheduler(client) {
       console.log('[staffSystem] Başlangıç günlük kontrol doğrulayıcısı çalışıyor...');
       const checkDate = getTargetCheckDate();
       const ServerConfig = require('../../models/ServerConfig');
-      
+
       let config = await ServerConfig.findOne({ guildId: GUILD_ID });
       if (!config) {
         config = new ServerConfig({ guildId: GUILD_ID });
@@ -4322,7 +4322,7 @@ function startStaffScheduler(client) {
           await runDailyCheck(client);
 
           config.set('lastDailyCheckRunDate', checkDate);
-          await config.save().catch(() => {});
+          await config.save().catch(() => { });
           console.log(`[staffSystem] ✅ Günlük kontrol catch-up tamamlandı. Son tarih güncellendi: ${checkDate}`);
         } else {
           console.log('[staffSystem] Günlük kontrol henüz zamanı gelmedi veya zaten güncel.');
@@ -4636,23 +4636,23 @@ async function sendV6WelcomeNotification(client) {
         if (!user) continue;
 
         // Sayfa 1 gönder
-        await user.send({ embeds: [page1] }).catch(() => {});
+        await user.send({ embeds: [page1] }).catch(() => { });
         await new Promise(r => setTimeout(r, 800));
         // Sayfa 2
-        await user.send({ embeds: [page2] }).catch(() => {});
+        await user.send({ embeds: [page2] }).catch(() => { });
         await new Promise(r => setTimeout(r, 800));
         // Sayfa 3
-        await user.send({ embeds: [page3] }).catch(() => {});
+        await user.send({ embeds: [page3] }).catch(() => { });
         await new Promise(r => setTimeout(r, 800));
         // Sayfa 4
-        await user.send({ embeds: [page4] }).catch(() => {});
+        await user.send({ embeds: [page4] }).catch(() => { });
         await new Promise(r => setTimeout(r, 800));
         // Sayfa 5 + ödül butonu
-        await user.send({ embeds: [page5], components: [claimRow] }).catch(() => {});
+        await user.send({ embeds: [page5], components: [claimRow] }).catch(() => { });
 
         p.gamification = p.gamification || {};
         p.gamification.systemIntroducedV6 = true;
-        await p.save().catch(() => {});
+        await p.save().catch(() => { });
       } catch (_) { }
     }
 
@@ -5360,7 +5360,7 @@ function generateGreetProgressEmbed(progress) {
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const targetGreets = req.greets + (progress.daily?.transferredGreets || 0);
   const stats = getDailyTaskCompletionStats(progress);
-  
+
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle('🌅 Selamlaşma İlerlemesi')
@@ -5387,7 +5387,7 @@ function getGreetProgressComponents() {
 function generateSettingsEmbed(progress) {
   const briefingStatus = progress.settings?.dailyBriefingEnabled !== false ? '🟢 Açık' : '🔴 Kapalı';
   const warningsStatus = progress.settings?.warningsEnabled !== false ? '🟢 Açık' : '🔴 Kapalı';
-  
+
   return new EmbedBuilder()
     .setColor(0x7c6af7)
     .setTitle('⚙️ Personel Bildirim & Görev Ayarları')
@@ -5406,19 +5406,19 @@ function generateSettingsEmbed(progress) {
 
 function getSettingsComponents(progress) {
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-  
-  const briefingLabel = progress.settings?.dailyBriefingEnabled !== false 
-    ? '📅 Sabah Brifingi: Kapat' 
+
+  const briefingLabel = progress.settings?.dailyBriefingEnabled !== false
+    ? '📅 Sabah Brifingi: Kapat'
     : '📅 Sabah Brifingi: Aç';
-  const briefingStyle = progress.settings?.dailyBriefingEnabled !== false 
-    ? ButtonStyle.Danger 
+  const briefingStyle = progress.settings?.dailyBriefingEnabled !== false
+    ? ButtonStyle.Danger
     : ButtonStyle.Success;
 
-  const warningsLabel = progress.settings?.warningsEnabled !== false 
-    ? '⚠️ Uyarılar: Kapat' 
+  const warningsLabel = progress.settings?.warningsEnabled !== false
+    ? '⚠️ Uyarılar: Kapat'
     : '⚠️ Uyarılar: Aç';
-  const warningsStyle = progress.settings?.warningsEnabled !== false 
-    ? ButtonStyle.Danger 
+  const warningsStyle = progress.settings?.warningsEnabled !== false
+    ? ButtonStyle.Danger
     : ButtonStyle.Success;
 
   const row = new ActionRowBuilder().addComponents(
@@ -5435,7 +5435,7 @@ function getSettingsComponents(progress) {
       .setLabel('◀️ Geri Dön')
       .setStyle(ButtonStyle.Secondary)
   );
-  
+
   return [row];
 }
 
@@ -5453,8 +5453,8 @@ async function recordGamePlay(userId, gameType, client) {
       p.daily.bomGamesPlayed = (p.daily.bomGamesPlayed || 0) + 1;
     }
 
-    await p.save().catch(() => {});
-    await checkChosenTaskCompletion(p, client).catch(() => {});
+    await p.save().catch(() => { });
+    await checkChosenTaskCompletion(p, client).catch(() => { });
   } catch (err) {
     console.error('[staffSystem] recordGamePlay error:', err.message);
   }
@@ -5489,7 +5489,7 @@ async function startWalkthrough(userId, client) {
       completedSteps: [],
       schedule: {}
     };
-    await p.save().catch(() => {});
+    await p.save().catch(() => { });
     await sendWalkthroughStep(p, client);
   } catch (err) {
     console.error('[staffSystem] startWalkthrough error:', err.message);
@@ -5535,7 +5535,7 @@ async function sendWalkthroughStep(progress, client) {
 
     const user = await client.users.fetch(progress.userId).catch(() => null);
     if (!user) return;
-    await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+    await user.send({ embeds: [embed], components: [row] }).catch(() => { });
   } catch (err) {
     console.error('[staffSystem] sendWalkthroughStep error:', err.message);
   }
@@ -5562,9 +5562,9 @@ async function handleWalkthroughAction(userId, action, client, extra) {
     } else if (action === 'done') {
       p.walkthrough.active = false;
       p.walkthrough.step = 0;
-      await p.save().catch(() => {});
+      await p.save().catch(() => { });
       const user = await client.users.fetch(userId).catch(() => null);
-      if (user) await user.send('✅ Rehberi tamamladın! Tekrar başlatmak istersen her zaman "Ne yapacağımı bilmiyorum?" butonuna tıklayabilirsin.').catch(() => {});
+      if (user) await user.send('✅ Rehberi tamamladın! Tekrar başlatmak istersen her zaman "Ne yapacağımı bilmiyorum?" butonuna tıklayabilirsin.').catch(() => { });
       return;
     } else if (action === 'accept') {
       // Accept plan: generate a simple schedule mapping each step to consecutive days starting today
@@ -5578,7 +5578,7 @@ async function handleWalkthroughAction(userId, action, client, extra) {
       }
       // Notify user
       const user = await client.users.fetch(userId).catch(() => null);
-      if (user) await user.send(`✅ Plan kabul edildi. Adımlar bugün ve sonraki günlere dağıtıldı. Takibini panelden yapabilirsin.`).catch(() => {});
+      if (user) await user.send(`✅ Plan kabul edildi. Adımlar bugün ve sonraki günlere dağıtıldı. Takibini panelden yapabilirsin.`).catch(() => { });
     } else if (action === 'complete' && extra) {
       // extra expected as step id
       const stepId = extra;
@@ -5589,10 +5589,10 @@ async function handleWalkthroughAction(userId, action, client, extra) {
         p.walkthrough.step = Math.min(idx + 1, max - 1);
       }
       const user = await client.users.fetch(userId).catch(() => null);
-      if (user) await user.send(`✔️ "${stepId}" işaretlendi.`).catch(() => {});
+      if (user) await user.send(`✔️ "${stepId}" işaretlendi.`).catch(() => { });
     }
 
-    await p.save().catch(() => {});
+    await p.save().catch(() => { });
     await sendWalkthroughStep(p, client);
   } catch (err) {
     console.error('[staffSystem] handleWalkthroughAction error:', err.message);
