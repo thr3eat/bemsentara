@@ -398,23 +398,38 @@ async function handleSelectInteraction(interaction) {
         };
 
         const base = BASE_SALARIES[p.level] || 50;
-        const salary = Math.floor(base * (kpiScore / 100));
+        const gross = Math.floor(base * (kpiScore / 100));
+        
+        // Deduct 15 E.C. for each active warning
+        const warnsCount = p.disciplinary?.warns?.length || 0;
+        const penaltyDeduction = warnsCount * 15;
+        
+        // 10% income tax
+        const tax = Math.floor(gross * 0.10);
+        
+        // Net salary
+        const netPay = Math.max(0, gross - penaltyDeduction - tax);
 
         p.gamification = p.gamification || {};
-        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + salary;
+        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + netPay;
         p.lastSalaryClaimedAt = new Date();
         await p.save();
 
         const embed = new EmbedBuilder()
           .setColor(0x2ecc71)
-          .setTitle('🪙 Maaş Ödemesi Gerçekleştirildi')
+          .setTitle('💼 Eko Yıldız Yetkili Maaş Bordrosu')
           .setDescription(
             `Sayın <@${interaction.user.id}>,\n\n` +
-            `Haftalık aktiflik durumunuz ve KPI puanınız üst yönetim tarafından onaylandı. Maaşınız başarıyla hesabınıza yatırıldı!\n\n` +
-            `• **Maaş Seviyesi (Rütbe Seviyesi):** Level ${p.level}\n` +
-            `• **Performans Puanınız (KPI):** \`${kpiScore} / 100\`\n` +
-            `• **Hesaba Aktarılan Tutar:** 🪙 **+${salary} EkoCoin**\n\n` +
-            `• **Güncel Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} E.C.\``
+            `Haftalık aktiflik durumunuz ve KPI performans puanınız Finansal Yönetim Departmanı tarafından onaylandı. Maaş ödemeniz gerçekleştirilmiştir.\n\n` +
+            `**📋 MAAŞ DETAYLARI VE KESİNTİLER**\n` +
+            `\`\`\`diff\n` +
+            `+ Brüt Hak Ediş: ${gross} E.C. (Rütbe Tabanı: ${base} E.C. | KPI: %${kpiScore})\n` +
+            `- Disiplin Cezası Kesintisi: -${penaltyDeduction} E.C. (${warnsCount} Uyarı)\n` +
+            `- Gelir Vergisi Kesintisi (%10): -${tax} E.C.\n` +
+            `-----------------------------------------------\n` +
+            `+ Net Ödenen Maaş: ${netPay} E.C.\n` +
+            `\`\`\`\n` +
+            `• **Güncel EkoCoin Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} E.C.\``
           )
           .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
           .setTimestamp();

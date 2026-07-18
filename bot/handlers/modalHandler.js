@@ -194,7 +194,15 @@ Lütfen değerlendirmeni en sonunda tam olarak şu formatta bitir:
           p.gamification = p.gamification || {};
           p.gamification.currentXP = (p.gamification.currentXP || 0) + 15;
           p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 5;
+
+          p.daily = p.daily || {};
+          p.daily.practiceScenariosSolvedToday = (p.daily.practiceScenariosSolvedToday || 0) + 1;
+
           await p.save();
+
+          const { checkChosenTaskCompletion } = require('../services/staffSystem');
+          await checkChosenTaskCompletion(p, interaction.client).catch(() => {});
+
           rewardText = `\n\n🎉 **Tebrikler!** Senaryodan geçer not aldınız! \`+15 XP\` ve \`+5 EkoCoin\` hesabınıza eklendi.`;
         }
       } else {
@@ -362,6 +370,18 @@ Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi
           await logChan.send({ embeds: [embed] });
         }
       }
+
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (p) {
+        p.daily = p.daily || {};
+        p.daily.incidentReportsToday = (p.daily.incidentReportsToday || 0) + 1;
+        await p.save();
+
+        const { checkChosenTaskCompletion } = require('../services/staffSystem');
+        await checkChosenTaskCompletion(p, interaction.client).catch(() => {});
+      }
+
       return interaction.editReply({ content: '✅ **Vaka raporunuz başarıyla üst yönetimin log kanallarına iletilmiştir!** Geri bildiriminiz için teşekkürler. 🫡' });
     } catch (err) {
       console.error('[Incident-Report] Hata:', err.message);

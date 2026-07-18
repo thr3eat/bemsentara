@@ -48,7 +48,10 @@ const staffProgressSchema = new mongoose.Schema({
     // Yeni İlerleme ve Takip Alanları (V5.1)
     greetMessageId: { type: String, default: '' },
     wordGamesPlayed: { type: Number, default: 0 },
-    bomGamesPlayed: { type: Number, default: 0 }
+    bomGamesPlayed: { type: Number, default: 0 },
+    practiceScenariosSolvedToday: { type: Number, default: 0 },
+    incidentReportsToday: { type: Number, default: 0 },
+    dutyMinutesToday: { type: Number, default: 0 }
   },
 
   // İstatistikler (terfi için)

@@ -147,6 +147,12 @@ async function endDuty(interaction, client, handoverNotes = null) {
     p.duty.isActive = false;
     p.duty.startedAt = null;
 
+    p.daily = p.daily || {};
+    p.daily.dutyMinutesToday = (p.daily.dutyMinutesToday || 0) + durationMins;
+    if (handoverNotes) {
+      p.daily.incidentReportsToday = (p.daily.incidentReportsToday || 0) + 1;
+    }
+
     if (!p.gamification) {
       p.gamification = { totalPoints: 0, ecoCoins: 0, level: 1, currentXP: 0, badges: {}, streak: { current: 0, longest: 0, brokenDays: 0 } };
     }
@@ -154,6 +160,9 @@ async function endDuty(interaction, client, handoverNotes = null) {
     p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + coinReward;
 
     await p.save();
+
+    const { checkChosenTaskCompletion } = require('./staffSystem');
+    await checkChosenTaskCompletion(p, client).catch(() => {});
 
     const logFields = [
       { name: '⏱️ Toplam Süre', value: `${durationHours} saat ${remainingMins} dakika`, inline: true },

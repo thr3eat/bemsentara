@@ -1066,6 +1066,18 @@ async function checkChosenTaskCompletion(progress, client) {
       if ((progress.daily.chatMessagesToday || 0) >= 20) {
         completed = true;
       }
+    } else if (task === 'task_practice_scenario') {
+      if ((progress.daily.practiceScenariosSolvedToday || 0) >= 1) {
+        completed = true;
+      }
+    } else if (task === 'task_incident_report') {
+      if ((progress.daily.incidentReportsToday || 0) >= 1) {
+        completed = true;
+      }
+    } else if (task === 'task_duty_shift') {
+      if ((progress.daily.dutyMinutesToday || 0) >= 30) {
+        completed = true;
+      }
     }
 
     if (completed) {
