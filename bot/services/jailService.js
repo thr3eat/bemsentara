@@ -445,6 +445,44 @@ async function handleJailButtonInteraction(interaction) {
     actionResultText = `🔓 **TAHLİYE EDİLDİ!**\nGardiyan <@${interaction.user.id}> mahkumu tahliye etti.`;
     jailChannelMessage = `🔓 **TAHLİYE EDİLDİNİZ!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** merhamet göstererek sizi zindandan tahliye etti. Ağır zindan kapıları aralandı.\n\n*\"Hadi yine iyisin, temiz havaya çık ve bir daha buralarda yaramazlık yapma!\"* 🌅`;
   }
+  else if (action === "iskence") {
+    // İşkence Odası Oluşturma
+    try {
+      const channelName = `iskence-${targetMember ? targetMember.user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : targetUserId}`;
+      const parentId = interaction.channel.parentId;
+      const { ChannelType, PermissionFlagsBits } = require('discord.js');
+      
+      const iskenceChannel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: parentId,
+        permissionOverwrites: [
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+          { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+        ],
+        topic: `İşkence Odası | Mahkum: ${targetUserId}`
+      });
+
+      // Spam fire emojis
+      for (let i = 0; i < 5; i++) {
+        await iskenceChannel.send(`🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥 <@${targetUserId}> 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥`).catch(() => {});
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`iskence_kapat_${iskenceChannel.id}`).setLabel("İşkenceyi Bitir (Kanalı Sil)").setStyle(ButtonStyle.Danger)
+      );
+      await iskenceChannel.send({ content: `**İşkence tamamlandı.** <@${interaction.user.id}> bu odayı silebilir.`, components: [closeRow] }).catch(() => {});
+
+      actionResultText = `🔥 **İŞKENCE BAŞLADI!**\nGardiyan <@${interaction.user.id}> mahkuma işkence ediyor. (Özel kanal açıldı)`;
+      jailChannelMessage = `🔥 **İŞKENCE ZAMANI!**\n\n<@${targetUserId}>, Gardiyan **${interaction.user.tag}** seni gizli işkence odasına sürükledi!\n\n*Ateşlerin ve çığlıkların yankılandığı o karanlık dehlizde sana neler yapacaklar kim bilir...* 🔥`;
+    } catch (err) {
+      console.error("[JailService] Iskence error:", err.message);
+      actionResultText = "❌ İşkence odası oluşturulurken bir hata oluştu.";
+      jailChannelMessage = "";
+    }
+  }
 
   logEmbed
     .setTitle("✅ MÜDAHALE EDİLDİ")

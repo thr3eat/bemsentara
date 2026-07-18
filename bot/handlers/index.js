@@ -3359,6 +3359,39 @@ function initializeDiscordHandlers(client) {
         await handleAppealModalSubmit(interaction, client);
         return;
       }
+      // ── Moderatör Okulu Panel Atma Modal Submit ────────────────────────────
+      if (interaction.isModalSubmit() && interaction.customId === 'modschool_kick_modal') {
+        const userId = interaction.fields.getTextInputValue('kick_user_id').trim();
+        const { MOD_SCHOOL_GUILD_ID } = require('../../config');
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+          // 1. Kick from Mod School Guild
+          const schoolGuild = await client.guilds.fetch(MOD_SCHOOL_GUILD_ID || "1214979144807415848").catch(() => null);
+          if (schoolGuild) {
+            const member = await schoolGuild.members.fetch(userId).catch(() => null);
+            if (member) {
+              await member.kick('Yönetim Paneli: Moderatör Okulundan atıldı.').catch(() => {});
+            }
+          }
+
+          // 2. Remove progress from DB
+          const User = require('../../models/User');
+          const dbUser = await User.findOne({ discordId: userId });
+          if (dbUser && dbUser.moderatorSchool) {
+            dbUser.moderatorSchool.status = 'none';
+            dbUser.moderatorSchool.startedAt = null;
+            dbUser.moderatorSchool.currentStage = 0;
+            await dbUser.save();
+          }
+
+          await interaction.editReply({ content: `✅ **İşlem Başarılı!** <@${userId}> (\`${userId}\`) adlı kullanıcının okuldaki kaydı silindi ve eğitim sunucusundan uzaklaştırıldı.` });
+        } catch (err) {
+          console.error('[modSchoolKick] Error:', err.message);
+          await interaction.editReply({ content: '❌ İşlem sırasında bir hata oluştu.' });
+        }
+        return;
+      }
       // ── Mod İşlem Onay/Red Butonları ────────────────────────────────────────
       if (interaction.isButton() && (interaction.customId?.startsWith("modact_approve_") || interaction.customId?.startsWith("modact_reject_"))) {
         await handleModActionApproval(interaction);
@@ -3368,6 +3401,16 @@ function initializeDiscordHandlers(client) {
       if (interaction.isButton() && interaction.customId?.startsWith("jail_act_")) {
         const { handleJailButtonInteraction } = require("../services/jailService");
         await handleJailButtonInteraction(interaction);
+        return;
+      }
+      if (interaction.isButton() && interaction.customId?.startsWith("iskence_kapat_")) {
+        const channelId = interaction.customId.replace("iskence_kapat_", "");
+        if (interaction.channelId === channelId) {
+          await interaction.reply({ content: "🔥 İşkence odası kapatılıyor..." });
+          setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
+        } else {
+          await interaction.reply({ content: "Bu işlem sadece işkence odasında yapılabilir.", ephemeral: true });
+        }
         return;
       }
       // ── Hapis Sorgu ve Avukat Sistemi ──────────────────────────────────────

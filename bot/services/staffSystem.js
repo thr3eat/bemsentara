@@ -248,12 +248,40 @@ function todayStr() {
 }
 
 function getTargetCheckDate() {
-  const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
-  const hour = tzDate.getHours();
-  if (hour < 4) {
-    tzDate.setDate(tzDate.getDate() - 1);
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  }).formatToParts(now);
+
+  const partValues = {};
+  for (const part of parts) {
+    partValues[part.type] = part.value;
   }
-  return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(tzDate);
+
+  const year = parseInt(partValues.year, 10);
+  const month = parseInt(partValues.month, 10) - 1; // 0-indexed
+  const day = parseInt(partValues.day, 10);
+  const hour = parseInt(partValues.hour, 10);
+
+  // Create a UTC date representation using Istanbul local numbers to avoid system timezone interference
+  const localDate = new Date(Date.UTC(year, month, day, hour, 0, 0, 0));
+
+  if (hour < 4) {
+    localDate.setUTCDate(localDate.getUTCDate() - 1);
+  }
+
+  const resYear = localDate.getUTCFullYear();
+  const resMonth = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+  const resDay = String(localDate.getUTCDate()).padStart(2, '0');
+
+  return `${resYear}-${resMonth}-${resDay}`;
 }
 
 async function hasInactivityRole(userId, client) {

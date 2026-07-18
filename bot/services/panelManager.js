@@ -110,6 +110,16 @@ async function ensureAdminPanels(client) {
     );
     await refreshPanel(client, '1466946497206816973', modComplainEmbed, [modComplainRow]);
 
+    // 10. Moderatör Okulu Yönetim Paneli
+    const modSchoolEmbed = new EmbedBuilder()
+      .setTitle("🏫 Moderatör Okulu Yönetim Paneli")
+      .setDescription("Moderatör Okulundaki öğrencileri sunucudan ve eğitim sisteminden uzaklaştırmak için aşağıdaki butonu kullanabilirsiniz.")
+      .setColor(0xE67E22);
+    const modSchoolRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('btn_modschool_kick_panel').setLabel('Öğrenci At').setStyle(ButtonStyle.Danger).setEmoji('👢')
+    );
+    await refreshPanel(client, '1466947058442305637', modSchoolEmbed, [modSchoolRow]); // Eklendiği yer: Bot Komutları ve Yönetim Paneli Kanalı
+
   } catch (error) {
     console.error("[PanelManager] ensureAdminPanels Error:", error);
   }
