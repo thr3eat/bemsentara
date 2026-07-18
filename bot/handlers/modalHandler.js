@@ -55,6 +55,19 @@ async function resolveUserFromInput(input, interaction) {
   return null;
 }
 
+function ensureStaffProgressShape(progress) {
+  if (!progress) return null;
+
+  progress.daily = progress.daily || {};
+  progress.stats = progress.stats || {};
+  progress.gamification = progress.gamification || {};
+  progress.modReports = progress.modReports || {};
+  progress.duty = progress.duty || {};
+  progress.settings = progress.settings || {};
+
+  return progress;
+}
+
 async function handleModalSubmit(interaction) {
   if (interaction.customId === 'modal_tactical_change_radio') {
     const newFreq = interaction.fields.getTextInputValue('radio_freq');
@@ -968,8 +981,11 @@ Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi
     await interaction.deferReply({ ephemeral: true });
     
     const StaffProgress = require('../../models/StaffProgress');
-    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    let p = await StaffProgress.findOne({ userId: interaction.user.id });
     if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+
+    p = ensureStaffProgressShape(p);
+    await p.save().catch(() => {});
 
     const { getDailyTaskCompletionStats, chatWithAI, PERSONAL_ASSISTANT_SYSTEM_PROMPT, todayStr } = require('../services/staffSystem');
     const stats = getDailyTaskCompletionStats(p);
@@ -2178,4 +2194,4 @@ async function handleRatingModal(interaction) {
   });
 }
 
-module.exports = { handleModalSubmit };
+module.exports = { handleModalSubmit, ensureStaffProgressShape };
