@@ -187,7 +187,9 @@ const staffProgressSchema = new mongoose.Schema({
     robloxUserId: { type: Number, default: 0 },
     examAnswers: { type: [String], default: [] },
     examQuestionIndex: { type: Number, default: 0 },
-    completedAt: { type: Date, default: null }
+    completedAt: { type: Date, default: null },
+    enrolledAt: { type: Date, default: null },       // Okula ilk kaydolma tarihi
+    autoGradWarned: { type: Boolean, default: false } // Otomatik mezuniyet uyarısı gönderildi mi?
   },
 
   // Nöbet (Duty) Yönetim Sistemi (V6.0)

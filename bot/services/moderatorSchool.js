@@ -926,6 +926,10 @@ async function handleSchoolButtons(interaction, client) {
         let p = await StaffProgress.findOne({ userId });
         if (p) {
           p.schoolSystem.status = 'in_school';
+          // Okula kayıt tarihini sadece ilk sefer set et
+          if (!p.schoolSystem.enrolledAt) {
+            p.schoolSystem.enrolledAt = new Date();
+          }
           await p.save();
         }
       } catch (dmErr) {
@@ -2262,6 +2266,107 @@ function getActiveTrainings() {
   return activeTrainings;
 }
 
+// ─── Otomatik Mezuniyet — Çok Uzun Süre Okulda Kalan Öğrenciler ─────────────
+// 14 gün: Uyarı DM gönder
+// 21 gün: Otomatik mezun et
+const AUTO_GRAD_WARN_DAYS  = 14;  // Uyarı eşiği (gün)
+const AUTO_GRAD_FORCE_DAYS = 21;  // Zorla mezuniyet eşiği (gün)
+
+async function autoGraduateOverdueStudents(client) {
+  try {
+    const now = new Date();
+
+    // Okulda olan tüm aktif öğrencileri çek
+    const students = await StaffProgress.find({
+      'schoolSystem.status': {
+        $in: ['in_school', 'pending_contract',
+              'phase1_blocks_completed', 'phase1_exam_submitted', 'phase1_completed',
+              'phase2_blocks_completed', 'phase2_exam_submitted', 'phase2_completed',
+              'exam_passed']
+      }
+    });
+
+    let warned = 0;
+    let graduated = 0;
+
+    for (const p of students) {
+      try {
+        // enrolledAt yoksa updatedAt'i referans al (geriye dönük uyumluluk)
+        const enrolledAt = p.schoolSystem.enrolledAt || p.updatedAt || p.createdAt;
+        if (!enrolledAt) continue;
+
+        const daysInSchool = Math.floor((now - new Date(enrolledAt)) / (1000 * 60 * 60 * 24));
+
+        // ── 21 GÜN → Zorla Mezun Et ──────────────────────────────────────────
+        if (daysInSchool >= AUTO_GRAD_FORCE_DAYS) {
+          logger.info(`[AutoGrad] ${p.userId} → ${daysInSchool} gün okulda → otomatik mezun ediliyor.`);
+          const fakeResult = {
+            score: 60,
+            reason: `Okula kaydolduğundan bu yana ${daysInSchool} gün geçti. Sistem sizi otomatik olarak mezun etti.`
+          };
+          await graduateStudent(p.userId, 'Otomatik Sistem', client, fakeResult).catch(() => {});
+          graduated++;
+
+          // Mezunlar kanalına sistem notu at
+          const mezunlarCh = client.channels.cache.get(CHANNELS.MEZUNLAR);
+          if (mezunlarCh) {
+            await mezunlarCh.send({
+              content:
+                `🤖 **Otomatik Mezuniyet**\n` +
+                `<@${p.userId}> okulda **${daysInSchool} gün** geçirdiği için sistem tarafından otomatik olarak mezun edildi.\n` +
+                `📅 Kayıt: ${new Date(enrolledAt).toLocaleDateString('tr-TR')} → Mezuniyet: ${now.toLocaleDateString('tr-TR')}`
+            }).catch(() => {});
+          }
+          continue; // Uyarıya gerek yok, zaten mezun edildi
+        }
+
+        // ── 14 GÜN → Uyarı DM Gönder (sadece bir kez) ───────────────────────
+        if (daysInSchool >= AUTO_GRAD_WARN_DAYS && !p.schoolSystem.autoGradWarned) {
+          const remaining = AUTO_GRAD_FORCE_DAYS - daysInSchool;
+          try {
+            const user = await client.users.fetch(p.userId).catch(() => null);
+            if (user) {
+              const warnEmbed = new EmbedBuilder()
+                .setColor(0xff6b35)
+                .setTitle('⚠️ Moderatör Okulu — Süre Uyarısı')
+                .setThumbnail(getSelinImage())
+                .setDescription(
+                  `Merhaba! Ben Selin 🌸\n\n` +
+                  `Moderatör okuluna kaydolalı **${daysInSchool} gün** oldu. ` +
+                  `Eğer **${remaining} gün** içinde okulu tamamlamazsan sistem seni **otomatik olarak mezun edecek**.\n\n` +
+                  `> 📌 Okulunu tamamlamak için eğitim kanalına gel ve devam et!\n` +
+                  `> 🔗 [Okul Sunucusu](https://discord.gg/y9q8xhjkFD)\n\n` +
+                  `Acele et, seni bekliyoruz! 💕`
+                )
+                .addFields(
+                  { name: '📅 Okula Başlama', value: new Date(enrolledAt).toLocaleDateString('tr-TR'), inline: true },
+                  { name: '⏳ Kalan Süre', value: `${remaining} gün`, inline: true },
+                  { name: '🚨 Son Tarih', value: new Date(new Date(enrolledAt).getTime() + AUTO_GRAD_FORCE_DAYS * 86400000).toLocaleDateString('tr-TR'), inline: true }
+                )
+                .setFooter({ text: 'Eko Yıldız • Moderatör Okulu Otomatik Sistemi' })
+                .setTimestamp();
+
+              await user.send({ embeds: [warnEmbed] }).catch(() => {});
+              p.schoolSystem.autoGradWarned = true;
+              await p.save().catch(() => {});
+              warned++;
+              logger.info(`[AutoGrad] ${p.userId} → ${daysInSchool} gün → uyarı DM gönderildi (${remaining} gün kaldı).`);
+            }
+          } catch (_) {}
+        }
+      } catch (innerErr) {
+        logger.error(`[AutoGrad] Öğrenci işlem hatası (${p.userId}):`, innerErr.message);
+      }
+    }
+
+    if (warned > 0 || graduated > 0) {
+      logger.info(`[AutoGrad] Tamamlandı — ${warned} uyarı, ${graduated} otomatik mezuniyet.`);
+    }
+  } catch (err) {
+    logger.error('[AutoGrad] autoGraduateOverdueStudents hatası:', err.message);
+  }
+}
+
 module.exports = {
   initializeModeratorSchool,
   sendContractDM,
@@ -2271,4 +2376,6 @@ module.exports = {
   handleEgitimIstekMessage,
   handleTrainingRequestConfirm,
   getActiveTrainings,
+  autoGraduateOverdueStudents,
 };
+

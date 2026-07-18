@@ -139,6 +139,17 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Okul otomatik mezuniyet kontrolü — günde bir kez (24 saatte bir)
+    try {
+      const { autoGraduateOverdueStudents } = require('../services/moderatorSchool');
+      // İlk çalıştırma: bot açılışından 30 saniye sonra
+      setTimeout(() => autoGraduateOverdueStudents(client).catch(() => {}), 30000);
+      // Sonraki çalıştırmalar: her 24 saatte bir
+      setInterval(() => autoGraduateOverdueStudents(client).catch(() => {}), 24 * 60 * 60 * 1000);
+    } catch (err) {
+      console.error('[ready] Okul otomatik mezuniyet zamanlayıcısı başlatılamadı:', err.message);
+    }
+
     // Soruşturma Sistemi Başlangıç Ayarı ve Zamanlayıcısı
     try {
       const { setupTriggerButton, checkInactivityTimers } = require("../services/investigationService");
