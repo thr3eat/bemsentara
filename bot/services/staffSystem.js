@@ -818,7 +818,26 @@ async function addVoiceMinutes(userId, minutes, client) {
 // ── EkoCoin Ekleme ve Bildirim ─────────────────────────────────────────────
 async function addEkoCoin(progress, amount, client, reason) {
   progress.gamification = progress.gamification || {};
-  progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + amount;
+  // Apply today's theme multiplier if action matches theme
+  try {
+    const theme = getTodayTheme();
+    const lowerReason = (reason || '').toString().toLowerCase();
+    let multiplier = 1;
+    if (theme && theme.key) {
+      if ((theme.key === 'ticket' && /ticket|bilet/i.test(reason)) ||
+          (theme.key === 'trading' && /elmas|borsa|kaldıraç|trade|al-?sat/i.test(reason)) ||
+          (theme.key === 'justice' && /mahkeme|adalet|jüri|sicil/i.test(reason)) ||
+          (theme.key === 'operations' && /redacted|operasyon|istihbarat|ajan/i.test(reason)) ) {
+        multiplier = theme.bonusMultiplier || 1.5;
+      }
+    }
+    const applied = Math.ceil(amount * multiplier);
+    progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + applied;
+    // Adjust reason to include multiplier note
+    reason = reason ? `${reason} (x${multiplier})` : `Görev Ödülü (x${multiplier})`;
+  } catch (err) {
+    progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + amount;
+  }
 
   if (client) {
     try {
@@ -840,6 +859,23 @@ async function addEkoCoin(progress, amount, client, reason) {
       await user.send({ embeds: [embed], components: [row] }).catch(() => { });
     } catch (_) { }
   }
+}
+
+// ── Daily Theme Helpers ─────────────────────────────────────────────────
+function getTodayTheme(now = null) {
+  const tzDate = new Date((now || new Date()).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+  const day = tzDate.getDay(); // 0 Sun .. 6 Sat
+  // Map: 1 Mon Ticket, 2 Tue Grid, 3 Wed Justice, 4 Thu Trading, 5 Fri Redacted Ops, 6 Sat Payroll, 0 Sun Auction
+  const map = {
+    1: { key: 'ticket', name: 'Lojistik & Destek (Ticket Günü)', emoji: '🟢', short: 'Ticket & Lojistik', recommended: 'Ticket çözümü ve birim lojistiği', bonusMultiplier: 1.5 },
+    2: { key: 'grid', name: 'Sektör Savunma (Grid Control)', emoji: '🔴', short: 'Sektör & Savunma', recommended: 'Izgara Kontrol ve Savunma', bonusMultiplier: 1.3 },
+    3: { key: 'justice', name: 'Adalet & Denetim', emoji: '🟡', short: 'Mahkeme & Sicil', recommended: 'Yapay Zeka Mahkemesi görevlerini incele', bonusMultiplier: 1.4 },
+    4: { key: 'trading', name: 'Kaldıraç & Finans (Borsa Günü)', emoji: '🔵', short: 'Eko-Borsa', recommended: 'Al-Sat, Elmas & Kaldıraç', bonusMultiplier: 1.5 },
+    5: { key: 'redacted', name: 'Gizli Teşkilat & İstihbarat', emoji: '🟣', short: 'Redacted Ops', recommended: 'Siber istihbarat görevlerini kontrol et', bonusMultiplier: 1.4 },
+    6: { key: 'payroll', name: 'Bordro & VIP (Hafta Sonu)', emoji: '🟡', short: 'Maaş & VIP', recommended: 'Haftalık maaş kontrolü ve VIP mağaza', bonusMultiplier: 1.2 },
+    0: { key: 'auction', name: 'İhale & Magazin (Pazar)', emoji: '🏆', short: 'İhale Masası', recommended: 'Personel ihalelerine katıl', bonusMultiplier: 1.1 }
+  };
+  return map[day] || map[1];
 }
 
 // ── Mod işlem kaydı (yeni) ─────────────────────────────────────────────────
@@ -2282,6 +2318,15 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     inline: false
   });
 
+  // Insert today's theme and recommended route near the top
+  try {
+    const todayTheme = getTodayTheme();
+    if (todayTheme) {
+      fields.unshift({ name: '📅 Günün Teması', value: `${todayTheme.emoji} ${todayTheme.name}`, inline: false });
+      fields.splice(1, 0, { name: '🚩 Günün Tavsiye Edilen Öncelikli Rota Görevi', value: todayTheme.recommended || 'Bugünün öncelikli rotası yok.', inline: false });
+    }
+  } catch (_) {}
+
   embed.addFields(fields)
     .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} • <t:${Math.floor(Date.now() / 1000)}:T>` })
     .setTimestamp();
@@ -2609,6 +2654,18 @@ async function getMorningBriefingComponents(progress) {
   const rowSelect = new ActionRowBuilder().addComponents(combinedSelect);
 
   const componentsList = [rowTop, rowSelect, rowSettings];
+
+  // Dock (persistent app drawer) - always available as bottom row
+  try {
+    const dockRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('app_open_vardiya').setLabel('💼 Vardiya OS').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('app_open_borsa').setLabel('🏦 Eko-Borsa').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('app_open_operations').setLabel('🕵️ Operasyonlar').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('app_open_hr').setLabel('📋 İK Ofisi').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('app_open_home').setLabel('🏠 Ana Ekran').setStyle(ButtonStyle.Secondary)
+    );
+    componentsList.push(dockRow);
+  } catch (_) {}
 
   try {
     const StaffUnit = require('../../models/StaffUnit');

@@ -241,6 +241,69 @@ async function handleButtonInteraction(interaction) {
     }
   }
 
+  // App Drawer handlers (Sentara OS)
+  if (customId.startsWith('app_open_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const which = customId.replace('app_open_', '');
+      if (which === 'vardiya') {
+        const { getOrCreate } = require('../services/staffSystem');
+        const p = await require('../../models/StaffProgress').findOne({ userId: interaction.user.id });
+        const isOnDuty = p?.duty?.isActive;
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setTitle('💼 Vardiya OS').setDescription('Vardiya uygulaması — canlı nöbet kontrolleri.').setColor(0x2ecc71);
+        const row = new ActionRowBuilder();
+        if (isOnDuty) {
+          row.addComponents(new ButtonBuilder().setCustomId('staff_duty_end').setLabel('🛑 Nöbeti Bitir').setStyle(ButtonStyle.Danger));
+          row.addComponents(new ButtonBuilder().setCustomId('staff_duty_break_start').setLabel('☕ Mola Ver').setStyle(ButtonStyle.Secondary));
+        } else {
+          row.addComponents(new ButtonBuilder().setCustomId('staff_duty_start').setLabel('⚡ Nöbete Başla').setStyle(ButtonStyle.Success));
+        }
+        row.addComponents(new ButtonBuilder().setCustomId('staff_daily_report_btn').setLabel('✍️ Vardiya Raporu Sun').setStyle(ButtonStyle.Secondary));
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } else if (which === 'borsa') {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setTitle('🏦 Eko-Borsa').setDescription('Canlı piyasa uygulaması — al/sat işlemleri ve arbitraj.').setColor(0x3498db);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('exchange_buy_diamond').setLabel('🟢 Elmas Al').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('exchange_sell_diamond').setLabel('🔴 Elmas Sat').setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId('exchange_leverage').setLabel('💸 Kaldıraçlı İşlem').setStyle(ButtonStyle.Secondary)
+        );
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } else if (which === 'operations') {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setTitle('🕵️ Operasyonlar').setDescription('Operasyon ve istihbarat uygulamaları.').setColor(0x6f42c1);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('open_redacted_ops').setLabel('🕵️ Redacted Ops').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('open_court').setLabel('⚖️ Adalet Sarayı').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('open_grid_map').setLabel('🗺️ Sektör Grid Haritası').setStyle(ButtonStyle.Secondary)
+        );
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } else if (which === 'hr') {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setTitle('📋 İK Ofisi').setDescription('Maaş, izin ve profil yönetimi.').setColor(0xf39c12);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('staff_claim_salary').setLabel('🪙 Haftalık Maaşımı Al').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('staff_vip_store').setLabel('💎 VIP Mağaza').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('staff_settings').setLabel('⚙️ Cihaz Ayarları').setStyle(ButtonStyle.Secondary)
+        );
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } else if (which === 'home') {
+        const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
+        const p = await require('../../models/StaffProgress').findOne({ userId: interaction.user.id });
+        const embed = await generateMorningBriefingEmbed(p, interaction.client);
+        const comps = await getMorningBriefingComponents(p);
+        await interaction.editReply({ embeds: [embed], components: comps });
+      } else {
+        await interaction.editReply({ content: 'Uygulama bulunamadı.' });
+      }
+      return;
+    } catch (err) {
+      console.error('[app_drawer] error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Real Estate Buttons ─────────────────────────────────────────────
   if (customId.startsWith('realestate_buy_')) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
@@ -266,6 +329,80 @@ async function handleButtonInteraction(interaction) {
       return interaction.editReply({ content: `✅ Tebrikler! **${res.property.name}** bölgesinin hissesi başarıyla satın alındı. Satın alma fiyatı: ${res.purchasedAtPrice} TL` });
     } catch (err) {
       console.error('[realestate_buy] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── Eko-Borsa Trade Handlers ───────────────────────────────────────
+  if (customId === 'exchange_buy_diamond') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const Ticket = require('../../models/Ticket');
+      const { getMarketSnapshot } = require('../services/marketSystem');
+
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
+      const activeStaff = staffRecords.length;
+      const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
+      const chatMessages = staffRecords.reduce((s, r) => s + (r.stats?.chatMessages || 0), 0);
+      const snapshot = getMarketSnapshot({ pendingTickets, warnings, chatMessages, activeStaff });
+      const price = snapshot.diamondRate;
+
+      const wallet = p.gamification?.ecoCoins || 0;
+      if (wallet < price) {
+        return interaction.editReply({ content: `❌ Yetersiz Bakiye! Gerekli: ${price} TL, Cüzdanınız: ${wallet} TL\nVardiyeye girip ticket/voice ile TL kazanmayı deneyin.` });
+      }
+
+      // Deduct and add diamond
+      p.gamification = p.gamification || {};
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - price;
+      p.gamification.diamonds = (p.gamification.diamonds || 0) + 1;
+      await p.save().catch(() => {});
+
+      return interaction.editReply({ content: `✅ Başarılı: 1 💎 satın alındı.
+• Satın alma fiyatı: ${price} TL
+• Kalan bakiye: ${p.gamification.ecoCoins} TL
+• Elmas bakiyesi: ${p.gamification.diamonds} 💎` });
+    } catch (err) {
+      console.error('[exchange_buy] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === 'exchange_sell_diamond') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const Ticket = require('../../models/Ticket');
+      const { getMarketSnapshot } = require('../services/marketSystem');
+
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      const diamonds = (p.gamification?.diamonds || 0);
+      if (diamonds < 1) return interaction.editReply({ content: '❌ Satılık elmasınız bulunmuyor.' });
+
+      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
+      const activeStaff = staffRecords.length;
+      const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
+      const chatMessages = staffRecords.reduce((s, r) => s + (r.stats?.chatMessages || 0), 0);
+      const snapshot = getMarketSnapshot({ pendingTickets, warnings, chatMessages, activeStaff });
+      const sellFor = snapshot.diamondRate;
+
+      p.gamification.diamonds = (p.gamification.diamonds || 0) - 1;
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + sellFor;
+      await p.save().catch(() => {});
+
+      return interaction.editReply({ content: `✅ Tebrikler! 1 💎 satıldı ve ${sellFor} TL hesabınıza aktarıldı.
+• Güncel bakiye: ${p.gamification.ecoCoins} TL
+• Kalan elmas: ${p.gamification.diamonds} 💎` });
+    } catch (err) {
+      console.error('[exchange_sell] Error:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
