@@ -115,6 +115,8 @@ const staffProgressSchema = new mongoose.Schema({
     versionRewardClaimedV4: { type: Boolean, default: false }, // V4.0 ödülü alındı mı?
     systemIntroducedV5: { type: Boolean, default: false },   // V5.0 tanıtımı yapıldı mı?
     versionRewardClaimedV5: { type: Boolean, default: false }, // V5.0 ödülü alındı mı?
+    systemIntroducedV6: { type: Boolean, default: false },   // V6.0 tanıtımı yapıldı mı?
+    versionRewardClaimedV6: { type: Boolean, default: false }, // V6.0 ödülü alındı mı?
   },
 
   // Moderasyon Rapor Takip Sistemi

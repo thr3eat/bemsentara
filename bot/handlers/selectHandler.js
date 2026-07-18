@@ -423,13 +423,13 @@ async function handleSelectInteraction(interaction) {
             `Haftalık aktiflik durumunuz ve KPI performans puanınız Finansal Yönetim Departmanı tarafından onaylandı. Maaş ödemeniz gerçekleştirilmiştir.\n\n` +
             `**📋 MAAŞ DETAYLARI VE KESİNTİLER**\n` +
             `\`\`\`diff\n` +
-            `+ Brüt Hak Ediş: ${gross} E.C. (Rütbe Tabanı: ${base} E.C. | KPI: %${kpiScore})\n` +
-            `- Disiplin Cezası Kesintisi: -${penaltyDeduction} E.C. (${warnsCount} Uyarı)\n` +
-            `- Gelir Vergisi Kesintisi (%10): -${tax} E.C.\n` +
+            `+ Brüt Hak Ediş: ${gross} TL (Rütbe Tabanı: ${base} TL | KPI: %${kpiScore})\n` +
+            `- Disiplin Cezası Kesintisi: -${penaltyDeduction} TL (${warnsCount} Uyarı)\n` +
+            `- Gelir Vergisi Kesintisi (%10): -${tax} TL\n` +
             `-----------------------------------------------\n` +
-            `+ Net Ödenen Maaş: ${netPay} E.C.\n` +
+            `+ Net Ödenen Maaş: ${netPay} TL\n` +
             `\`\`\`\n` +
-            `• **Güncel EkoCoin Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} E.C.\``
+            `• **Güncel Cüzdan Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} TL\``
           )
           .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
           .setTimestamp();
@@ -466,7 +466,7 @@ async function handleSelectInteraction(interaction) {
         const embed = new EmbedBuilder()
           .setColor(0xf1c40f)
           .setTitle('🏆 Eko Yıldız Haftalık Yetkili Liderlik Tablosu')
-          .setDescription('Sunucumuzda haftanın en yüksek tecrübe puanına (XP) ve aktifliğine sahip Top 5 yetkilisi listesi:')
+          .setDescription('Sunucumuzda haftanın en yüksek Elmas (💎) puanına ve aktifliğine sahip Top 5 yetkilisi listesi:')
           .setFooter({ text: 'Eko Yıldız • Yetkili Rekabet Sistemi' })
           .setTimestamp();
 
@@ -481,8 +481,8 @@ async function handleSelectInteraction(interaction) {
         const emojis = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
         const listText = sorted.map((item, idx) => {
           const roleName = ROLE_NAMES[item.level] || 'Yetkili';
-          return `${emojis[idx]} <@${item.userId}> - **${item.xp} XP**\n` +
-                 `   • *Rütbe:* ${roleName} | *Bakiye:* \`${item.coins} E.C.\``;
+          return `${emojis[idx]} <@${item.userId}> - **${item.xp} Elmas (💎)**\n` +
+                 `   • *Rütbe:* ${roleName} | *Bakiye:* \`${item.coins} TL\``;
         }).join('\n\n');
 
         embed.addFields({ name: '📊 TOP 5 YETKİLİ', value: listText || 'Listelenecek yetkili bulunamadı.' });

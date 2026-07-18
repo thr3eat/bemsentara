@@ -1900,6 +1900,13 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
 
   const fields = [];
 
+  // ── FIELD 0.5: GÜNCELLEME DUYURUSU ───────────────────────────────────────
+  fields.push({
+    name: '📢 BİRİM VE PARA BİRİMİ GÜNCELLEMESİ',
+    value: `⚠️ **Önemli Duyuru:** Sunucumuzdaki **EkoCoin (E.C.)** para birimi tamamen **TL (Türk Lirası)** olarak güncellenmiştir! Ayrıca rütbe atlamanızı sağlayan **XP (Tecrübe Puanı)** birimi artık **Elmas (💎)** olarak adlandırılacaktır. Tüm hak edişleriniz ve puanlarınız birebir korunarak yeni birimlere aktarılmıştır.`,
+    inline: false
+  });
+
   // ── FIELD 1: BUGÜNKÜ GÖREVLER & İLERLEME ────────────────────────────────────
   let tasksText = '';
   tasksText += `💬 **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'} *(Gereken: ${req.greets}x selam)*\n`;
@@ -2024,7 +2031,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   // ── FIELD 3.8: YENİ NESİL INTERAKTİF SİSTEMLER TANITIMI ───────────────────
   fields.push({
     name: '🚀 YENİ MODERASYON ENTEGRASYONLARI',
-    value: `• **⚡ Nöbet Sistemi:** Nöbete başladığınızda ses ve bilet aktifliğiniz loglanır, bitirdiğinizde **XP ve EkoCoin** kazandırır.\n` +
+    value: `• **⚡ Nöbet Sistemi:** Nöbete başladığınızda ses ve bilet aktifliğiniz loglanır, bitirdiğinizde **Elmas (💎) ve TL** kazandırır.\n` +
            `• **🤖 AI Mod Asistanı:** Karşılaştığınız kural ihlallerini AI'a sorarak sunucu kurallarına en uygun cezayı/mute süresini öğrenin.\n` +
            `• **📝 Vaka Raporu:** Sunucuda yaşanan kritik veya olağanüstü durumları form ile anında üst yönetimin loglarına rapor edin.\n` +
            `• **⚙️ Yetkili Menüleri:** Sayfanın altındaki menülerden tek tıkla izin kullanabilir, yetkili sicillerini ve performans puanlarını sorgulayabilirsiniz.`,
@@ -2036,11 +2043,11 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     "💡 **İpucu:** Herhangi bir kanaldan veya DM'den \`/mod-anasayfa\` komutunu kullanarak bu kontrol paneline anında erişebilirsiniz!",
     "💡 **İpucu:** Nöbetinizi bitirirken karşınıza çıkan forma detaylı **Vardiya Devir Notu** yazarak üst yönetime durum özeti geçebilir ve ekstra saygınlık kazanabilirsiniz.",
     "💡 **İpucu:** \`🤖 AI Asistan\` butonuna tıklayarak şüpheli bir durum veya kural ihlali hakkında AI'dan anında ceza/mute süresi tavsiyesi alabilirsiniz.",
-    "💡 **İpucu:** \`✍️ Günlük Rapor Gir\` butonunu kullanarak bugün yaptığınız çalışmaları özetleyin. AI Koçunuz raporunuzu inceleyip size anında KPI/tecrübe puanı verecektir.",
+    "💡 **İpucu:** \`✍️ Günlük Rapor Gir\` butonunu kullanarak bugün yaptığınız çalışmaları özetleyin. AI Koçunuz raporunuzu inceleyip size anında KPI/Elmas (💎) puanı verecektir.",
     "💡 **İpucu:** İzin kredilerinizi görmek ve yönetmek için \`⚙️ Kişisel Yetkili İşlemleri\` menüsünden \`📊 İzin Durumu Sorgula\` seçeneğini kullanabilirsiniz.",
     "💡 **İpucu:** \`📋 Talepler\` butonunu kullanarak üst rütbelere izin veya görev istekleri gönderebilir ya da üst rütbelerden gelen emirleri takip edebilirsiniz.",
-    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **EkoCoin ve XP** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!",
-    "💡 **İpucu:** \`🎓 AI Pratik Eğitimi\` menü seçeneğini kullanarak rastgele hazırlanan kural ihlali senaryolarını çözün, AI'dan puan ve ekstra rütbe XP/EkoCoin ödülü kazanın!",
+    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **TL ve Elmas (💎)** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!",
+    "💡 **İpucu:** \`🎓 AI Pratik Eğitimi\` menü seçeneğini kullanarak rastgele hazırlanan kural ihlali senaryolarını çözün, AI'dan puan ve ekstra rütbe Elmas (💎)/TL ödülü kazanın!",
     "💡 **İpucu:** Sunucuda baskın, bypass veya ağır kural ihlali gibi acil durumlarda \`🚨 Acil Durum / Baskın Alarmı\` eylemini seçerek üst yönetime anında ping log gönderebilirsiniz.",
     "💡 **İpucu:** Haftalık durumunuzu, güçlü yönlerinizi ve rütbe değerlendirmenizi AI Koçunuzdan resmi bir karne olarak almak için \`🧠 AI Performans Karnesi\` seçeneğini kullanın.",
     "💡 **İpucu:** Aktiflik durumunuza ve haftalık KPI performans puanınıza göre hak kazandığınız yetkili maaşınızı almak için \`🪙 Haftalık Maaşımı Al\` seçeneğini kullanabilirsiniz.",
@@ -3915,9 +3922,144 @@ async function sendSystemUpdateNotification(client) {
   }
 }
 
-/**
- * Belirli bir personele özel bildirim gönder
- */
+// ─── V6.0 İnteraktif Hoşgeldin & Tanıtım Bildirimi ─────────────────────────
+async function sendV6WelcomeNotification(client) {
+  try {
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+    const rawProgress = await StaffProgress.find({
+      level: { $gte: 1, $lte: 6 },
+      status: 'active',
+      $or: [
+        { 'gamification.systemIntroducedV6': false },
+        { 'gamification.systemIntroducedV6': { $exists: false } }
+      ]
+    });
+    const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
+
+    if (allProgress.length === 0) return;
+
+    // ── Sayfa 1: Büyük Hoşgeldin ────────────────────────────────────────────
+    const page1 = new EmbedBuilder()
+      .setColor(0x7c6af7)
+      .setTitle('🌟 MODERATÖRLER HOŞGELDİNİZ!! 🌟')
+      .setDescription(
+        '> *"Ben **Eko** ve boş durmadım!"*\n\n' +
+        '🤖 Merhaba! Ben **Sentara**, EkoYıldız\'ın güçlendirilmiş yapay zeka moderasyon botuyum.\n\n' +
+        'Siz çalışırken ben de çalıştım — ve bu kez sunucunuzu gerçek bir **profesyonel iş yönetim platformuna** dönüştürecek bir sürü şey getirdim! 🚀\n\n' +
+        '**📦 Versiyon: V6.0 — Gerçekçi İş Hayatı Entegrasyon Paketi**\n\n' +
+        '> Aşağıdaki butonlara basarak yenilikleri keşfet! 👇'
+      )
+      .addFields(
+        { name: '🎯 Bu güncellemede ne var?', value: '5 sayfalık interaktif tanıtım turuna hoşgeldiniz! Her bölümde sistemin farklı bir özelliğini keşfedeceksiniz.', inline: false },
+        { name: '⏰ Tahmini Süre', value: '~3 dakika okuma', inline: true },
+        { name: '🎁 Ödül', value: '500 TL + 1500 Elmas (💎)', inline: true }
+      )
+      .setImage('https://i.imgur.com/z3PFMTJ.gif')
+      .setFooter({ text: 'Eko Yıldız V6.0 • Sayfa 1/5 — Para Birimi ve XP Yenilikleri' })
+      .setTimestamp();
+
+    // ── Sayfa 2: Para Birimi Yenileme ────────────────────────────────────────
+    const page2 = new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle('💰 Yeni Para Birimi: TL & 💎 Elmas Sistemi')
+      .setDescription(
+        '**EkoCoin (E.C.) → Türk Lirası (TL)**\n' +
+        '**XP (Tecrübe Puanı) → Elmas (💎)**\n\n' +
+        'Para birimimiz ve rütbe atlamanızı sağlayan puanlarımız tamamen yenilendi! Tüm mevcut bakiyeleriniz birebir korundu.\n\n'
+      )
+      .addFields(
+        { name: '💼 Maaş Bordrosu Sistemi', value: 'Artık maaşınız gerçek bir muhasebe faturası gibi: **Brüt kazanç - Disiplin Cezası (%15/uyarı) - Gelir Vergisi (%10) = Net Maaş**', inline: false },
+        { name: '🏆 Liderlik Tablosu', value: 'Sıralamalar artık **Elmas (💎)** cinsinden gösteriliyor. En fazla Elmas kazanan Hafta\'nın Yetkilisi olur!', inline: false },
+        { name: '📊 Nasıl Kullanılır?', value: '`Kişisel İşlemler Menüsü → 🪙 Haftalık Maaşımı Al` butonuna bas!', inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız V6.0 • Sayfa 2/5 — Nöbet & Mola Sistemi' });
+
+    // ── Sayfa 3: Nöbet & Mola Sistemi ─────────────────────────────────────
+    const page3 = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('⚡ Nöbet & ☕ Kahve Molası Sistemi')
+      .setDescription(
+        'Artık moderatörlük bir oyun gibi değil, **gerçek bir iş vardiyası** gibi çalışıyor!\n\n' +
+        '**Nöbet Başlatma:** `⚡ Nöbete Başla` butonuna bas. Ses, bilet ve mod işlemlerin otomatik loglanır.\n' +
+        '**Kahve Molası:** Nöbetteyken `☕ Mola Ver` butonu belirir! Tıkla ve dinlen. Kaç dakika mola yaptığın üst yönetime loglanır.\n' +
+        '**Vardiya Devri:** Nöbeti bitirirken çıkan forma **Devir Notu** yaz — bir sonraki moderatöre profesyonelce teslim et!\n\n'
+      )
+      .addFields(
+        { name: '🎁 Nöbet Ödülleri', value: 'Nöbet süresine, çözülen bilete ve mod işlemine göre otomatik **TL ve Elmas (💎)** kazanırsın!', inline: false },
+        { name: '🟡 Durum Renkleri', value: '🟢 Aktif Nöbette · 🟡 Kahve Molasında · 🔴 Nöbette Değil', inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız V6.0 • Sayfa 3/5 — AI Sistemleri' });
+
+    // ── Sayfa 4: AI Sistemleri ─────────────────────────────────────────────
+    const page4 = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle('🧠 3 Yeni Yapay Zeka Sistemi')
+      .setDescription('Sunucunuzda şimdi 3 farklı AI aracı çalışıyor!\n\u200b')
+      .addFields(
+        { name: '🧠 AI Performans Karnesi', value: 'AI Baş Mentor Koçu haftalık tüm verilerinizi (KPI, uyarı, takdir, nöbet) analiz ederek size **resmi harf notu (A+/B/C/F)** içeren kişisel bir karne verir!\n`Kişisel İşlemler → 🧠 AI Performans Karnesi`', inline: false },
+        { name: '🎓 AI Pratik Eğitimi', value: '5 farklı gerçekçi moderasyon senaryosundan birine cevap ver, AI puan (0-100) ver ve geri bildirim yap! 70+ puan alırsan **+15 💎 Elmas & +5 TL** kazanırsın!\n`Kişisel İşlemler → 🎓 AI Pratik Eğitimi`', inline: false },
+        { name: '🤖 AI Mod Asistanı', value: 'Anında kural ihlali veya ceza/mute süresi tavsiyesi almak için `🤖 AI Asistan` butonuna bas!', inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız V6.0 • Sayfa 4/5 — Acil Sistem & Görevler' });
+
+    // ── Sayfa 5: Acil Sistem & Son ────────────────────────────────────────
+    const page5 = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle('🚨 Acil Durum Alarmı & Yeni Görevler')
+      .setDescription('\u200b')
+      .addFields(
+        { name: '🚨 Acil Durum / Baskın Alarmı', value: 'Baskın, token raid, bypass reklam gibi acil durumlarda `Kişisel İşlemler → 🚨 Acil Durum Alarmı` seçeneğini kullan! Üst yönetim **@here** pingiyle anında uyarılır.', inline: false },
+        { name: '📅 3 Yeni Günlük Görev', value: '🎓 **Akademi Öğrencisi** — Günde 1 AI senaryosu çöz\n📝 **Rapor Sunucusu** — Günde 1 Vaka/Vardiya Raporu gir\n⚡ **Görev Başında** — 30 dakika aktif nöbette kal', inline: false },
+        { name: '🎁 V6.0 Güncelleme Ödülünüz', value: 'Aşağıdaki **ÖDÜLÜ AL** butonuna basarak **500 TL + 1500 Elmas (💎)** hediyenizi alabilirsiniz!', inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız V6.0 • Sayfa 5/5 — İyi nöbetler! 💚' })
+      .setTimestamp();
+
+    const claimRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('claim_v6_reward')
+        .setLabel('🎁 V6.0 ÖDÜLÜNÜ AL')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('staff_update_progress')
+        .setLabel('🏠 Mod Anasayfasını Aç')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    for (const p of allProgress) {
+      try {
+        const user = await client.users.fetch(p.userId).catch(() => null);
+        if (!user) continue;
+
+        // Sayfa 1 gönder
+        await user.send({ embeds: [page1] }).catch(() => {});
+        await new Promise(r => setTimeout(r, 800));
+        // Sayfa 2
+        await user.send({ embeds: [page2] }).catch(() => {});
+        await new Promise(r => setTimeout(r, 800));
+        // Sayfa 3
+        await user.send({ embeds: [page3] }).catch(() => {});
+        await new Promise(r => setTimeout(r, 800));
+        // Sayfa 4
+        await user.send({ embeds: [page4] }).catch(() => {});
+        await new Promise(r => setTimeout(r, 800));
+        // Sayfa 5 + ödül butonu
+        await user.send({ embeds: [page5], components: [claimRow] }).catch(() => {});
+
+        p.gamification = p.gamification || {};
+        p.gamification.systemIntroducedV6 = true;
+        await p.save().catch(() => {});
+      } catch (_) { }
+    }
+
+    console.log(`[staffSystem] ${allProgress.length} personele V6.0 hoşgeldin bildirimi gönderildi.`);
+  } catch (err) {
+    console.error('[staffSystem] V6 Bildirim hatası:', err.message);
+  }
+}
+
+
 async function notifyStaff(userId, title, message, color = 0x7c6af7, client) {
   try {
     const user = await client.users.fetch(userId);
@@ -4737,6 +4879,7 @@ module.exports = {
   useLeaveCredit,
   notifyAllStaffAboutUpdate,
   sendSystemUpdateNotification,
+  sendV6WelcomeNotification,
   notifyStaff,
   // Gamification
   checkAndUnlockBadges,

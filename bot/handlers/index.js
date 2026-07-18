@@ -260,8 +260,10 @@ function initializeDiscordHandlers(client) {
     }
 
     // İlk defaya mahsus personele yeni gamification sistemi tanıtım mesajı at
-    const { sendSystemUpdateNotification } = require('../services/staffSystem');
+    const { sendSystemUpdateNotification, sendV6WelcomeNotification } = require('../services/staffSystem');
     sendSystemUpdateNotification(client);
+    // V6.0 interaktif hoşgeldin bildirimi (tek seferlik)
+    setTimeout(() => sendV6WelcomeNotification(client), 5000);
 
     // XP Çekiliş Scheduler
     setInterval(async () => {

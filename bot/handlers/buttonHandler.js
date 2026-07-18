@@ -2159,6 +2159,63 @@ async function handleButtonInteraction(interaction) {
     }
   }
 
+  // ── V6.0 Ödül Butonu ──────────────────────────────────────────────────────
+  if (customId === "claim_v6_reward") {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    }
+    try {
+      const { getXpForLevel, getOrCreate } = require("../services/staffSystem");
+      const p = await getOrCreate(interaction.user.id, interaction.guildId, interaction.client);
+      if (!p || p.status !== 'active') {
+        return interaction.editReply("❌ Sadece aktif personel bu güncelleme ödülünü alabilir.");
+      }
+
+      if (p.gamification?.versionRewardClaimedV6) {
+        return interaction.editReply("⚠️ V6.0 güncelleme ödülünü zaten aldınız!");
+      }
+
+      p.gamification = p.gamification || {};
+      // 500 TL (ecoCoins) 
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 500;
+      // 1500 Elmas (currentXP)
+      p.gamification.currentXP = (p.gamification.currentXP || 0) + 1500;
+
+      // Gamification level-up kontrolü
+      let levelUp = false;
+      while (true) {
+        const nextLevelXp = getXpForLevel((p.gamification.level || 1) + 1);
+        if (p.gamification.currentXP >= nextLevelXp) {
+          p.gamification.level = (p.gamification.level || 1) + 1;
+          p.gamification.currentXP -= nextLevelXp;
+          levelUp = true;
+        } else {
+          break;
+        }
+      }
+
+      p.gamification.versionRewardClaimedV6 = true;
+      await p.save();
+
+      const embed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('🎁 V6.0 Güncelleme Ödülü Alındı!')
+        .setDescription(
+          '**Tebrikler! Yeni sistemi keşfettiğiniz için teşekkürler! 🌟**\n\n' +
+          `💰 **+500 TL** hesabınıza yatırıldı!\n` +
+          `💎 **+1500 Elmas** hesabınıza eklendi! ${levelUp ? '*(SEVİYE ATLADINIZ! 🎊)*' : ''}\n\n` +
+          '> *"İyi çalışmalar dilerim — Eko & Sentara"* 🤖💚'
+        )
+        .setFooter({ text: 'Eko Yıldız V6.0 • Güncel Sürüm' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[claim_v6_reward] hata:', err.message);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
   // ── Özellikleri Test Et ──────────────────────────────────────────────────
   if (customId === "test_features") {
     if (!interaction.deferred && !interaction.replied) {

@@ -169,11 +169,11 @@ async function endDuty(interaction, client, handoverNotes = null) {
       { name: '🎤 Ses Aktifliği', value: `${voiceMins} dakika`, inline: true },
       { name: '🎫 Çözülen Bilet', value: `${tickets} adet`, inline: true },
       { name: '🛡️ Mod İşlemleri', value: `${mods} adet`, inline: true },
-      { name: '🎁 Kazanılan Ödüller', value: `✨ **+${xpReward} XP**\n🪙 **+${coinReward} EkoCoin**`, inline: false }
+      { name: '🎁 Kazanılan Ödüller', value: `✨ **+${xpReward} Elmas (💎)**\n🪙 **+${coinReward} TL**`, inline: false }
     ];
 
     if (handoverNotes) {
-      logFields.push({ name: '📝 Vardiya Devir Notları', value: `\`\`\`${handoverNotes}\`\`\``, inline: false });
+      logFields.push({ name: '📝 Vardiya Devir Notları', value: `\`\`\`. ${handoverNotes}\`\`\``, inline: false });
     }
 
     const logEmbed = new EmbedBuilder()
@@ -189,7 +189,7 @@ async function endDuty(interaction, client, handoverNotes = null) {
       `⏱️ **Süre:** ${durationHours} sa ${remainingMins} dk\n` +
       `🎙️ **Ses:** ${voiceMins} dk | 🎫 **Bilet:** ${tickets} | 🛡️ **Mod:** ${mods}\n` +
       (handoverNotes ? `📝 **Devir Notu:** \`${handoverNotes}\`\n` : '') +
-      `🎁 **Kazanılan:** +${xpReward} XP, +${coinReward} EkoCoin!\n\n` +
+      `🎁 **Kazanılan:** +${xpReward} Elmas (💎), +${coinReward} TL!\n\n` +
       `Emeğiniz için teşekkürler! 💚`;
 
     return isDeferred ? interaction.editReply({ content: replyContent }) : interaction.reply({ content: replyContent, ephemeral: true });
