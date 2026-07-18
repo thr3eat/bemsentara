@@ -248,20 +248,69 @@ async function handleButtonInteraction(interaction) {
       const which = customId.replace('app_open_', '');
       if (which === 'vardiya') {
         const { getOrCreate } = require('../services/staffSystem');
-        const p = await require('../../models/StaffProgress').findOne({ userId: interaction.user.id });
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id }) || {};
         const isOnDuty = p?.duty?.isActive;
+        const isBreak = p?.duty?.isBreakActive;
+        const energyPercent = Math.max(0, 100 - Math.floor((p?.daily?.ticketsSolvedToday || 0) * 5 + (p?.daily?.voiceMinutes || 0) / 30));
         const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-        const embed = new EmbedBuilder().setTitle('💼 Vardiya OS').setDescription('Vardiya uygulaması — canlı nöbet kontrolleri.').setColor(0x2ecc71);
+        const embed = new EmbedBuilder()
+          .setTitle('🟢 NÖBET DURUMU VE VARDİYA AYARLARI')
+          .setColor(0x2ecc71)
+          .setDescription(`Durum: **${isOnDuty ? 'Nöbette' : 'Boşta'}**\nEnerji: **${energyPercent}%** ${renderEnergyBar(energyPercent)}`);
+
         const row = new ActionRowBuilder();
         if (isOnDuty) {
           row.addComponents(new ButtonBuilder().setCustomId('staff_duty_end').setLabel('🛑 Nöbeti Bitir').setStyle(ButtonStyle.Danger));
-          row.addComponents(new ButtonBuilder().setCustomId('staff_duty_break_start').setLabel('☕ Mola Ver').setStyle(ButtonStyle.Secondary));
+          if (!isBreak) {
+            row.addComponents(new ButtonBuilder().setCustomId('staff_duty_break_start').setLabel('☕ Mola Ver').setStyle(ButtonStyle.Secondary));
+          } else {
+            row.addComponents(new ButtonBuilder().setCustomId('staff_duty_break_end').setLabel('▶️ Mola Bitir').setStyle(ButtonStyle.Secondary));
+          }
         } else {
           row.addComponents(new ButtonBuilder().setCustomId('staff_duty_start').setLabel('⚡ Nöbete Başla').setStyle(ButtonStyle.Success));
         }
-        row.addComponents(new ButtonBuilder().setCustomId('staff_daily_report_btn').setLabel('✍️ Vardiya Raporu Sun').setStyle(ButtonStyle.Secondary));
-        await interaction.editReply({ embeds: [embed], components: [row] });
+
+        // Energy quick action
+        if (energyPercent <= 35) {
+          row.addComponents(new ButtonBuilder().setCustomId('staff_use_coffee_break').setLabel('🔋 Enerji Yenile (Kahve)').setStyle(ButtonStyle.Primary));
+        }
+
+        const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('staff_daily_report_btn').setLabel('✍️ Vardiya Raporu Sun').setStyle(ButtonStyle.Secondary));
+        await interaction.editReply({ embeds: [embed], components: [row, row2] });
       } else if (which === 'borsa') {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        const StaffProgress = require('../../models/StaffProgress');
+        const { getMarketSnapshot } = require('../services/marketSystem');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id }) || {};
+        const snapshot = getMarketSnapshot({});
+        const diamondRate = snapshot?.diamondRate ?? (p?.diamondRate || 0);
+        const marketState = p?.marketState || snapshot?.marketState || 'Bilinmiyor';
+        const trend = p?.marketTrend || snapshot?.marketTrend || '▃ ▅ █';
+
+        const embed = new EmbedBuilder()
+          .setTitle('🏦 Eko-Borsa')
+          .setColor(0x3498db)
+          .setDescription('Canlı piyasa uygulaması — al/sat işlemleri ve arbitraj.')
+          .addFields(
+            { name: '📊 Piyasa Durumu', value: `${marketState} • Çarpan: ${p?.marketMultiplier || snapshot?.marketMultiplier || 1}`, inline: true },
+            { name: '💎 Elmas Fiyatı', value: `${diamondRate} TL`, inline: true },
+            { name: '📈 Trend', value: `${trend}`, inline: false },
+            { name: '💳 Cüzdan', value: `${p?.gamification?.ecoCoins || 0} TL • ${p?.gamification?.diamonds || 0} 💎`, inline: true },
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('exchange_buy_diamond').setLabel('🟢 Elmas Al').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('exchange_sell_diamond').setLabel('🔴 Elmas Sat').setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId('exchange_leverage').setLabel('💸 Kaldıraçlı İşlem').setStyle(ButtonStyle.Secondary)
+        );
+
+        const row2 = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('finance_invest_trigger').setLabel('📈 Yatırım Fonuna Gir').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('finance_loan_request').setLabel('💸 Avans Talep Et').setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.editReply({ embeds: [embed], components: [row, row2] });
         const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
         const embed = new EmbedBuilder().setTitle('🏦 Eko-Borsa').setDescription('Canlı piyasa uygulaması — al/sat işlemleri ve arbitraj.').setColor(0x3498db);
         const row = new ActionRowBuilder().addComponents(
@@ -303,6 +352,13 @@ async function handleButtonInteraction(interaction) {
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
+
+// Helper: render energy bar
+function renderEnergyBar(percent) {
+  const full = Math.floor(percent / 10);
+  const empty = 10 - full;
+  return '[' + '█'.repeat(full) + '░'.repeat(empty) + ']';
+}
 
   // ── Real Estate Buttons ─────────────────────────────────────────────
   if (customId.startsWith('realestate_buy_')) {
