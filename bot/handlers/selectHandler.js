@@ -353,6 +353,53 @@ async function handleSelectInteraction(interaction) {
       }
     }
 
+    if (action === 'staff_action_sponsorship') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('🏢 Birim Fonlama ve Sponsorluk Masası')
+          .setDescription('Kendi biriminizin bütçesine finansal destek sağlayarak liderlik prestijini artırın.')
+          .addFields(
+            { name: '💵 Cüzdan Bakiyeniz', value: `\`${p.gamification?.ecoCoins || 0} TL\``, inline: true },
+            { name: '🏷️ Birim Seçimi', value: 'BAN_BIRIMI / SES_BIRIMI / SOHBET_BIRIMI', inline: true }
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('sponsorship_transfer').setLabel('💰 Birim Kasasına TL Aktar').setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_vip_store') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setColor(0xf1c40f)
+          .setTitle('💎 VIP Mağaza')
+          .setDescription('Profilinizin görünümünü ve prestijini yükselten lüks eşyalar satın alın.');
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('vip_purchase_theme').setLabel('🎨 Altın Profil Teması (7,500 TL)').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('vip_purchase_badge').setLabel('🏅 Lüks Rozet (5,000 TL)').setStyle(ButtonStyle.Secondary)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
     if (action === 'staff_action_finance_center') {
       await interaction.deferReply({ ephemeral: true });
       try {
@@ -386,7 +433,8 @@ async function handleSelectInteraction(interaction) {
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('finance_invest_trigger').setLabel('📈 Yatırım Fonuna TL Yatır').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('finance_buy_leave').setLabel('🍃 İzin Kredisi Al (100 TL)').setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId('finance_loan_request').setLabel('🤝 Maaş Avansı Çek (150 TL)').setStyle(ButtonStyle.Success)
+          new ButtonBuilder().setCustomId('finance_loan_request').setLabel('🤝 Maaş Avansı Çek (150 TL)').setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId('staff_auction_open').setLabel('💸 İhale Teklifi Ver').setStyle(ButtonStyle.Success)
         );
 
         return interaction.editReply({ embeds: [embed], components: [row] });

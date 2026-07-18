@@ -2485,6 +2485,8 @@ async function getMorningBriefingComponents(progress) {
       { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
       { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
       { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
+      { label: '🏢 Birim Fonlama ve Sponsorluk', description: 'Birim bütçesine TL aktararak prestij ve liderlik kazanın.', value: 'staff_action_sponsorship', emoji: '🏢' },
+      { label: '💎 VIP Mağaza', description: 'Profil temasını, rozetini veya lüks görünümünü satın alın.', value: 'staff_action_vip_store', emoji: '💎' },
       { label: '⚖️ Mahkeme', description: 'Aktif mahkeme davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
       { label: '🤫 İhbar Hattı (Whistleblower Desk)', description: 'Anonim şekilde yönetime ihbarda bulunun (SHA-256 Korumalı).', value: 'staff_action_whistleblower', emoji: '🤫' },
       { label: '🕵️ Redacted Ops (Gizli Teşkilat)', description: 'Aktif gizli ajan görevlerinizi sorgulayın ve çözün.', value: 'staff_action_redacted_ops', emoji: '🕵️' },

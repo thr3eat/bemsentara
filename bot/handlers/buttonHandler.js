@@ -2447,6 +2447,89 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId === "staff_auction_open") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { createAuctionState, getAuctionStatus } = require('../services/staffFinanceSystem');
+      const state = createAuctionState({});
+      const status = getAuctionStatus(state);
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor(0x8e44ad)
+        .setTitle('💸 Haftalık Personel İhalesi')
+        .setDescription(`Aşağıdaki prestijli varlık için teklif verin. En yüksek teklifi veren ödülü kapar.`)
+        .addFields(
+          { name: '🎁 İhale Kalemi', value: status.itemLabel, inline: false },
+          { name: '💰 Mevcut Teklif', value: `\`${status.highestOffer} TL\``, inline: true },
+          { name: '⏳ Bitiş', value: `<t:${Math.floor(new Date(status.endsAt).getTime() / 1000)}:R>`, inline: true }
+        );
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('staff_auction_bid').setLabel('💸 Teklifi 500 TL Arttır').setStyle(ButtonStyle.Success)
+      );
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "staff_auction_bid") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      const wallet = p.gamification?.ecoCoins || 0;
+      if (wallet < 500) return interaction.editReply({ content: '❌ En az 500 TL cüzdan bakiyeniz olmalıdır.' });
+      p.gamification.ecoCoins = wallet - 500;
+      p.savingsFund = (p.savingsFund || 0) + 500;
+      await p.save();
+      return interaction.editReply({ content: '✅ **Teklifiniz alındı.** 500 TL ihale havuzuna aktarılmıştır.' });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "sponsorship_transfer") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder().setCustomId('modal_sponsorship_transfer').setTitle('🏢 Birim Kasasına TL Aktar');
+    const amount = new TextInputBuilder().setCustomId('sponsorship_amount').setLabel('Aktarılacak TL').setStyle(TextInputStyle.Short).setRequired(true);
+    const unit = new TextInputBuilder().setCustomId('sponsorship_unit').setLabel('Birim Adı (BAN_BIRIMI / SES_BIRIMI / SOHBET_BIRIMI)').setStyle(TextInputStyle.Short).setRequired(true);
+    modal.addComponents(new ActionRowBuilder().addComponents(amount), new ActionRowBuilder().addComponents(unit));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId === "vip_purchase_theme") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      if ((p.gamification?.ecoCoins || 0) < 7500) return interaction.editReply({ content: '❌ Yetersiz bakiye.' });
+      p.gamification.ecoCoins -= 7500;
+      p.marketState = `${p.marketState || 'Boğa Piyasası'} • VIP`;
+      await p.save();
+      return interaction.editReply({ content: '✅ **Altın Profil Teması** satın alındı.' });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "vip_purchase_badge") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      if ((p.gamification?.ecoCoins || 0) < 5000) return interaction.editReply({ content: '❌ Yetersiz bakiye.' });
+      p.gamification.ecoCoins -= 5000;
+      p.marketTrend = `${p.marketTrend || '▃ ▅ █ █ ▄'} 🏅`;
+      await p.save();
+      return interaction.editReply({ content: '✅ **Lüks Rozet** satın alındı.' });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   if (customId === "finance_invest_trigger") {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     const modal = new ModalBuilder()
@@ -2513,6 +2596,40 @@ async function handleButtonInteraction(interaction) {
       return interaction.editReply({ content: "✅ **Faizsiz Maaş Avansı Onaylandı!**\n\n`150 TL` başarıyla cüzdanınıza aktarılmıştır. Bu tutar, bir sonraki haftalık maaş tahakkukunda otomatik olarak net maaşınızdan mahsup edilecektir." });
     } catch (err) {
       console.error('[Finance-Loan] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "staff_lounge_coinflip") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { resolveLoungeGame } = require('../services/staffFinanceSystem');
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      if ((p.gamification?.ecoCoins || 0) < 500) return interaction.editReply({ content: '❌ Yetersiz bakiye.' });
+      const result = resolveLoungeGame('coinflip', 500);
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - 500 + result.payout;
+      await p.save();
+      return interaction.editReply({ content: result.outcome === 'win' ? '✅ **Kazandınız!** 500 TL yatırımı ile 1,000 TL geri aldınız.' : '❌ **Kaybettiniz.** 500 TL vergi fonuna aktarıldı.' });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "staff_lounge_highrisk") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { resolveLoungeGame } = require('../services/staffFinanceSystem');
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      if ((p.gamification?.ecoCoins || 0) < 1000) return interaction.editReply({ content: '❌ Yetersiz bakiye.' });
+      const result = resolveLoungeGame('highrisk', 1000);
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - 1000 + result.payout;
+      await p.save();
+      return interaction.editReply({ content: result.outcome === 'win' ? '✅ **Yüksek risk!** 3,000 TL kazandınız.' : '❌ **Kaybettiniz.** 1,000 TL kriz fonuna aktarıldı.' });
+    } catch (err) {
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

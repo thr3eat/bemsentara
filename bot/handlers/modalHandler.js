@@ -263,6 +263,48 @@ async function handleModalSubmit(interaction) {
     }
   }
 
+  if (interaction.customId === 'modal_sponsorship_transfer') {
+    const amountStr = interaction.fields.getTextInputValue('sponsorship_amount').trim();
+    const unitName = interaction.fields.getTextInputValue('sponsorship_unit').trim().toUpperCase();
+    const amount = parseInt(amountStr, 10);
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      if (isNaN(amount) || amount <= 0) {
+        return interaction.editReply({ content: '❌ Lütfen geçerli pozitif bir TL tutarı giriniz!' });
+      }
+
+      const validUnits = ['BAN_BIRIMI', 'SES_BIRIMI', 'SOHBET_BIRIMI'];
+      if (!validUnits.includes(unitName)) {
+        return interaction.editReply({ content: '❌ Geçersiz birim adı. Kullanılabilir birimler: BAN_BIRIMI, SES_BIRIMI, SOHBET_BIRIMI.' });
+      }
+
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      if ((p.gamification?.ecoCoins || 0) < amount) {
+        return interaction.editReply({ content: `❌ Yetersiz bakiye! Cüzdanınızda sadece \`${p.gamification?.ecoCoins || 0} TL\` bulunmaktadır.` });
+      }
+
+      const UnitBudget = require('../../models/UnitBudget');
+      let ub = await UnitBudget.findOne({ unitName });
+      if (!ub) {
+        ub = new UnitBudget({ unitName, budget: 0 });
+      }
+      ub.budget = (ub.budget || 0) + amount;
+      await ub.save();
+
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - amount;
+      await p.save();
+
+      return interaction.editReply({ content: `✅ **${amount} TL** ${unitName} birim bütçesine aktarılmıştır.` });
+    } catch (err) {
+      console.error('[Sponsorship-Modal] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   if (interaction.customId === 'modal_finance_invest') {
     const amountStr = interaction.fields.getTextInputValue('invest_amount').trim();
     const amount = parseInt(amountStr, 10);
