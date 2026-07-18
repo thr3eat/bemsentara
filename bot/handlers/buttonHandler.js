@@ -1079,6 +1079,12 @@ async function handleButtonInteraction(interaction) {
     return handleUnitChatButton(interaction);
   }
 
+  // ── Birim Talepleri ve Emirleri Butonları ─────────────────────────────────
+  if (customId === "staff_units_request_menu" || customId.startsWith("unit_req_") || customId.startsWith("unit_cmd_")) {
+    const { handleRequestButton } = require("../services/unitRequestService");
+    return handleRequestButton(interaction);
+  }
+
   // ── Panel butonu ────────────────────────────────────────────────────────
   if (customId.startsWith("panel_")) {
     const { handlePanelButton } = require("../services/mainPanelService");

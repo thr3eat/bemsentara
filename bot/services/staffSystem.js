@@ -2041,7 +2041,11 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId('staff_settings')
       .setLabel('⚙️ Ayarlar')
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('staff_units_request_menu')
+      .setLabel('📋 Talepler ve Emirler')
+      .setStyle(ButtonStyle.Primary)
   );
 
   return [rowButtons, rowSelect, rowSettings];
@@ -3194,6 +3198,20 @@ async function runDailyCheck(client) {
     } catch (promptErr) {
       console.error("[NotificationPrompt] Daily scheduler check error:", promptErr.message);
     }
+
+    // Save last run check date in database configuration to prevent duplicate runs and enable catch-up
+    try {
+      const ServerConfig = require('../../models/ServerConfig');
+      let config = await ServerConfig.findOne({ guildId: GUILD_ID });
+      if (!config) {
+        config = new ServerConfig({ guildId: GUILD_ID });
+      }
+      config.set('lastDailyCheckRunDate', checkDate);
+      await config.save().catch(() => {});
+      console.log(`[staffSystem] Saved lastDailyCheckRunDate in DB: ${checkDate}`);
+    } catch (dbErr) {
+      console.error('[staffSystem] Failed to save lastDailyCheckRunDate in DB:', dbErr.message);
+    }
   } catch (err) {
     console.error('[staffSystem] Günlük kontrol hatası:', err.message);
   }
@@ -3474,6 +3492,56 @@ function startStaffScheduler(client) {
       checkActiveExams(client);
     } catch (_) { }
   }, 15000); // 15 saniye sonra
+
+  // Bot başlatıldığında kaçırılan günlük kontrolleri kontrol et ve çalıştır (Catch-up Mekanizması)
+  (async () => {
+    try {
+      console.log('[staffSystem] Başlangıç günlük kontrol doğrulayıcısı çalışıyor...');
+      const checkDate = getTargetCheckDate();
+      const ServerConfig = require('../../models/ServerConfig');
+      
+      let config = await ServerConfig.findOne({ guildId: GUILD_ID });
+      if (!config) {
+        config = new ServerConfig({ guildId: GUILD_ID });
+      }
+
+      const lastCheck = config.get('lastDailyCheckRunDate') || '';
+      console.log(`[staffSystem] Son başarılı kontrol tarihi: ${lastCheck || 'Yok'}, Hedef tarih: ${checkDate}`);
+
+      if (lastCheck !== checkDate) {
+        const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+        const currentHour = tzDate.getHours();
+        const currentMinute = tzDate.getMinutes();
+
+        // 23:30 geçildi mi veya arada boşta kalan geçmiş günler mi var kontrol et
+        const isPastCheckTime = (currentHour > 23) || (currentHour === 23 && currentMinute >= 30);
+        const todayString = todayStr();
+        const yesterdayDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayString = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(yesterdayDate);
+
+        const isLastCheckMissed = lastCheck !== yesterdayString && lastCheck !== todayString;
+
+        if (isPastCheckTime || isLastCheckMissed) {
+          console.log('[staffSystem] ⚠️ Günlük kontrolün kaçırıldığı tespit edildi! Catch-up çalıştırılıyor...');
+          const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+          for (const p of rawProgress) {
+            await applyNightShiftMorningCarryover(p).catch(() => { });
+            await p.save().catch(() => { });
+          }
+          await runDailyCheck(client);
+
+          config.set('lastDailyCheckRunDate', checkDate);
+          await config.save().catch(() => {});
+          console.log(`[staffSystem] ✅ Günlük kontrol catch-up tamamlandı. Son tarih güncellendi: ${checkDate}`);
+        } else {
+          console.log('[staffSystem] Günlük kontrol henüz zamanı gelmedi veya zaten güncel.');
+        }
+      }
+    } catch (startupErr) {
+      console.error('[staffSystem] Başlangıç kontrol hatası:', startupErr.message);
+    }
+  })();
 }
 
 // ── PERSONEL DOĞRULAMA KONTROLÜ (ROBLOX & DISCORD) ─────────────────────────

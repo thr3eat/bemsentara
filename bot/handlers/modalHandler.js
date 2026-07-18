@@ -57,6 +57,12 @@ async function handleModalSubmit(interaction) {
     return handleErrorWizardSubmit(interaction);
   }
 
+  // ── Birim Talepleri ve Emirleri Modalleri ──────────────────────────────────
+  if (interaction.customId.startsWith('modal_unit_')) {
+    const { handleRequestModal } = require('../services/unitRequestService');
+    return handleRequestModal(interaction);
+  }
+
   if (interaction.customId.startsWith('wizard_reply_modal_')) {
     const { handleWizardReplyModal } = require('../services/errorWizardService');
     return handleWizardReplyModal(interaction);
