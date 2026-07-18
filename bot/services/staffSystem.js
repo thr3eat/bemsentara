@@ -1979,9 +1979,9 @@ async function generateMorningBriefingEmbed(progress, client) {
 
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
+  let displayName = progress.userId;
+  let username = progress.userId;
   try {
-    let displayName = progress.userId;
-    let username = progress.userId;
     try {
       const u = await client.users.fetch(progress.userId).catch(() => null);
       if (u) {
