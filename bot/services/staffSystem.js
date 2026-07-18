@@ -1,6 +1,6 @@
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const StaffProgress = require('../../models/StaffProgress');
 const { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT, PERSONAL_ASSISTANT_SYSTEM_PROMPT } = require('./aiService');
 const staffAutomation = require('./staffAutomation');
@@ -338,7 +338,7 @@ async function verifyActiveStaffRole(userId, client, guildId) {
     if (!member) return false;
 
     // Check if member is Administrator
-    if (member.permissions.has('Administrator')) return true;
+    if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
 
     // Check if member has at least one of the staff roles defined in ROLES
     const staffRoleIds = Object.values(ROLES);
@@ -436,7 +436,7 @@ async function getOrCreate(userId, guildId, client) {
             const member = await guild.members.fetch(userId).catch(() => null);
             if (member) {
               const staffRoleIds = Object.values(ROLES);
-              hasStaffRole = member.permissions.has('Administrator') || staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
+              hasStaffRole = member.permissions.has(PermissionFlagsBits.Administrator) || staffRoleIds.some(roleId => roleId && member.roles.cache.has(roleId));
             }
           }
         } catch (_) {}
@@ -472,7 +472,7 @@ async function getOrCreate(userId, guildId, client) {
               break;
             }
           }
-          if (member.permissions.has('Administrator')) {
+          if (member.permissions.has(PermissionFlagsBits.Administrator)) {
             hasStaffRole = true;
             if (!initialLevel) initialLevel = 1;
           }
@@ -4058,7 +4058,7 @@ function startStaffScheduler(client) {
 
           // Veritabanında aktifse, Discord üzerinde yetkili rolü varsa veya Administrator ise yetkili kabul et
           const isStaff = activeStaffIds.has(userId) ||
-            member.permissions.has('Administrator') ||
+            member.permissions.has(PermissionFlagsBits.Administrator) ||
             staffRoleIds.some(rid =>
               rid && !['PERSONEL_ROLE_ID', 'GELISMIS_ROLE_ID', 'SEKRETER_ROLE_ID'].includes(rid)
               && member.roles.cache.has(rid)
