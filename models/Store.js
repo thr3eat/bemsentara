@@ -167,7 +167,7 @@ async function initStore() {
 
   if (mongoOk) {
     // MongoDB'den yükle
-    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata", "posts", "stories", "liveStreams"];
+    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata", "posts", "stories", "liveStreams", "appMeta"];
     const counts = {};
 
     for (const name of colNames) {
@@ -211,7 +211,7 @@ async function initStore() {
 
 /** Dosyadaki tüm verileri MongoDB'ye toplu yazar */
 async function migrateFileToMongo() {
-  const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata"];
+  const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata", "appMeta"];
   for (const name of colNames) {
     await db.saveCollectionToMongo(name, collections[name].data);
   }
@@ -221,7 +221,7 @@ async function saveStoreNow() {
   // Her iki sisteme de yaz
   flushSave(collections);
   if (db.isMongoActive()) {
-    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata", "posts", "stories", "liveStreams"];
+    const colNames = ["users", "tickets", "economies", "wikiArticles", "groupAdmins", "rankMetadata", "posts", "stories", "liveStreams", "appMeta"];
     const promises = colNames.map(name => 
       db.saveCollectionToMongo(name, collections[name].data)
         .catch(err => console.error(`[Store] Toplu kayıt hatası (${name}):`, err.message))

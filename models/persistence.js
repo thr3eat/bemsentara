@@ -86,6 +86,7 @@ function flushSave(collections) {
       posts: serializeMap(collections.posts.data),
       stories: serializeMap(collections.stories.data),
       liveStreams: serializeMap(collections.liveStreams.data),
+      appMeta: serializeMap(collections.appMeta.data),
     };
     const tmp = `${STORE_FILE}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
@@ -154,6 +155,7 @@ function loadIntoCollections(collections) {
     posts: hydrateCollection(collections.posts, saved.posts),
     stories: hydrateCollection(collections.stories, saved.stories),
     liveStreams: hydrateCollection(collections.liveStreams, saved.liveStreams),
+    appMeta: hydrateCollection(collections.appMeta, saved.appMeta),
   };
 
   migrateLegacyWikis(collections, saved);

@@ -63,62 +63,72 @@ discordBot.once("ready", async () => {
     try {
       const { appMeta, users } = require("./models/Store");
       const Economy = require("./models/Economy");
-      const { LOG_CHANNEL_ID } = require("./config");
+      const { LOG_CHANNEL_ID, EKOYILDIZ_MOD_LOG_CHANNEL_ID } = require("./config");
 
       const flag = appMeta.findOne({ key: "release_v6_5_announced" });
       if (!flag) {
-        // send rich announcement (v6.0 style)
-        const ch = await discordBot.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (ch && ch.isTextBased && ch.isTextBased()) {
-          try {
-            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
-            const embed = new EmbedBuilder()
-              .setColor(0x7c6af7)
-              .setTitle('📣 Sürüm v6.5 — Yeni Özellikler ve Güncellemeler (v6.0 tarzı duyuru)')
-              .setDescription('Merhaba EkoYıldız topluluğu! 🎉\nv6.5 sürümümüz yayımlandı. Bu sürümde topluluk ve moderasyon için kapsamlı yenilikler getiriyoruz — daha etkili bordro sistemi, resmi istifa süreci, vaka raporu entegrasyonu, AI destekli denetim, PIP, vardiya devir notları ve çok daha fazlası.')
-              .addFields(
-                { name: '🔹 1) Dinamik Bordro & Vergi Kesintisi', value: 'Yetkili maaşları otomatik hesaplanır; disiplin durumuna göre kesintiler uygulanır.', inline: false },
-                { name: '🔹 2) Resmi İstifa & Kıdem Tazminatı', value: '3 günlük ihbar süreci, yönetim incelemesi ve kıdem tazminatı hesaplama (60+ gün).', inline: false },
-                { name: '🔹 3) Vaka Raporu ve Delil Klasörü', value: 'Otomatik `CASE-XXXX` ID, denetçi etkileşimleri ve kanıt arşivleme.', inline: false },
-                { name: '🔹 4) Vardiya Devir & AI Denetimi', value: 'Devir notları kaydedilir, AI anomali tespiti ile şüpheli durumlar raporlanır.', inline: false },
-                { name: '🔹 5) Burnout Tespiti ve Zorunlu İzin', value: 'Uzun görev yapanlara otomatik zorunlu dinlenme (kahve izni).', inline: false },
-                { name: '🔹 6) Taktik Komuta & Operasyon Masası', value: 'Canlı durum panosu ve komuta butonları ile hızlı çağrı ve ödül verme.', inline: false },
-                { name: '🔹 7) Personel 2FA', value: 'Kritik işlemler için DM üzerinden 2FA doğrulaması (5 dk geçiş).', inline: false },
-                { name: '🔹 8) PIP — Performans İyileştirme Planı', value: 'Uyarı alan personele son şans: iki kat görev hedefi ve takip.', inline: false },
-                { name: '🔹 9) Birim Lojistiği & Bütçe Yönetimi', value: 'UnitBudget ile prim dağıtımı, izin kredileri ve birim reklamları.', inline: false },
-                { name: '🔹 10) Disiplin Soruşturması & İtiraz Mahkemesi', value: 'Disiplin süreçleri şeffaf ve itiraza açık biçimde yürütülür.', inline: false }
-              )
-              .setFooter({ text: 'Eko Yıldız • Sürüm v6.5 — Küçük jest: +25 EkoCoin (tek seferlik)' })
-              .setTimestamp();
+        let sentAny = false;
+        const channelsToNotify = [LOG_CHANNEL_ID, EKOYILDIZ_MOD_LOG_CHANNEL_ID];
 
-            const row = new ActionRowBuilder().addComponents(
-              new ButtonBuilder().setLabel('Detaylı Güncelleme (Panel)').setStyle(5).setURL(`${BASE_URL}/dashboard`)
-            );
+        for (const chanId of channelsToNotify) {
+          if (!chanId) continue;
+          const ch = await discordBot.channels.fetch(chanId).catch(() => null);
+          if (ch && typeof ch.send === "function") {
+            try {
+              const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+              const embed = new EmbedBuilder()
+                .setColor(0x7c6af7)
+                .setTitle('📣 Sürüm v6.5 — Yeni Özellikler ve Güncellemeler (v6.0 tarzı duyuru)')
+                .setDescription('Merhaba EkoYıldız topluluğu! 🎉\nv6.5 sürümümüz yayımlandı. Bu sürümde topluluk ve moderasyon için kapsamlı yenilikler getiriyoruz — daha etkili bordro sistemi, resmi istifa süreci, vaka raporu entegrasyonu, AI destekli denetim, PIP, vardiya devir notları ve çok daha fazlası.')
+                .addFields(
+                  { name: '🔹 1) Dinamik Bordro & Vergi Kesintisi', value: 'Yetkili maaşları otomatik hesaplanır; disiplin durumuna göre kesintiler uygulanır.', inline: false },
+                  { name: '🔹 2) Resmi İstifa & Kıdem Tazminatı', value: '3 günlük ihbar süreci, yönetim incelemesi ve kıdem tazminatı hesaplama (60+ gün).', inline: false },
+                  { name: '🔹 3) Vaka Raporu ve Delil Klasörü', value: 'Otomatik `CASE-XXXX` ID, denetçi etkileşimleri ve kanıt arşivleme.', inline: false },
+                  { name: '🔹 4) Vardiya Devir & AI Denetimi', value: 'Devir notları kaydedilir, AI anomali tespiti ile şüpheli durumlar raporlanır.', inline: false },
+                  { name: '🔹 5) Burnout Tespiti ve Zorunlu İzin', value: 'Uzun görev yapanlara otomatik zorunlu dinlenme (kahve izni).', inline: false },
+                  { name: '🔹 6) Taktik Komuta & Operasyon Masası', value: 'Canlı durum panosu ve komuta butonları ile hızlı çağrı ve ödül verme.', inline: false },
+                  { name: '🔹 7) Personel 2FA', value: 'Kritik işlemler için DM üzerinden 2FA doğrulaması (5 dk geçiş).', inline: false },
+                  { name: '🔹 8) PIP — Performans İyileştirme Planı', value: 'Uyarı alan personele son şans: iki kat görev hedefi ve takip.', inline: false },
+                  { name: '🔹 9) Birim Lojistiği & Bütçe Yönetimi', value: 'UnitBudget ile prim dağıtımı, izin kredileri ve birim reklamları.', inline: false },
+                  { name: '🔹 10) Disiplin Soruşturması & İtiraz Mahkemesi', value: 'Disiplin süreçleri şeffaf ve itiraza açık biçimde yürütülür.', inline: false }
+                )
+                .setFooter({ text: 'Eko Yıldız • Sürüm v6.5 — Küçük jest: +25 EkoCoin (tek seferlik)' })
+                .setTimestamp();
 
-            await ch.send({ embeds: [embed], components: [row] }).catch(() => {});
-          } catch (_) {}
+              const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setLabel('Detaylı Güncelleme (Panel)').setStyle(5).setURL(`${BASE_URL}/dashboard`)
+              );
+
+              await ch.send({ embeds: [embed], components: [row] });
+              sentAny = true;
+            } catch (err) {
+              logger.error(`[Release v6.5] Channel ${chanId} send error:`, err.message);
+            }
+          }
         }
 
-        // distribute small reward to staff users
-        try {
-          const staffUsers = users.find({}).filter(u => u.isStaff || u.isAdmin);
-          for (const u of staffUsers) {
-            try {
-              let eco = await Economy.findOne({ userId: String(u.discordId) });
-              if (!eco) {
-                eco = new Economy({ userId: String(u.discordId), balance: 0, totalEarned: 0 });
-              }
-              eco.balance = (eco.balance || 0) + 25;
-              eco.totalEarned = (eco.totalEarned || 0) + 25;
-              await eco.save();
-            } catch (_) {}
-          }
-        } catch (_) {}
+        if (sentAny) {
+          // distribute small reward to staff users
+          try {
+            const staffUsers = users.find({}).filter(u => u.isStaff || u.isAdmin);
+            for (const u of staffUsers) {
+              try {
+                let eco = await Economy.findOne({ userId: String(u.discordId) });
+                if (!eco) {
+                  eco = new Economy({ userId: String(u.discordId), balance: 0, totalEarned: 0 });
+                }
+                eco.balance = (eco.balance || 0) + 25;
+                eco.totalEarned = (eco.totalEarned || 0) + 25;
+                await eco.save();
+              } catch (_) {}
+            }
+          } catch (_) {}
 
-        // mark announced
-        appMeta.create({ key: "release_v6_5_announced", value: true, createdAt: new Date() });
-        const { saveStoreNow } = require("./models/Store");
-        saveStoreNow();
+          // mark announced
+          appMeta.create({ key: "release_v6_5_announced", value: true, createdAt: new Date() });
+          const { saveStoreNow } = require("./models/Store");
+          saveStoreNow();
+        }
       }
     } catch (releaseErr) {
       logger.error("[Release v6.5] Announcement error:", releaseErr.message);
