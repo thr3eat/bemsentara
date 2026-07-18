@@ -253,7 +253,15 @@ const staffProgressSchema = new mongoose.Schema({
   isInspector: { type: Boolean, default: false },
   insuranceActive: { type: Boolean, default: false },
   savingsFund: { type: Number, default: 0 },
-  loanAmount: { type: Number, default: 0 }
+  loanAmount: { type: Number, default: 0 },
+  marketMultiplier: { type: Number, default: 2.5 },
+  marketState: { type: String, default: 'Boğa Piyasası' },
+  diamondRate: { type: Number, default: 8 },
+  interestRate: { type: Number, default: 14 },
+  crisisTaxRate: { type: Number, default: 0.1 },
+  marketTrend: { type: String, default: '▃ ▅ █ █ ▄' },
+  marketRiskScore: { type: Number, default: 0 },
+  marketLastUpdatedAt: { type: Date, default: null }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

@@ -1134,12 +1134,13 @@ async function handleButtonInteraction(interaction) {
       const voiceMinutes = p.weeklyStats?.voiceMinutes || 0;
       const ticketsSolved = p.weeklyStats?.ticketsSolved || 0;
       const moderationActions = p.weeklyStats?.moderationActions || 0;
+      const marketMultiplier = Number(p.marketMultiplier || 2.5);
+      const crisisTaxRate = Number(p.crisisTaxRate || 0.1);
       
-      // V0.7 Ekonomik Denge Çarpanı (0.7x)
-      const baseVoice = Math.floor(voiceMinutes * 1 * 0.7);
-      const baseTickets = Math.floor(ticketsSolved * 10 * 0.7);
-      const baseMod = Math.floor(moderationActions * 5 * 0.7);
-      const gross = baseVoice + baseTickets + baseMod;
+      const baseVoice = Math.floor(voiceMinutes * 1.4);
+      const baseTickets = Math.floor(ticketsSolved * 85);
+      const baseMod = Math.floor(moderationActions * 60);
+      const gross = Math.floor((baseVoice + baseTickets + baseMod) * marketMultiplier);
 
       if (gross <= 0) {
         return interaction.followUp({ content: '❌ Aktifliğiniz bulunmamaktadır.', ephemeral: true });
@@ -1152,7 +1153,7 @@ async function handleButtonInteraction(interaction) {
       }) || [];
       const hasWarning = warnsThisWeek.length > 0;
       const disciplinaryDeduction = hasWarning ? Math.floor(gross * 0.15) : 0;
-      const taxDeduction = Math.floor(gross * 0.10);
+      const taxDeduction = Math.floor(gross * crisisTaxRate);
       let netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
 
       let loanDeducted = 0;
@@ -1175,7 +1176,8 @@ async function handleButtonInteraction(interaction) {
         .setTitle('✅ Ödeme Başarıyla Tamamlandı! (v0.7)')
         .setDescription(
           `Sayın <@${interaction.user.id}>,\n\n` +
-          `**Net Maaşınız (${netPay} TL)** başarıyla yetkili cüzdanınıza aktarılmıştır.\n\n` +
+          `**Net Maaşınız (${netPay} TL)** başarıyla yetkili cüzdanınıza aktarılmıştır.\n` +
+          `📈 **Piyasa Durumu:** ${p.marketState || 'Boğa Piyasası'} • **x${Number(p.marketMultiplier || 2.5).toFixed(1)}**\n\n` +
           (loanDeducted > 0 ? `• **Kesilen Maaş Avansı:** \`-${loanDeducted} TL\` (Kalan Avans Borcu: \`${p.loanAmount} TL\`)\n` : '') +
           `💳 **Güncel Cüzdan Bakiyeniz:** \`${p.gamification.ecoCoins} TL\`\n` +
           `*Haftalık aktiflik sayaçlarınız sıfırlanmıştır.*`

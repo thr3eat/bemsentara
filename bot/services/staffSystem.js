@@ -4,6 +4,7 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const StaffProgress = require('../../models/StaffProgress');
 const { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT, PERSONAL_ASSISTANT_SYSTEM_PROMPT } = require('./aiService');
 const staffAutomation = require('./staffAutomation');
+const { getMarketSnapshot } = require('./marketSystem');
 
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
@@ -2005,6 +2006,14 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   } catch (_) { }
 
   const nextLevelName = ROLE_NAMES[progress.level + 1] || 'Maksimum Seviye';
+  const marketSnapshot = {
+    state: progress.marketState || 'Boğa Piyasası',
+    multiplier: Number(progress.marketMultiplier || 2.5),
+    diamondRate: Number(progress.diamondRate || 8),
+    interestRate: Number(progress.interestRate || 14),
+    crisisTaxRate: Number(progress.crisisTaxRate || 0.1),
+    trend: progress.marketTrend || '▃ ▅ █ █ ▄'
+  };
 
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
@@ -2224,6 +2233,15 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   } catch (kpiErr) {
     console.error('[staffSystem] KPI field build error:', kpiErr.message);
   }
+
+  fields.push({
+    name: '📈 EKO-BORSA DURUMU',
+    value: `**${marketSnapshot.state}** ${marketSnapshot.trend}\n` +
+           `• Çarpan: **x${marketSnapshot.multiplier.toFixed(1)}**\n` +
+           `• 1 💎 = **${marketSnapshot.diamondRate} TL**\n` +
+           `• Faiz: **%${marketSnapshot.interestRate}**`,
+    inline: false
+  });
 
   // ── FIELD 3.8: YENİ NESİL INTERAKTİF SİSTEMLER TANITIMI ───────────────────
   fields.push({
@@ -3863,6 +3881,38 @@ async function runDailyCheck(client) {
 
 // ── Scheduler — sabah brifing + gün içi hatırlatmalar ──────────────────────
 function startStaffScheduler(client) {
+  async function refreshMarketState() {
+    try {
+      const Ticket = require('../../models/Ticket');
+      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const activeStaff = await StaffProgress.countDocuments({ status: 'active' }).catch(() => 0);
+      const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
+      const warnings = staffRecords.reduce((sum, p) => sum + (p.warnings?.count || 0), 0);
+      const chatMessages = staffRecords.reduce((sum, p) => sum + (p.stats?.chatMessages || 0), 0);
+
+      const snapshot = getMarketSnapshot({ pendingTickets, warnings, chatMessages, activeStaff });
+      await StaffProgress.updateMany(
+        { status: 'active' },
+        {
+          $set: {
+            marketMultiplier: snapshot.multiplier,
+            marketState: snapshot.state,
+            diamondRate: snapshot.diamondRate,
+            interestRate: snapshot.interestRate,
+            crisisTaxRate: snapshot.crisisTaxRate,
+            marketTrend: snapshot.trend,
+            marketRiskScore: snapshot.riskScore,
+            marketLastUpdatedAt: new Date()
+          }
+        }
+      ).catch(() => {});
+
+      console.log(`[staffSystem] Market snapshot refreshed: ${snapshot.state} x${snapshot.multiplier.toFixed(1)} | 1 💎 = ${snapshot.diamondRate} TL`);
+    } catch (err) {
+      console.error('[staffSystem] Market snapshot refresh error:', err.message);
+    }
+  }
+
   function scheduleAt(hour, minute, callback) {
     function run() {
       if (global.SPAM_STOPPED) {
@@ -3898,6 +3948,13 @@ function startStaffScheduler(client) {
     }
     run();
   }
+
+  // Her saat başı market snapshot güncellemesi
+  setInterval(() => {
+    refreshMarketState().catch(() => {});
+  }, 60 * 60 * 1000).unref();
+
+  refreshMarketState().catch(() => {});
 
   // 09:00 — Sabah brifing (tüm personele)
   scheduleAt(9, 0, async () => {

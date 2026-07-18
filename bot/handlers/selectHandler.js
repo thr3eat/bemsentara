@@ -363,6 +363,9 @@ async function handleSelectInteraction(interaction) {
         const wallet = p.gamification?.ecoCoins || 0;
         const savings = p.savingsFund || 0;
         const loan = p.loanAmount || 0;
+        const marketState = p.marketState || 'Boğa Piyasası';
+        const multiplier = Number(p.marketMultiplier || 2.5);
+        const interest = Number(p.interestRate || 14);
 
         const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
         const embed = new EmbedBuilder()
@@ -371,9 +374,11 @@ async function handleSelectInteraction(interaction) {
           .setDescription(
             `Sayın Yetkili,\n\n` +
             `Kurumsal Finans ve Kredi sistemine hoş geldiniz. Aşağıdaki bakiye bilgileriniz doğrultusunda işlemlerinizi yapabilirsiniz.\n\n` +
+            `📈 **Eko-Borsa:** ${marketState} • **x${multiplier.toFixed(1)}**\n` +
             `💵 **Cüzdan Bakiyesi:** \`${wallet} TL\`\n` +
             `📈 **Yatırım Fonu Bakiyesi:** \`${savings} TL\`\n` +
-            `📉 **Aktif Avans Borcu:** \`${loan} TL\``
+            `📉 **Aktif Avans Borcu:** \`${loan} TL\`\n` +
+            `💰 **Faiz Oranı:** %${interest}`
           )
           .setFooter({ text: 'Eko Yıldız Finansal Yönetim' })
           .setTimestamp();
