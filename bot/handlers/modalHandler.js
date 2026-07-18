@@ -136,7 +136,9 @@ async function handleModalSubmit(interaction) {
         return interaction.editReply({ content: '❌ Bu işlemi gerçekleştirmek için Birim Lideri olmalısınız.' });
       }
 
-      const ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+      const raw = (userUnit.unitName || '').toString().trim();
+      const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+      const ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
       if (!ub || ub.budget < amount) {
         return interaction.editReply({ content: `❌ Birim bütçesinde yeterli TL bulunmuyor. Mevcut: \`${ub ? ub.budget : 0} TL\`` });
       }
@@ -184,7 +186,9 @@ async function handleModalSubmit(interaction) {
         return interaction.editReply({ content: '❌ Bu işlemi gerçekleştirmek için Birim Lideri olmalısınız.' });
       }
 
-      const ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+      const raw = (userUnit.unitName || '').toString().trim();
+      const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+      const ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
       if (!ub || ub.budget < 200) {
         return interaction.editReply({ content: `❌ Birim bütçesinde yeterli TL bulunmuyor. Gerekli: 200 TL | Mevcut: \`${ub ? ub.budget : 0} TL\`` });
       }
@@ -265,7 +269,8 @@ async function handleModalSubmit(interaction) {
 
   if (interaction.customId === 'modal_sponsorship_transfer') {
     const amountStr = interaction.fields.getTextInputValue('sponsorship_amount').trim();
-    const unitName = interaction.fields.getTextInputValue('sponsorship_unit').trim().toUpperCase();
+    const rawUnit = interaction.fields.getTextInputValue('sponsorship_unit').trim();
+    const unitName = rawUnit.toUpperCase().includes('_BIRIMI') ? rawUnit.toUpperCase() : `${rawUnit.toUpperCase()}_BIRIMI`;
     const amount = parseInt(amountStr, 10);
     await interaction.deferReply({ ephemeral: true });
 

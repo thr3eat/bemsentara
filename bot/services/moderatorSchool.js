@@ -457,7 +457,11 @@ async function initializeModeratorSchool(client) {
     // Ensure Update Roles message exists in school server
     await ensureSchoolUpdateRolesMessage(client).catch(() => { });
     await ensureGraduationExamMessage(client).catch(() => { });
-    await massGraduateSchoolStudents(client).catch(() => {});
+
+    // NOTE: massGraduateSchoolStudents was removed from automatic startup to avoid
+    // accidental bulk graduations. If bulk graduation is needed, trigger it via
+    // an admin-only command or run the helper manually.
+
     await reviewInactiveSchoolStudents(client).catch(() => {});
 
     setInterval(() => {

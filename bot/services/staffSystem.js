@@ -727,9 +727,11 @@ async function addVoiceMinutes(userId, minutes, client) {
       const UnitBudget = require('../../models/UnitBudget');
       const userUnit = await StaffUnit.findOne({ userId });
       if (userUnit && userUnit.unitName) {
-        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        const raw = (userUnit.unitName || '').toString().trim();
+        const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+        let ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
         if (!ub) {
-          ub = new UnitBudget({ unitName: userUnit.unitName });
+          ub = new UnitBudget({ unitName: normalizedUnitName });
         }
         ub.budget = (ub.budget || 0) + minutes * 0.5; // 0.5 TL per voice minute
         ub.diamonds = (ub.diamonds || 0) + minutes * 2; // 2 diamonds per voice minute
@@ -910,7 +912,9 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
       const UnitBudget = require('../../models/UnitBudget');
       const userUnit = await StaffUnit.findOne({ userId });
       if (userUnit && userUnit.unitName) {
-        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        const raw = (userUnit.unitName || '').toString().trim();
+        const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+        let ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
         if (!ub) {
           ub = new UnitBudget({ unitName: userUnit.unitName });
         }
@@ -1264,9 +1268,11 @@ async function recordTicketSolved(userId, client) {
       const UnitBudget = require('../../models/UnitBudget');
       const userUnit = await StaffUnit.findOne({ userId });
       if (userUnit && userUnit.unitName) {
-        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        const raw = (userUnit.unitName || '').toString().trim();
+        const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+        let ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
         if (!ub) {
-          ub = new UnitBudget({ unitName: userUnit.unitName });
+          ub = new UnitBudget({ unitName: normalizedUnitName });
         }
         ub.budget = (ub.budget || 0) + 10; // 10 TL per ticket
         ub.diamonds = (ub.diamonds || 0) + 50; // 50 diamonds per ticket

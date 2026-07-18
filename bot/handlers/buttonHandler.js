@@ -1725,9 +1725,11 @@ async function handleButtonInteraction(interaction) {
         return interaction.editReply({ content: "❌ Bu paneli görüntüleme yetkiniz yoktur. Sadece Birim Liderleri lojistiği yönetebilir." });
       }
 
-      let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+      const raw = (userUnit.unitName || '').toString().trim();
+      const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+      let ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
       if (!ub) {
-        ub = new UnitBudget({ unitName: userUnit.unitName });
+        ub = new UnitBudget({ unitName: normalizedUnitName });
         await ub.save();
       }
 
@@ -2052,7 +2054,9 @@ async function handleButtonInteraction(interaction) {
         } else if (request.actionType === "BUDGET_SPEND") {
           // Details: { amount, unitName, reason }
           const UnitBudget = require("../../models/UnitBudget");
-          const ub = await UnitBudget.findOne({ unitName: request.details?.unitName });
+          const raw = (request.details?.unitName || '').toString().trim();
+          const normalized = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
+          const ub = await UnitBudget.findOne({ unitName: normalized });
           if (ub) {
             ub.budget = Math.max(0, ub.budget - (request.details?.amount || 0));
             await ub.save();
