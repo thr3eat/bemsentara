@@ -479,6 +479,90 @@ async function handleSelectInteraction(interaction) {
       }
     }
 
+    if (action === 'staff_action_emergency_alarm') {
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      const modal = new ModalBuilder()
+        .setCustomId('modal_emergency_alarm')
+        .setTitle('🚨 Acil Durum / Baskın Alarmı');
+
+      const input = new TextInputBuilder()
+        .setCustomId('emergency_reason')
+        .setLabel('Acil Durum Nedeni ve Detayları')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Örn: Genel sohbette bypass reklam spamı başladı! Acil müdahale ve kanal kilitleme gerekiyor!')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_ai_performance_card') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+
+        const { calculateKpi, getKpiGrade, chatWithAI } = require('../services/staffSystem');
+        const kpiScore = calculateKpi(p);
+        const kpiGrade = getKpiGrade(kpiScore);
+
+        const warnsCount = p.disciplinary?.warns?.length || 0;
+        const commsCount = p.disciplinary?.commendations?.length || 0;
+
+        let displayName = interaction.user.username;
+        try {
+          const u = await interaction.client.users.fetch(p.userId).catch(() => null);
+          if (u) displayName = u.globalName || u.username;
+        } catch (_) {}
+
+        const ROLE_NAMES = {
+          1: 'Stajyer / Deneme Mod',
+          2: 'Moderatör',
+          3: 'Baş Moderatör / Supervisor',
+          4: 'Yönetici / Co-Admin',
+          5: 'Yönetici Kurul'
+        };
+
+        const roleName = ROLE_NAMES[p.level] || 'Yetkili';
+
+        const prompt = `Aşağıdaki yetkilinin haftalık performans bilgilerini incele ve ona samimi, objektif ve profesyonel bir mentor gibi değerlendirme karnesi hazırla.
+- Yetkili İsmi: ${displayName}
+- Mevcut Rütbe: ${roleName} (Seviye ${p.level})
+- KPI Performans Skoru: ${kpiScore}/100 (${kpiGrade.label})
+- Toplam Takdir Belgesi: ${commsCount} adet
+- Toplam Disiplin Uyarısı: ${warnsCount} adet
+- Yaşadığı Şehir: ${p.city || 'Belirtilmemiş'}
+- Son Nöbet Aktifliği: Ses: ${p.duty?.sessionVoiceMinutes || 0} dk, Bilet: ${p.duty?.sessionTicketsSolved || 0} adet
+
+Lütfen yetkiliye hitaben, karnesini takdim eden resmi bir AI Eğitim Mentoru diliyle:
+1. Genel durumunu özetleyen bir değerlendirme notu yaz.
+2. Yetkilinin güçlü yönlerini (varsa takdirleri veya yüksek KPI) takdir et.
+3. Geliştirmesi gereken yönler hakkında somut tavsiyeler ver.
+4. En sona "AI Mentor Değerlendirme Derecesi" olarak bir harf notu (A+, A, B, C, D veya F) ekle.`;
+
+        const aiResponse = await chatWithAI([{ role: 'user', content: prompt }], "Sen EkoYıldız Yetkili Akademisi AI Baş Mentorüsün.").catch(() => 'Karne raporu şu anda hazırlanamıyor.');
+        const cleanedResponse = aiResponse?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || 'Karne oluşturulamadı.';
+
+        const embed = new EmbedBuilder()
+          .setColor(0x9b59b6)
+          .setTitle(`🧠 AI Haftalık Performans Karnesi`)
+          .setAuthor({ name: displayName, iconURL: interaction.user.displayAvatarURL() })
+          .setDescription(cleanedResponse)
+          .addFields(
+            { name: '📊 Performans Skoru', value: `\`${kpiScore}/100\` (${kpiGrade.label})`, inline: true },
+            { name: '🎖️ Sicil Kaydı', value: `💚 \`${commsCount} Takdir\` | ⚠️ \`${warnsCount} Uyarı\``, inline: true }
+          )
+          .setFooter({ text: 'Eko Yıldız • AI Mentorluk Servisi' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error('[AI-Performance-Card] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
     if (action === 'staff_action_resign') {
       const modal = new ModalBuilder()
         .setCustomId('modal_staff_resign')

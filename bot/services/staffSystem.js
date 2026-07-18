@@ -2022,7 +2022,12 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     "💡 **İpucu:** \`✍️ Günlük Rapor Gir\` butonunu kullanarak bugün yaptığınız çalışmaları özetleyin. AI Koçunuz raporunuzu inceleyip size anında KPI/tecrübe puanı verecektir.",
     "💡 **İpucu:** İzin kredilerinizi görmek ve yönetmek için \`⚙️ Kişisel Yetkili İşlemleri\` menüsünden \`📊 İzin Durumu Sorgula\` seçeneğini kullanabilirsiniz.",
     "💡 **İpucu:** \`📋 Talepler\` butonunu kullanarak üst rütbelere izin veya görev istekleri gönderebilir ya da üst rütbelerden gelen emirleri takip edebilirsiniz.",
-    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **EkoCoin ve XP** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!"
+    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **EkoCoin ve XP** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!",
+    "💡 **İpucu:** \`🎓 AI Pratik Eğitimi\` menü seçeneğini kullanarak rastgele hazırlanan kural ihlali senaryolarını çözün, AI'dan puan ve ekstra rütbe XP/EkoCoin ödülü kazanın!",
+    "💡 **İpucu:** Sunucuda baskın, bypass veya ağır kural ihlali gibi acil durumlarda \`🚨 Acil Durum / Baskın Alarmı\` eylemini seçerek üst yönetime anında ping log gönderebilirsiniz.",
+    "💡 **İpucu:** Haftalık durumunuzu, güçlü yönlerinizi ve rütbe değerlendirmenizi AI Koçunuzdan resmi bir karne olarak almak için \`🧠 AI Performans Karnesi\` seçeneğini kullanın.",
+    "💡 **İpucu:** Aktiflik durumunuza ve haftalık KPI performans puanınıza göre hak kazandığınız yetkili maaşınızı almak için \`🪙 Haftalık Maaşımı Al\` seçeneğini kullanabilirsiniz.",
+    "💡 **İpucu:** \`📊 Yetkili Liderlik Tablosu\` seçeneğini kullanarak haftanın en aktif Top 5 yetkilisini ve sıralamanızı anlık olarak sorgulayabilirsiniz."
   ];
   const randomTip = STAFF_TIPS[Math.floor(Math.random() * STAFF_TIPS.length)];
 
@@ -2141,8 +2146,10 @@ async function getMorningBriefingComponents(progress) {
       { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
       { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
       { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
+      { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
       { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
       { label: '📊 Yetkili Liderlik Tablosu', description: 'Haftanın en aktif Top 5 yetkilisini görün.', value: 'staff_action_leaderboard', emoji: '📊' },
+      { label: '🚨 Acil Durum / Baskın Alarmı', description: 'Sunucuda baskın, bypass veya acil müdahale gereken durumlarda yönetimi uyarın.', value: 'staff_action_emergency_alarm', emoji: '🚨' },
       { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
       { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
       { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }

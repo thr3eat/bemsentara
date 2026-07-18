@@ -220,6 +220,50 @@ Lütfen değerlendirmeni en sonunda tam olarak şu formatta bitir:
     }
   }
 
+  // ── Acil Durum / Baskın Alarmı Modal Submit ───────────────────────────────
+  if (interaction.customId === 'modal_emergency_alarm') {
+    const reason = interaction.fields.getTextInputValue('emergency_reason');
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { GUILD2_ID } = require('../../config');
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      if (guild) {
+        let logChan = guild.channels.cache.find(c => c.name === 'yetkili-rapor-log');
+        if (!logChan) {
+          logChan = await guild.channels.create({
+            name: 'yetkili-rapor-log',
+            type: 0,
+            parent: "1518692460233228431",
+            topic: 'Yetkililerin acil durum ve baskın alarmları.'
+          }).catch(() => null);
+        }
+
+        if (logChan) {
+          const embed = new EmbedBuilder()
+            .setColor(0xd9534f)
+            .setTitle('🚨 ACİL DURUM VE BASKIN ALARMI 🚨')
+            .setDescription(`**${interaction.user.tag}** (\`${interaction.user.id}\`) sunucuda yüksek öncelikli acil durum alarmı tetikledi!`)
+            .addFields(
+              { name: '👤 Tetikleyen Yetkili', value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
+              { name: '🚨 Durum Detayı', value: `\`\`\`${reason}\`\`\``, inline: false },
+              { name: '📋 Acil Aksiyon Rehberi', value: "1. Saldırı altındaki kanalları kilitleyin.\n2. Bypass yapan kullanıcıları karantinaya alın.\n3. Gerekirse kurucuları etiketleyin." }
+            )
+            .setTimestamp();
+
+          await logChan.send({ content: '⚠️ **@here ACİL DURUM ALARMI TETİKLENDİ!**', embeds: [embed] });
+        }
+      }
+
+      return interaction.editReply({
+        content: '🚨 **Acil durum alarmınız üst yönetimin log kanalına @here etiketiyle iletilmiştir!** Gerekli aksiyonları almaya başlayın.'
+      });
+    } catch (err) {
+      console.error('[Emergency-Alarm] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Şehir Tanımlama Modal Submit ──────────────────────────────────────────
   if (interaction.customId === 'modal_staff_set_city') {
     const rawCity = interaction.fields.getTextInputValue('user_city').trim();
