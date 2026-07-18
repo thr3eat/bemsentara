@@ -2389,47 +2389,78 @@ async function getMorningBriefingComponents(progress) {
     }
   }
 
-  const rowButtons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('staff_update_progress')
-      .setLabel('🔄 GÜNCELLE')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(`coach_ekgorev_${progress.userId}`)
-      .setLabel('💪 Ek Görev Al')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`coach_ekmesai_${progress.userId}`)
-      .setLabel('⚡ Ek Mesai Yap')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('staff_daily_report_btn')
-      .setLabel('✍️ Günlük Rapor Gir')
-      .setStyle(ButtonStyle.Primary)
-  );
+  // Row 1: Anlık Operasyonlar (Refresh | Report | Duty [+ Ek Mesai when on duty] | optional Cevapla)
+  const refreshBtn = new ButtonBuilder()
+    .setCustomId('staff_update_progress')
+    .setLabel('🔄 Güncelle')
+    .setStyle(ButtonStyle.Secondary);
 
-  // "Ne yapacağımı bilmiyorum?" interaktif rehber butonu
-  rowButtons.addComponents(
-    new ButtonBuilder()
-      .setCustomId('staff_help_walkthrough')
-      .setLabel('❓ Ne yapacağımı bilmiyorum?')
-      .setStyle(ButtonStyle.Secondary)
-  );
+  const reportBtn = new ButtonBuilder()
+    .setCustomId('staff_daily_report_btn')
+    .setLabel('✍️ Rapor Gir')
+    .setStyle(ButtonStyle.Secondary);
 
+  const dutyPrimaryBtn = new ButtonBuilder()
+    .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
+    .setLabel(isOnDuty ? '🛑 Nöbeti Bitir' : '⚡ Nöbete Başla')
+    .setStyle(isOnDuty ? ButtonStyle.Danger : ButtonStyle.Success);
+
+  // Ek Mesai: only visible when on duty (green actionable button)
+  const overtimeBtn = new ButtonBuilder()
+    .setCustomId(`coach_ekmesai_${progress.userId}`)
+    .setLabel('⚡ Ek Mesai Yap')
+    .setStyle(ButtonStyle.Success)
+    .setDisabled(!isOnDuty);
+
+  const rowTop = new ActionRowBuilder();
+  rowTop.addComponents(refreshBtn, reportBtn, dutyPrimaryBtn);
+  if (isOnDuty) rowTop.addComponents(overtimeBtn);
+
+  // Optional coach question button (blue) — only when active
   if (progress.currentQuestion) {
-    rowButtons.addComponents(
+    rowTop.addComponents(
       new ButtonBuilder()
         .setCustomId('staff_answer_coach_question')
-        .setLabel('❓ CEVAPLA')
+        .setLabel('❓ Cevapla')
         .setStyle(ButtonStyle.Primary)
     );
-  } else if (!progress.postponeBlocked) {
-    rowButtons.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`coach_eksilt_${progress.userId}`)
-        .setLabel('⏳ Görev Eksilt')
-        .setStyle(ButtonStyle.Danger)
-    );
+  }
+
+  // Row 2 will be the combined select menu (built below as rowSelect)
+
+  // Row 3: Destek ve Ayarlar (mat gri heavy)
+  const settingsBtn = new ButtonBuilder()
+    .setCustomId('staff_settings')
+    .setLabel('⚙️ Ayarlar')
+    .setStyle(ButtonStyle.Secondary);
+  const requestsBtn = new ButtonBuilder()
+    .setCustomId('staff_units_request_menu')
+    .setLabel('📋 Talepler')
+    .setStyle(ButtonStyle.Secondary);
+  const aiBtn = new ButtonBuilder()
+    .setCustomId('staff_ai_assistant')
+    .setLabel('🤖 AI Asistan')
+    .setStyle(ButtonStyle.Secondary);
+  const extraTaskBtn = new ButtonBuilder()
+    .setCustomId(`coach_ekgorev_${progress.userId}`)
+    .setLabel('💪 Ek Görev Al')
+    .setStyle(ButtonStyle.Secondary);
+  const incidentBtn = new ButtonBuilder()
+    .setCustomId('staff_incident_report')
+    .setLabel('🚨 Vaka Raporu')
+    .setStyle(ButtonStyle.Danger);
+
+  // Include walkthrough helper in settings row
+  const walkthroughBtn = new ButtonBuilder()
+    .setCustomId('staff_help_walkthrough')
+    .setLabel('❓ Ne yapacağımı bilmiyorum?')
+    .setStyle(ButtonStyle.Secondary);
+
+  const rowSettings = new ActionRowBuilder().addComponents(settingsBtn, requestsBtn, aiBtn, extraTaskBtn, incidentBtn);
+
+  // If not on duty, remove/disable overtime-related clutter: ensure only duty start (green) visible and no break/end buttons elsewhere
+  if (!isOnDuty) {
+    // ensure overtimeBtn is not present (already disabled), and replace dynamicBtn in original layout by leaving rowSettings as-is
   }
 
   const allOptions = [
@@ -2577,40 +2608,7 @@ async function getMorningBriefingComponents(progress) {
 
   const rowSelect = new ActionRowBuilder().addComponents(combinedSelect);
 
-  const dutyBtn = new ButtonBuilder()
-    .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
-    .setLabel(isOnDuty ? '🛑 Nöbeti Bitir' : '⚡ Nöbete Başla')
-    .setStyle(isOnDuty ? ButtonStyle.Danger : ButtonStyle.Success);
-
-  const dynamicBtn = isOnDuty
-    ? new ButtonBuilder()
-        .setCustomId(isBreakActive ? 'staff_duty_break_end' : 'staff_duty_break_start')
-        .setLabel(isBreakActive ? '🟢 Molayı Bitir' : '☕ Mola Ver')
-        .setStyle(isBreakActive ? ButtonStyle.Success : ButtonStyle.Secondary)
-    : new ButtonBuilder()
-        .setCustomId('staff_incident_report')
-        .setLabel('📝 Vaka Raporu')
-        .setStyle(ButtonStyle.Secondary);
-
-  const rowSettings = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('staff_settings')
-      .setLabel('⚙️ Ayarlar')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('staff_units_request_menu')
-      .setLabel('📋 Talepler')
-      .setStyle(ButtonStyle.Secondary),
-    dutyBtn,
-    new ButtonBuilder()
-      .setCustomId('staff_ai_assistant')
-      .setLabel('🤖 AI Asistan')
-      .setStyle(ButtonStyle.Secondary),
-    dynamicBtn
-  );
-
-  const componentsList = [rowButtons, rowSelect];
-  componentsList.push(rowSettings);
+  const componentsList = [rowTop, rowSelect, rowSettings];
 
   try {
     const StaffUnit = require('../../models/StaffUnit');
