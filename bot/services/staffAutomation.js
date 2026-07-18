@@ -25,6 +25,69 @@ const ROBLOX = {
   EKOYILDIZ_MOD: 130659145
 };
 
+// ------------------ Message rate monitor for crisis detection ------------------
+const { broadcastToActiveStaff } = require('./notificationService');
+const WINDOW_SECONDS = 60;
+let _recentMessageCounts = new Array(WINDOW_SECONDS).fill(0);
+let _cursor = 0;
+
+function tickMessageCount(n = 1) {
+  _recentMessageCounts[_cursor] = (_recentMessageCounts[_cursor] || 0) + n;
+}
+
+function advanceSecond() {
+  _cursor = (_cursor + 1) % WINDOW_SECONDS;
+  _recentMessageCounts[_cursor] = 0;
+}
+
+function getRatePerSecondAverage() {
+  const total = _recentMessageCounts.reduce((s, v) => s + (v || 0), 0);
+  return total / WINDOW_SECONDS;
+}
+
+async function checkAndTriggerCrisis(client) {
+  try {
+    const avgPerSecond = getRatePerSecondAverage();
+    const CRITICAL_PPS = 5; // critical messages per second
+    const HIGH_PPS = 2; // warning level
+
+    if (avgPerSecond >= CRITICAL_PPS) {
+      await broadcastToActiveStaff(client, async () => ({
+        emoji: '🚨',
+        title: 'SİBER-GÜVENLİK',
+        body: `⚠️ KRİTİK UYARI! Sohbet hızı ${avgPerSecond.toFixed(1)} msg/s seviyesine ulaştı. Acil moderasyon gerekir!`,
+        actionLabel: '🗺️ Sektör Haritasını Aç',
+        actionCustomId: 'app_open_operations'
+      }));
+      return 'critical';
+    }
+
+    if (avgPerSecond >= HIGH_PPS) {
+      await broadcastToActiveStaff(client, async () => ({
+        emoji: '⚠️',
+        title: 'SİBER UYARI',
+        body: `Sohbet hızı artıyor: ${avgPerSecond.toFixed(1)} msg/s. İzlemede kalın.`,
+        actionLabel: '🗺️ Sektör Haritasını Aç',
+        actionCustomId: 'app_open_operations'
+      }));
+      return 'warning';
+    }
+
+    return 'ok';
+  } catch (err) {
+    console.error('[staffAutomation] checkAndTriggerCrisis error:', err.message);
+    return 'error';
+  }
+}
+
+function startMessageMonitor(client) {
+  // advance cursor each second
+  setInterval(() => advanceSecond(), 1000).unref();
+  // periodic check every 5 seconds
+  setInterval(() => checkAndTriggerCrisis(client), 5000).unref();
+}
+
+
 /**
  * Synchronizes the user's Roblox group ranks based on their StaffProgress level.
  * @param {import('discord.js').Client} client 
@@ -486,6 +549,11 @@ module.exports = {
   ADMIN_GUILD_ID,
   CHANNELS,
   ROBLOX,
+  tickMessageCount,
+  advanceSecond,
+  getRatePerSecondAverage,
+  checkAndTriggerCrisis,
+  startMessageMonitor,
   syncStaffRobloxRanks,
   sendAdminLog,
   ensureAdminGuildMembership,
