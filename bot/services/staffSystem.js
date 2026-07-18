@@ -2154,6 +2154,31 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     const kpiScore = calculateKpi(progress);
     const kpiGrade = getKpiGrade(kpiScore);
 
+    const kpiHistoryValues = Array.isArray(progress.performance?.kpiHistory)
+      ? progress.performance.kpiHistory.map(entry => {
+          if (typeof entry === 'number') return entry;
+          if (entry && typeof entry.value === 'number') return entry.value;
+          if (entry && typeof entry.score === 'number') return entry.score;
+          return parseInt(entry?.value || entry?.score || entry?.kpi || entry?.scoreValue || 100, 10) || 100;
+        }).filter(v => !Number.isNaN(v))
+      : [];
+
+    if (kpiHistoryValues.length === 0 && typeof progress.performance?.weeklyKpi === 'number') {
+      kpiHistoryValues.push(progress.performance.weeklyKpi);
+    }
+    if (kpiHistoryValues.length === 0) {
+      kpiHistoryValues.push(kpiScore);
+    }
+
+    const sparkChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    const minKpi = Math.min(...kpiHistoryValues);
+    const maxKpi = Math.max(...kpiHistoryValues);
+    const sparkline = kpiHistoryValues.map(value => {
+      const normalized = maxKpi === minKpi ? 0.5 : (value - minKpi) / (maxKpi - minKpi);
+      const index = Math.min(sparkChars.length - 1, Math.max(0, Math.round(normalized * (sparkChars.length - 1))));
+      return sparkChars[index];
+    }).join('');
+
     // Prepare compact duty/performance fields (3-column grid)
     let dutyStatusCell = '';
     let kpiCell = '';
@@ -2191,9 +2216,8 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     const commsCount = progress.disciplinary?.commendations?.length || 0;
 
     locationCell = `📍 Konum:\n\`${progress.city || 'Belirtilmedi'}\``;
-    kpiCell = `📊 KPI:\n\`${kpiScore}/100\` (${kpiGrade.label})\nSicil: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\``;
+    kpiCell = `📊 KPI:\n\`${kpiScore}/100\` (${kpiGrade.label})\nSicil: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\`\n\n📈 Trend: ${sparkline}`;
 
-    // Push three inline fields to create a 3-column grid
     fields.push({ name: '🟢 Nöbet Durumu', value: dutyStatusCell.trim(), inline: true });
     fields.push({ name: '📊 Performans KPI', value: kpiCell.trim(), inline: true });
     fields.push({ name: '📍 Operasyon Konumu', value: locationCell.trim(), inline: true });
@@ -2495,13 +2519,27 @@ async function getMorningBriefingComponents(progress) {
     }
   } catch (_) {}
 
+  const isOnDuty = Boolean(progress.duty?.isActive);
+  const isBreakActive = Boolean(progress.duty?.isBreakActive);
+
   // Build the single select menu
   const combinedSelect = new StringSelectMenuBuilder()
     .setCustomId('staff_system_desk')
-    .setPlaceholder('📁 SİSTEM HAREKÂT MASASI')
-    .addOptions(combinedOptions.slice(0, 25)); // limit to 25 options
+    .setPlaceholder('📁 SİSTEM HAREKÂT MASASI');
+
+  if (combinedOptions.length > 25) {
+    const closeIndex = combinedOptions.findIndex(o => o.value === 'staff_action_whistleblower_close');
+    if (closeIndex >= 0) {
+      const closeOption = combinedOptions.splice(closeIndex, 1)[0];
+      combinedSelect.addOptions(combinedOptions.slice(0, 24).concat(closeOption));
+    } else {
+      combinedSelect.addOptions(combinedOptions.slice(0, 25));
+    }
+  } else {
+    combinedSelect.addOptions(combinedOptions);
+  }
+
   const rowSelect = new ActionRowBuilder().addComponents(combinedSelect);
-  const isBreakActive = progress.duty?.isBreakActive;
 
   const dutyBtn = new ButtonBuilder()
     .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
