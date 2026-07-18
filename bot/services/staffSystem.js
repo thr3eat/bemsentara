@@ -1999,9 +1999,9 @@ async function generateMorningBriefingEmbed(progress, client) {
 - Yaşadığı Şehir: ${progress.city || 'Türkiye'}
 - Yerel Saat Dilimi: GMT+3 (Türkiye)
 - Bugünkü hedef: selamlaşma + ses aktifliği ve mevcut görevi tamamlamak.
-Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
+Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve destekleyici bir cümle kullan. Lütfen hiçbir soru cümlesi oluşturma.`;
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
-    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || '';
   } catch (_) { }
 
   const nextLevelName = ROLE_NAMES[progress.level + 1] || 'Maksimum Seviye';
@@ -2038,7 +2038,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   const userAvatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
-    .setAuthor({ name: `${displayName} — ${ROLE_NAMES[progress.level]}`, iconURL: userAvatar })
+    .setAuthor({ name: `👤 ${displayName} | Komuta Merkezi`, iconURL: userAvatar })
     .setTitle('☀️ Günlük Brifing')
     .setThumbnail(userAvatar)
     .setDescription(aiMessage ? `🤖 ${aiMessage}` : 'Günaydın! Bugünkü görevlerinizi aşağıda görebilirsiniz. Kısa ve net adımlarla ilerleyin.');
@@ -2216,7 +2216,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     const commsCount = progress.disciplinary?.commendations?.length || 0;
 
     locationCell = `📍 Konum:\n\`${progress.city || 'Belirtilmedi'}\``;
-    kpiCell = `📊 KPI:\n\`${kpiScore}/100\` (${kpiGrade.label})\nSicil: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\`\n\n📈 Trend: ${sparkline}`;
+    kpiCell = `📊 Performans KPI: \`${kpiScore}/100\`\n💚 Sicil Özeti: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\`\n📈 Trend Analizi: \`${sparkline}\``;
 
     fields.push({ name: '🟢 Nöbet Durumu', value: dutyStatusCell.trim(), inline: true });
     fields.push({ name: '📊 Performans KPI', value: kpiCell.trim(), inline: true });
@@ -2259,7 +2259,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   });
 
   embed.addFields(fields)
-    .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} (UTC+3) • KPI Skoru: ${typeof kpiScore !== 'undefined' ? `${kpiScore}/100` : '—'}` })
+    .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} • <t:${Math.floor(Date.now() / 1000)}:T>` })
     .setTimestamp();
 
   return embed;
@@ -2377,7 +2377,7 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId(`coach_ekmesai_${progress.userId}`)
       .setLabel('⚡ Ek Mesai Yap')
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('staff_daily_report_btn')
       .setLabel('✍️ Günlük Rapor Gir')
@@ -2554,7 +2554,7 @@ async function getMorningBriefingComponents(progress) {
     : new ButtonBuilder()
         .setCustomId('staff_incident_report')
         .setLabel('📝 Vaka Raporu')
-        .setStyle(ButtonStyle.Danger);
+        .setStyle(ButtonStyle.Secondary);
 
   const rowSettings = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -2564,7 +2564,7 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId('staff_units_request_menu')
       .setLabel('📋 Talepler')
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Secondary),
     dutyBtn,
     new ButtonBuilder()
       .setCustomId('staff_ai_assistant')
