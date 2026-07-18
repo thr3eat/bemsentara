@@ -138,6 +138,21 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  // ── Vardiya Devir / Nöbet Bitirme Modal Submit ──────────────────────────────
+  if (interaction.customId === 'modal_duty_end_handover') {
+    const handoverNotes = interaction.fields.getTextInputValue('handover_notes');
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { endDuty } = require('../services/staffDutyService');
+      await endDuty(interaction, interaction.client, handoverNotes);
+      return;
+    } catch (err) {
+      console.error('[Handover-Submit] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Şehir Tanımlama Modal Submit ──────────────────────────────────────────
   if (interaction.customId === 'modal_staff_set_city') {
     const rawCity = interaction.fields.getTextInputValue('user_city').trim();

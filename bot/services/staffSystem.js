@@ -1852,14 +1852,26 @@ async function generateMorningBriefingEmbed(progress, client) {
   // AI'dan kişiselleştirilmiş briefing al
   let aiMessage = '';
   try {
+    let displayName = progress.userId;
+    let username = progress.userId;
+    try {
+      const u = await client.users.fetch(progress.userId).catch(() => null);
+      if (u) {
+        displayName = u.globalName || u.username;
+        username = u.tag;
+      }
+    } catch (_) {}
+
     const prompt = `Bu personel için kısa, samimi ve kişiye özel bir görev brifingi hazırla.
+- Yetkili İsmi/Rumuz: ${displayName}
+- Discord Kullanıcı Adı: ${username}
 - Moderatör seviyesi: ${ROLE_NAMES[progress.level]}
 - Sürekli aktif gün: ${progress.stats?.consecutiveDays || 0}
 - Uyarı sayısı: ${progress.warnings?.count || 0}/7
 - Yaşadığı Şehir: ${progress.city || 'Türkiye'}
 - Yerel Saat Dilimi: GMT+3 (Türkiye)
 - Bugünkü hedef: selamlaşma + ses aktifliği ve mevcut görevi tamamlamak.
-Yetkilinin yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
+Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici bir soru sor.`;
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
     aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }

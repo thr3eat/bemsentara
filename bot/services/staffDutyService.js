@@ -116,14 +116,19 @@ async function startDuty(interaction, client) {
 /**
  * Staff ends their duty session
  */
-async function endDuty(interaction, client) {
+async function endDuty(interaction, client, handoverNotes = null) {
   const userId = interaction.user.id;
+  const isDeferred = interaction.deferred || interaction.replied;
   try {
     const p = await StaffProgress.findOne({ userId });
-    if (!p) return interaction.reply({ content: '❌ Personel kaydınız bulunamadı.', ephemeral: true });
+    if (!p) {
+      const msg = '❌ Personel kaydınız bulunamadı.';
+      return isDeferred ? interaction.editReply({ content: msg }) : interaction.reply({ content: msg, ephemeral: true });
+    }
 
     if (!p.duty?.isActive || !p.duty.startedAt) {
-      return interaction.reply({ content: '⚠️ Aktif bir nöbetiniz bulunmuyor!', ephemeral: true });
+      const msg = '⚠️ Aktif bir nöbetiniz bulunmuyor!';
+      return isDeferred ? interaction.editReply({ content: msg }) : interaction.reply({ content: msg, ephemeral: true });
     }
 
     const durationMs = Date.now() - new Date(p.duty.startedAt).getTime();
@@ -136,7 +141,6 @@ async function endDuty(interaction, client) {
     const mods = p.duty.sessionModerationActions || 0;
 
     // Calculate XP and points rewards based on performance during duty
-    // Base: 5 XP per hour on duty, 10 XP per ticket, 5 XP per mod action, 1 XP per voice minute
     const xpReward = Math.floor((durationHours * 5) + (tickets * 10) + (mods * 5) + (voiceMins * 1));
     const coinReward = Math.floor((durationHours * 2) + (tickets * 5) + (mods * 2));
 
@@ -151,32 +155,39 @@ async function endDuty(interaction, client) {
 
     await p.save();
 
+    const logFields = [
+      { name: '⏱️ Toplam Süre', value: `${durationHours} saat ${remainingMins} dakika`, inline: true },
+      { name: '🎤 Ses Aktifliği', value: `${voiceMins} dakika`, inline: true },
+      { name: '🎫 Çözülen Bilet', value: `${tickets} adet`, inline: true },
+      { name: '🛡️ Mod İşlemleri', value: `${mods} adet`, inline: true },
+      { name: '🎁 Kazanılan Ödüller', value: `✨ **+${xpReward} XP**\n🪙 **+${coinReward} EkoCoin**`, inline: false }
+    ];
+
+    if (handoverNotes) {
+      logFields.push({ name: '📝 Vardiya Devir Notları', value: `\`\`\`${handoverNotes}\`\`\``, inline: false });
+    }
+
     const logEmbed = new EmbedBuilder()
-      .setTitle('🛑 Nöbet Tamamlandı')
-      .setDescription(`**${interaction.user.tag}** (\`${userId}\`) nöbetini bitirdi.`)
+      .setTitle('🛑 Nöbet Tamamlandı (Vardiya Devri)')
+      .setDescription(`**${interaction.user.tag}** (\`${userId}\`) nöbetini tamamladı ve vardiyayı devretti.`)
       .setColor(0xe74c3c)
-      .addFields(
-        { name: '⏱️ Toplam Süre', value: `${durationHours} saat ${remainingMins} dakika`, inline: true },
-        { name: '🎤 Ses Aktifliği', value: `${voiceMins} dakika`, inline: true },
-        { name: '🎫 Çözülen Bilet', value: `${tickets} adet`, inline: true },
-        { name: '🛡️ Mod İşlemleri', value: `${mods} adet`, inline: true },
-        { name: '🎁 Kazanılan Ödüller', value: `✨ **+${xpReward} XP**\n🪙 **+${coinReward} EkoCoin**`, inline: false }
-      )
+      .addFields(logFields)
       .setTimestamp();
 
     await sendDutyLog(client, logEmbed);
 
-    return interaction.reply({
-      content: `🛑 **Nöbetinizi Bitirdiniz!**\n\n` +
-        `⏱️ **Süre:** ${durationHours} sa ${remainingMins} dk\n` +
-        `🎙️ **Ses:** ${voiceMins} dk | 🎫 **Bilet:** ${tickets} | 🛡️ **Mod:** ${mods}\n` +
-        `🎁 **Kazanılan:** +${xpReward} XP, +${coinReward} EkoCoin!\n\n` +
-        `Emeğiniz için teşekkürler! 💚`,
-      ephemeral: true
-    });
+    const replyContent = `🛑 **Nöbetinizi Bitirdiniz!**\n\n` +
+      `⏱️ **Süre:** ${durationHours} sa ${remainingMins} dk\n` +
+      `🎙️ **Ses:** ${voiceMins} dk | 🎫 **Bilet:** ${tickets} | 🛡️ **Mod:** ${mods}\n` +
+      (handoverNotes ? `📝 **Devir Notu:** \`${handoverNotes}\`\n` : '') +
+      `🎁 **Kazanılan:** +${xpReward} XP, +${coinReward} EkoCoin!\n\n` +
+      `Emeğiniz için teşekkürler! 💚`;
+
+    return isDeferred ? interaction.editReply({ content: replyContent }) : interaction.reply({ content: replyContent, ephemeral: true });
   } catch (err) {
     console.error('[staffDutyService] endDuty error:', err.message);
-    return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+    const msg = `❌ Hata: ${err.message}`;
+    return isDeferred ? interaction.editReply({ content: msg }) : interaction.reply({ content: msg, ephemeral: true });
   }
 }
 
@@ -189,7 +200,20 @@ async function handleDutyButton(interaction) {
     return startDuty(interaction, client);
   }
   if (customId === 'staff_duty_end') {
-    return endDuty(interaction, client);
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_duty_end_handover')
+      .setTitle('🛑 Nöbeti Bitir & Devret');
+
+    const input = new TextInputBuilder()
+      .setCustomId('handover_notes')
+      .setLabel('Nöbet Devir Notları (Neler Yaşandı?)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Örn: Spam yapan 2 kişiyi muteledim, destek biletlerinde reklam satın almak isteyen biri bekliyor, genel durum sakin.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
   }
 }
 
