@@ -2058,8 +2058,7 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
   };
 
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
-  const isOnDuty = Boolean(progress.duty?.isActive);
-  const isBreakActive = Boolean(progress.duty?.isBreakActive);
+  
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
 
   if (isProbationLocked) {
