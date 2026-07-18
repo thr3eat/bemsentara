@@ -59,13 +59,13 @@ discordBot.once("ready", async () => {
     const { sendNotificationPermissionPrompt } = require("./utils/notification");
     await sendNotificationPermissionPrompt(discordBot);
   
-    // --- v6.5 one-time release announcement and small reward ---
+    // --- v7.0 one-time release announcement and small reward ---
     try {
       const { appMeta, users } = require("./models/Store");
       const Economy = require("./models/Economy");
       const { LOG_CHANNEL_ID, EKOYILDIZ_MOD_LOG_CHANNEL_ID } = require("./config");
 
-      const flag = appMeta.findOne({ key: "release_v6_5_announced" });
+      const flag = appMeta.findOne({ key: "release_v7_0_announced" });
       if (!flag) {
         let sentAny = false;
         const channelsToNotify = [LOG_CHANNEL_ID, EKOYILDIZ_MOD_LOG_CHANNEL_ID];
@@ -78,8 +78,8 @@ discordBot.once("ready", async () => {
               const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
               const embed = new EmbedBuilder()
                 .setColor(0x7c6af7)
-                .setTitle('📣 Sürüm v6.5 — Yeni Özellikler ve Güncellemeler (v6.0 tarzı duyuru)')
-                .setDescription('Merhaba EkoYıldız topluluğu! 🎉\nv6.5 sürümümüz yayımlandı. Bu sürümde topluluk ve moderasyon için kapsamlı yenilikler getiriyoruz — daha etkili bordro sistemi, resmi istifa süreci, vaka raporu entegrasyonu, AI destekli denetim, PIP, vardiya devir notları ve çok daha fazlası.')
+                .setTitle('📣 Sürüm v7.0 — Yeni Özellikler ve Güncellemeler (v6.0 tarzı duyuru)')
+                .setDescription('Merhaba EkoYıldız topluluğu! 🎉\nv7.0 sürümümüz yayımlandı. Bu sürümde topluluk ve moderasyon için kapsamlı yenilikler getiriyoruz — daha etkili bordro sistemi, resmi istifa süreci, vaka raporu entegrasyonu, AI destekli denetim, PIP, vardiya devir notları ve çok daha fazlası.')
                 .addFields(
                   { name: '🔹 1) Dinamik Bordro & Vergi Kesintisi', value: 'Yetkili maaşları otomatik hesaplanır; disiplin durumuna göre kesintiler uygulanır.', inline: false },
                   { name: '🔹 2) Resmi İstifa & Kıdem Tazminatı', value: '3 günlük ihbar süreci, yönetim incelemesi ve kıdem tazminatı hesaplama (60+ gün).', inline: false },
@@ -92,7 +92,7 @@ discordBot.once("ready", async () => {
                   { name: '🔹 9) Birim Lojistiği & Bütçe Yönetimi', value: 'UnitBudget ile prim dağıtımı, izin kredileri ve birim reklamları.', inline: false },
                   { name: '🔹 10) Disiplin Soruşturması & İtiraz Mahkemesi', value: 'Disiplin süreçleri şeffaf ve itiraza açık biçimde yürütülür.', inline: false }
                 )
-                .setFooter({ text: 'Eko Yıldız • Sürüm v6.5 — Küçük jest: +25 EkoCoin (tek seferlik)' })
+                .setFooter({ text: 'Eko Yıldız • Sürüm v7.0 — Küçük jest: +25 EkoCoin (tek seferlik)' })
                 .setTimestamp();
 
               const row = new ActionRowBuilder().addComponents(
@@ -102,7 +102,7 @@ discordBot.once("ready", async () => {
               await ch.send({ embeds: [embed], components: [row] });
               sentAny = true;
             } catch (err) {
-              logger.error(`[Release v6.5] Channel ${chanId} send error:`, err.message);
+              logger.error(`[Release v7.0] Channel ${chanId} send error:`, err.message);
             }
           }
         }
@@ -115,8 +115,8 @@ discordBot.once("ready", async () => {
           const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
           const dmEmbed = new EmbedBuilder()
             .setColor(0x7c6af7)
-            .setTitle('📣 Sürüm v6.5 — Yeni Özellikler ve Güncellemeler')
-            .setDescription('Merhaba Değerli Yetkilimiz! 🎉\nv6.5 sürümümüz başarıyla yayına alındı. Bu güncelleme ile sistemimize yepyeni gerçekçi kurumsal özellikler eklendi:')
+            .setTitle('📣 Sürüm v7.0 — Yeni Özellikler ve Güncellemeler')
+            .setDescription('Merhaba Değerli Yetkilimiz! 🎉\nv7.0 sürümümüz başarıyla yayına alındı. Bu güncelleme ile sistemimize yepyeni gerçekçi kurumsal özellikler eklendi:')
             .addFields(
               { name: '🔹 1) Dinamik Bordro & Vergi Kesintisi', value: 'Maaşlar artık haftalık aktiflik, ticket ve ses sürenize göre hesaplanıyor.', inline: false },
               { name: '🔹 2) Resmi İstifa & Kıdem Tazminatı', value: '3 günlük ihbar süresi ve kıdem tazminatı (60+ gün aktiflik) sistemi getirildi.', inline: false },
@@ -129,7 +129,7 @@ discordBot.once("ready", async () => {
               { name: '🔹 9) Birim Lojistiği & Bütçe Yönetimi', value: 'Ortak havuzdan prim dağıtma ve izin kredisi satın alma.', inline: false },
               { name: '🔹 10) Disiplin Mahkemesi & İhbar Hattı', value: 'Savunma yapma hakları ve SHA-256 şifreli çift yönlü ihbar tüneli.', inline: false }
             )
-            .setFooter({ text: 'Eko Yıldız • Sürüm v6.5 — Küçük jest: +25 EkoCoin (tek seferlik)' })
+            .setFooter({ text: 'Eko Yıldız • Sürüm v7.0 — Küçük jest: +25 EkoCoin (tek seferlik)' })
             .setTimestamp();
 
           const dmRow = new ActionRowBuilder().addComponents(
@@ -166,12 +166,12 @@ discordBot.once("ready", async () => {
         }
 
         // mark announced to prevent duplicate spam on reboots
-        appMeta.create({ key: "release_v6_5_announced", value: true, createdAt: new Date() });
+        appMeta.create({ key: "release_v7_0_announced", value: true, createdAt: new Date() });
         const { saveStoreNow } = require("./models/Store");
         saveStoreNow();
       }
     } catch (releaseErr) {
-      logger.error("[Release v6.5] Announcement error:", releaseErr.message);
+      logger.error("[Release v7.0] Announcement error:", releaseErr.message);
     }
   } catch (promptErr) {
     logger.error("[NotificationPrompt] Startup prompt error:", promptErr.message);
