@@ -34,7 +34,16 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: async (req, res) => {
+    try {
+      const ServerConfig = require('../models/ServerConfig');
+      const sConf = await ServerConfig.findOne({});
+      if (sConf && sConf.apiSpeedLimitActive) {
+        return 60; // %50 Daha yavaş limit (120 yerine 60)
+      }
+    } catch (_) {}
+    return 120;
+  },
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Çok fazla istek. Lütfen bir dakika bekleyin." },

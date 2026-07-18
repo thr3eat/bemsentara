@@ -200,7 +200,9 @@ const staffProgressSchema = new mongoose.Schema({
     sessionTicketsSolved: { type: Number, default: 0 },
     sessionModerationActions: { type: Number, default: 0 },
     isBreakActive: { type: Boolean, default: false },
-    breakStartedAt: { type: Date, default: null }
+    breakStartedAt: { type: Date, default: null },
+    pendingEnd: { type: Boolean, default: false },
+    pendingHandoverNotes: { type: String, default: '' }
   },
 
   // Performans KPI Değerlendirmeleri (V6.0)
@@ -238,7 +240,20 @@ const staffProgressSchema = new mongoose.Schema({
   },
 
   // 2FA Güvenlik Geçiş Süresi
-  securityClearanceUntil: { type: Date, default: null }
+  securityClearanceUntil: { type: Date, default: null },
+
+  // V0.7 Kurumsal Yönetişim Alanları
+  clearanceLevel: { type: String, default: 'L0' }, // L0, L1, L2, L3, L4
+  probationStatus: { type: Boolean, default: false }, // İK Gelişim Askısı (Gri Panel)
+  probationSigned: { type: Boolean, default: false },
+  probationStartAt: { type: Date, default: null },
+  contractRenewDate: { type: Date, default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+  contractSigned: { type: Boolean, default: true },
+  currentSector: { type: String, default: '' },
+  isInspector: { type: Boolean, default: false },
+  insuranceActive: { type: Boolean, default: false },
+  savingsFund: { type: Number, default: 0 },
+  loanAmount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

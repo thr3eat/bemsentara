@@ -4,7 +4,8 @@ const { buildRoleConnectionMetadata } = require('../server/services/discordRoleC
 
 test('buildRoleConnectionMetadata maps verification flags correctly', () => {
   const user = {
-    robloxUsername: 'ekonqt',
+    robloxId: '123456',
+    robloxUsername: 'damndoggii',
     isAuthorized: true,
     verificationStatus: {}
   };

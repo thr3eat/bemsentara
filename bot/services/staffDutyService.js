@@ -140,12 +140,21 @@ async function endDuty(interaction, client, handoverNotes = null) {
     const tickets = p.duty.sessionTicketsSolved || 0;
     const mods = p.duty.sessionModerationActions || 0;
 
-    // Calculate XP and points rewards based on performance during duty
-    const xpReward = Math.floor((durationHours * 5) + (tickets * 10) + (mods * 5) + (voiceMins * 1));
-    const coinReward = Math.floor((durationHours * 2) + (tickets * 5) + (mods * 2));
+    // V0.7/OHAL Çarpanı Entegrasyonu
+    const ServerConfig = require('../../models/ServerConfig');
+    let sConf = await ServerConfig.findOne({ guildId: p.guildId || (interaction.guild ? interaction.guild.id : '1466927911364726845') });
+    const isOhal = sConf && sConf.isOhalActive;
+    const multiplier = isOhal ? 2.5 : 0.7;
+
+    const xpReward = Math.floor(((durationHours * 5) + (tickets * 10) + (mods * 5) + (voiceMins * 1)) * multiplier);
+    const coinRewardRaw = Math.floor(((durationHours * 2) + (tickets * 5) + (mods * 2)) * multiplier);
+    const taxDeduction = Math.floor(coinRewardRaw * 0.10);
+    const coinReward = Math.max(0, coinRewardRaw - taxDeduction);
 
     p.duty.isActive = false;
     p.duty.startedAt = null;
+    p.duty.pendingEnd = false;
+    p.duty.pendingHandoverNotes = '';
 
     p.daily = p.daily || {};
     p.daily.dutyMinutesToday = (p.daily.dutyMinutesToday || 0) + durationMins;

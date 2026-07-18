@@ -1,6 +1,14 @@
 const dns = require("dns");
 dns.setDefaultResultOrder("ipv4first");
 
+// Apply global sanitization to prevent @everyone / @here pings from bot messages
+try {
+  const applyDisable = require('./bot/patches/disableEveryone');
+  applyDisable();
+} catch (err) {
+  console.error('[startup] disableEveryone patch failed:', err && err.message);
+}
+
 const mongoose = require("mongoose");
 mongoose.set("bufferCommands", false);
 

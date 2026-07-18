@@ -9,7 +9,10 @@ const serverConfigSchema = new mongoose.Schema({
   funEnabled: { type: Boolean, default: true },
   latestHandoverNote: { type: String, default: '' },
   latestHandoverAuthor: { type: String, default: '' },
-  latestHandoverAt: { type: Date, default: null }
+  latestHandoverAt: { type: Date, default: null },
+  isOhalActive: { type: Boolean, default: false },
+  apiSpeedLimitActive: { type: Boolean, default: false },
+  karantinaActive: { type: Boolean, default: false }
 }, { timestamps: true });
 
 const ServerConfig = mongoose.models.ServerConfig 

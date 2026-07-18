@@ -317,6 +317,339 @@ async function handleSelectInteraction(interaction) {
       }
     }
 
+    if (action === 'staff_action_finance_center') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
+
+        const wallet = p.gamification?.ecoCoins || 0;
+        const savings = p.savingsFund || 0;
+        const loan = p.loanAmount || 0;
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('💳 Kurumsal Kredi & Finans Merkezi')
+          .setDescription(
+            `Sayın Yetkili,\n\n` +
+            `Kurumsal Finans ve Kredi sistemine hoş geldiniz. Aşağıdaki bakiye bilgileriniz doğrultusunda işlemlerinizi yapabilirsiniz.\n\n` +
+            `💵 **Cüzdan Bakiyesi:** \`${wallet} TL\`\n` +
+            `📈 **Yatırım Fonu Bakiyesi:** \`${savings} TL\`\n` +
+            `📉 **Aktif Avans Borcu:** \`${loan} TL\``
+          )
+          .setFooter({ text: 'Eko Yıldız Finansal Yönetim' })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('finance_invest_trigger').setLabel('📈 Yatırım Fonuna TL Yatır').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('finance_buy_leave').setLabel('🍃 İzin Kredisi Al (100 TL)').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('finance_loan_request').setLabel('🤝 Maaş Avansı Çek (150 TL)').setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_malpractice') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const MalpracticeCase = require('../../models/MalpracticeCase');
+
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
+
+        const activeCase = await MalpracticeCase.findOne({ targetUserId: interaction.user.id, status: 'pending' });
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+        if (!activeCase) {
+          const insActive = p.insuranceActive || false;
+          const insEmbed = new EmbedBuilder()
+            .setColor(0x34495e)
+            .setTitle('⚖️ Malpractice Court & Sorumluluk Sigortası')
+            .setDescription(
+              `Şu an aktif bir görevi kötüye kullanma davanız (malpractice) bulunmamaktadır.\n\n` +
+              `🛡️ **Mesleki Sorumluluk Sigortası Durumu:** ${insActive ? '🟢 **AKTİF**' : '🔴 **PASİF**'}\n\n` +
+              `*Sigortanız aktif olduğunda, gelecekteki davalarda alacağınız cezalar ve tazminatlar sigorta tarafından karşılanır. Sigortanız yoksa cezalar doğrudan haftalık hak edişinizden kesilir.*`
+            )
+            .setTimestamp();
+
+          const components = [];
+          if (!insActive) {
+            components.push(
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId('malpractice_buy_insurance')
+                  .setLabel('🛡️ Sigorta Satın Al (100 TL)')
+                  .setStyle(ButtonStyle.Success)
+              )
+            );
+          }
+
+          return interaction.editReply({ embeds: [insEmbed], components });
+        }
+
+        // Active case exists
+        const caseEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle(`⚖️ Aktif Malpractice Davası - #${activeCase.caseId}`)
+          .setDescription(
+            `Hakkınızda görevi kötüye kullanma iddiasıyla açılmış aktif bir soruşturma/dava mevcuttur.\n\n` +
+            `📝 **Gerekçe / Suçlama:** \`\`\`${activeCase.reason}\`\`\`\n` +
+            `💰 **Talep Edilen Tazminat:** \`${activeCase.fineAmount} TL\`\n` +
+            `🛡️ **Sigorta Koruması:** ${p.insuranceActive ? '🟢 Var (Cezayı sigorta karşılar)' : '🔴 Yok (Cezayı cepten ödersiniz)'}\n\n` +
+            `Dilerseniz avukat savunması verip davayı mahkemeye taşıyabilir ya da **%20 indirimle uzlaşabilirsiniz (Settle)**.`
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`malpractice_defense_btn_${activeCase.caseId}`)
+            .setLabel('⚖️ Avukat Savunması Ver (Modal)')
+            .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+            .setCustomId(`malpractice_settle_btn_${activeCase.caseId}`)
+            .setLabel('🤝 %20 İndirimle Uzlaş (Settle)')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [caseEmbed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_whistleblower') {
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      const modal = new ModalBuilder()
+        .setCustomId('modal_whistle_submit')
+        .setTitle('🤫 Anonim İhbar Hattı (SHA-256)');
+
+      const subjectInput = new TextInputBuilder()
+        .setCustomId('whistle_subject')
+        .setLabel('İhbar Konusu')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Örn: Kural ihlali veya yetkili suistimali')
+        .setRequired(true);
+
+      const detailsInput = new TextInputBuilder()
+        .setCustomId('whistle_details')
+        .setLabel('İhbar Detayları')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Lütfen ihbarınızın tüm detaylarını buraya yazınız. Kimliğiniz şifrelenecektir.')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(subjectInput),
+        new ActionRowBuilder().addComponents(detailsInput)
+      );
+
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_redacted_ops') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const RedactedOp = require('../../models/RedactedOp');
+        let activeOp = await RedactedOp.findOne({ targetUserId: interaction.user.id, intelReport: '' });
+
+        if (!activeOp) {
+          // Generate a new random spy mission
+          const opId = `OP-${Math.floor(100 + Math.random() * 900)}`;
+          const passcode = Math.floor(1000 + Math.random() * 9000).toString();
+          activeOp = new RedactedOp({
+            opId,
+            targetUserId: interaction.user.id,
+            passcode,
+            details: "Mevcut siber operasyonel komuta merkezimizce saptanan gizli sızma ve istihbarat faaliyetleri kapsamında sunucumuzdaki inaktif yetkili gruplarını izleyip koordinatları raporlayınız."
+          });
+          await activeOp.save();
+        }
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+        if (!activeOp.decrypted) {
+          const embed = new EmbedBuilder()
+            .setColor(0x34495e)
+            .setTitle(`🕵️ Redacted Ops - Gizli Teşkilat Emri (#${activeOp.opId})`)
+            .setDescription(
+              `Sayın Ajan,\n\n` +
+              `Size atanmış şifreli bir istihbarat görevi mevcuttur. Görevin detaylarını görmek ve gizli teşkilat kodlarını çözmek için passcode girmeniz gerekmektedir.\n\n` +
+              `🔑 **Gizli Passcode'unuz:** \`${activeOp.passcode}\` *(Doğrulama amaçlı)*`
+            )
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`redacted_decrypt_trigger_${activeOp.opId}`)
+              .setLabel('🕵️ Gizli Emri Çöz')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          return interaction.editReply({ embeds: [embed], components: [row] });
+        } else {
+          // Decrypted but report not submitted
+          const embed = new EmbedBuilder()
+            .setColor(0x34495e)
+            .setTitle(`🕵️ Redacted Ops - Aktif Görev Masası (#${activeOp.opId})`)
+            .setDescription(
+              `**GÖREV DETAYLARI:**\n` +
+              `\`\`\`${activeOp.details}\`\`\`\n` +
+              `*Ajan yetkileriniz aktif durumdadır (rolleriniz gizlenmiştir). Görevi tamamlamak ve eski rollerinizi geri yüklemek için lütfen aşağıdaki butondan gizli istihbarat raporunu gönderin.*`
+            )
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`redacted_report_trigger_${activeOp.opId}`)
+              .setLabel('📋 İstihbarat Raporu Gönder')
+              .setStyle(ButtonStyle.Success)
+          );
+
+          return interaction.editReply({ embeds: [embed], components: [row] });
+        }
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_grid_control') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const sector = p.currentSector || null;
+
+        const embed = new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle('🗺️ Izgara Kontrol Merkezi (Grid Control)')
+          .setDescription(
+            `Sayın Yetkili,\n\n` +
+            `Güvenlik Izgarası kapsamında sunucunun aktif devriye durumunu buradan yönetebilirsiniz.\n\n` +
+            `🗺️ **Mevcut Sektörünüz:** ${sector ? `\`${sector}\` (Devriyedesiniz)` : '🔴 **Bölge Atanmadı (Devriye Dışı)**'}\n\n` +
+            `*Eğer devriyedeyseniz, bölgeye ulaştığınızı bildirmek için [🛬 Sektöre Ulaştım] butonuna tıklayabilirsiniz. Bölgeye ulaştığınızda canlı log akışı DMinize yönlendirilecektir.*`
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder();
+        if (!sector) {
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId('grid_request_sector')
+              .setLabel('📡 Sektör Devriyesi Talep Et')
+              .setStyle(ButtonStyle.Primary)
+          );
+        } else {
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId('grid_arrive_sector')
+              .setLabel('🛬 Sektöre Ulaştım')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('grid_clear_sector')
+              .setLabel('🛑 Devriyeyi Bitir / Bölge Temiz')
+              .setStyle(ButtonStyle.Danger)
+          );
+        }
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_internal_affairs') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
+
+        const isAuthorized = p.isInspector || p.level >= 4;
+        if (!isAuthorized) {
+          return interaction.editReply({ content: '❌ Bu masaya yalnızca atanmış Müfettişler ve Sekreter üstü yetkililer erişebilir!' });
+        }
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setColor(0x7f8c8d)
+          .setTitle('🕵️‍♂️ İç Denetim Departmanı (Internal Affairs Unit)')
+          .setDescription(
+            `Sayın Müfettiş,\n\n` +
+            `İç denetim ve personel şeffaflığı kapsamında sunucudaki yetkililerin aktiflik dürüstlüğünü denetleyebilirsiniz.\n\n` +
+            `🔍 **Ghosting Taraması (Sızma):** Ses kanallarında uzun süre kalıp sıfır aksiyon (bilet/mod eylemi) alan yetkilileri tespit ederek suiistimal raporları oluşturur.`
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('ia_start_ghosting_scan')
+            .setLabel('🔍 Ghosting Taraması Başlat (Sızma)')
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_risk_compliance') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const ServerConfig = require('../../models/ServerConfig');
+        let sConf = await ServerConfig.findOne({ guildId: interaction.guildId });
+        if (!sConf) {
+          sConf = new ServerConfig({ guildId: interaction.guildId });
+          await sConf.save();
+        }
+
+        const karantina = sConf.karantinaActive || false;
+        const apiSpeed = sConf.apiSpeedLimitActive || false;
+        const ohal = sConf.isOhalActive || false;
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle('⚙️ Global Risk & Karantina Kontrol Paneli')
+          .setDescription(
+            `Sayın Yönetici,\n\n` +
+            `Sunucu güvenliğini ve sistem stabilitesini sağlamak adına küresel risk mekanizmalarını buradan yönetebilirsiniz.\n\n` +
+            `🚨 **Karantina Modu (Self-Shutdown):** ${karantina ? '🔴 **AKTİF (Tüm komutlar kilitli)**' : '🟢 **DEAKTİF (Normal akış)**'}\n` +
+            `⚡ **API Hız Limiti Yavaşlatıcı (%50):** ${apiSpeed ? '🔴 **YAVAŞ (%50 Hız Sınırı)**' : '🟢 **NORMAL (Tam hız)**'}\n` +
+            `🔥 **Olağanüstü Hal (OHAL) Vardiyası:** ${ohal ? '🔴 **AKTİF (2.5x Kriz Primi)**' : '🟢 **DEAKTİF (Normal akış)**'}`
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('risk_toggle_karantina')
+            .setLabel('🚨 Karantina (Self-Shutdown)')
+            .setStyle(karantina ? ButtonStyle.Success : ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId('risk_toggle_api_speed')
+            .setLabel('⏳ API Limiti (%50)')
+            .setStyle(apiSpeed ? ButtonStyle.Success : ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId('risk_toggle_ohal')
+            .setLabel('🔥 OHAL Kriz Vardiyası')
+            .setStyle(ohal ? ButtonStyle.Success : ButtonStyle.Danger)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
     if (action === 'staff_action_practice_scenario') {
       const SCENARIOS = [
         {
@@ -391,7 +724,11 @@ async function handleSelectInteraction(interaction) {
         const ticketsSolved = p.weeklyStats?.ticketsSolved || 0;
         const moderationActions = p.weeklyStats?.moderationActions || 0;
         
-        const gross = (voiceMinutes * 1) + (ticketsSolved * 10) + (moderationActions * 5);
+        // V0.7 Ekonomik Denge Çarpanı (0.7x)
+        const baseVoice = Math.floor(voiceMinutes * 1 * 0.7);
+        const baseTickets = Math.floor(ticketsSolved * 10 * 0.7);
+        const baseMod = Math.floor(moderationActions * 5 * 0.7);
+        const gross = baseVoice + baseTickets + baseMod;
 
         if (gross <= 0) {
           return interaction.editReply({
@@ -408,29 +745,36 @@ async function handleSelectInteraction(interaction) {
         const hasWarning = warnsThisWeek.length > 0;
         const disciplinaryDeduction = hasWarning ? Math.floor(gross * 0.15) : 0;
         const taxDeduction = Math.floor(gross * 0.10);
-        const netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
+        let netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
+
+        let loanDeducted = 0;
+        if (p.loanAmount && p.loanAmount > 0) {
+          loanDeducted = Math.min(netPay, p.loanAmount);
+          netPay -= loanDeducted;
+        }
 
         const embed = new EmbedBuilder()
           .setColor(0xf1c40f)
-          .setTitle('💼 Eko Yıldız Resmi Haftalık Maaş Bordrosu')
+          .setTitle('💼 Eko Yıldız Resmi Haftalık Maaş Bordrosu (v0.7)')
           .setDescription(
             `Sayın <@${interaction.user.id}>,\n\n` +
-            `Haftalık aktiflik durumunuz ve performans dökümünüz aşağıdadır. Ödemenizi cüzdana aktarmak için lütfen alttaki butona tıklayın.\n\n` +
-            `**📋 MAAŞ DETAYLARI VE KESİNTİLER**\n` +
+            `Haftalık aktiflik durumunuz ve v0.7 ekonomik dengeli performans dökümünüz aşağıdadır. Ödemenizi cüzdana aktarmak için lütfen alttaki butona tıklayın.\n\n` +
+            `**📋 MAAŞ DETAYLARI VE KESİNTİLER (v0.7 - 0.7x Çarpanı)**\n` +
             `\`\`\`diff\n` +
-            `+ Seste Kalma: ${voiceMinutes} dk x 1 TL = +${voiceMinutes * 1} TL\n` +
-            `+ Çözülen Bilet: ${ticketsSolved} adet x 10 TL = +${ticketsSolved * 10} TL\n` +
-            `+ Mod İşlemleri: ${moderationActions} adet x 5 TL = +${moderationActions * 5} TL\n` +
+            `+ Seste Kalma: ${voiceMinutes} dk x 0.7 TL = +${baseVoice} TL\n` +
+            `+ Çözülen Bilet: ${ticketsSolved} adet x 7.0 TL = +${baseTickets} TL\n` +
+            `+ Mod İşlemleri: ${moderationActions} adet x 3.5 TL = +${baseMod} TL\n` +
             `-----------------------------------------------\n` +
             `+ Brüt Hak Ediş: ${gross} TL\n` +
             `- Disiplin Kesintisi (%15): -${disciplinaryDeduction} TL ${hasWarning ? '((!) Disiplin Uyarısı Alındı)' : '(0 Uyarı)'}\n` +
             `- Gelir Vergisi Kesintisi (%10): -${taxDeduction} TL\n` +
+            (loanDeducted > 0 ? `- Maaş Avansı Kesintisi: -${loanDeducted} TL (Kalan Avans Borcu: ${p.loanAmount - loanDeducted} TL)\n` : '') +
             `-----------------------------------------------\n` +
             `+ Net Ödenecek Maaş: ${netPay} TL\n` +
             `\`\`\`\n` +
             `• **Mevcut Yetkili Cüzdan Bakiyesi:** 💳 \`${p.gamification?.ecoCoins || 0} TL\``
           )
-          .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı | Bordro' })
+          .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı | Sürüm: v0.7' })
           .setTimestamp();
 
         const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');

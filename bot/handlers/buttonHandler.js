@@ -1135,7 +1135,12 @@ async function handleButtonInteraction(interaction) {
       const ticketsSolved = p.weeklyStats?.ticketsSolved || 0;
       const moderationActions = p.weeklyStats?.moderationActions || 0;
       
-      const gross = (voiceMinutes * 1) + (ticketsSolved * 10) + (moderationActions * 5);
+      // V0.7 Ekonomik Denge Çarpanı (0.7x)
+      const baseVoice = Math.floor(voiceMinutes * 1 * 0.7);
+      const baseTickets = Math.floor(ticketsSolved * 10 * 0.7);
+      const baseMod = Math.floor(moderationActions * 5 * 0.7);
+      const gross = baseVoice + baseTickets + baseMod;
+
       if (gross <= 0) {
         return interaction.followUp({ content: '❌ Aktifliğiniz bulunmamaktadır.', ephemeral: true });
       }
@@ -1148,7 +1153,14 @@ async function handleButtonInteraction(interaction) {
       const hasWarning = warnsThisWeek.length > 0;
       const disciplinaryDeduction = hasWarning ? Math.floor(gross * 0.15) : 0;
       const taxDeduction = Math.floor(gross * 0.10);
-      const netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
+      let netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
+
+      let loanDeducted = 0;
+      if (p.loanAmount && p.loanAmount > 0) {
+        loanDeducted = Math.min(netPay, p.loanAmount);
+        netPay -= loanDeducted;
+        p.loanAmount -= loanDeducted;
+      }
 
       p.gamification = p.gamification || {};
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + netPay;
@@ -1160,14 +1172,15 @@ async function handleButtonInteraction(interaction) {
 
       const successEmbed = new EmbedBuilder()
         .setColor(0x2ecc71)
-        .setTitle('✅ Ödeme Başarıyla Tamamlandı!')
+        .setTitle('✅ Ödeme Başarıyla Tamamlandı! (v0.7)')
         .setDescription(
           `Sayın <@${interaction.user.id}>,\n\n` +
           `**Net Maaşınız (${netPay} TL)** başarıyla yetkili cüzdanınıza aktarılmıştır.\n\n` +
+          (loanDeducted > 0 ? `• **Kesilen Maaş Avansı:** \`-${loanDeducted} TL\` (Kalan Avans Borcu: \`${p.loanAmount} TL\`)\n` : '') +
           `💳 **Güncel Cüzdan Bakiyeniz:** \`${p.gamification.ecoCoins} TL\`\n` +
           `*Haftalık aktiflik sayaçlarınız sıfırlanmıştır.*`
         )
-        .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
+        .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı | Sürüm: v0.7' })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
@@ -1961,6 +1974,907 @@ async function handleButtonInteraction(interaction) {
       console.error('[Hearing-Coord] Hata:', err.message);
     }
     return;
+  }
+
+  if (customId.startsWith("signoff_1st_") || customId.startsWith("signoff_2nd_") || customId.startsWith("signoff_veto_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const SignOffRequest = require("../../models/SignOffRequest");
+
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isLevel5 = (managerProgress && managerProgress.level >= 5) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+    if (customId.startsWith("signoff_1st_")) {
+      if (!isLevel4) return interaction.reply({ content: "❌ 1. Derece İmza yetkisi için **Sekreter** (Level >= 4) olmalısınız!", ephemeral: true });
+    } else {
+      if (!isLevel5) return interaction.reply({ content: "❌ Bu işlem için **Genel Koordinatör** (Level >= 5) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const is1st = customId.startsWith("signoff_1st_");
+    const is2nd = customId.startsWith("signoff_2nd_");
+    const isVeto = customId.startsWith("signoff_veto_");
+    
+    let requestId = "";
+    if (is1st) requestId = customId.replace("signoff_1st_", "");
+    else if (is2nd) requestId = customId.replace("signoff_2nd_", "");
+    else requestId = customId.replace("signoff_veto_", "");
+
+    try {
+      const request = await SignOffRequest.findOne({ requestId });
+      if (!request || request.status !== "pending") {
+        return interaction.followUp({ content: "❌ Evrak bulunamadı veya zaten sonuçlandırıldı.", ephemeral: true }).catch(() => {});
+      }
+
+      if (isVeto) {
+        request.vetoed = true;
+        request.status = "rejected";
+        await request.save();
+
+        const vetoEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0xe74c3c)
+          .setTitle(`❌ Evrak Veto Edildi - #${requestId}`)
+          .setDescription(`Evrak **${interaction.user.tag}** tarafından veto edilerek iptal edilmiştir.`)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [vetoEmbed], components: [] }).catch(() => {});
+      }
+
+      const sigLabel = is1st ? `1st:${interaction.user.tag}` : `2nd:${interaction.user.tag}`;
+      const shortLabel = is1st ? "1. Derece (Sekreter)" : "2. Derece (G. Koordinatör)";
+
+      // Check if signature type already exists
+      const prefix = is1st ? "1st:" : "2nd:";
+      if (request.signatures.some(s => s.startsWith(prefix))) {
+        return interaction.followUp({ content: `❌ Bu evrakta zaten ${shortLabel} imzası mevcuttur!`, ephemeral: true }).catch(() => {});
+      }
+
+      request.signatures.push(sigLabel);
+      await request.save();
+
+      const has1st = request.signatures.some(s => s.startsWith("1st:"));
+      const has2nd = request.signatures.some(s => s.startsWith("2nd:"));
+
+      if (has1st && has2nd) {
+        // Execute Action!
+        request.status = "approved";
+        await request.save();
+
+        // Perform the high-risk action
+        if (request.actionType === "BAN_REMOVE") {
+          // Details: { targetUserId, reason }
+          const target = request.details?.targetUserId;
+          if (target) {
+            await interaction.guild.members.unban(target, `Evrak #${requestId} - ${request.reason}`).catch(() => {});
+          }
+        } else if (request.actionType === "BUDGET_SPEND") {
+          // Details: { amount, unitName, reason }
+          const UnitBudget = require("../../models/UnitBudget");
+          const ub = await UnitBudget.findOne({ unitName: request.details?.unitName });
+          if (ub) {
+            ub.budget = Math.max(0, ub.budget - (request.details?.amount || 0));
+            await ub.save();
+          }
+        }
+
+        const approvedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0x2ecc71)
+          .setTitle(`✅ Evrak Tamamen İmzalandı ve Onaylandı - #${requestId}`)
+          .setDescription('Gerekli tüm imzalar tamamlandı. Eylem başarıyla gerçekleştirilmiştir.')
+          .addFields({ name: '✍️ İmza Sahipleri', value: request.signatures.map(s => `• ${s}`).join('\n'), inline: false })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [approvedEmbed], components: [] }).catch(() => {});
+      } else {
+        // Just update embed signatures list
+        const progressEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setDescription(`Evrak askıdadır. İmza beklemektedir.`)
+          .setFields(
+            { name: '📄 Evrak Tipi', value: `\`${request.actionType}\``, inline: true },
+            { name: '⚖️ Detaylar', value: `\`\`\`json\n${JSON.stringify(request.details, null, 2)}\n\`\`\``, inline: false },
+            { name: '✍️ İmzalar', value: request.signatures.map(s => `• ${s.replace("1st:", "Sekreter: ").replace("2nd:", "G. Koordinatör: ")}`).join('\n'), inline: false }
+          )
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [progressEmbed] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Sign-Off-Button] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("audit_committee_1_") || customId.startsWith("audit_committee_2_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const AuditCase = require("../../models/AuditCase");
+
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isLevel3 = (managerProgress && managerProgress.level >= 3) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isLevel3) {
+      return interaction.reply({ content: "❌ Performans İnceleme Kurulu onay yetkisi için **Yönetici** (Level >= 3) olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const is1 = customId.startsWith("audit_committee_1_");
+    const caseId = customId.replace(is1 ? "audit_committee_1_" : "audit_committee_2_", "");
+
+    try {
+      const audit = await AuditCase.findOne({ caseId });
+      if (!audit || audit.status !== "pending") {
+        return interaction.followUp({ content: "❌ Soruşturma bulunamadı veya zaten sonuçlandırıldı.", ephemeral: true }).catch(() => {});
+      }
+
+      if (interaction.user.id === audit.issuedBy) {
+        return interaction.followUp({ content: "❌ Kendi oluşturduğunuz ceza talebini onaylayamazsınız!", ephemeral: true }).catch(() => {});
+      }
+
+      if (audit.approvals.includes(interaction.user.id)) {
+        return interaction.followUp({ content: "❌ Bu davayı zaten onayladınız!", ephemeral: true }).catch(() => {});
+      }
+
+      audit.approvals.push(interaction.user.id);
+      await audit.save();
+
+      if (audit.approvals.length >= 2) {
+        audit.status = "approved";
+        await audit.save();
+
+        if (audit.actionType === "WARN") {
+          // Trigger DisciplinaryHearing
+          const DisciplinaryHearing = require("../../models/DisciplinaryHearing");
+          const hearingId = `hearing_${Date.now()}`;
+          const hearing = new DisciplinaryHearing({
+            hearingId,
+            targetUserId: audit.targetUserId,
+            reason: audit.reason,
+            issuedBy: audit.issuedBy
+          });
+          await hearing.save();
+
+          try {
+            const targetUser = await interaction.client.users.fetch(audit.targetUserId).catch(() => null);
+            if (targetUser) {
+              const okEmbed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle("⚖️ Hakkınızda Disiplin Soruşturması Başlatıldı")
+                .setDescription(
+                  `Sayın <@${audit.targetUserId}>,\n\n` +
+                  `Hakkınızdaki disiplin uyarısı talebi Performans İnceleme Kurulu (Kurul) tarafından onaylanmıştır.\n\n` +
+                  `📝 **Suçlama / Gerekçe:** \`\`\`${audit.reason}\`\`\`\n` +
+                  `Bu uyarıya karşı savunma yapmak için aşağıdaki **[⚖️ Savunma Ver (Modal)]** butonuna tıklayabilir ya da **[🤝 Cezayı Kabul Et (-10 KPI)]** butonuyla doğrudan cezayı onaylayabilirsiniz.\n\n` +
+                  `*Savunma yapılmadığı veya reddedildiği takdirde ceza sicilinize işlenecektir.*`
+                )
+                .setFooter({ text: "Eko Yıldız • Disiplin ve Sicil Kurulu" })
+                .setTimestamp();
+
+              const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`hearing_defense_btn_${hearingId}`)
+                  .setLabel('⚖️ Savunma Ver (Modal)')
+                  .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                  .setCustomId(`hearing_accept_btn_${hearingId}`)
+                  .setLabel('🤝 Cezayı Kabul Et (-10 KPI)')
+                  .setStyle(ButtonStyle.Danger)
+              );
+              await targetUser.send({ embeds: [okEmbed], components: [row] });
+            }
+          } catch (_) {}
+        } else if (audit.actionType === "DISMISS") {
+          // Execute dismissal
+          const { dismissStaff } = require("../services/staffSystem");
+          await dismissStaff(audit.targetUserId, audit.reason, audit.issuedBy, interaction.client);
+        }
+
+        const approvedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0x2ecc71)
+          .setTitle(`✅ Karar Çapraz Onay ile Onaylandı - #${caseId}`)
+          .setDescription('Gerekli tüm onaylar toplandı. İşlem resmi olarak yürürlüğe girdi.')
+          .addFields({ name: '👥 Onaylayanlar', value: audit.approvals.map(a => `<@${a}>`).join('\n'), inline: false })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [approvedEmbed], components: [] }).catch(() => {});
+      } else {
+        const progressEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setDescription(`Karar askıdadır. 2. Onay bekleniyor.`)
+          .setFields(
+            { name: '👤 Hedef Yetkili', value: `<@${audit.targetUserId}>`, inline: true },
+            { name: '📝 Gerekçe', value: `\`\`\`${audit.reason}\`\`\``, inline: false },
+            { name: '👥 Onaylayanlar', value: audit.approvals.map(a => `<@${a}>`).join('\n'), inline: false }
+          )
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [progressEmbed] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Audit-Committee-Button] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId === "probation_rules_read" || customId === "contract_read_rules") {
+    const isProb = customId === "probation_rules_read";
+    const text = isProb
+      ? "📝 **İK Gelişim Sözleşmesi (PIP) Şartları:**\n\n" +
+        "1. 7 gün boyunca gerçekleştirdiğiniz tüm moderasyon işlemleri ve biletler denetime düşer.\n" +
+        "2. Bu süre zarfında aldığınız uyarılar PIP başarısızlığına yol açar.\n" +
+        "3. Lütfen kontratı imzalayarak görev bilinciyle hedefleri yerine getirin."
+      : "📝 **Kurumsal Yemin ve Sözleşme Şartları:**\n\n" +
+        "1. Sentara sunucu düzenini, adaletini ve gizliliğini koruyacağıma yemin ederim.\n" +
+        "2. Üst yönetim direktiflerine ve kurallara riayet edeceğimi taahhüt ederim.\n" +
+        "3. Görev sürem boyunca adil, aktif ve dürüst bir duruş sergileyeceğimi kabul ederim.";
+
+    return interaction.reply({ content: text, ephemeral: true });
+  }
+
+  if (customId === "probation_sign_btn" || customId === "contract_renew_btn_trigger") {
+    const isProb = customId === "probation_sign_btn";
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(isProb ? 'modal_probation_sign' : 'modal_contract_renew')
+      .setTitle(isProb ? '✍️ PIP Kontratı İmza Masası' : '✍️ Sözleşme Onay Masası');
+
+    const input = new TextInputBuilder()
+      .setCustomId(isProb ? 'prob_sign_input' : 'contract_sign_input')
+      .setLabel(isProb ? 'PIP Sözleşmesi Onaylama Metni' : 'Sözleşme Onaylama Metni')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder(isProb ? "kabul ediyorum" : "KABUL EDİYORUM")
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId === "contract_final_sign") {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return;
+
+      p.contractSigned = true;
+      p.contractAccepted = true;
+      p.contractRenewDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await p.save();
+
+      const doneEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle("✅ Sözleşme Başarıyla Yenilendi!")
+        .setDescription("Yıllık/Aylık kurumsal sözleşmeniz başarıyla yenilenmiştir. Panel yetkileriniz aktif edilmiştir.")
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+    } catch (err) {
+      console.error('[Contract-Final-Sign] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("probation_approve_") || customId.startsWith("probation_reject_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isLevel4) {
+      return interaction.reply({ content: "❌ İK denetim onayları için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const isApprove = customId.startsWith("probation_approve_");
+    const parts = customId.replace(isApprove ? "probation_approve_" : "probation_reject_", "").split("_");
+    const targetUserId = parts[0];
+    const actionType = parts[1];
+
+    try {
+      if (isApprove) {
+        const p = await StaffProgress.findOne({ userId: targetUserId });
+        if (p) {
+          if (actionType === "mod") {
+            p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
+            p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
+            p.weeklyStats.moderationActions = (p.weeklyStats.moderationActions || 0) + 1;
+          } else if (actionType === "ticket") {
+            p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
+            p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
+            p.weeklyStats.ticketsSolved = (p.weeklyStats.ticketsSolved || 0) + 1;
+          }
+          await p.save();
+        }
+
+        const approvedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0x2ecc71)
+          .setTitle("✅ İK Denetim İşlemi Onaylandı")
+          .setDescription(`**Onaylayan Yönetici:** <@${interaction.user.id}>\n*Yetkili işlem istatistikleri başarıyla yansıtıldı.*`)
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [approvedEmbed], components: [] }).catch(() => {});
+      } else {
+        const rejectedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0xe74c3c)
+          .setTitle("❌ İK Denetim İşlemi Reddedildi")
+          .setDescription(`**Reddeden Yönetici:** <@${interaction.user.id}>\n*İşlem iptal edildi, performansa eklenmedi.*`)
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [rejectedEmbed], components: [] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Probation-Approve] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId === "career_rotation_panel_trigger") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const rotationEmbed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle("👔 Personel Kariyer Rotasyon Masası")
+        .setDescription(
+          "Tebrikler, mevcut seviye terfi gereksinimlerini başarıyla tamamladınız!\n\n" +
+          "Sıkılıp tükenmenizi engellemek ve kurumsal tecrübenizi genişletmek adına istediğiniz yeni uzmanlık birimine rotasyon (transfer) başvurusu yapabilirsiniz. Seçtiğiniz seçeneğe göre tüm hedefleriniz yeniden yapılandırılacaktır."
+        )
+        .setTimestamp();
+
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('career_rotate_BAN').setLabel('🛡️ Güvenlik/Ban Birimi').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('career_rotate_SES').setLabel('🎤 Sosyal/Ses Birimi').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('career_rotate_SOHBET').setLabel('💼 İdari/Sohbet Birimi').setStyle(ButtonStyle.Primary)
+      );
+
+      await interaction.editReply({ embeds: [rotationEmbed], components: [row] }).catch(() => {});
+    } catch (err) {
+      console.error('[Career-Rotate-Trigger] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("career_rotate_")) {
+    await interaction.deferReply({ ephemeral: true });
+    const targetUnit = customId.replace("career_rotate_", "") + "_BIRIMI";
+    try {
+      const StaffUnit = require("../../models/StaffUnit");
+      let userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
+      if (!userUnit) {
+        userUnit = new StaffUnit({ userId: interaction.user.id });
+      }
+
+      userUnit.unitName = targetUnit;
+      userUnit.rank = 1;
+      await userUnit.save();
+
+      // Log promotion/rotation in TERFI_LOG
+      const { CHANNELS } = require("../services/staffAutomation");
+      const logChan = await interaction.client.channels.fetch(CHANNELS.TERFI_LOG).catch(() => null);
+      if (logChan && logChan.isTextBased()) {
+        const rotEmbed = new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle("👔 Yetkili Kariyer Rotasyonu Gerçekleşti")
+          .setDescription(`👤 <@${interaction.user.id}> yetkilisi kendi isteğiyle uzmanlık birimini değiştirmiştir.`)
+          .addFields(
+            { name: '👤 Personel', value: `<@${interaction.user.id}>`, inline: true },
+            { name: '👔 Yeni Uzmanlık Birimi', value: `\`${targetUnit}\``, inline: true }
+          )
+          .setTimestamp();
+        await logChan.send({ embeds: [rotEmbed] });
+      }
+
+      return interaction.editReply({ content: `✅ **Rotasyon başarıyla tamamlandı!** Yeni biriminiz: **${targetUnit}** olarak ayarlandı.` });
+    } catch (err) {
+      console.error('[Career-Rotate] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "duty_fiscal_audit_view") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || !p.duty?.isActive || !p.duty.startedAt) {
+        return interaction.editReply({ content: "❌ Aktif bir nöbetiniz bulunmuyor." });
+      }
+
+      const durationMs = Date.now() - new Date(p.duty.startedAt).getTime();
+      const durationMins = Math.floor(durationMs / 1000 / 60);
+      const durationHours = Math.floor(durationMins / 60);
+      const remainingMins = durationMins % 60;
+
+      const voiceMins = p.duty.sessionVoiceMinutes || 0;
+      const tickets = p.duty.sessionTicketsSolved || 0;
+      const mods = p.duty.sessionModerationActions || 0;
+
+      const ServerConfig = require("../../models/ServerConfig");
+      const sConf = await ServerConfig.findOne({ guildId: p.guildId || interaction.guildId });
+      const isOhal = sConf && sConf.isOhalActive;
+      const multiplier = isOhal ? 2.5 : 0.7;
+
+      const xpReward = Math.floor(((durationHours * 5) + (tickets * 10) + (mods * 5) + (voiceMins * 1)) * multiplier);
+      const coinRewardRaw = Math.floor(((durationHours * 2) + (tickets * 5) + (mods * 2)) * multiplier);
+      const taxDeduction = Math.floor(coinRewardRaw * 0.10);
+      const coinReward = Math.max(0, coinRewardRaw - taxDeduction);
+
+      const auditEmbed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('📊 Vardiya Sonu Hasılat Bilançosu')
+        .setDescription(
+          `Nöbet süresince elde ettiğiniz kazanımlar ve vergi kesintileri aşağıda listelenmiştir. Lütfen inceleyip hak edişinizi transfer edin.\n\n` +
+          `**💰 DETAYLAR (Sürüm: v0.7)**\n` +
+          `• **Nöbet Süresi:** \`${durationHours} saat ${remainingMins} dakika\`\n` +
+          `• **Çözülen Biletler:** \`${tickets} adet\` (+${tickets * 5 * multiplier} TL)\n` +
+          `• **Moderasyon Eylemleri:** \`${mods} adet\` (+${mods * 2 * multiplier} TL)\n` +
+          `• **Nöbet Baz Ücreti:** \`+${durationHours * 2 * multiplier} TL\`\n` +
+          `• **Ödül Çarpanı:** \`${multiplier}x\` ${isOhal ? '(🔥 OHAL Kriz Primi Etkin)' : '(v0.7 Denge)'}\n` +
+          `• **Vergi Kesintisi (%10):** \`-${taxDeduction} TL\`\n` +
+          `-----------------------------------------\n` +
+          `🔥 **Net Kazanılacak Tutar:** **+${coinReward} TL**\n` +
+          `✨ **Kazanılacak Rütbe Puanı:** **+${xpReward} Elmas (💎)**`
+        )
+        .setTimestamp();
+
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('duty_fiscal_transfer')
+          .setLabel('💰 Hak Edişi Maaş Hesabına Aktar')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.editReply({ embeds: [auditEmbed], components: [row] });
+    } catch (err) {
+      console.error('[Duty-Fiscal-Audit-View] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "duty_fiscal_transfer") {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || !p.duty?.isActive) {
+        return interaction.followUp({ content: "❌ Aktif nöbetiniz bulunamadı.", ephemeral: true }).catch(() => {});
+      }
+
+      const { endDuty } = require("../services/staffDutyService");
+      await endDuty(interaction, interaction.client, p.duty.pendingHandoverNotes);
+    } catch (err) {
+      console.error('[Duty-Fiscal-Transfer] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId === "finance_invest_trigger") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_finance_invest')
+      .setTitle('📈 Yatırım Fonuna TL Yatır');
+
+    const input = new TextInputBuilder()
+      .setCustomId('invest_amount')
+      .setLabel('Yatırılacak TL Tutarı')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Örn: 50')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId === "finance_buy_leave") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Kayıt bulunamadı." });
+
+      const cost = 100;
+      const wallet = p.gamification?.ecoCoins || 0;
+      if (wallet < cost) {
+        return interaction.editReply({ content: `❌ Yetersiz bakiye! İzin kredisi satın almak için cüzdanınızda en az \`${cost} TL\` bulunmalıdır.` });
+      }
+
+      p.gamification.ecoCoins -= cost;
+      p.leaves = p.leaves || { totalCredits: 0 };
+      p.leaves.totalCredits = (p.leaves.totalCredits || 0) + 1;
+      await p.save();
+
+      return interaction.editReply({ content: `✅ **İzin kredisi satın alındı!** \`100 TL\` cüzdanınızdan düşüldü.\n🍃 **Yeni İzin Kredisi Bakiyeniz:** \`${p.leaves.totalCredits} Gün\`` });
+    } catch (err) {
+      console.error('[Finance-Buy-Leave] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "finance_loan_request") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Kayıt bulunamadı." });
+
+      const kpi = p.performance?.weeklyKpi || 100;
+      if (kpi < 90) {
+        return interaction.editReply({ content: `❌ Maaş avansı çekebilmek için haftalık performans puanınızın (KPI) en az **90** olması gerekmektedir. Güncel KPI: \`${kpi}\`` });
+      }
+
+      if (p.loanAmount && p.loanAmount > 0) {
+        return interaction.editReply({ content: `❌ Zaten aktif bir avans borcunuz bulunmaktadır: \`${p.loanAmount} TL\`.` });
+      }
+
+      p.loanAmount = 150;
+      p.gamification = p.gamification || {};
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 150;
+      await p.save();
+
+      return interaction.editReply({ content: "✅ **Faizsiz Maaş Avansı Onaylandı!**\n\n`150 TL` başarıyla cüzdanınıza aktarılmıştır. Bu tutar, bir sonraki haftalık maaş tahakkukunda otomatik olarak net maaşınızdan mahsup edilecektir." });
+    } catch (err) {
+      console.error('[Finance-Loan] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "malpractice_buy_insurance") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Kayıt bulunamadı." });
+
+      const cost = 100;
+      const wallet = p.gamification?.ecoCoins || 0;
+      if (wallet < cost) {
+        return interaction.editReply({ content: `❌ Yetersiz bakiye! Sigorta aktif etmek için cüzdanınızda en az \`${cost} TL\` bulunmalıdır.` });
+      }
+
+      p.gamification.ecoCoins -= cost;
+      p.insuranceActive = true;
+      await p.save();
+
+      return interaction.editReply({ content: "🛡️ **Mesleki Sorumluluk Sigortanız Aktif Edildi!**\n\n`100 TL` cüzdanınızdan tahsil edilmiştir. Gelecekteki malpractice davalarının tazminatları sigorta fonu tarafından karşılanacaktır." });
+    } catch (err) {
+      console.error('[Malpractice-Insurance-Buy] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId.startsWith("malpractice_defense_btn_")) {
+    const caseId = customId.replace("malpractice_defense_btn_", "");
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_malpractice_defense_${caseId}`)
+      .setTitle('⚖️ Avukat Savunma Dilekçesi');
+
+    const input = new TextInputBuilder()
+      .setCustomId('defense_dilekce')
+      .setLabel('Savunma / İtiraz Gerekçeniz')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Buraya mahkemeye sunulacak hukuki savunmanızı yazınız.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId.startsWith("malpractice_settle_btn_")) {
+    await interaction.deferReply({ ephemeral: true });
+    const caseId = customId.replace("malpractice_settle_btn_", "");
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const MalpracticeCase = require("../../models/MalpracticeCase");
+
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      const c = await MalpracticeCase.findOne({ caseId });
+      if (!p || !c || c.status !== "pending") {
+        return interaction.editReply({ content: "❌ Dava bulunamadı veya zaten karara bağlandı." });
+      }
+
+      const rawCost = c.fineAmount || 100;
+      const settleCost = Math.floor(rawCost * 0.8); // %20 İndirim
+
+      let finalPaid = 0;
+      if (p.insuranceActive) {
+        // Covered by insurance
+        finalPaid = 0;
+      } else {
+        finalPaid = settleCost;
+        p.gamification = p.gamification || {};
+        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - finalPaid;
+        await p.save();
+      }
+
+      c.status = "settled";
+      c.settledAmount = finalPaid;
+      await c.save();
+
+      return interaction.editReply({
+        content: `✅ **Uzlaşma (Settle) Başarıyla Tamamlandı!**\n\n` +
+          `• **Dava:** \`#${caseId}\`\n` +
+          `• **Normal Ceza:** \`${rawCost} TL\`\n` +
+          `• **Uzlaşma Bedeli (%20 İndirimli):** \`${settleCost} TL\`\n` +
+          `• **Cebinizden Ödenen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortanız Tarafından Karşılandı!)' : '(Sigortasız Tahsilat)'}`
+      });
+    } catch (err) {
+      console.error('[Malpractice-Settle] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId.startsWith("malpractice_court_won_") || customId.startsWith("malpractice_court_lost_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isLevel4) {
+      return interaction.reply({ content: "❌ Mahkeme kararlarını nihai sonuca bağlamak için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const isWon = customId.startsWith("malpractice_court_won_");
+    const caseId = customId.replace(isWon ? "malpractice_court_won_" : "malpractice_court_lost_", "");
+
+    try {
+      const MalpracticeCase = require("../../models/MalpracticeCase");
+      const c = await MalpracticeCase.findOne({ caseId });
+      if (!c || c.status !== "submitted") {
+        return interaction.followUp({ content: "❌ Dava dosyası bulunamadı veya zaten karara bağlandı.", ephemeral: true }).catch(() => {});
+      }
+
+      const p = await StaffProgress.findOne({ userId: c.targetUserId });
+      if (!p) return;
+
+      if (isWon) {
+        c.status = "won";
+        c.settledAmount = 0;
+        await c.save();
+
+        const wonEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0x2ecc71)
+          .setTitle(`✅ Mahkeme Kararı: Davalı Suçsuz Bulundu - #${caseId}`)
+          .setDescription(`Davalı yetkili <@${c.targetUserId}> tarafından yapılan savunma haklı bulunmuş ve dava tamamen düşürülmüştür.`)
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [wonEmbed], components: [] }).catch(() => {});
+      } else {
+        c.status = "lost";
+        const fine = c.fineAmount || 100;
+        
+        let finalPaid = 0;
+        if (p.insuranceActive) {
+          finalPaid = 0;
+        } else {
+          finalPaid = fine;
+          p.gamification = p.gamification || {};
+          p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - finalPaid;
+          await p.save();
+        }
+
+        c.settledAmount = finalPaid;
+        await c.save();
+
+        const lostEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setColor(0xe74c3c)
+          .setTitle(`❌ Mahkeme Kararı: Davalı Suçlu Bulundu - #${caseId}`)
+          .setDescription(
+            `Davalı yetkili <@${c.targetUserId}> suçlu bulunmuş ve ceza onaylanmıştır.\n\n` +
+            `• **Kesilen Ceza:** \`${fine} TL\`\n` +
+            `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)'}`
+          )
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [lostEmbed], components: [] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Malpractice-Court-Judge] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId === "risk_toggle_karantina" || customId === "risk_toggle_api_speed" || customId === "risk_toggle_ohal") {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isLevel4) {
+      return interaction.reply({ content: "❌ Global risk kontrol yetkisi için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    try {
+      const ServerConfig = require("../../models/ServerConfig");
+      let sConf = await ServerConfig.findOne({ guildId: interaction.guildId });
+      if (!sConf) {
+        sConf = new ServerConfig({ guildId: interaction.guildId });
+      }
+
+      if (customId === "risk_toggle_karantina") {
+        sConf.karantinaActive = !sConf.karantinaActive;
+        global.SPAM_STOPPED = sConf.karantinaActive;
+      } else if (customId === "risk_toggle_api_speed") {
+        sConf.apiSpeedLimitActive = !sConf.apiSpeedLimitActive;
+      } else if (customId === "risk_toggle_ohal") {
+        sConf.isOhalActive = !sConf.isOhalActive;
+      }
+      await sConf.save();
+
+      const newEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+        .setDescription(
+          `Sayın Yönetici,\n\n` +
+          `Sunucu güvenliğini ve sistem stabilitesini sağlamak adına küresel risk mekanizmalarını buradan yönetebilirsiniz.\n\n` +
+          `🚨 **Karantina Modu (Self-Shutdown):** ${sConf.karantinaActive ? '🔴 **AKTİF (Tüm komutlar kilitli)**' : '🟢 **DEAKTİF (Normal akış)**'}\n` +
+          `⚡ **API Hız Limiti Yavaşlatıcı (%50):** ${sConf.apiSpeedLimitActive ? '🔴 **YAVAŞ (%50 Hız Sınırı)**' : '🟢 **NORMAL (Tam hız)**'}\n` +
+          `🔥 **Olağanüstü Hal (OHAL) Vardiyası:** ${sConf.isOhalActive ? '🔴 **AKTİF (2.5x Kriz Primi)**' : '🟢 **DEAKTİF (Normal akış)**'}`
+        )
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('risk_toggle_karantina')
+          .setLabel('🚨 Karantina (Self-Shutdown)')
+          .setStyle(sConf.karantinaActive ? ButtonStyle.Success : ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('risk_toggle_api_speed')
+          .setLabel('⏳ API Limiti (%50)')
+          .setStyle(sConf.apiSpeedLimitActive ? ButtonStyle.Success : ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('risk_toggle_ohal')
+          .setLabel('🔥 OHAL Kriz Vardiyası')
+          .setStyle(sConf.isOhalActive ? ButtonStyle.Success : ButtonStyle.Danger)
+      );
+
+      await interaction.editReply({ embeds: [newEmbed], components: [row] }).catch(() => {});
+    } catch (err) {
+      console.error('[Risk-Toggle] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("redacted_decrypt_trigger_")) {
+    const opId = customId.replace("redacted_decrypt_trigger_", "");
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_redacted_decrypt_${opId}`)
+      .setTitle('🕵️ Gizli Teşkilat Kod Çözücü');
+
+    const input = new TextInputBuilder()
+      .setCustomId('decrypt_passcode')
+      .setLabel('Passcode Giriniz')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Görevi deşifre etmek için passcode girin')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId.startsWith("redacted_report_trigger_")) {
+    const opId = customId.replace("redacted_report_trigger_", "");
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_redacted_report_${opId}`)
+      .setTitle('📋 Gizli İstihbarat Rapor Formu');
+
+    const input = new TextInputBuilder()
+      .setCustomId('intel_report_text')
+      .setLabel('Toplanan İstihbarat Detayı')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Gözlemlerinizi ve raporunuzu buraya detaylıca yazın.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId === "grid_request_sector") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Kayıt bulunamadı." });
+
+      if (!p.duty?.isActive) {
+        return interaction.editReply({ content: "❌ Devriye görevi alabilmek için nöbette olmalısınız! Lütfen önce nöbete başlayın." });
+      }
+
+      const sectors = ["SEKTÖR-A (Genel Sohbet)", "SEKTÖR-B (Ses Kanalları)", "SEKTÖR-C (Destek Biletleri)"];
+      const selected = sectors[Math.floor(Math.random() * sectors.length)];
+      p.currentSector = selected;
+      await p.save();
+
+      return interaction.editReply({ content: `📡 **Yeni Sektör Devriyesi Atandı!**\n\nBölgeniz: **${selected}**\nLütfen bölgeye ulaştığınızda **[🛬 Sektöre Ulaştım]** butonuna tıklayınız.` });
+    } catch (err) {
+      console.error('[Grid-Request] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "grid_arrive_sector") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || !p.currentSector) {
+        return interaction.editReply({ content: "❌ Aktif atanmış bir sektörünüz bulunmamaktadır." });
+      }
+
+      // Simulate sending logs stream to DM
+      try {
+        const embed1 = new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle(`🗺️ Canlı Sektör Log Akışı - ${p.currentSector}`)
+          .setDescription(
+            `Bölge güvenli hale getirilmiştir. Log tüneli kuruldu.\n\n` +
+            `• \`[SYS-09:41]\` Bölge analiz ediliyor... Tam doğruluk sağlandı.\n` +
+            `• \`[SYS-09:43]\` Herhangi bir kural ihlali saptanmadı.`
+          )
+          .setTimestamp();
+        await interaction.user.send({ embeds: [embed1] });
+      } catch (_) {}
+
+      return interaction.editReply({ content: "🛬 **Sektöre Ulaştınız!**\n\nVarışınız veritabanına işlendi ve canlı log akışı tüneli DM kutunuza yönlendirildi." });
+    } catch (err) {
+      console.error('[Grid-Arrive] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "grid_clear_sector") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Kayıt bulunamadı." });
+
+      const oldSector = p.currentSector || "Sektör";
+      p.currentSector = null;
+      await p.save();
+
+      return interaction.editReply({ content: `✅ **Devriye Tamamlandı!**\n\n**${oldSector}** güvenli ve temiz olarak rapor edilmiştir. Teşekkürler.` });
+    } catch (err) {
+      console.error('[Grid-Clear] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "ia_start_ghosting_scan") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const activeStaff = await StaffProgress.find({ "duty.isActive": true });
+
+      const ghostUsers = activeStaff.filter(u => {
+        const voice = u.duty.voiceMinutes || 0;
+        const actions = (u.duty.ticketsResolved || 0) + (u.duty.modsCount || 0);
+        // Ghosting is flagged if voice minutes are substantial but action count is zero
+        return voice >= 10 && actions === 0;
+      });
+
+      if (ghostUsers.length === 0) {
+        return interaction.editReply({ content: "🔍 **Tarama Tamamlandı:** Herhangi bir şüpheli (Ghosting) yetkili saptanmadı. Tüm nöbetteki personel aktif çalışıyor." });
+      }
+
+      const { CHANNELS } = require("../services/staffAutomation");
+      const logChan = await interaction.client.channels.fetch(CHANNELS.TERFI_LOG).catch(() => null);
+      
+      if (logChan && logChan.isTextBased()) {
+        const misconductEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("🚨 İç Denetim - Yetkili Suistimal & Ghosting Raporu")
+          .setDescription(
+            `Yapılan sızma taraması (ghosting scan) sonucunda seste olup sıfır faaliyet gösteren yetkililer tespit edilmiştir:\n\n` +
+            ghostUsers.map(u => `• <@${u.userId}> - Seste: \`${u.duty.voiceMinutes}\` dk | Aksiyon: \`0\``).join('\n') +
+            `\n\n*Yönetim bu personel hakkında disiplin incelemesi başlatabilir.*`
+          )
+          .setTimestamp();
+        await logChan.send({ embeds: [misconductEmbed] });
+      }
+
+      return interaction.editReply({ content: `🔍 **Tarama Tamamlandı!**\n\nSes kanallarında bulunup aksiyon almayan **${ghostUsers.length}** yetkili hakkında suistimal (misconduct) raporu oluşturuldu ve yönetim günlüğüne iletildi.` });
+    } catch (err) {
+      console.error('[IA-Ghost-Scan] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
   }
 
   if (customId === "staff_accept_nightshift") {

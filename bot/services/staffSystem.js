@@ -872,6 +872,29 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
     const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
 
+    if (p.probationStatus) {
+      if (!p.probationSigned) return;
+      
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`probation_approve_${userId}_mod`).setLabel('✅ İşlemi Onayla').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`probation_reject_${userId}_mod`).setLabel('❌ İşlemi Reddet').setStyle(ButtonStyle.Danger)
+      );
+
+      const embed = new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setTitle('👥 İK Gelişim Süreci Onayı - Moderasyon İşlemi')
+        .setDescription(`İK Gelişim Sözleşmesi (Probation) kapsamındaki yetkili <@${userId}> bir moderasyon işlemi gerçekleştirdi. Yetkili performansına eklenmesini onaylıyor musunuz?`)
+        .setTimestamp();
+
+      const { CHANNELS } = require('./staffAutomation');
+      const logChan = await client.channels.fetch(CHANNELS.TERFI_LOG).catch(() => null);
+      if (logChan && logChan.isTextBased()) {
+        await logChan.send({ embeds: [embed], components: [row] });
+      }
+      return;
+    }
+
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
 
@@ -1202,6 +1225,29 @@ async function recordTicketSolved(userId, client) {
 
     const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p || p.status !== 'active') return;
+
+    if (p.probationStatus) {
+      if (!p.probationSigned) return;
+      
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`probation_approve_${userId}_ticket`).setLabel('✅ İşlemi Onayla').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`probation_reject_${userId}_ticket`).setLabel('❌ İşlemi Reddet').setStyle(ButtonStyle.Danger)
+      );
+
+      const embed = new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setTitle('👥 İK Gelişim Süreci Onayı - Bilet Çözümü')
+        .setDescription(`İK Gelişim Sözleşmesi (Probation) kapsamındaki yetkili <@${userId}> bir bilet çözdü. Yetkili performansına eklenmesini onaylıyor musunuz?`)
+        .setTimestamp();
+
+      const { CHANNELS } = require('./staffAutomation');
+      const logChan = await client.channels.fetch(CHANNELS.TERFI_LOG).catch(() => null);
+      if (logChan && logChan.isTextBased()) {
+        await logChan.send({ embeds: [embed], components: [row] });
+      }
+      return;
+    }
 
     // 🔧 Günü sıfırla (gün değişmişse günlük görevler sıfırlanır)
     resetDaily(p);
@@ -1960,6 +2006,35 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
 
   const nextLevelName = ROLE_NAMES[progress.level + 1] || 'Maksimum Seviye';
 
+  const isProbationLocked = progress.probationStatus && !progress.probationSigned;
+  const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
+
+  if (isProbationLocked) {
+    const embed = new EmbedBuilder()
+      .setColor(0x95a5a6)
+      .setTitle('🔒 Panel Kilitli - İK Gelişim Askısı (v0.7)')
+      .setDescription(
+        `Sayın Yetkili <@${progress.userId}>,\n\n` +
+        `İK Departmanı tarafından performans veya disiplin uyarısı sebebiyle **İK Gelişim Askısı (Probation)** moduna alındınız.\n\n` +
+        `İşlemlerinize devam edebilmek için lütfen alttaki butonları kullanarak **İK Sözleşmesini okuyup imzalayınız**.`
+      )
+      .setTimestamp();
+    return embed;
+  }
+
+  if (isContractExpired && !progress.contractSigned) {
+    const embed = new EmbedBuilder()
+      .setColor(0x95a5a6)
+      .setTitle('🔒 Panel Kilitli - Sözleşme Süreniz Doldu (v0.7)')
+      .setDescription(
+        `Sayın Yetkili <@${progress.userId}>,\n\n` +
+        `30 günlük kurumsal yemin ve sözleşme süreniz dolmuştur.\n\n` +
+        `Yetki panelinizi aktif hale getirebilmek için lütfen alttaki **Yemin/Sözleşme Yenileme** buton zincirini tamamlayınız.`
+      )
+      .setTimestamp();
+    return embed;
+  }
+
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
     .setTitle(`☀️ Günlük Görev Brifingi & İlerleme`)
@@ -2166,6 +2241,47 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
 async function getMorningBriefingComponents(progress) {
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 
+  const isProbationLocked = progress.probationStatus && !progress.probationSigned;
+  const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
+
+  if (isProbationLocked) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('probation_rules_read')
+        .setLabel('📝 İK Sözleşme Şartlarını Oku')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('probation_sign_btn')
+        .setLabel('✍️ 7 Günlük PIP Kontratını Dijital İmzala')
+        .setStyle(ButtonStyle.Success)
+    );
+    return [row];
+  }
+
+  if (isContractExpired && !progress.contractSigned) {
+    if (!progress.contractAccepted) {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('contract_read_rules')
+          .setLabel('📝 Sözleşme Metnini Oku')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('contract_renew_btn_trigger')
+          .setLabel('✍️ Onayla (Modal)')
+          .setStyle(ButtonStyle.Success)
+      );
+      return [row];
+    } else {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('contract_final_sign')
+          .setLabel('✍️ Dijital İmzayı At ve Yetkileri Aktif Et')
+          .setStyle(ButtonStyle.Success)
+      );
+      return [row];
+    }
+  }
+
   const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
   const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
 
@@ -2319,19 +2435,33 @@ async function getMorningBriefingComponents(progress) {
   // Row 2: Kişisel İşlemler Seçim Menüsü
   const personalSelect = new StringSelectMenuBuilder()
     .setCustomId('staff_personal_actions')
-    .setPlaceholder('⚙️ Kişisel Yetkili İşlemleri')
-    .addOptions([
+    .setPlaceholder('⚙️ Kişisel Yetkili İşlemleri');
+    const personalOptions = [
       { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
       { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
       { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
       { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
       { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
+      { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
+      { label: '⚖️ Malpractice Court (Mahkeme)', description: 'Aktif malpractice davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
+      { label: '🤫 İhbar Hattı (Whistleblower Desk)', description: 'Anonim şekilde yönetime ihbarda bulunun (SHA-256 Korumalı).', value: 'staff_action_whistleblower', emoji: '🤫' },
+      { label: '🕵️ Redacted Ops (Gizli Teşkilat)', description: 'Aktif gizli ajan görevlerinizi sorgulayın ve çözün.', value: 'staff_action_redacted_ops', emoji: '🕵️' },
+      { label: '🗺️ Izgara Kontrol Masası (Grid Control)', description: 'Aktif sektör bölgelerini denetleyin.', value: 'staff_action_grid_control', emoji: '🗺️' }
+    ];
+
+    if (progress.isInspector || progress.level >= 4) {
+      personalOptions.push({ label: '🕵️‍♂️ İç Denetim Masası (Internal Affairs)', description: 'Sızma/Ghosting taraması yapın ve suistimal raporları hazırlayın.', value: 'staff_action_internal_affairs', emoji: '🕵️‍♂️' });
+    }
+
+    personalOptions.push(
       { label: '📊 Yetkili Liderlik Tablosu', description: 'Haftanın en aktif Top 5 yetkilisini görün.', value: 'staff_action_leaderboard', emoji: '📊' },
       { label: '🚨 Acil Durum / Baskın Alarmı', description: 'Sunucuda baskın, bypass veya acil müdahale gereken durumlarda yönetimi uyarın.', value: 'staff_action_emergency_alarm', emoji: '🚨' },
       { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
       { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
       { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
-    ]);
+    );
+
+    personalSelect.addOptions(personalOptions);
   const rowPersonal = new ActionRowBuilder().addComponents(personalSelect);
 
   // Row 3: Yönetim & Sicil İşlemleri (Sadece Level >= 3 için)
@@ -2346,7 +2476,8 @@ async function getMorningBriefingComponents(progress) {
       { label: '💚 Teşekkür / Takdir Belgesi Ver', description: 'Bir yetkiliye takdirini verin (KPI +5).', value: 'staff_action_commend', emoji: '💚' },
       { label: '📋 Personel Sicil Raporu Sorgula', description: 'Bir yetkilinin sicilini ve performansını sorgulayın.', value: 'staff_action_sicil', emoji: '📋' },
       { label: '🚪 Yetkili İlişiğini Kes (Kov)', description: 'Bir yetkiliyi kadrodan ihraç edin.', value: 'staff_action_dismiss', emoji: '🚪' },
-      { label: '📈 Yetkili İstatistiklerini Düzenle', description: 'Yetkilinin bilet, ses, mesaj değerlerini ayarlayın.', value: 'staff_action_set_stats', emoji: '📈' }
+      { label: '📈 Yetkili İstatistiklerini Düzenle', description: 'Yetkilinin bilet, ses, mesaj değerlerini ayarlayın.', value: 'staff_action_set_stats', emoji: '📈' },
+      { label: '⚙️ Global Risk & Karantina Kontrolü', description: 'Self-Shutdown karantinasını açın/kapatın veya API limitlerini yavaşlatın.', value: 'staff_action_risk_compliance', emoji: '⚙️' }
     ];
 
     if (progress.level >= 4) {
@@ -2407,6 +2538,22 @@ async function getMorningBriefingComponents(progress) {
           .setStyle(ButtonStyle.Success)
       );
       componentsList.push(rowUnitLeader);
+    }
+  } catch (_) {}
+
+  // Kariyer Rotasyon Kontrolü
+  try {
+    const { PROMOTION_REQUIREMENTS } = require('./staffAutomation');
+    const nextReq = PROMOTION_REQUIREMENTS[progress.level];
+    const canRotate = nextReq && progress.gamification?.currentXP >= (nextReq.xp || 1000);
+    if (canRotate) {
+      const rowRotation = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('career_rotation_panel_trigger')
+          .setLabel('👔 Kariyer Rotasyon Paneli')
+          .setStyle(ButtonStyle.Success)
+      );
+      componentsList.push(rowRotation);
     }
   } catch (_) {}
 

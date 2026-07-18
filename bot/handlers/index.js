@@ -1440,6 +1440,32 @@ function initializeDiscordHandlers(client) {
       }
     }
 
+    // Whistleblower Thread-to-DM tüneli
+    if (message.guild && !message.author.bot && message.channel.isThread()) {
+      try {
+        const AnonymousReport = require('../../models/AnonymousReport');
+        const report = await AnonymousReport.findOne({ threadId: message.channel.id });
+        if (report) {
+          const targetUser = await client.users.fetch(report.realUserId).catch(() => null);
+          if (targetUser) {
+            const { EmbedBuilder } = require('discord.js');
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setAuthor({ name: '🤫 Üst Yönetim Cevabı (İhbar Hattı)' })
+              .setDescription(message.content || '*[Sadece Görsel/Dosya Ekli]*')
+              .setFooter({ text: `Dosya: #${report.reportId} | Yanıtlamak için buraya yazabilirsiniz.` })
+              .setTimestamp();
+            
+            const files = Array.from(message.attachments.values()).map(a => a.url);
+            await targetUser.send({ embeds: [embed], files }).catch(() => {});
+            await message.react('✉️').catch(() => {});
+          }
+        }
+      } catch (tunnelErr) {
+        console.error('[messageCreate] Whistleblower Thread-to-DM forward error:', tunnelErr.message);
+      }
+    }
+
     // Bilmece kanalı mesaj kontrolü
     try {
       const { handleRiddleMessage } = require("../services/riddleService");
@@ -1915,6 +1941,30 @@ function initializeDiscordHandlers(client) {
     // ── DM mesajları ────────────────────────────────────────────────────────
     if (!message.guild && !message.author?.bot) {
       console.log(`[DM] ${message.author?.tag}: ${message.content?.slice(0, 50)}`);
+
+      // Whistleblower (İhbar) DM Tüneli
+      try {
+        const AnonymousReport = require('../../models/AnonymousReport');
+        const activeReport = await AnonymousReport.findOne({ realUserId: message.author.id }).sort({ createdAt: -1 });
+        if (activeReport && activeReport.threadId) {
+          const thread = await client.channels.fetch(activeReport.threadId).catch(() => null);
+          if (thread && thread.isTextBased()) {
+            const { EmbedBuilder } = require('discord.js');
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setAuthor({ name: '🤫 İhbarcı Mesajı' })
+              .setDescription(message.content || '*[Sadece Görsel/Dosya Ekli]*')
+              .setTimestamp();
+            
+            const files = Array.from(message.attachments.values()).map(a => a.url);
+            await thread.send({ embeds: [embed], files });
+            await message.react('✅').catch(() => {});
+            return;
+          }
+        }
+      } catch (whistleErr) {
+        console.error('[messageCreate] Whistleblower DM forward error:', whistleErr.message);
+      }
 
       // Soruşturma Sistemi DM senkronizasyonu
       try {
@@ -3185,6 +3235,44 @@ function initializeDiscordHandlers(client) {
 
   client.on("interactionCreate", async (interaction) => {
     global.lastInteraction = interaction;
+
+    // ── KARANTİNA & OHAL ENGELLEYİCİ KONTROLLER ──
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      
+      // 1. Karantina (Self-Shutdown) Kontrolü
+      if (global.SPAM_STOPPED) {
+        const isLevel4 = p && p.level >= 4;
+        if (!isLevel4) {
+          if (interaction.isRepliable()) {
+            return interaction.reply({
+              content: "🚨 **SİSTEM KANALLARI GÜVENLİK KARANTİNASI ALTINDADIR (Self-Shutdown)!** Tüm yetki komutları ve işlemleri askıya alınmıştır. Lütfen üst yönetimin talimatlarını bekleyiniz.",
+              ephemeral: true
+            }).catch(() => {});
+          }
+          return;
+        }
+      }
+
+      // 2. OHAL (Olağanüstü Hal) Kontrolü
+      const ServerConfig = require("../../models/ServerConfig");
+      const sConf = await ServerConfig.findOne({ guildId: interaction.guildId });
+      if (sConf && sConf.isOhalActive) {
+        const isLevel3 = p && p.level >= 3;
+        if (!isLevel3 && (interaction.isCommand() || interaction.isButton() || interaction.isStringSelectMenu())) {
+          if (interaction.customId !== 'staff_accept_nightshift') {
+            if (interaction.isRepliable()) {
+              return interaction.reply({
+                content: "⚠️ **Sunucuda Olağanüstü Hal (OHAL) / Kriz Vardiyası Etkindir!** Standart yetki komutları geçici olarak kilitlenmiştir. Sadece yönetim komutları aktiftir.",
+                ephemeral: true
+              }).catch(() => {});
+            }
+            return;
+          }
+        }
+      }
+    } catch (_) {}
 
     // ── BAKIM MODU ENGELLEYİCİ KONTROL ──
     const fs = require("fs");
