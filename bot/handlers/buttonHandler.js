@@ -1079,6 +1079,12 @@ async function handleButtonInteraction(interaction) {
     return handleUnitChatButton(interaction);
   }
 
+  // ── Nöbet Sistemi Butonları ──────────────────────────────────────────────
+  if (customId === "staff_duty_start" || customId === "staff_duty_end") {
+    const { handleDutyButton } = require("../services/staffDutyService");
+    return handleDutyButton(interaction);
+  }
+
   // ── Birim Talepleri ve Emirleri Butonları ─────────────────────────────────
   if (customId === "staff_units_request_menu" || customId.startsWith("unit_req_") || customId.startsWith("unit_cmd_")) {
     const { handleRequestButton } = require("../services/unitRequestService");

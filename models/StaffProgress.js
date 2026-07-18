@@ -182,6 +182,28 @@ const staffProgressSchema = new mongoose.Schema({
     examAnswers: { type: [String], default: [] },
     examQuestionIndex: { type: Number, default: 0 },
     completedAt: { type: Date, default: null }
+  },
+
+  // Nöbet (Duty) Yönetim Sistemi (V6.0)
+  duty: {
+    isActive: { type: Boolean, default: false },
+    startedAt: { type: Date, default: null },
+    sessionVoiceMinutes: { type: Number, default: 0 },
+    sessionTicketsSolved: { type: Number, default: 0 },
+    sessionModerationActions: { type: Number, default: 0 }
+  },
+
+  // Performans KPI Değerlendirmeleri (V6.0)
+  performance: {
+    weeklyKpi: { type: Number, default: 100 },
+    lastKpiCalculationDate: { type: String, default: '' },
+    kpiHistory: { type: [Object], default: [] }
+  },
+
+  // Sicil ve Disiplin Sistemi (V6.0)
+  disciplinary: {
+    warns: { type: [Object], default: [] },        // { date, reason, issuedBy }
+    commendations: { type: [Object], default: [] }  // { date, reason, issuedBy }
   }
 }, { timestamps: true });
 

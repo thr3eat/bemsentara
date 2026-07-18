@@ -708,6 +708,12 @@ async function addVoiceMinutes(userId, minutes, client) {
     p.daily.voiceMinutes += minutes;
     p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
 
+    // Log voice activity to active duty session
+    try {
+      const { logDutyActivity } = require('./staffDutyService');
+      await logDutyActivity(userId, 'voice', minutes);
+    } catch (_) {}
+
     const isVoiceDoneNow = (p.daily.voiceMinutes || 0) >= targetVoice;
 
     if (!wasVoiceDoneBefore && isVoiceDoneNow) {
@@ -841,6 +847,12 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
 
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
     p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
+
+    // Log mod activity to active duty session
+    try {
+      const { logDutyActivity } = require('./staffDutyService');
+      await logDutyActivity(userId, 'mod', 1);
+    } catch (_) {}
 
     // Ek Görev (Mod) İlerlemesi
     if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_mod') {
@@ -1134,6 +1146,12 @@ async function recordTicketSolved(userId, client) {
 
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
+
+    // Log ticket activity to active duty session
+    try {
+      const { logDutyActivity } = require('./staffDutyService');
+      await logDutyActivity(userId, 'ticket', 1);
+    } catch (_) {}
 
     // Ek Görev (Ticket) İlerlemesi
     if (p.daily.overtimeActive && !p.daily.overtimeCompleted && p.daily.overtimeTask === 'task_ticket') {
@@ -1936,6 +1954,41 @@ Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici b
     });
   }
 
+  // ── FIELD 3.5: NÖBET & PERFORMANS KARTI (Sicil / KPI) ─────────────────────
+  try {
+    const { calculateKpi, getKpiGrade } = require('./staffDutyService');
+    const kpiScore = calculateKpi(progress);
+    const kpiGrade = getKpiGrade(kpiScore);
+
+    let dutyText = '';
+    if (progress.duty?.isActive && progress.duty.startedAt) {
+      const elapsedMins = Math.floor((Date.now() - new Date(progress.duty.startedAt).getTime()) / 1000 / 60);
+      const elapsedHrs = Math.floor(elapsedMins / 60);
+      const elapsedRemainingMins = elapsedMins % 60;
+      
+      dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n`;
+      dutyText += `🎙️ **Nöbet Ses Süresi:** \`${progress.duty.sessionVoiceMinutes || 0} dk\`\n`;
+      dutyText += `🎫 **Nöbet Bilet Çözümü:** \`${progress.duty.sessionTicketsSolved || 0} adet\`\n`;
+      dutyText += `🛡️ **Nöbet Mod İşlemi:** \`${progress.duty.sessionModerationActions || 0} adet\`\n`;
+    } else {
+      dutyText += `🔴 **Nöbet Durumu:** 💤 Serbest Zaman (Nöbette Değil)\n`;
+    }
+    
+    const warnsCount = progress.disciplinary?.warns?.length || 0;
+    const commsCount = progress.disciplinary?.commendations?.length || 0;
+    
+    dutyText += `\n📊 **Performans KPI:** \`${kpiScore}/100\` (${kpiGrade.label})\n`;
+    dutyText += `🎖️ **Sicil Özeti:** 💚 \`${commsCount} Takdir\` | ⚠️ \`${warnsCount} Disiplin Uyarısı\``;
+
+    fields.push({
+      name: '🛡️ NÖBET VE PERFORMANS KARTI (KPI & SİCİL)',
+      value: dutyText.trim(),
+      inline: false
+    });
+  } catch (kpiErr) {
+    console.error('[staffSystem] KPI field build error:', kpiErr.message);
+  }
+
   embed.addFields(fields).setTimestamp();
 
   return embed;
@@ -2037,6 +2090,12 @@ async function getMorningBriefingComponents(progress) {
     .addOptions(options);
   const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
+  const isOnDuty = progress.duty?.isActive;
+  const dutyBtn = new ButtonBuilder()
+    .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
+    .setLabel(isOnDuty ? '🛑 Nöbeti Bitir' : '⚡ Nöbete Başla')
+    .setStyle(isOnDuty ? ButtonStyle.Danger : ButtonStyle.Success);
+
   const rowSettings = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('staff_settings')
@@ -2045,7 +2104,8 @@ async function getMorningBriefingComponents(progress) {
     new ButtonBuilder()
       .setCustomId('staff_units_request_menu')
       .setLabel('📋 Talepler ve Emirler')
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Primary),
+    dutyBtn
   );
 
   return [rowButtons, rowSelect, rowSettings];

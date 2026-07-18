@@ -811,6 +811,36 @@ const staffCommands = [
         )
     )
     .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName("staff-warn")
+    .setDescription("⚠️ Bir personele disiplin uyarısı/reprimand verir (KPI -10)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption((o) =>
+      o.setName("personel").setDescription("Uyarılacak personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("Uyarı gerekçesi").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("staff-commend")
+    .setDescription("💚 Bir personele teşekkür/takdir belgesi verir (KPI +5)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption((o) =>
+      o.setName("personel").setDescription("Teşekkür edilecek personel").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("sebep").setDescription("Teşekkür gerekçesi").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("staff-sicil")
+    .setDescription("📋 Bir personelin sicil kaydını, nöbet durumunu ve performansını (KPI) gösterir")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption((o) =>
+      o.setName("personel").setDescription("Sorgulanacak personel").setRequired(true)
+    ),
 ];
 
 const allCommands = [

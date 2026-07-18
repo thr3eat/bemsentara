@@ -81,12 +81,174 @@ const GENERAL_COMMANDS = new Set([
   "system-grupcekekogerial",
   // Coach management
   "coach-welcome-reset",
-  "coach-mesaj-ayarlari"
+  "coach-mesaj-ayarlari",
+  // Staff management (V6.0)
+  "staff-warn",
+  "staff-commend",
+  "staff-sicil"
 ]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // ── staff-warn: Disiplin uyarısı verme komutu ────────────────────────────
+  if (commandName === "staff-warn") {
+    const targetUser = interaction.options.getUser("personel");
+    const reason = interaction.options.getString("sebep");
+    const issuedBy = interaction.user.tag;
+
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: "❌ Bu komutu kullanmak için üyeleri susturma/denetleme yetkiniz olmalıdır.", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { addDisciplinaryWarn } = require("../services/staffDutyService");
+      const result = await addDisciplinaryWarn(targetUser.id, reason, issuedBy);
+
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ Başarısız: ${result.error}` });
+      }
+
+      // DM Bildirimi
+      try {
+        const embed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("⚠️ Resmi Sicil Uyarısı / Disiplin Cezası")
+          .setDescription(
+            `Merhaba <@${targetUser.id}>,\n\n` +
+            `Yönetim tarafından sicilinize resmi bir **disiplin uyarısı** işlenmiştir.\n\n` +
+            `📝 **Gerekçe:** ${reason}\n` +
+            `🛡️ **Uyarıyı Veren:** ${interaction.user.toString()}\n` +
+            `📊 **Yeni Performans KPI Puanınız:** \`${result.newKpi}/100\`\n\n` +
+            `*Disiplin uyarıları terfilerinizi olumsuz etkileyeceği gibi, tekrarı halinde kadro dışı bırakılma sebebi teşkil eder.*`
+          )
+          .setFooter({ text: "Eko Yıldız • Disiplin ve Sicil Kurulu" })
+          .setTimestamp();
+        await targetUser.send({ embeds: [embed] }).catch(() => {});
+      } catch (_) {}
+
+      return interaction.editReply({
+        content: `✅ **Sicil Uyarısı Başarıyla Eklendi!**\n👤 **Personel:** ${targetUser.toString()}\n📝 **Gerekçe:** \`${reason}\`\n📊 **Yeni Performans KPI:** \`${result.newKpi}/100\``
+      });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata oluştu: ${err.message}` });
+    }
+  }
+
+  // ── staff-commend: Teşekkür / Takdir verme komutu ─────────────────────────
+  if (commandName === "staff-commend") {
+    const targetUser = interaction.options.getUser("personel");
+    const reason = interaction.options.getString("sebep");
+    const issuedBy = interaction.user.tag;
+
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: "❌ Bu komutu kullanmak için üyeleri susturma/denetleme yetkiniz olmalıdır.", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { addCommendation } = require("../services/staffDutyService");
+      const result = await addCommendation(targetUser.id, reason, issuedBy);
+
+      if (!result.success) {
+        return interaction.editReply({ content: `❌ Başarısız: ${result.error}` });
+      }
+
+      // DM Bildirimi
+      try {
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle("💚 Resmi Takdir / Teşekkür Belgesi")
+          .setDescription(
+            `Merhaba <@${targetUser.id}>,\n\n` +
+            `Sunucumuza yapmış olduğunuz özverili katkılar ve üstün başarılarınızdan dolayı yönetim tarafından sicilinize resmi bir **Takdir/Teşekkür Belgesi** işlenmiştir! 🎉\n\n` +
+            `📝 **Gerekçe:** ${reason}\n` +
+            `🛡️ **Takdiri Veren:** ${interaction.user.toString()}\n` +
+            `📊 **Yeni Performans KPI Puanınız:** \`${result.newKpi}/100\`\n\n` +
+            `*Tebrik eder, başarılarınızın devamını dileriz!*`
+          )
+          .setFooter({ text: "Eko Yıldız • Personel Teşvik Kurulu" })
+          .setTimestamp();
+        await targetUser.send({ embeds: [embed] }).catch(() => {});
+      } catch (_) {}
+
+      return interaction.editReply({
+        content: `✅ **Takdir/Teşekkür Belgesi Başarıyla Eklendi!**\n👤 **Personel:** ${targetUser.toString()}\n📝 **Gerekçe:** \`${reason}\`\n📊 **Yeni Performans KPI:** \`${result.newKpi}/100\``
+      });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata oluştu: ${err.message}` });
+    }
+  }
+
+  // ── staff-sicil: Sicil ve performans sorgulama komutu ────────────────────
+  if (commandName === "staff-sicil") {
+    const targetUser = interaction.options.getUser("personel");
+
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: "❌ Bu komutu kullanmak için üyeleri susturma/denetleme yetkiniz olmalıdır.", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: targetUser.id });
+      if (!p) {
+        return interaction.editReply({ content: "❌ Belirtilen kullanıcı personel sisteminde kayıtlı değil." });
+      }
+
+      const { calculateKpi, getKpiGrade } = require("../services/staffDutyService");
+      const kpiScore = calculateKpi(p);
+      const kpiGrade = getKpiGrade(kpiScore);
+
+      const warns = p.disciplinary?.warns || [];
+      const comms = p.disciplinary?.commendations || [];
+
+      let dutyText = '';
+      if (p.duty?.isActive && p.duty.startedAt) {
+        const elapsedMins = Math.floor((Date.now() - new Date(p.duty.startedAt).getTime()) / 1000 / 60);
+        const elapsedHrs = Math.floor(elapsedMins / 60);
+        const elapsedRemainingMins = elapsedMins % 60;
+        
+        dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n`;
+        dutyText += `🎙️ **Ses Süresi:** \`${p.duty.sessionVoiceMinutes || 0} dk\`\n`;
+        dutyText += `🎫 **Bilet Çözümü:** \`${p.duty.sessionTicketsSolved || 0} adet\`\n`;
+        dutyText += `🛡️ **Mod İşlemi:** \`${p.duty.sessionModerationActions || 0} adet\`\n`;
+      } else {
+        dutyText += `🔴 **Nöbet Durumu:** 💤 Serbest Zaman\n`;
+      }
+
+      let commsText = comms.length > 0
+        ? comms.map((c, i) => `**${i + 1}.** <t:${Math.floor(new Date(c.date).getTime() / 1000)}:d> — Gerekçe: \`${c.reason}\` (Veren: *${c.issuedBy}*)`).join('\n')
+        : '*Teşekkür veya takdir belgesi bulunmuyor.*';
+
+      let warnsText = warns.length > 0
+        ? warns.map((w, i) => `**${i + 1}.** <t:${Math.floor(new Date(w.date).getTime() / 1000)}:d> — Gerekçe: \`${w.reason}\` (Veren: *${w.issuedBy}*)`).join('\n')
+        : '*Disiplin uyarısı bulunmuyor.*';
+
+      const embed = new EmbedBuilder()
+        .setColor(kpiGrade.color)
+        .setTitle(`📋 Personel Sicil ve Performans Raporu`)
+        .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
+        .setDescription(`**Personel:** ${targetUser.toString()} (\`${targetUser.id}\`)\n**Rütbe/Seviye:** Seviye ${p.level}`)
+        .addFields(
+          { name: '📊 Performans Puanı (KPI)', value: `\`${kpiScore}/100\`\n**Değerlendirme:** ${kpiGrade.label}`, inline: false },
+          { name: '⚡ Nöbet Bilgileri', value: dutyText, inline: false },
+          { name: '💚 Takdir ve Teşekkür Belgeleri', value: commsText, inline: false },
+          { name: '⚠️ Resmi Disiplin Uyarıları', value: warnsText, inline: false }
+        )
+        .setFooter({ text: "Eko Yıldız • Sicil ve Teşvik Takip Otomasyonu" })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata oluştu: ${err.message}` });
+    }
+  }
 
   // ── personel-dogrula: Personel yetkilendirme linki ──────────────────────
   if (commandName === "personel-dogrula") {
