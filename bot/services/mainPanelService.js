@@ -632,6 +632,14 @@ async function handlePanelButton(interaction) {
   // Bu durumda editReply kullan
   const showModalSafely = async (modal) => {
     try {
+      // Prevent dangerous personal actions when global flag is set
+      const DISABLE_PERSONAL_ACTIONS = (process.env.DISABLE_PERSONAL_ACTIONS || 'false').toLowerCase() === 'true';
+      const dangerousKeywords = ['staff_fire', 'staff_promote', 'staff_setstats', 'mod_alim_direct', 'tam ban', 'tamban', 'dismiss', 'kov'];
+      const modalId = (modal?.customId || '').toLowerCase();
+      if (DISABLE_PERSONAL_ACTIONS && dangerousKeywords.some(k => modalId.includes(k))) {
+        return await interaction.reply({ content: '⚠️ Kritik personel işlemleri şu anda devre dışı bırakılmıştır. Lütfen yönetim ile iletişime geçin.', ephemeral: true });
+      }
+
       if (!interaction.replied && !interaction.deferred) {
         return await interaction.showModal(modal);
       } else {
@@ -2419,9 +2427,16 @@ async function handlePanelModal(interaction) {
     const MOD_GUILD_ID = process.env.MOD_GUILD_ID || '1367646464804655104';
 
     try {
+      // Check global safety flag before performing critical member role changes
+      const DISABLE_PERSONAL_ACTIONS = (process.env.DISABLE_PERSONAL_ACTIONS || 'false').toLowerCase() === 'true';
+      if (DISABLE_PERSONAL_ACTIONS) {
+        return interaction.editReply({ content: '⚠️ Bu tür yetkilendirme işlemleri geçici olarak devre dışı bırakılmıştır. Lütfen bir yöneticiden yardım isteyiniz.' });
+      }
+
       // 1. Rol ver
       const guild = await client.guilds.fetch(MOD_GUILD_ID);
       const member = await guild.members.fetch(targetUserId);
+      if (!member) return interaction.editReply({ content: '❌ Hedef kullanıcı sunucuda bulunamadı.' });
       await member.roles.add(MOD_ROLE_ID, `Direkt moderatör alımı — Yönetici: ${interaction.user.tag}`);
 
       // 2. Staff sistemine kayıt

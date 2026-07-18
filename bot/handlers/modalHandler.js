@@ -408,18 +408,25 @@ async function handleModalSubmit(interaction) {
 
       c.decrypted = true;
       
-      // Save current roles and hide them
-      const rolesToHide = interaction.member.roles.cache.map(r => r.id);
+      // Save current roles and hide them (ensure member is fetched and present)
+      let member = interaction.member;
+      if (!member || !member.roles) {
+        if (!interaction.guild) return interaction.editReply({ content: '❌ Bu işlem sadece sunucu içinden kullanılabilir.' });
+        member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) return interaction.editReply({ content: '❌ Sunucu üyesi bilgisi alınamadı. Lütfen tekrar deneyin.' });
+      }
+
+      const rolesToHide = member.roles.cache.map(r => r.id);
       c.rolesBefore = rolesToHide;
       await c.save();
 
       for (const roleId of rolesToHide) {
         if (roleId !== interaction.guild.id) {
-          await interaction.member.roles.remove(roleId).catch(() => {});
+          await member.roles.remove(roleId).catch(() => {});
         }
       }
 
-      return interaction.editReply({ content: '✅ **Şifre Başarıyla Çözüldü!**\n\nRolleriniz operasyonel gizlilik amacıyla geçici olarak gizlenmiştir. İstihbarat raporunu sunduğunuzda geri yüklenecektir.' });
+      return interaction.editReply({ content: '✅ **Şifre Başarıyla Çözüldü!**\n\nRolleriniz operasyonel gizlilik için geçici olarak gizlendi. İstihbarat raporunu sunduktan sonra rolleriniz geri yüklenecektir.' });
     } catch (err) {
       console.error('[Redacted-Decrypt-Modal] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
@@ -441,11 +448,18 @@ async function handleModalSubmit(interaction) {
       c.intelReport = reportText;
       await c.save();
 
-      // Restore roles
+      // Restore roles (ensure member is fetched)
+      let member = interaction.member;
+      if (!member || !member.roles) {
+        if (!interaction.guild) return interaction.editReply({ content: '❌ Bu işlem sadece sunucu içinden kullanılabilir.' });
+        member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) return interaction.editReply({ content: '❌ Sunucu üyesi bilgisi alınamadı. Lütfen tekrar deneyin.' });
+      }
+
       if (c.rolesBefore && c.rolesBefore.length > 0) {
         for (const roleId of c.rolesBefore) {
           if (roleId !== interaction.guild.id) {
-            await interaction.member.roles.add(roleId).catch(() => {});
+            await member.roles.add(roleId).catch(() => {});
           }
         }
       }

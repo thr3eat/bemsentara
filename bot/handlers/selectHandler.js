@@ -474,7 +474,7 @@ async function handleSelectInteraction(interaction) {
             opId,
             targetUserId: interaction.user.id,
             passcode,
-            details: "Mevcut siber operasyonel komuta merkezimizce saptanan gizli sızma ve istihbarat faaliyetleri kapsamında sunucumuzdaki inaktif yetkili gruplarını izleyip koordinatları raporlayınız."
+            details: "Bu görev sırasında rolleriniz geçici olarak gizlenecek ve gizli istihbarat faaliyetleri kapsamında belirlenen hedeflerin raporlanması istenecektir. Lütfen hiçbir kritik yönetim işlemi (yetki verme, kovma, sistem ayarı değişikliği vb.) gerçekleştirmeyin. Rapor gönderildiğinde rolleriniz otomatik olarak geri yüklenecektir."
           });
           await activeOp.save();
         }
@@ -487,8 +487,9 @@ async function handleSelectInteraction(interaction) {
             .setTitle(`🕵️ Redacted Ops - Gizli Teşkilat Emri (#${activeOp.opId})`)
             .setDescription(
               `Sayın Ajan,\n\n` +
-              `Size atanmış şifreli bir istihbarat görevi mevcuttur. Görevin detaylarını görmek ve gizli teşkilat kodlarını çözmek için passcode girmeniz gerekmektedir.\n\n` +
-              `🔑 **Gizli Passcode'unuz:** \`${activeOp.passcode}\` *(Doğrulama amaçlı)*`
+              `Size atanmış şifreli bir istihbarat görevi bulunuyor. Görevin detaylarını görüntülemek için aşağıdaki "Gizli Emri Çöz" butonuna basıp size verilen passcode'u kullanın.\n\n` +
+              `⚠️ **DİKKAT:** Görev aktifleştiğinde rolleriniz gizlenecek ve bazı yönetim yetkileriniz kısıtlanacaktır. Görev süresince kritik kişisel işlemler yapmayınız.\n\n` +
+              `🔑 **Gizli Passcode'unuz:** \`${activeOp.passcode}\` *(Doğrulama amaçlı, lütfen kimseyle paylaşmayın.)*`
             )
             .setTimestamp();
 
