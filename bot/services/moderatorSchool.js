@@ -2377,5 +2377,8 @@ module.exports = {
   handleTrainingRequestConfirm,
   getActiveTrainings,
   autoGraduateOverdueStudents,
+  graduateStudent,
+  passPhase1,
+  passPhase2,
 };
 

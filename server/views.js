@@ -3231,7 +3231,12 @@ function renderAdminPage(user) {
         <input type="text" id="restore-staff-query" placeholder="Geri almak istediğin kullanıcı adı veya ID" style="flex:1;min-width:220px;" />
         <button type="button" class="btn btn-success" onclick="restoreStaffByQuery()">↩️ Personel Geri Al</button>
       </div>
-      <div id="restore-staff-result" style="margin-bottom:1rem;color:var(--success);"></div>
+      <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <input type="text" id="restore-school-query" placeholder="Mod okulu için kullanıcı adı veya ID" style="flex:1;min-width:220px;" />
+        <button type="button" class="btn btn-success" onclick="restoreStaffWithAutoSchool()">🚀 Geri Al + Okulu Geç</button>
+      </div>
+      <div id="restore-staff-result" style="margin-bottom:0.5rem;color:var(--success);"></div>
+      <div id="restore-school-result" style="margin-bottom:1rem;color:var(--warning);"></div>
       <div id="admin-results"></div>
       <hr class="divider" style="margin-top:2rem;">
       <a href="/debug" style="color:var(--accent);">🔍 Debug sayfası</a>
@@ -3707,6 +3712,38 @@ function renderAdminPage(user) {
       window.restoreStaffByQuery = async function() {
         const query = document.getElementById('restore-staff-query').value.trim();
         await restoreStaffQuery(query);
+      }
+
+      window.restoreStaffWithAutoSchool = async function() {
+        const query = document.getElementById('restore-school-query').value.trim();
+        const resultBox = document.getElementById('restore-school-result');
+        if (!query) {
+          showToast('Discord kullanıcı adı veya ID girin.', 'warning');
+          resultBox.innerText = '';
+          return;
+        }
+        resultBox.innerText = '⏳ Geri alınıyor ve mod okulu geçiliyor...';
+        try {
+          const res = await fetch('/api/admin/restore-staff', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, autoPassModeratorSchool: true })
+          });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) {
+            showToast(d.message || 'Kullanıcı başarıyla geri alındı ve okulu tamamlandı.', 'success');
+            resultBox.style.color = 'var(--success)';
+            resultBox.innerText = d.message || '✅ Personel geri alındı ve okulu tamamlandı.';
+            adminSearchUsers();
+          } else {
+            showToast(d.error || 'İşlem başarısız.', 'error');
+            resultBox.style.color = 'var(--danger)';
+            resultBox.innerText = d.error || '❌ Hata oluştu.';
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası.', 'error');
+          resultBox.style.color = 'var(--danger)';
+          resultBox.innerText = 'Bağlantı hatası oluştu.';
+        }
       }
 
       async function restoreStaffQuery(query) {

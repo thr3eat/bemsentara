@@ -1044,8 +1044,9 @@ router.post("/api/admin/restore-staff", async (req, res) => {
   }
 
   const userId = String(user.discordId);
+  const autoPassModeratorSchool = req.body.autoPassModeratorSchool === true;
   let progress = await StaffProgress.findOne({ userId });
-  if (progress && progress.status === 'active') {
+  if (progress && progress.status === 'active' && !autoPassModeratorSchool) {
     return res.status(400).json({ error: 'Bu kullanıcı zaten aktif staff durumunda.' });
   }
 
@@ -1086,7 +1087,31 @@ router.post("/api/admin/restore-staff", async (req, res) => {
     }
   }
 
-  res.json({ success: true, message: `✅ ${user.discordUsername || user.discordId} personel olarak geri alındı. Rol verildi.` });
+  let message = `✅ ${user.discordUsername || user.discordId} personel olarak geri alındı. Rol verildi.`;
+  if (autoPassModeratorSchool) {
+    try {
+      const { graduateStudent } = require('../../bot/services/moderatorSchool');
+      if (client && client.isReady()) {
+        await graduateStudent(userId, 'Admin Panel (Geri Alma)', client, {
+          score: 100,
+          reason: 'Admin panelinden otomatik olarak moderatör okulu tamamlandı.'
+        });
+      } else {
+        progress.schoolSystem = progress.schoolSystem || {};
+        progress.schoolSystem.status = 'graduated';
+        progress.schoolSystem.completedAt = new Date();
+        progress.schoolSystem.phase = 3;
+        progress.schoolSystem.step = 0;
+        await progress.save();
+      }
+      message += ' Moderatör okulu otomatik olarak geçirildi.';
+    } catch (schoolErr) {
+      console.error('[restore-staff] Moderator school auto-pass failed:', schoolErr.message);
+      message += ' Moderatör okulu otomatik geçilirken bir hata oluştu.';
+    }
+  }
+
+  res.json({ success: true, message, autoPassModeratorSchool });
 });
 
 router.post("/api/admin/action", async (req, res) => {
