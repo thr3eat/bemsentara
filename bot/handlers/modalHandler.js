@@ -138,6 +138,81 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  // ── AI Asistanı Modal Submit ───────────────────────────────────────────────
+  if (interaction.customId === 'modal_staff_ai_assistant') {
+    const query = interaction.fields.getTextInputValue('assistant_query');
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      const { chatWithAI } = require('../services/staffSystem');
+      const systemPrompt = `Sen EkoYıldız sunucusunun AI Moderasyon Asistanısın. Sunucu kuralları ve moderasyon politikası dahilinde moderatörlerimize rehberlik ediyorsun.
+İşte genel sunucu politikası:
+- Küfür/hakaret: 1. ihlal UYARI veya 15-30 dk Mute, tekrarı halinde daha uzun Mute/Cezalandırma.
+- Reklam/Link: Sınırsız MUTE veya BAN.
+- Spam: 15 dk Mute.
+- Dini/Milli değerlere saygısızlık veya ırkçılık: Anında BAN.
+- Yönetime hakaret: Cezalandırma/Mute.
+
+Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi (uyarı, susturma süresi, ban vb.) net, maddeler halinde ve profesyonelce tavsiye et.`;
+
+      const aiResponse = await chatWithAI([{ role: 'user', content: query }], systemPrompt).catch(() => 'AI asistanı şu anda yanıt veremiyor, lütfen kuralları kontrol edin.');
+      const cleanedResponse = aiResponse?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || 'AI asistanı yanıt veremedi.';
+
+      const embed = new EmbedBuilder()
+        .setColor(0x3b82f6)
+        .setTitle('🤖 AI Moderasyon Asistanı Raporu')
+        .setDescription(`**Sorduğunuz Durum:**\n> *"${query}"*\n\n**🤖 AI Asistan Önerisi:**\n${cleanedResponse}`)
+        .setFooter({ text: 'Eko Yıldız • AI Rehberlik Servisi' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[AI-Assistant] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── Vaka Raporu Modal Submit ──────────────────────────────────────────────
+  if (interaction.customId === 'modal_staff_incident_report') {
+    const target = interaction.fields.getTextInputValue('incident_target');
+    const description = interaction.fields.getTextInputValue('incident_description');
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const { GUILD2_ID } = require('../../config');
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      if (guild) {
+        let logChan = guild.channels.cache.find(c => c.name === 'yetkili-rapor-log');
+        if (!logChan) {
+          logChan = await guild.channels.create({
+            name: 'yetkili-rapor-log',
+            type: 0,
+            parent: "1518692460233228431",
+            topic: 'Yetkililerin vaka ve durum raporları.'
+          }).catch(() => null);
+        }
+        
+        if (logChan) {
+          const embed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle('🚨 Yeni Vaka Raporu')
+            .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() })
+            .addFields(
+              { name: '👤 Raporlayan Yetkili', value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
+              { name: '👤 Olayla İlgili Kişi', value: `\`${target}\``, inline: true },
+              { name: '📝 Olay Açıklaması', value: `\`\`\`${description}\`\`\``, inline: false }
+            )
+            .setTimestamp();
+          await logChan.send({ embeds: [embed] });
+        }
+      }
+      return interaction.editReply({ content: '✅ **Vaka raporunuz başarıyla üst yönetimin log kanallarına iletilmiştir!** Geri bildiriminiz için teşekkürler. 🫡' });
+    } catch (err) {
+      console.error('[Incident-Report] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Yetkili Modalleri (V6.0) ──────────────────────────────────────────────
   if (interaction.customId === 'modal_staff_daily_report') {
     const reportContent = interaction.fields.getTextInputValue('report_content');

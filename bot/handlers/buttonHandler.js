@@ -1165,6 +1165,52 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── AI Asistanı butonu ──────────────────────────────────────────────────────
+  if (customId === "staff_ai_assistant") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_staff_ai_assistant')
+      .setTitle('🤖 AI Moderasyon Asistanı');
+
+    const input = new TextInputBuilder()
+      .setCustomId('assistant_query')
+      .setLabel('Karşılaştığınız Durum veya Soru')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Örn: Bir kullanıcı arka arkaya reklam linki paylaştı ve küfür etti. Hangi cezayı vermeliyim?')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  // ── Vaka Raporu butonu ─────────────────────────────────────────────────────
+  if (customId === "staff_incident_report") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_staff_incident_report')
+      .setTitle('📝 Vaka Raporu Oluştur');
+
+    const targetInput = new TextInputBuilder()
+      .setCustomId('incident_target')
+      .setLabel('Olayla İlgili Kullanıcı ID / Kullanıcı Adı')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('İhlal yapan kullanıcının Discord ID\'si veya adı')
+      .setRequired(true);
+
+    const descInput = new TextInputBuilder()
+      .setCustomId('incident_description')
+      .setLabel('Olay Detayı ve Bulgular')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Olay anında yaşanan durumları ve kanıtları buraya yazınız.')
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(targetInput),
+      new ActionRowBuilder().addComponents(descInput)
+    );
+    return interaction.showModal(modal).catch(() => {});
+  }
+
   // ── Günlük Rapor Gir butonu ────────────────────────────────────────────────
   if (customId === "staff_daily_report_btn") {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');

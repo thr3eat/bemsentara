@@ -1989,6 +1989,16 @@ Nazikçe motive et, cesaret ver ve günün pozitif geçmesi için destekleyici b
     console.error('[staffSystem] KPI field build error:', kpiErr.message);
   }
 
+  // ── FIELD 3.8: YENİ NESİL INTERAKTİF SİSTEMLER TANITIMI ───────────────────
+  fields.push({
+    name: '🚀 YENİ MODERASYON ENTEGRASYONLARI',
+    value: `• **⚡ Nöbet Sistemi:** Nöbete başladığınızda ses ve bilet aktifliğiniz loglanır, bitirdiğinizde **XP ve EkoCoin** kazandırır.\n` +
+           `• **🤖 AI Mod Asistanı:** Karşılaştığınız kural ihlallerini AI'a sorarak sunucu kurallarına en uygun cezayı/mute süresini öğrenin.\n` +
+           `• **📝 Vaka Raporu:** Sunucuda yaşanan kritik veya olağanüstü durumları form ile anında üst yönetimin loglarına rapor edin.\n` +
+           `• **⚙️ Yetkili Menüleri:** Sayfanın altındaki menülerden tek tıkla izin kullanabilir, yetkili sicillerini ve performans puanlarını sorgulayabilirsiniz.`,
+    inline: false
+  });
+
   embed.addFields(fields).setTimestamp();
 
   return embed;
@@ -2132,9 +2142,17 @@ async function getMorningBriefingComponents(progress) {
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('staff_units_request_menu')
-      .setLabel('📋 Talepler ve Emirler')
+      .setLabel('📋 Talepler')
       .setStyle(ButtonStyle.Primary),
-    dutyBtn
+    dutyBtn,
+    new ButtonBuilder()
+      .setCustomId('staff_ai_assistant')
+      .setLabel('🤖 AI Asistan')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('staff_incident_report')
+      .setLabel('📝 Vaka Raporu')
+      .setStyle(ButtonStyle.Danger)
   );
 
   const componentsList = [rowButtons, rowSelect, rowPersonal];
