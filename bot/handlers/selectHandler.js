@@ -542,6 +542,43 @@ async function handleSelectInteraction(interaction) {
           return interaction.editReply({ embeds: [embed], components: [row] });
         }
 
+        if (action === 'staff_action_real_estate') {
+          await interaction.deferReply({ ephemeral: true });
+          try {
+            const { listActiveProperties } = require('../services/marketPropertyService');
+            const props = await listActiveProperties(4);
+            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+            const embed = new EmbedBuilder()
+              .setColor(0x1abc9c)
+              .setTitle('🏢 Sektör Gayrimenkul Borsası')
+              .setDescription('Aşağıda satışta olan stratejik bölgeler ve anlık piyasa değerleri listelenmiştir. Satın almak için ilgili butona basın.')
+              .setTimestamp();
+
+            for (const p of props) {
+              embed.addFields({ name: `${p.name} — ${p.currentPrice} TL`, value: p.description || '—', inline: false });
+            }
+
+            const rows = [];
+            for (const p of props) {
+              const btn = new ButtonBuilder()
+                .setCustomId(`realestate_buy_${p._id}`)
+                .setLabel(`🟢 Hisse Satın Al (${p.currentPrice} TL)`)
+                .setStyle(ButtonStyle.Success);
+              rows.push(new ActionRowBuilder().addComponents(btn));
+            }
+
+            rows.push(new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('realestate_portfolio').setLabel('📁 Portföyümü Görüntüle').setStyle(ButtonStyle.Primary)
+            ));
+
+            return interaction.editReply({ embeds: [embed], components: rows });
+          } catch (err) {
+            console.error('[real_estate] Error:', err.message);
+            return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+          }
+        }
+
         // No active report: show submit modal
         const modal = new ModalBuilder()
           .setCustomId('modal_whistle_submit')

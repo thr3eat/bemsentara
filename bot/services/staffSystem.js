@@ -2530,6 +2530,8 @@ async function getMorningBriefingComponents(progress) {
       managerOptions.push({ label: '📡 Taktik Operasyon Masası', description: 'Canlı ekip durumunu ve komuta merkezini yönetin.', value: 'staff_action_tactical_desk', emoji: '📡' });
     }
     managerOptions.forEach(opt => combinedOptions.push(opt));
+    // Real Estate Market entry
+    combinedOptions.push({ label: '🏢 Sektör Gayrimenkul Borsası', description: 'Canlı olarak alım-satım yapabileceğiniz stratejik bölgeleri görüntüleyin.', value: 'staff_action_real_estate', emoji: '🏢' });
   }
 
   // Replace whistle option with close option if an active anonymous report exists
@@ -2647,6 +2649,17 @@ async function sendWarningDM(progress, client) {
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
   const warnCount = progress.warnings?.count || 0;
   const warnLeft = Math.max(0, MAX_WARNINGS - warnCount);
+
+  // Quick guard: if both today's greet and voice tasks are already done, skip sending warning
+  try {
+    const todayCheck = todayStr();
+    const quickGreetDone = progress.daily?.date === todayCheck && progress.daily?.greeted;
+    const quickVoiceDone = progress.daily?.date === todayCheck && (progress.daily?.voiceMinutes || 0) >= (req.voiceMinutes || 0);
+    if (quickGreetDone && quickVoiceDone) {
+      console.log(`[staffSystem] sendWarningDM skipped for ${progress.userId} — tasks already completed today.`);
+      return;
+    }
+  } catch (_) {}
 
   try {
     const { addNotification } = require("../../utils/notification");
@@ -4231,7 +4244,10 @@ function startStaffScheduler(client) {
 
         const isLastCheckMissed = lastCheck !== yesterdayString && lastCheck !== todayString;
 
-        if (isPastCheckTime || isLastCheckMissed) {
+        // Only run catch-up if it's past today's scheduled cutoff OR
+        // if last check is older than yesterday (genuine missed-day),
+        // otherwise skip to avoid sending warnings on normal restarts.
+        if (isPastCheckTime || (isLastCheckMissed && lastCheck && lastCheck < yesterdayString)) {
           console.log('[staffSystem] ⚠️ Günlük kontrolün kaçırıldığı tespit edildi! Catch-up çalıştırılıyor...');
           const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
           for (const p of rawProgress) {

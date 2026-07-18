@@ -269,6 +269,18 @@ const staffProgressSchema = new mongoose.Schema({
   marketTrend: { type: String, default: '▃ ▅ █ █ ▄' },
   marketRiskScore: { type: Number, default: 0 },
   marketLastUpdatedAt: { type: Date, default: null }
+   ,
+   // Emlak Portföyü: sahip olunan property kayıtları
+   portfolio: {
+     type: [
+       new mongoose.Schema({
+         propertyId: { type: String, required: true },
+         purchasedAt: { type: Date, default: Date.now },
+         purchasePrice: { type: Number, required: true }
+       }, { _id: false })
+     ],
+     default: []
+   }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

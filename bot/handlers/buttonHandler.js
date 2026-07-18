@@ -206,6 +206,89 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  // ── Real Estate Buttons ─────────────────────────────────────────────
+  if (customId.startsWith('realestate_buy_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const propertyId = customId.replace('realestate_buy_', '');
+      const { buyProperty, computePrice } = require('../services/marketPropertyService');
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      const price = computePrice(await require('../../models/Property').findById(propertyId));
+      if ((p.gamification?.ecoCoins || 0) < price) return interaction.editReply({ content: `❌ Yetersiz bakiye. Gerekli: ${price} TL, Cüzdanınız: ${p.gamification?.ecoCoins || 0} TL` });
+
+      // Deduct and attempt buy
+      p.gamification.ecoCoins -= price;
+      await p.save();
+      const res = await buyProperty(interaction.user.id, propertyId, price);
+      if (!res.success) {
+        // refund
+        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + price;
+        await p.save();
+        return interaction.editReply({ content: `❌ Satın alma başarısız: ${res.message}` });
+      }
+
+      return interaction.editReply({ content: `✅ Tebrikler! **${res.property.name}** bölgesinin hissesi başarıyla satın alındı. Satın alma fiyatı: ${res.purchasedAtPrice} TL` });
+    } catch (err) {
+      console.error('[realestate_buy] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === 'realestate_portfolio') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const Property = require('../../models/Property');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const embed = new EmbedBuilder().setTitle('📁 Portföyünüz').setColor(0x1abc9c).setTimestamp();
+      if (!p.portfolio || p.portfolio.length === 0) {
+        embed.setDescription('Portföyünüzde henüz emlak hissesi bulunmamaktadır.');
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      const rows = [];
+      for (const item of p.portfolio) {
+        const prop = await Property.findById(item.propertyId).catch(() => null);
+        const name = prop ? prop.name : `#${item.propertyId}`;
+        embed.addFields({ name: name, value: `Alış: ${item.purchasePrice} TL • Alış Tarihi: ${new Date(item.purchasedAt).toLocaleString()}`, inline: false });
+        rows.push(new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`realestate_sell_${item.propertyId}`).setLabel(`🔴 Hissenı Sat — ${name}`).setStyle(ButtonStyle.Danger)
+        ));
+      }
+
+      return interaction.editReply({ embeds: [embed], components: rows });
+    } catch (err) {
+      console.error('[realestate_portfolio] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId.startsWith('realestate_sell_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const propertyId = customId.replace('realestate_sell_', '');
+      const { sellProperty, computePrice } = require('../services/marketPropertyService');
+      const res = await sellProperty(interaction.user.id, propertyId);
+      if (!res.success) return interaction.editReply({ content: `❌ Satış başarısız: ${res.message}` });
+
+      // credit user
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      p.gamification = p.gamification || {};
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + (res.soldFor || 0);
+      await p.save();
+
+      return interaction.editReply({ content: `✅ Hisseniz ${res.soldFor} TL karşılığında satıldı ve cüzdanınıza aktarıldı.` });
+    } catch (err) {
+      console.error('[realestate_sell] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   if (customId.startsWith("staff_claim_reject_")) {
     const parts = customId.replace("staff_claim_reject_", "").split("_");
     const ticketId = parts[0];
