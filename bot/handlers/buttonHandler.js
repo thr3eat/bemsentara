@@ -1073,6 +1073,12 @@ async function handleButtonInteraction(interaction) {
     return handleCoachMessageLevelButton(interaction, levelMap[level]);
   }
 
+  // ── Birim İçi Sohbet Butonları ──────────────────────────────────────────
+  if (customId.startsWith("unit_chat_")) {
+    const { handleUnitChatButton } = require("../services/unitChatService");
+    return handleUnitChatButton(interaction);
+  }
+
   // ── Panel butonu ────────────────────────────────────────────────────────
   if (customId.startsWith("panel_")) {
     const { handlePanelButton } = require("../services/mainPanelService");

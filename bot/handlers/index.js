@@ -1968,6 +1968,12 @@ function initializeDiscordHandlers(client) {
         const handled = await handleKonusReply(message, client);
         if (handled) return;
       } catch (_) { }
+      // Birim İçi İletişim DM cevabı mı?
+      try {
+        const { handleUnitChatReply } = require('../services/unitChatService');
+        const handled = await handleUnitChatReply(message, client);
+        if (handled) return;
+      } catch (_) { }
       // Reklam DM ticket
       try {
         const Ticket = require('../../models/Ticket');

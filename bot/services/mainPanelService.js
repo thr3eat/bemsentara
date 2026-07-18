@@ -615,13 +615,14 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         "**Kategoriler:**\n" +
         "📊 **Liderbordu** — Birimleri XP'ye göre sıralı görüntüle\n" +
         "👨‍🏫 **Birim Koçu** — Koç bilgisi ve ataması\n" +
-        "🎖️ **Birim Rolleri** — Sunucuya birim rollerini ekle"
+        "🎖️ **Birim Rolleri** — Sunucuya birim rollerini ekle\n" +
+        "💬 **Birim İçi İletişim** — Birim başkanı, yardımcısı veya koçu ile özel DM sohbeti başlatın"
       );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("panel_units_leaderboard")
-        .setLabel("📊 Liderbordu Görüntüle")
+        .setLabel("📊 Liderbordu")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("panel_units_coach")
@@ -633,6 +634,10 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
         .setLabel("🎖️ Rol Yönetimi")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!auth.isAdmin),
+      new ButtonBuilder()
+        .setCustomId("panel_units_chat_menu")
+        .setLabel("💬 Birim İçi İletişim")
+        .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("panel_tab_home")
         .setLabel("⬅️ Ana Menü")
@@ -1665,6 +1670,20 @@ async function handlePanelButton(interaction) {
       return interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error("[panel_units_roles]", err);
+      return interaction.editReply(`❌ Hata: ${err.message}`);
+    }
+  }
+
+  // ── UNITS: Birim İçi İletişim Menüsü ─────────────────────────────────────────
+  if (customId === "panel_units_chat_menu") {
+    try {
+      const { handleUnitChatButton } = require("./unitChatService");
+      return handleUnitChatButton(interaction);
+    } catch (err) {
+      console.error("[panel_units_chat_menu]", err);
+      if (!interaction.replied && !interaction.deferred) {
+        return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+      }
       return interaction.editReply(`❌ Hata: ${err.message}`);
     }
   }
