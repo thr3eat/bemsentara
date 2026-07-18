@@ -2341,7 +2341,7 @@ async function getMorningBriefingComponents(progress) {
   const isProbationLocked = progress.probationStatus && !progress.probationSigned;
   const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
   // duty flags (declare early to avoid TDZ when components reference them)
-
+  const isOnDuty = !!progress?.duty?.isActive; // <— previously missing -> ReferenceError: isOnDuty is not defined
 
   if (isProbationLocked) {
     const row = new ActionRowBuilder().addComponents(
