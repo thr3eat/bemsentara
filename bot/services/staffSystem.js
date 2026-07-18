@@ -2014,6 +2014,24 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     inline: false
   });
 
+  // ── FIELD 3.9: GÜNLÜK YETKİLİ İPUCU ───────────────────────────────────────
+  const STAFF_TIPS = [
+    "💡 **İpucu:** Herhangi bir kanaldan veya DM'den \`/mod-anasayfa\` komutunu kullanarak bu kontrol paneline anında erişebilirsiniz!",
+    "💡 **İpucu:** Nöbetinizi bitirirken karşınıza çıkan forma detaylı **Vardiya Devir Notu** yazarak üst yönetime durum özeti geçebilir ve ekstra saygınlık kazanabilirsiniz.",
+    "💡 **İpucu:** \`🤖 AI Asistan\` butonuna tıklayarak şüpheli bir durum veya kural ihlali hakkında AI'dan anında ceza/mute süresi tavsiyesi alabilirsiniz.",
+    "💡 **İpucu:** \`✍️ Günlük Rapor Gir\` butonunu kullanarak bugün yaptığınız çalışmaları özetleyin. AI Koçunuz raporunuzu inceleyip size anında KPI/tecrübe puanı verecektir.",
+    "💡 **İpucu:** İzin kredilerinizi görmek ve yönetmek için \`⚙️ Kişisel Yetkili İşlemleri\` menüsünden \`📊 İzin Durumu Sorgula\` seçeneğini kullanabilirsiniz.",
+    "💡 **İpucu:** \`📋 Talepler\` butonunu kullanarak üst rütbelere izin veya görev istekleri gönderebilir ya da üst rütbelerden gelen emirleri takip edebilirsiniz.",
+    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **EkoCoin ve XP** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!"
+  ];
+  const randomTip = STAFF_TIPS[Math.floor(Math.random() * STAFF_TIPS.length)];
+
+  fields.push({
+    name: '💡 REHBERLİK & GÜNLÜK İPUCU',
+    value: randomTip,
+    inline: false
+  });
+
   embed.addFields(fields).setTimestamp();
 
   return embed;
@@ -2122,6 +2140,7 @@ async function getMorningBriefingComponents(progress) {
     .addOptions([
       { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
       { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
+      { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
       { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
       { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
       { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }

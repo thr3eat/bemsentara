@@ -1183,6 +1183,25 @@ async function handleButtonInteraction(interaction) {
     return interaction.showModal(modal).catch(() => {});
   }
 
+  // ── AI Senaryo Cevaplama butonu ────────────────────────────────────────────
+  if (customId.startsWith("staff_practice_solve_")) {
+    const scenarioId = customId.split("_")[3];
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_practice_submit_${scenarioId}`)
+      .setTitle('🎓 Senaryo Çözümünüzü Yazın');
+
+    const input = new TextInputBuilder()
+      .setCustomId('practice_solution')
+      .setLabel('Bu Durumda Uygulayacağınız Çözüm')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Örn: Kullanıcıyı önce uyarırım, devam ederse sunucu kurallarının 4. maddesi uyarınca 30 dakika mute cezası veririm...')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
   // ── AI Asistanı butonu ──────────────────────────────────────────────────────
   if (customId === "staff_ai_assistant") {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');

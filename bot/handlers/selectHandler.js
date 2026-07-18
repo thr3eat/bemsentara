@@ -316,6 +316,59 @@ async function handleSelectInteraction(interaction) {
       }
     }
 
+    if (action === 'staff_action_practice_scenario') {
+      const SCENARIOS = [
+        {
+          id: 1,
+          title: "Provokatif Üye Vakası",
+          description: "Bir kullanıcı sunucuda kimseye küfür veya hakaret etmiyor, fakat sürekli olarak diğer üyelerin inançları ve hassasiyetleriyle dalga geçerek onları kışkırtıyor. Sohbet aşırı derecede gerildi. Bu durumda ne yaparsınız ve hangi kurala göre işlem tesis edersiniz?"
+        },
+        {
+          id: 2,
+          title: "Gizli Reklam / DM Reklam Vakası",
+          description: "Bir üyenin diğer üyelere DM üzerinden başka bir Discord sunucusunun linkini göndererek reklam yaptığına dair 2 farklı üyeden ekran görüntülü şikayet aldınız. Şüpheli üye ise suçlamaları reddediyor. Nasıl hareket edersiniz?"
+        },
+        {
+          id: 3,
+          title: "Yetkili Etiketleme ve Spam",
+          description: "Bir kullanıcı çözülmeyen bir sorunu olduğunu söyleyerek genel sohbette arka arkaya 10 kez Kurucuları ve Moderatörleri etiketledi (ping spam). Uyarılmasına rağmen devam ediyor. Hangi cezai işlemi uygularsınız?"
+        },
+        {
+          id: 4,
+          title: "Bilet (Ticket) Suistimali",
+          description: "Bir üye destek biletini açıp içeriye sadece anlamsız harfler (random) yazarak destek ekibini oyalıyor. Bileti kapattığınızda yeni bir bilet açıp aynı şeyi yapmaya devam ediyor. Bu kullanıcıya karşı nasıl bir yaptırım uygularsınız?"
+        },
+        {
+          id: 5,
+          title: "Kanıtı Olmayan Toxic Davranış İddiası",
+          description: "Ses kanalında bir yetkilinin kendisine haksız yere bağırdığını ve hakaret ettiğini iddia eden bir üye size ulaştı, ancak elinde herhangi bir ses kaydı veya ekran görüntüsü yok. Bu şikayeti nasıl değerlendirirsiniz?"
+        }
+      ];
+
+      const selected = SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)];
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      
+      const embed = new EmbedBuilder()
+        .setColor(0x3b82f6)
+        .setTitle(`🎓 AI Pratik Senaryosu: ${selected.title}`)
+        .setDescription(
+          `**Durum / Senaryo:**\n> *"${selected.description}"*\n\n` +
+          `**Nasıl Çalışır?**\n` +
+          `Aşağıdaki **\`✍️ Çözüm Yaz\`** butonuna tıklayarak bu duruma karşı alacağınız aksiyonu, kararınızı ve gerekçenizi yazın. AI Koçunuz çözümünüzü puanlayıp size tavsiyelerde bulunacaktır!`
+        )
+        .setFooter({ text: 'Eko Yıldız • AI Eğitim Akademisi' })
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`staff_practice_solve_${selected.id}`)
+          .setLabel('✍️ Çözüm Yaz')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
+
     if (action === 'staff_action_resign') {
       const modal = new ModalBuilder()
         .setCustomId('modal_staff_resign')

@@ -153,6 +153,73 @@ async function handleModalSubmit(interaction) {
     }
   }
 
+  // ── AI Senaryo Cevaplama Modal Submit ──────────────────────────────────────
+  if (interaction.customId.startsWith('modal_practice_submit_')) {
+    const scenarioId = interaction.customId.split('_')[3];
+    const solution = interaction.fields.getTextInputValue('practice_solution');
+    await interaction.deferReply({ ephemeral: true });
+
+    const SCENARIOS = {
+      "1": { title: "Provokatif Üye Vakası", desc: "Bir kullanıcı sunucuda kimseye küfür veya hakaret etmiyor, fakat sürekli olarak diğer üyelerin inançları ve hassasiyetleriyle dalga geçerek onları kışkırtıyor. Sohbet aşırı derecede gerildi. Bu durumda ne yaparsınız ve hangi kurala göre işlem tesis edersiniz?" },
+      "2": { title: "Gizli Reklam / DM Reklam Vakası", desc: "Bir üyenin diğer üyelere DM üzerinden başka bir Discord sunucusunun linkini göndererek reklam yaptığına dair 2 farklı üyeden ekran görüntülü şikayet aldınız. Şüpheli üye ise suçlamaları reddediyor. Nasıl hareket edersiniz?" },
+      "3": { title: "Yetkili Etiketleme ve Spam", desc: "Bir kullanıcı çözülmeyen bir sorunu olduğunu söyleyerek genel sohbette arka arkaya 10 kez Kurucuları ve Moderatörleri etiketledi (ping spam). Uyarılmasına rağmen devam ediyor. Hangi cezai işlemi uygularsınız?" },
+      "4": { title: "Bilet (Ticket) Suistimali", desc: "Bir üye destek biletini açıp içeriye sadece anlamsız harfler (random) yazarak destek ekibini oyalıyor. Bileti kapattığınızda yeni bir bilet açıp aynı şeyi yapmaya devam ediyor. Bu kullanıcıya karşı nasıl bir yaptırım uygularsınız?" },
+      "5": { title: "Kanıtı Olmayan Toxic Davranış İddiası", desc: "Ses kanalında bir yetkilinin kendisine haksız yere bağırdığını ve hakaret ettiğini iddia eden bir üye size ulaştı, ancak elinde herhangi bir ses kaydı veya ekran görüntüsü yok. Bu şikayeti nasıl değerlendirirsiniz?" }
+    };
+
+    const sc = SCENARIOS[scenarioId] || { title: "Bilinmeyen Senaryo", desc: "Rastgele moderasyon senaryosu." };
+
+    try {
+      const { chatWithAI } = require('../services/staffSystem');
+      const systemPrompt = `Sen EkoYıldız sunucusunun AI Baş Yetkili Eğitmenisin. Yetkililerin pratik moderasyon eğitim çözümlerini profesyonel, objektif ve yapıcı bir şekilde değerlendiriyorsun.
+Yetkiliye bir puan (0 ile 100 arası) ver ve bu puanın gerekçesini, çözümünün doğruluğunu, sunucu kuralları ve moderasyon adabı açısından kısa ve öz maddeler halinde (maksimum 3-4 cümle) değerlendir.
+Lütfen değerlendirmeni en sonunda tam olarak şu formatta bitir:
+[SCORE]: <puan>`;
+
+      const userPrompt = `Senaryo: "${sc.desc}"\n\nYetkilinin Çözümü: "${solution}"\n\nLütfen bunu puanla ve geri bildirim ver.`;
+      const aiResponse = await chatWithAI([{ role: 'user', content: userPrompt }], systemPrompt).catch(() => 'Değerlendirme şu an yapılamadı.');
+      const cleanedResponse = aiResponse?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
+
+      let score = 70;
+      const match = cleanedResponse.match(/\[SCORE\]:\s*(\d+)/i);
+      if (match) {
+        score = parseInt(match[1], 10);
+      }
+
+      let rewardText = '';
+      if (score >= 70) {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (p) {
+          p.gamification = p.gamification || {};
+          p.gamification.currentXP = (p.gamification.currentXP || 0) + 15;
+          p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + 5;
+          await p.save();
+          rewardText = `\n\n🎉 **Tebrikler!** Senaryodan geçer not aldınız! \`+15 XP\` ve \`+5 EkoCoin\` hesabınıza eklendi.`;
+        }
+      } else {
+        rewardText = `\n\n⚠️ **Not:** Senaryodan geçer not (70) alamadınız. Geri bildirimleri inceleyerek tekrar deneyebilirsiniz. Ödül verilmedi.`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(score >= 70 ? 0x4ade80 : 0xe74c3c)
+        .setTitle(`🎓 AI Eğitim Raporu: ${sc.title}`)
+        .addFields(
+          { name: '📝 Çözümünüz', value: `\`\`\`${solution}\`\`\`` },
+          { name: '📊 AI Değerlendirme Puanı', value: `**\`${score} / 100\`**` },
+          { name: '🤖 Geri Bildirim ve Tavsiyeler', value: cleanedResponse.replace(/\[SCORE\]:\s*\d+/i, '').trim() }
+        )
+        .setDescription(`**Senaryo:**\n> *"${sc.desc}"*${rewardText}`)
+        .setFooter({ text: 'Eko Yıldız • AI Eğitim Akademisi' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[Scenario-Submit] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Şehir Tanımlama Modal Submit ──────────────────────────────────────────
   if (interaction.customId === 'modal_staff_set_city') {
     const rawCity = interaction.fields.getTextInputValue('user_city').trim();
