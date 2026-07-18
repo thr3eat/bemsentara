@@ -5383,4 +5383,5 @@ module.exports = {
   handleInactivityWellbeingButton,
   handleInactivitySupportModal,
   handleInactivityProofModal,
+  todayStr,
 };

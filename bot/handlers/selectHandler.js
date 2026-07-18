@@ -25,7 +25,6 @@ async function handleSelectInteraction(interaction) {
   // ── Birleştirilmiş Sistem Masası (Tek Select) yönlendirici
   if (customId === 'staff_system_desk') {
     const action = interaction.values[0];
-    await interaction.deferUpdate().catch(() => {});
     const managerActions = ['staff_action_warn','staff_action_commend','staff_action_sicil','staff_action_dismiss','staff_action_set_stats','staff_action_risk_compliance','staff_action_tactical_desk'];
 
     try {
@@ -47,7 +46,7 @@ async function handleSelectInteraction(interaction) {
       return handleSelectInteraction(interaction);
     } catch (err) {
       console.error('[staff_system_desk router] Error:', err.message);
-      return interaction.followUp({ content: '❌ Bir hata oluştu, lütfen tekrar deneyin.', ephemeral: true });
+      return interaction.followUp({ content: '❌ Bir hata oluştu, lütfen tekrar deneyin.', ephemeral: true }).catch(() => {});
     }
   }
 
