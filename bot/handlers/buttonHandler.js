@@ -212,7 +212,7 @@ async function handleButtonInteraction(interaction) {
     try {
       const { startWalkthrough } = require('../services/staffSystem');
       await startWalkthrough(interaction.user.id, interaction.client);
-      return interaction.editReply({ content: '❓ Rehber DM olarak gönderildi. DM'ini kontrol et.' });
+      return interaction.editReply({ content: "❓ Rehber DM olarak gönderildi. DM'ini kontrol et." });
     } catch (err) {
       console.error('[walkthrough_start] Error:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
