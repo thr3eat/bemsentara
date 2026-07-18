@@ -14,6 +14,14 @@ async function handleSelectInteraction(interaction) {
     return handlePurchaseSelection(interaction);
   }
 
+  // ── Panel hızlı menü (home) seçimi
+  if (customId === 'panel_home_select') {
+    const selected = interaction.values[0];
+    await interaction.deferUpdate().catch(() => {});
+    const { renderPanel } = require('../services/mainPanelService');
+    return renderPanel(interaction, selected);
+  }
+
   if (customId.startsWith("eposta_remove_select_")) {
     const ticketId = interaction.customId.replace("eposta_remove_select_", "");
     const targetUserId = interaction.values[0];

@@ -93,88 +93,56 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
   const components = [];
 
   if (tabName === "home") {
+    // Modernized home panel: compact header, guild thumbnail, quick-select menu and key stats
+    const guildIcon = interaction.guild?.iconURL?.({ size: 256 }) || null;
     embed
-      .setTitle("⚙️ EkoYıldız Kontrol & Yönetim Paneli")
-      .setColor(0x7C6AF7)
-      .setDescription(
-        "Bot yönetim ve denetleme arayüzüne hoş geldiniz. Lütfen gitmek istediğiniz sekmeyi seçin.\n\n" +
-        "**📁 Mevcut Kategoriler:**\n" +
-        "🛡️ **Moderasyon:** Ban, susturma, ceza işlemleri ve karaliste.\n" +
-        "👥 **Personel Yönetimi:** Terfi, izin, sayım, bakiye ve ilerleme.\n" +
-        "⚙️ **Sistem & Otomasyon:** Otomod, Roblox, alımlar ve sistem modülleri.\n" +
-        "🏆 **Birim Sistemi:** Birim liderbordu, koç bilgisi ve birim yönetimi."
-      )
+      .setAuthor({ name: interaction.guild?.name || 'EkoYıldız', iconURL: guildIcon })
+      .setTitle('Kontrol Paneli — Hızlı Erişim')
+      .setColor(0x5865F2)
+      .setDescription('Hoş geldiniz! Aşağıdan hızlıca panel bölümlerine geçiş yapabilir veya sık kullanılan işlemleri başlatabilirsiniz.')
+      .setThumbnail(guildIcon)
       .addFields(
-        { name: "Yetkili", value: `${interaction.user.tag}`, inline: true },
-        {
-          name: "Rol",
-          value: auth.isAdmin
-            ? "👑 Yönetici"
-            : auth.isManager
-              ? "👨‍✈️ Yönetici / Manager"
-              : auth.isMod
-                ? "🛡️ Moderatör"
-                : "👔 Personel",
-          inline: true
-        }
+        { name: '📁 Kategoriler', value: '🛡️ Moderasyon · 👥 Personel · ⚙️ Sistem · 🏆 Birimler', inline: false },
+        { name: '🔰 Yetki', value: `${interaction.user.tag} — ${auth.isAdmin ? '👑 Yönetici' : auth.isManager ? '👨‍✈️ Yönetici' : auth.isMod ? '🛡️ Moderatör' : '👔 Personel'}`, inline: false }
       );
 
-    // Add coach info
-    const { getCoachDisplayInfo } = require("./coachManagementService");
-    const coachInfo = await getCoachDisplayInfo();
-    embed.addFields({
-      name: "👨‍🏫 Birim Koçu",
-      value: `**${coachInfo.name}** ${coachInfo.isActive ? "🟢" : "🔴"}`,
-      inline: true
-    });
-
-    const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
-    if (allowedSpecial.includes(interaction.user.id)) {
-      embed.addFields({
-        name: "🚨 Acil Durum Arama",
-        value:
-          "Aşağıdaki **📞 Acil Ara** butonunu kullanarak Telegram üzerinden anında sesli arama çağrısı başlatabilirsiniz.",
-        inline: false
-      });
-    }
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("panel_tab_moderation")
-        .setLabel("🛡️ Moderasyon")
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId("panel_tab_staff")
-        .setLabel("👥 Personel")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId("panel_tab_system")
-        .setLabel("⚙️ Sistem & Otomasyon")
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId("panel_tab_units")
-        .setLabel("🏆 Birim Sistemi")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    const row2 = new ActionRowBuilder();
-
-    if (allowedSpecial.includes(interaction.user.id)) {
-      row2.addComponents(
-        new ButtonBuilder()
-          .setCustomId("panel_emergency_call")
-          .setLabel("📞 Acil Ara")
-          .setStyle(ButtonStyle.Danger)
+    // Show quick staff stats (active staff count, pending reports)
+    try {
+      const activeCount = await StaffProgress.countDocuments({ status: 'active' }).catch(() => null);
+      const pendingReports = await StaffProgress.find({}).then(list => list.reduce((acc, p) => acc + (p.modReports?.unloggedCount || 0), 0)).catch(() => 0);
+      embed.addFields(
+        { name: '👥 Aktif Personel', value: String(activeCount || 0), inline: true },
+        { name: '⚠️ Loglanmamış Mod İşlemi', value: String(pendingReports || 0), inline: true },
+        { name: '⏱️ Sistem Durumu', value: 'Çevrimiçi · Tüm modüller aktif', inline: true }
       );
-    }
+    } catch (_) {}
 
-    row2.addComponents(
-      new ButtonBuilder()
-        .setCustomId("panel_close")
-        .setLabel("❌ Kapat")
-        .setStyle(ButtonStyle.Secondary)
+    // Compact select menu for navigation
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('panel_home_select')
+      .setPlaceholder('Hızlı menü: Gitmek istediğiniz bölümü seçin...')
+      .addOptions([
+        { label: 'Moderasyon', value: 'moderation', description: 'Ban, mute, ceza ve karaliste', emoji: '🛡️' },
+        { label: 'Personel', value: 'staff', description: 'Rütbe, izin, yoklama', emoji: '👥' },
+        { label: 'Sistem', value: 'system', description: 'Otomasyon, Roblox, toggles', emoji: '⚙️' },
+        { label: 'Birimler', value: 'units', description: 'Liderbordu ve birim yönetimi', emoji: '🏆' },
+      ]);
+
+    const row = new ActionRowBuilder().addComponents(select);
+
+    // Quick action buttons
+    const actions = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('panel_tab_moderation').setLabel('🛡️ Moderasyon').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('panel_tab_staff').setLabel('👥 Personel').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('panel_tab_system').setLabel('⚙️ Sistem').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('panel_tab_units').setLabel('🏆 Birimler').setStyle(ButtonStyle.Secondary)
     );
-    components.push(row, row2);
+
+    const footerRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('panel_close').setLabel('❌ Kapat').setStyle(ButtonStyle.Secondary)
+    );
+
+    components.push(row, actions, footerRow);
   }
 
   else if (tabName === "moderation") {
