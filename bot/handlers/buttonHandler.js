@@ -3015,7 +3015,7 @@ async function handleButtonInteraction(interaction) {
       .setCustomId('practice_solution')
       .setLabel('Bu Durumda Uygulayacağınız Çözüm')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Örn: Kullanıcıyı önce uyarırım, devam ederse sunucu kurallarının 4. maddesi uyarınca 30 dakika mute cezası veririm...')
+      .setPlaceholder('Örn: Önce uyarırım, devam ederse mute veririm.')
       .setRequired(true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(input));
@@ -3087,7 +3087,7 @@ async function handleButtonInteraction(interaction) {
       .setCustomId('report_content')
       .setLabel('Bugün Yaptığınız Çalışmalar')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Örn: Bugün aktif şekilde bilet çözdüm, sesli odada nöbet tuttum ve sohbette selamlaşma görevlerimi tamamladım.')
+      .setPlaceholder('Örn: Bilet çözdüm, nöbet tuttum ve görevleri tamamladım.')
       .setRequired(true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(input));
