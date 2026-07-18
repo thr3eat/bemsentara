@@ -14,6 +14,21 @@ const {
   ChannelType
 } = require("discord.js");
 
+// Design palette (V6.0 premium)
+const COLOR_STEALTH = 0x1A1A1A; // Mat Siyah
+const COLOR_ALUMINUM = 0xF3F4F6; // Alüminyum Beyaz
+const COLOR_PREMIUM = 0x7052FF; // Premium Mor
+const COLOR_EMERALD = 0x10B981; // Zümrüt Yeşili
+
+function renderThinBar(current, max, length = 8) {
+  try {
+    const pct = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
+    const filled = Math.round(pct * length);
+    const empty = length - filled;
+    return '[' + '▬'.repeat(filled) + '─'.repeat(empty) + `] ${Math.round(pct * 100)}%`;
+  } catch (_) { return '[────────] 0%'; }
+}
+
 const Blacklist = require("../../models/Blacklist");
 const StaffProgress = require("../../models/StaffProgress");
 const User = require("../../models/User");
@@ -97,45 +112,45 @@ async function renderPanel(interaction, tabName, blacklistOption = '1') {
     const guildIcon = interaction.guild?.iconURL?.({ size: 256 }) || null;
     embed
       .setAuthor({ name: interaction.guild?.name || 'EkoYıldız', iconURL: guildIcon })
-      .setTitle('Kontrol Paneli — Hızlı Erişim')
-      .setColor(0x5865F2)
-      .setDescription('Hoş geldiniz! Aşağıdan hızlıca panel bölümlerine geçiş yapabilir veya sık kullanılan işlemleri başlatabilirsiniz.')
+      .setTitle('Harekât Kontrol Merkezi')
+      .setColor(COLOR_PREMIUM)
+      .setDescription('Hoş geldiniz — hızlıca bir sekme seçin ve ana eylemi başlatın.')
       .setThumbnail(guildIcon)
       .addFields(
-        { name: '📁 Kategoriler', value: '🛡️ Moderasyon · 👥 Personel · ⚙️ Sistem · 🏆 Birimler', inline: false },
-        { name: '🔰 Yetki', value: `${interaction.user.tag} — ${auth.isAdmin ? '👑 Yönetici' : auth.isManager ? '👨‍✈️ Yönetici' : auth.isMod ? '🛡️ Moderatör' : '👔 Personel'}`, inline: false }
+        { name: 'Yetki', value: `${interaction.user.tag} — ${auth.isAdmin ? 'Yönetici' : auth.isManager ? 'Yönetici' : auth.isMod ? 'Moderatör' : 'Personel'}`, inline: false }
       );
 
-    // Show quick staff stats (active staff count, pending reports)
+    // Show quick staff stats (active staff count, pending reports) in a clean 3-column grid
     try {
-      const activeCount = await StaffProgress.countDocuments({ status: 'active' }).catch(() => null);
+      const activeCount = await StaffProgress.countDocuments({ status: 'active' }).catch(() => 0);
       const pendingReports = await StaffProgress.find({}).then(list => list.reduce((acc, p) => acc + (p.modReports?.unloggedCount || 0), 0)).catch(() => 0);
       embed.addFields(
-        { name: '👥 Aktif Personel', value: String(activeCount || 0), inline: true },
-        { name: '⚠️ Loglanmamış Mod İşlemi', value: String(pendingReports || 0), inline: true },
-        { name: '⏱️ Sistem Durumu', value: 'Çevrimiçi · Tüm modüller aktif', inline: true }
+        { name: 'Aktif Personel', value: `\`${activeCount || 0}\``, inline: true },
+        { name: 'Bekleyen İhbarlar', value: `\`${pendingReports || 0}\``, inline: true },
+        { name: 'Sistem Durumu', value: 'Çevrimiçi', inline: true }
       );
     } catch (_) {}
 
     // Compact select menu for navigation
     const select = new StringSelectMenuBuilder()
       .setCustomId('panel_home_select')
-      .setPlaceholder('Hızlı menü: Gitmek istediğiniz bölümü seçin...')
+      .setPlaceholder('Operasyonel Harekât Masası (seçin)')
       .addOptions([
-        { label: 'Moderasyon', value: 'moderation', description: 'Ban, mute, ceza ve karaliste', emoji: '🛡️' },
-        { label: 'Personel', value: 'staff', description: 'Rütbe, izin, yoklama', emoji: '👥' },
-        { label: 'Sistem', value: 'system', description: 'Otomasyon, Roblox, toggles', emoji: '⚙️' },
-        { label: 'Birimler', value: 'units', description: 'Liderbordu ve birim yönetimi', emoji: '🏆' },
+        { label: 'Moderasyon', value: 'moderation', description: 'Ban, mute, ceza ve karaliste' },
+        { label: 'Personel', value: 'staff', description: 'Rütbe, izin, yoklama' },
+        { label: 'Sistem', value: 'system', description: 'Otomasyon ve ayarlar' },
+        { label: 'Birimler', value: 'units', description: 'Birim yönetimi ve liderbordu' },
       ]);
 
     const row = new ActionRowBuilder().addComponents(select);
 
     // Quick action buttons
+    // Primary only for main action; others stay Secondary for a minimal, premium look
     const actions = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('panel_tab_moderation').setLabel('🛡️ Moderasyon').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('panel_tab_staff').setLabel('👥 Personel').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('panel_tab_system').setLabel('⚙️ Sistem').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('panel_tab_units').setLabel('🏆 Birimler').setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId('panel_tab_moderation').setLabel('Moderasyon').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('panel_tab_staff').setLabel('Personel').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('panel_tab_system').setLabel('Sistem').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('panel_tab_units').setLabel('Birimler').setStyle(ButtonStyle.Secondary)
     );
 
     const footerRow = new ActionRowBuilder().addComponents(
