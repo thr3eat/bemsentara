@@ -172,7 +172,8 @@ const staffProgressSchema = new mongoose.Schema({
   // Bildirim ve Tercih Ayarları
   settings: {
     dailyBriefingEnabled: { type: Boolean, default: true },
-    warningsEnabled: { type: Boolean, default: true }
+    warningsEnabled: { type: Boolean, default: true },
+    notificationsEnabled: { type: Boolean, default: true }
   },
 
   // Moderatör Okulu Sistemi
