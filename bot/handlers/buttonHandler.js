@@ -311,14 +311,6 @@ async function handleButtonInteraction(interaction) {
         );
 
         await interaction.editReply({ embeds: [embed], components: [row, row2] });
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-        const embed = new EmbedBuilder().setTitle('🏦 Eko-Borsa').setDescription('Canlı piyasa uygulaması — al/sat işlemleri ve arbitraj.').setColor(0x3498db);
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('exchange_buy_diamond').setLabel('🟢 Elmas Al').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('exchange_sell_diamond').setLabel('🔴 Elmas Sat').setStyle(ButtonStyle.Danger),
-          new ButtonBuilder().setCustomId('exchange_leverage').setLabel('💸 Kaldıraçlı İşlem').setStyle(ButtonStyle.Secondary)
-        );
-        await interaction.editReply({ embeds: [embed], components: [row] });
       } else if (which === 'operations') {
         const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
         const embed = new EmbedBuilder().setTitle('🕵️ Operasyonlar').setDescription('Operasyon ve istihbarat uygulamaları.').setColor(0x6f42c1);
