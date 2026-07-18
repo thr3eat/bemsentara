@@ -15,6 +15,46 @@ const {
   buildReopenAndRateRow,
 } = require("../embeds");
 
+async function resolveUserFromInput(input, interaction) {
+  let targetUserId = (input || "").trim();
+  if (!targetUserId) return null;
+
+  const mentionMatch = targetUserId.match(/^<@!?(\d+)>/);
+  if (mentionMatch) {
+    return mentionMatch[1];
+  }
+
+  if (/^\d{17,20}$/.test(targetUserId)) {
+    return targetUserId;
+  }
+
+  try {
+    const fetched = await interaction.guild.members.fetch({ query: targetUserId, limit: 1 }).catch(() => null);
+    const member = fetched?.first();
+    if (member) {
+      return member.user.id;
+    }
+  } catch (_) {}
+
+  try {
+    const { findOne } = require("../../models/User");
+    const dbUser = await findOne({ discordUsername: { $regex: new RegExp("^" + targetUserId + "$", "i") } });
+    if (dbUser) {
+      return dbUser.discordId;
+    }
+  } catch (_) {}
+
+  try {
+    const StaffProgress = require("../../models/StaffProgress");
+    const staff = await StaffProgress.findOne({ name: { $regex: new RegExp("^" + targetUserId + "$", "i") } });
+    if (staff) {
+      return staff.userId;
+    }
+  } catch (_) {}
+
+  return null;
+}
+
 async function handleModalSubmit(interaction) {
   if (interaction.customId === 'modal_tactical_change_radio') {
     const newFreq = interaction.fields.getTextInputValue('radio_freq');
@@ -1034,10 +1074,15 @@ Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi
   }
 
   if (interaction.customId === 'modal_staff_warn') {
-    const targetUserId = interaction.fields.getTextInputValue('warn_user_id');
+    const userInputVal = interaction.fields.getTextInputValue('warn_user_id');
     const reason = interaction.fields.getTextInputValue('warn_reason');
     await interaction.deferReply({ ephemeral: true });
     try {
+      const targetUserId = await resolveUserFromInput(userInputVal, interaction);
+      if (!targetUserId) {
+        return interaction.editReply({ content: '❌ Girdiğiniz kullanıcı adı, etiket veya ID bulunamadı.' });
+      }
+
       const StaffProgress = require('../../models/StaffProgress');
       const targetP = await StaffProgress.findOne({ userId: targetUserId });
       if (!targetP) {
@@ -1092,10 +1137,15 @@ Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi
   }
 
   if (interaction.customId === 'modal_staff_commend') {
-    const targetUserId = interaction.fields.getTextInputValue('commend_user_id');
+    const userInputVal = interaction.fields.getTextInputValue('commend_user_id');
     const reason = interaction.fields.getTextInputValue('commend_reason');
     await interaction.deferReply({ ephemeral: true });
     try {
+      const targetUserId = await resolveUserFromInput(userInputVal, interaction);
+      if (!targetUserId) {
+        return interaction.editReply({ content: '❌ Girdiğiniz kullanıcı adı, etiket veya ID bulunamadı.' });
+      }
+
       const { addCommendation } = require('../services/staffDutyService');
       const result = await addCommendation(targetUserId, reason, interaction.user.tag);
       if (!result.success) return interaction.editReply({ content: `❌ Başarısız: ${result.error}` });
@@ -1128,9 +1178,14 @@ Moderatörün karşılaştığı durumu analiz et ve yapılması gereken işlemi
   }
 
   if (interaction.customId === 'modal_staff_sicil') {
-    const targetUserId = interaction.fields.getTextInputValue('sicil_user_id');
+    const userInputVal = interaction.fields.getTextInputValue('sicil_user_id');
     await interaction.deferReply({ ephemeral: true });
     try {
+      const targetUserId = await resolveUserFromInput(userInputVal, interaction);
+      if (!targetUserId) {
+        return interaction.editReply({ content: '❌ Girdiğiniz kullanıcı adı, etiket veya ID bulunamadı.' });
+      }
+
       const StaffProgress = require('../../models/StaffProgress');
       const p = await StaffProgress.findOne({ userId: targetUserId });
       if (!p) return interaction.editReply({ content: '❌ Belirtilen kullanıcı personel sisteminde kayıtlı değil.' });
