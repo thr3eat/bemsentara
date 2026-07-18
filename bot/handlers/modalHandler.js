@@ -138,6 +138,277 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  // ── Yetkili Modalleri (V6.0) ──────────────────────────────────────────────
+  if (interaction.customId === 'modal_staff_daily_report') {
+    const reportContent = interaction.fields.getTextInputValue('report_content');
+    await interaction.deferReply({ ephemeral: true });
+    
+    const StaffProgress = require('../../models/StaffProgress');
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+
+    const { getDailyTaskCompletionStats, chatWithAI, PERSONAL_ASSISTANT_SYSTEM_PROMPT, todayStr } = require('../services/staffSystem');
+    const stats = getDailyTaskCompletionStats(p);
+
+    const prompt = `Aşağıdaki yetkilinin bugünkü aktiviteleri ve girdiği günlük rapor hakkında yapıcı, profesyonel bir analiz yap.
+    - Personel: <@${interaction.user.id}>
+    - Bugün selamlanan üye sayısı: ${p.daily?.greetCount || 0}
+    - Bugün sesli kanalda geçirilen süre: ${p.daily?.voiceMinutes || 0} dakika
+    - Seçmeli görev tamamlandı mı: ${p.daily?.chosenTaskCompleted ? 'Evet' : 'Hayır'}
+    - Yetkilinin girdiği Rapor: "${reportContent}"
+    
+    Lütfen yetkiliye hitaben yapıcı, motive edici ve geri bildirim içeren kısa (maksimum 3-4 cümle) bir yanıt yaz.`;
+
+    const aiResponse = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => 'Raporunuz başarıyla alındı ve kaydedildi.');
+    const cleanedResponse = aiResponse?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || 'Raporunuz başarıyla alındı ve kaydedildi.';
+
+    p.stats.weeklyReports = (p.stats.weeklyReports || 0) + 1;
+    p.stats.lastCompleteDay = todayStr();
+    await p.save().catch(() => {});
+
+    try {
+      const { GUILD2_ID } = require('../../config');
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      if (guild) {
+        let reportChan = guild.channels.cache.find(c => c.name === 'yetkili-rapor-log');
+        if (!reportChan) {
+          reportChan = await guild.channels.create({
+            name: 'yetkili-rapor-log',
+            type: 0,
+            parent: "1518692460233228431",
+            topic: 'Yetkililerin günlük girdiği çalışma raporları.'
+          }).catch(() => null);
+        }
+        if (reportChan) {
+          const { EmbedBuilder } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle('📝 Yeni Günlük Görev Raporu')
+            .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() })
+            .addFields(
+              { name: '👤 Gönderen Yetkili', value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
+              { name: '📊 Bugün Sesli Aktiflik', value: `${p.daily?.voiceMinutes || 0} dakika`, inline: true },
+              { name: '🎫 Bilet Çözümü', value: `${p.daily?.ticketsSolvedToday || 0} adet`, inline: true },
+              { name: '📝 Rapor Detayı', value: `\`\`\`${reportContent}\`\`\``, inline: false },
+              { name: '🤖 AI Koç Değerlendirmesi', value: `> *"${cleanedResponse}"*`, inline: false }
+            )
+            .setTimestamp();
+          await reportChan.send({ embeds: [embed] });
+        }
+      }
+    } catch (_) {}
+
+    return interaction.editReply({
+      content: `📝 **Günlük Görev Raporunuz Gönderildi!**\n\n🤖 **AI Koç Değerlendirmesi:**\n${cleanedResponse}`
+    });
+  }
+
+  if (interaction.customId === 'modal_staff_resign') {
+    const reason = interaction.fields.getTextInputValue('resign_reason');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { resignFromStaff } = require('../services/staffSystem');
+      const result = await resignFromStaff(interaction.user.id, reason, interaction.client);
+      if (!result.success) return interaction.editReply({ content: `❌ ${result.message}` });
+      let msg = '';
+      if (result.canRetire) {
+        msg = `✅ İstifan kabul edildi. 90+ gün aktif kaldığın için emeklilik statüsüne geçtiniz! Kaydınız sistemde korunmaktadır.\nAnasayfa panelinizden veya \`/emeklilik\` kullanarak resmi olarak emekli olabilirsiniz.`;
+      } else if (result.recordDeleted) {
+        msg = `✅ İstifan kabul edildi ve kaydın tamamen silinmiştir. Tekrar başvurmak istersen yöneticilere yazabilirsin.`;
+      } else {
+        msg = `✅ İstifan kabul edildi. Teşekkürler!`;
+      }
+      return interaction.editReply({ content: msg });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_staff_warn') {
+    const targetUserId = interaction.fields.getTextInputValue('warn_user_id');
+    const reason = interaction.fields.getTextInputValue('warn_reason');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { addDisciplinaryWarn } = require('../services/staffDutyService');
+      const result = await addDisciplinaryWarn(targetUserId, reason, interaction.user.tag);
+      if (!result.success) return interaction.editReply({ content: `❌ Başarısız: ${result.error}` });
+
+      try {
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (targetUser) {
+          const { EmbedBuilder } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("⚠️ Resmi Sicil Uyarısı / Disiplin Cezası")
+            .setDescription(
+              `Merhaba <@${targetUserId}>,\n\n` +
+              `Yönetim tarafından sicilinize resmi bir **disiplin uyarısı** işlenmiştir.\n\n` +
+              `📝 **Gerekçe:** ${reason}\n` +
+              `🛡️ **Uyarıyı Veren:** ${interaction.user.toString()}\n` +
+              `📊 **Yeni Performans KPI Puanınız:** \`${result.newKpi}/100\`\n\n` +
+              `*Disiplin uyarıları terfilerinizi olumsuz etkileyeceği gibi, tekrarı halinde kadro dışı bırakılma sebebi teşkil eder.*`
+            )
+            .setFooter({ text: "Eko Yıldız • Disiplin ve Sicil Kurulu" })
+            .setTimestamp();
+          await targetUser.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (_) {}
+
+      return interaction.editReply({ content: `✅ **Disiplin Uyarısı Eklendi!**\n👤 **Hedef Yetkili:** <@${targetUserId}>\n📝 **Gerekçe:** \`${reason}\`\n📊 **Yeni Performans KPI:** \`${result.newKpi}/100\`` });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_staff_commend') {
+    const targetUserId = interaction.fields.getTextInputValue('commend_user_id');
+    const reason = interaction.fields.getTextInputValue('commend_reason');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { addCommendation } = require('../services/staffDutyService');
+      const result = await addCommendation(targetUserId, reason, interaction.user.tag);
+      if (!result.success) return interaction.editReply({ content: `❌ Başarısız: ${result.error}` });
+
+      try {
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (targetUser) {
+          const { EmbedBuilder } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle("💚 Resmi Takdir / Teşekkür Belgesi")
+            .setDescription(
+              `Merhaba <@${targetUserId}>,\n\n` +
+              `Sunucumuza yapmış olduğunuz özverili katkılar ve üstün başarılarınızdan dolayı yönetim tarafından sicilinize resmi bir **Takdir/Teşekkür Belgesi** işlenmiştir! 🎉\n\n` +
+              `📝 **Gerekçe:** ${reason}\n` +
+              `🛡️ **Takdiri Veren:** ${interaction.user.toString()}\n` +
+              `📊 **Yeni Performans KPI Puanınız:** \`${result.newKpi}/100\`\n\n` +
+              `*Tebrik eder, başarılarınızın devamını dileriz!*`
+            )
+            .setFooter({ text: "Eko Yıldız • Personel Teşvik Kurulu" })
+            .setTimestamp();
+          await targetUser.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (_) {}
+
+      return interaction.editReply({ content: `✅ **Takdir/Teşekkür Belgesi Eklendi!**\n👤 **Hedef Yetkili:** <@${targetUserId}>\n📝 **Gerekçe:** \`${reason}\`\n📊 **Yeni Performans KPI:** \`${result.newKpi}/100\`` });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_staff_sicil') {
+    const targetUserId = interaction.fields.getTextInputValue('sicil_user_id');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: targetUserId });
+      if (!p) return interaction.editReply({ content: '❌ Belirtilen kullanıcı personel sisteminde kayıtlı değil.' });
+
+      const { calculateKpi, getKpiGrade } = require('../services/staffDutyService');
+      const kpiScore = calculateKpi(p);
+      const kpiGrade = getKpiGrade(kpiScore);
+
+      const warns = p.disciplinary?.warns || [];
+      const comms = p.disciplinary?.commendations || [];
+
+      let dutyText = '';
+      if (p.duty?.isActive && p.duty.startedAt) {
+        const elapsedMins = Math.floor((Date.now() - new Date(p.duty.startedAt).getTime()) / 1000 / 60);
+        const elapsedHrs = Math.floor(elapsedMins / 60);
+        const elapsedRemainingMins = elapsedMins % 60;
+        dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n🎙️ **Ses:** ${p.duty.sessionVoiceMinutes || 0} dk | 🎫 **Bilet:** ${p.duty.sessionTicketsSolved || 0} | 🛡️ **Mod:** ${p.duty.sessionModerationActions || 0}\n`;
+      } else {
+        dutyText += `🔴 **Nöbet Durumu:** 💤 Serbest Zaman\n`;
+      }
+
+      let commsText = comms.length > 0
+        ? comms.map((c, i) => `**${i + 1}.** — Gerekçe: \`${c.reason}\` (Veren: *${c.issuedBy}*)`).join('\n')
+        : '*Teşekkür veya takdir belgesi bulunmuyor.*';
+
+      let warnsText = warns.length > 0
+        ? warns.map((w, i) => `**${i + 1}.** — Gerekçe: \`${w.reason}\` (Veren: *${w.issuedBy}*)`).join('\n')
+        : '*Disiplin uyarısı bulunmuyor.*';
+
+      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      const nameStr = targetUser ? targetUser.tag : targetUserId;
+
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor(kpiGrade.color)
+        .setTitle(`📋 Personel Sicil ve Performans Raporu`)
+        .setDescription(`**Personel:** <@${targetUserId}> (\`${nameStr}\`)\n**Seviye/Rütbe:** Seviye ${p.level}`)
+        .addFields(
+          { name: '📊 Performans Puanı (KPI)', value: `\`${kpiScore}/100\`\n**Değerlendirme:** ${kpiGrade.label}`, inline: false },
+          { name: '⚡ Nöbet Bilgileri', value: dutyText, inline: false },
+          { name: '💚 Takdir ve Teşekkür Belgeleri', value: commsText, inline: false },
+          { name: '⚠️ Resmi Disiplin Uyarıları', value: warnsText, inline: false }
+        )
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_staff_dismiss') {
+    const targetUserId = interaction.fields.getTextInputValue('dismiss_user_id');
+    const reason = interaction.fields.getTextInputValue('dismiss_reason');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { dismissStaff } = require('../services/staffSystem');
+      const result = await dismissStaff(targetUserId, reason, interaction.user.id, interaction.client);
+      if (!result.success) return interaction.editReply({ content: `❌ Başarısız: ${result.message}` });
+      return interaction.editReply({ content: `✅ **Personel Başarıyla Kovuldu!**\n👤 **Kullanıcı:** <@${targetUserId}>\n📝 **Neden:** \`${reason}\`` });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_staff_set_stats') {
+    const targetUserId = interaction.fields.getTextInputValue('stats_user_id');
+    const parameter = interaction.fields.getTextInputValue('stats_parameter').trim().toLowerCase();
+    const valStr = interaction.fields.getTextInputValue('stats_value');
+    const val = parseInt(valStr, 10);
+
+    if (isNaN(val) || val < 0) {
+      return interaction.reply({ content: '❌ Girdiğiniz yeni değer geçerli bir pozitif tam sayı olmalıdır!', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: targetUserId });
+      if (!p) return interaction.editReply({ content: '❌ Belirtilen kullanıcı personel sisteminde kayıtlı değil.' });
+
+      if (!p.stats) p.stats = {};
+
+      let oldValue = '';
+      let newValue = '';
+      
+      if (parameter === 'tickets') {
+        oldValue = `${p.stats.ticketsSolved || 0} bilet`;
+        p.stats.ticketsSolved = val;
+        newValue = `${val} bilet`;
+      } else if (parameter === 'messages') {
+        oldValue = `${p.stats.chatMessages || 0} mesaj`;
+        p.stats.chatMessages = val;
+        newValue = `${val} mesaj`;
+      } else if (parameter === 'voice') {
+        oldValue = `${p.stats.totalVoiceMinutes || 0} dakika`;
+        p.stats.totalVoiceMinutes = val;
+        newValue = `${val} dakika`;
+      } else {
+        return interaction.editReply({ content: '❌ Geçersiz parametre! Sadece `tickets`, `messages` veya `voice` girebilirsiniz.' });
+      }
+
+      await p.save();
+      return interaction.editReply({ content: `✅ **Personel İstatistikleri Güncellendi!**\n👤 **Kullanıcı:** <@${targetUserId}>\n⚙️ **Değişiklik:** \`${parameter}\`: \`${oldValue}\` ➔ \`${newValue}\`` });
+    } catch (err) {
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   if (interaction.customId === 'modal_inactivity_support') {
     const { handleInactivitySupportModal } = require('../services/staffSystem');
     return handleInactivitySupportModal(interaction, interaction.client);

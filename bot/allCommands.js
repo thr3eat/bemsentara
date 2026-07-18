@@ -841,6 +841,11 @@ const staffCommands = [
     .addUserOption((o) =>
       o.setName("personel").setDescription("Sorgulanacak personel").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("mod-anasayfa")
+    .setDescription("👤 Moderatör Anasayfası / Görev İlerleme Takip Panelini açar")
+    .setDMPermission(true),
 ];
 
 const allCommands = [

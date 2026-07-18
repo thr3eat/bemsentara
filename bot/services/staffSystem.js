@@ -800,7 +800,7 @@ async function addEkoCoin(progress, amount, client, reason) {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('talk_to_coach')
-          .setLabel('💬 Koçla Konuş')
+          .setLabel('👤 Mod Anasayfası')
           .setStyle(ButtonStyle.Primary)
       );
 
@@ -2010,8 +2010,8 @@ async function getMorningBriefingComponents(progress) {
       .setLabel('⚡ Ek Mesai Yap')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId('talk_to_coach')
-      .setLabel('💬 Koç AI ile Konuş')
+      .setCustomId('staff_daily_report_btn')
+      .setLabel('✍️ Günlük Rapor Gir')
       .setStyle(ButtonStyle.Primary)
   );
 
@@ -2090,6 +2090,35 @@ async function getMorningBriefingComponents(progress) {
     .addOptions(options);
   const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
 
+  // Row 2: Kişisel İşlemler Seçim Menüsü
+  const personalSelect = new StringSelectMenuBuilder()
+    .setCustomId('staff_personal_actions')
+    .setPlaceholder('⚙️ Kişisel Yetkili İşlemleri')
+    .addOptions([
+      { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
+      { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
+      { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
+      { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
+      { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
+    ]);
+  const rowPersonal = new ActionRowBuilder().addComponents(personalSelect);
+
+  // Row 3: Yönetim & Sicil İşlemleri (Sadece Level >= 3 için)
+  let rowManager = null;
+  if (progress.level >= 3) {
+    const managerSelect = new StringSelectMenuBuilder()
+      .setCustomId('staff_manager_actions')
+      .setPlaceholder('🛡️ Yönetim & Sicil İşlemleri')
+      .addOptions([
+        { label: '⚠️ Disiplin Uyarısı Ver', description: 'Bir yetkiliye resmi uyarısını verin (KPI -10).', value: 'staff_action_warn', emoji: '⚠️' },
+        { label: '💚 Teşekkür / Takdir Belgesi Ver', description: 'Bir yetkiliye takdirini verin (KPI +5).', value: 'staff_action_commend', emoji: '💚' },
+        { label: '📋 Personel Sicil Raporu Sorgula', description: 'Bir yetkilinin sicilini ve performansını sorgulayın.', value: 'staff_action_sicil', emoji: '📋' },
+        { label: '🚪 Yetkili İlişiğini Kes (Kov)', description: 'Bir yetkiliyi kadrodan ihraç edin.', value: 'staff_action_dismiss', emoji: '🚪' },
+        { label: '📈 Yetkili İstatistiklerini Düzenle', description: 'Yetkilinin bilet, ses, mesaj değerlerini ayarlayın.', value: 'staff_action_set_stats', emoji: '📈' }
+      ]);
+    rowManager = new ActionRowBuilder().addComponents(managerSelect);
+  }
+
   const isOnDuty = progress.duty?.isActive;
   const dutyBtn = new ButtonBuilder()
     .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
@@ -2108,7 +2137,11 @@ async function getMorningBriefingComponents(progress) {
     dutyBtn
   );
 
-  return [rowButtons, rowSelect, rowSettings];
+  const componentsList = [rowButtons, rowSelect, rowPersonal];
+  if (rowManager) componentsList.push(rowManager);
+  componentsList.push(rowSettings);
+
+  return componentsList;
 }
 
 // ── Uyarı DM ──────────────────────────────────────────────────────────────

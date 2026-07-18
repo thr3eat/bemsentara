@@ -1097,10 +1097,26 @@ async function handleButtonInteraction(interaction) {
     return handlePanelButton(interaction);
   }
 
-  // ── Koç oturumu ─────────────────────────────────────────────────────────
+  // ── Mod Anasayfası (Erişim Butonu) ─────────────────────────────────────────
   if (customId === "talk_to_coach") {
-    const { startCoachSession } = require("../services/staffCoach");
-    return startCoachSession(interaction);
+    await interaction.deferReply({ ephemeral: true }).catch(async () => {
+      await interaction.deferUpdate().catch(() => {});
+    });
+    
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) {
+      return interaction.editReply({ content: "❌ Personel kaydınız bulunamadı." }).catch(() => {});
+    }
+
+    const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+    const embed = await generateMorningBriefingEmbed(p, interaction.client);
+    const components = await getMorningBriefingComponents(p);
+
+    await interaction.editReply({ embeds: [embed], components }).catch(async () => {
+      await interaction.followUp({ embeds: [embed], components, ephemeral: true }).catch(() => {});
+    });
+    return;
   }
 
   if (customId === "staff_accept_nightshift") {
@@ -1147,6 +1163,24 @@ async function handleButtonInteraction(interaction) {
 
     await interaction.editReply({ embeds: [embed], components }).catch(() => { });
     return;
+  }
+
+  // ── Günlük Rapor Gir butonu ────────────────────────────────────────────────
+  if (customId === "staff_daily_report_btn") {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_staff_daily_report')
+      .setTitle('✍️ Günlük Görev Raporu');
+
+    const input = new TextInputBuilder()
+      .setCustomId('report_content')
+      .setLabel('Bugün Yaptığınız Çalışmalar')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Örn: Bugün aktif şekilde bilet çözdüm, sesli odada nöbet tuttum ve sohbette selamlaşma görevlerimi tamamladım.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
   }
 
   // ── Görev İlerlemesini Güncelle butonu ────────────────────────────────────

@@ -85,12 +85,34 @@ const GENERAL_COMMANDS = new Set([
   // Staff management (V6.0)
   "staff-warn",
   "staff-commend",
-  "staff-sicil"
+  "staff-sicil",
+  "mod-anasayfa"
 ]);
 
 async function handleGeneralCommand(interaction) {
   if (!interaction.isChatInputCommand()) return null;
   const { commandName } = interaction;
+
+  // ── mod-anasayfa: Moderatör Anasayfası Gönderme Komutu ─────────────────────
+  if (commandName === "mod-anasayfa") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) {
+        return interaction.editReply({ content: "❌ Personel sisteminde kayıtlı bir profiliniz bulunamadı. Lütfen yöneticilere başvurun." });
+      }
+
+      const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+      const embed = await generateMorningBriefingEmbed(p, interaction.client);
+      const components = await getMorningBriefingComponents(p);
+
+      return interaction.editReply({ embeds: [embed], components });
+    } catch (err) {
+      console.error('[mod-anasayfa] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
 
   // ── staff-warn: Disiplin uyarısı verme komutu ────────────────────────────
   if (commandName === "staff-warn") {

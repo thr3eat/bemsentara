@@ -276,6 +276,218 @@ async function handleSelectInteraction(interaction) {
     return handlePanelSelect(interaction);
   }
 
+  // ── Kişisel İşlemler Seçim Menüsü ──────────────────────────────────────────
+  if (interaction.customId === 'staff_personal_actions') {
+    const action = interaction.values[0];
+    
+    if (action === 'staff_action_use_leave') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { useLeaveCredit } = require('../services/staffSystem');
+        const result = await useLeaveCredit(interaction.user.id);
+        if (!result.success) return interaction.editReply({ content: `❌ ${result.message}` });
+        return interaction.editReply({ content: `✅ **İzin krediniz kullanıldı!** Bugünü başarıyla pas geçtiniz (görevleriniz yapılmış sayıldı).\n📅 **Kalan İzin Krediniz:** ${result.creditsRemaining}` });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_leave_status') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { getLeaveStatus } = require('../services/staffSystem');
+        const status = await getLeaveStatus(interaction.user.id);
+        if (!status) return interaction.editReply({ content: "❌ İzin durumunuz çekilemedi veya sisteme kayıtlı değilsiniz." });
+
+        const embed = new EmbedBuilder()
+          .setColor(0x4ade80)
+          .setTitle(`📅 İzin Durumu — ${interaction.user.username}`)
+          .addFields(
+            { name: '🎟️ Birikmiş İzin Kredisi (Ticket Ödülü)', value: `**${status.totalCredits}** gün`, inline: false },
+            { name: '📅 Bu Ay Kullanılan İzin', value: `**${status.monthlyUsed}** gün`, inline: true },
+            { name: '📅 Bu Ay Kalan İzin', value: `**${status.monthlyRemaining}** gün`, inline: true },
+            { name: '📅 Bu Hafta Kullanılan İzin', value: `**${status.weeklyUsed}** / 1 gün`, inline: false },
+            { name: '📋 İzinli Günler', value: status.usedDays.length > 0 ? status.usedDays.map(d => `• ${d}`).join('\n') : 'Henüz izin kullanılmamış.', inline: false }
+          )
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_resign') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_resign')
+        .setTitle('🚪 İstifa Başvurusu');
+
+      const input = new TextInputBuilder()
+        .setCustomId('resign_reason')
+        .setLabel('İstifa Gerekçeniz')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Lütfen istifa etme nedeninizi detaylı şekilde yazınız.')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_retire') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { retireFromStaff } = require('../services/staffSystem');
+        const result = await retireFromStaff(interaction.user.id, interaction.client);
+        if (!result.success) return interaction.editReply({ content: `❌ ${result.message}` });
+        return interaction.editReply({ content: `🏅 **Tebrikler!** ${result.totalDays} gün aktif hizmetin sonrasında emekli oldun! Son görevin: ${result.levelName}` });
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_talk_to_coach') {
+      const { startCoachSession } = require('../services/staffCoach');
+      return startCoachSession(interaction);
+    }
+  }
+
+  // ── Yetkili Yönetim İşlemleri Seçim Menüsü ─────────────────────────────────
+  if (interaction.customId === 'staff_manager_actions') {
+    const action = interaction.values[0];
+
+    const { PermissionFlagsBits } = require('discord.js');
+    if (!interaction.member?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: '❌ Bu menüyü kullanabilmek için üyeleri denetleme yetkiniz olmalıdır.', ephemeral: true });
+    }
+
+    if (action === 'staff_action_warn') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_warn')
+        .setTitle('⚠️ Disiplin Uyarısı Ver');
+
+      const userInput = new TextInputBuilder()
+        .setCustomId('warn_user_id')
+        .setLabel('Kullanıcı ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Uyarılacak yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      const reasonInput = new TextInputBuilder()
+        .setCustomId('warn_reason')
+        .setLabel('Uyarı Gerekçesi')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Lütfen uyarı nedenini yazınız.')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(userInput),
+        new ActionRowBuilder().addComponents(reasonInput)
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_commend') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_commend')
+        .setTitle('💚 Teşekkür / Takdir Belgesi Ver');
+
+      const userInput = new TextInputBuilder()
+        .setCustomId('commend_user_id')
+        .setLabel('Kullanıcı ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Takdir edilecek yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      const reasonInput = new TextInputBuilder()
+        .setCustomId('commend_reason')
+        .setLabel('Takdir Gerekçesi')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Lütfen teşekkür nedenini yazınız.')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(userInput),
+        new ActionRowBuilder().addComponents(reasonInput)
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_sicil') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_sicil')
+        .setTitle('📋 Personel Sicili Sorgula');
+
+      const userInput = new TextInputBuilder()
+        .setCustomId('sicil_user_id')
+        .setLabel('Kullanıcı ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Sorgulanacak yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(userInput));
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_dismiss') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_dismiss')
+        .setTitle('🚪 Personel İlişiğini Kes (Kov)');
+
+      const userInput = new TextInputBuilder()
+        .setCustomId('dismiss_user_id')
+        .setLabel('Kullanıcı ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('İlişiği kesilecek yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      const reasonInput = new TextInputBuilder()
+        .setCustomId('dismiss_reason')
+        .setLabel('Kovma / Çıkarma Gerekçesi')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Lütfen çıkarma gerekçesini yazınız.')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(userInput),
+        new ActionRowBuilder().addComponents(reasonInput)
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === 'staff_action_set_stats') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_staff_set_stats')
+        .setTitle('📈 Yetkili İstatistiklerini Ayarla');
+
+      const userInput = new TextInputBuilder()
+        .setCustomId('stats_user_id')
+        .setLabel('Kullanıcı ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Düzenlenecek yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      const paramInput = new TextInputBuilder()
+        .setCustomId('stats_parameter')
+        .setLabel('Parametre (tickets / messages / voice)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Girebileceğiniz değer: tickets veya messages veya voice')
+        .setRequired(true);
+
+      const valInput = new TextInputBuilder()
+        .setCustomId('stats_value')
+        .setLabel('Yeni Sayısal Değer')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Yeni değer (örn: 50)')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(userInput),
+        new ActionRowBuilder().addComponents(paramInput),
+        new ActionRowBuilder().addComponents(valInput)
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+  }
+
   if (interaction.customId === "select_daily_task") {
     const selectedTask = interaction.values[0];
     const { CHOSEN_TASKS, checkChosenTaskCompletion, getOrCreate } = require("../services/staffSystem");
