@@ -3243,7 +3243,7 @@ function initializeDiscordHandlers(client) {
       
       // 1. Karantina (Self-Shutdown) Kontrolü
       if (global.SPAM_STOPPED) {
-        const isLevel4 = p && p.level >= 4;
+        const isLevel4 = p && p.level >= 6;
         if (!isLevel4) {
           if (interaction.isRepliable()) {
             return interaction.reply({

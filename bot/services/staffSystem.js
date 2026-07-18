@@ -2449,7 +2449,7 @@ async function getMorningBriefingComponents(progress) {
       { label: '🗺️ Izgara Kontrol Masası (Grid Control)', description: 'Aktif sektör bölgelerini denetleyin.', value: 'staff_action_grid_control', emoji: '🗺️' }
     ];
 
-    if (progress.isInspector || progress.level >= 4) {
+    if (progress.isInspector || progress.level >= 6) {
       personalOptions.push({ label: '🕵️‍♂️ İç Denetim Masası (Internal Affairs)', description: 'Sızma/Ghosting taraması yapın ve suistimal raporları hazırlayın.', value: 'staff_action_internal_affairs', emoji: '🕵️‍♂️' });
     }
 
@@ -2480,7 +2480,7 @@ async function getMorningBriefingComponents(progress) {
       { label: '⚙️ Global Risk & Karantina Kontrolü', description: 'Self-Shutdown karantinasını açın/kapatın veya API limitlerini yavaşlatın.', value: 'staff_action_risk_compliance', emoji: '⚙️' }
     ];
 
-    if (progress.level >= 4) {
+    if (progress.level >= 6) {
       options.push({ label: '📡 Taktik Operasyon Masası', description: 'Canlı ekip durumunu ve komuta merkezini yönetin.', value: 'staff_action_tactical_desk', emoji: '📡' });
     }
 

@@ -582,9 +582,9 @@ async function handleSelectInteraction(interaction) {
         const p = await StaffProgress.findOne({ userId: interaction.user.id });
         if (!p) return interaction.editReply({ content: '❌ Yetkili kaydınız bulunamadı.' });
 
-        const isAuthorized = p.isInspector || p.level >= 4;
+        const isAuthorized = p.isInspector || p.level >= 6;
         if (!isAuthorized) {
-          return interaction.editReply({ content: '❌ Bu masaya yalnızca atanmış Müfettişler ve Sekreter üstü yetkililer erişebilir!' });
+          return interaction.editReply({ content: '❌ Bu masaya yalnızca atanmış Müfettişler ve En Yüksek Rütbe (Level 6) yetkililer erişebilir!' });
         }
 
         const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');

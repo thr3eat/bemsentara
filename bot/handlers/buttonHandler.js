@@ -1194,9 +1194,9 @@ async function handleButtonInteraction(interaction) {
   if (customId.startsWith("staff_resign_approve_") || customId.startsWith("staff_resign_reject_")) {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Bu işlemi gerçekleştirmek için **Üst Yönetim** yetkisine (Level >= 4) sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Bu işlemi gerçekleştirmek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     const isApprove = customId.startsWith("staff_resign_approve_");
@@ -1307,9 +1307,9 @@ async function handleButtonInteraction(interaction) {
   if (customId.startsWith("incident_inspect_") || customId.startsWith("incident_approve_") || customId.startsWith("incident_reject_")) {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Bu dosyayı incelemek veya onaylamak için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Bu dosyayı incelemek veya onaylamak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     const parts = customId.split("_");
@@ -1371,9 +1371,9 @@ async function handleButtonInteraction(interaction) {
   if (customId.startsWith("audit_inspect_")) {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Personel incelemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Personel incelemek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     const targetUserId = customId.replace("audit_inspect_", "");
@@ -1447,9 +1447,9 @@ async function handleButtonInteraction(interaction) {
   if (customId === "tactical_alarm_all") {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     await interaction.deferReply({ ephemeral: true });
@@ -1488,9 +1488,9 @@ async function handleButtonInteraction(interaction) {
   if (customId === "tactical_announce_leader") {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     await interaction.deferReply({ ephemeral: true });
@@ -1534,9 +1534,9 @@ async function handleButtonInteraction(interaction) {
   if (customId === "tactical_change_radio") {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isManager) {
-      return interaction.reply({ content: "❌ Bu işlemi başlatmak için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Bu işlemi başlatmak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
@@ -1981,11 +1981,11 @@ async function handleButtonInteraction(interaction) {
     const SignOffRequest = require("../../models/SignOffRequest");
 
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isLevel4 = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     const isLevel5 = (managerProgress && managerProgress.level >= 5) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
     if (customId.startsWith("signoff_1st_")) {
-      if (!isLevel4) return interaction.reply({ content: "❌ 1. Derece İmza yetkisi için **Sekreter** (Level >= 4) olmalısınız!", ephemeral: true });
+      if (!isLevel4) return interaction.reply({ content: "❌ 1. Derece İmza yetkisi için **En Yüksek Rütbe** (Level 6) olmalısınız!", ephemeral: true });
     } else {
       if (!isLevel5) return interaction.reply({ content: "❌ Bu işlem için **Genel Koordinatör** (Level >= 5) yetkisine sahip olmalısınız!", ephemeral: true });
     }
@@ -2254,9 +2254,9 @@ async function handleButtonInteraction(interaction) {
   if (customId.startsWith("probation_approve_") || customId.startsWith("probation_reject_")) {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isLevel4 = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
     if (!isLevel4) {
-      return interaction.reply({ content: "❌ İK denetim onayları için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ İK denetim onayları için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     await interaction.deferUpdate().catch(() => {});
@@ -2619,7 +2619,7 @@ async function handleButtonInteraction(interaction) {
 
       // Check if current actor has sufficient level
       const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-      const isLevel4 = (managerProgress && managerProgress.level >= 4) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
+      const isLevel4 = (managerProgress && managerProgress.level >= 6) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
 
       if (!isLevel4) {
         // Check if any higher-ranked person exists than target's level
@@ -2735,9 +2735,9 @@ async function handleButtonInteraction(interaction) {
   if (customId === "risk_toggle_karantina" || customId === "risk_toggle_api_speed" || customId === "risk_toggle_ohal") {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isLevel4 = (managerProgress && managerProgress.level >= 4) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
+    const isLevel4 = (managerProgress && managerProgress.level >= 6) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
     if (!isLevel4) {
-      return interaction.reply({ content: "❌ Global risk kontrol yetkisi için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+      return interaction.reply({ content: "❌ Global risk kontrol yetkisi için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
     }
 
     await interaction.deferUpdate().catch(() => {});
