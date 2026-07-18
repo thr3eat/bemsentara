@@ -295,7 +295,7 @@ async function handleDutyButton(interaction) {
       .setCustomId('handover_notes')
       .setLabel('Nöbet Devir Notları (Neler Yaşandı?)')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Örn: Spam yapan 2 kişiyi muteledim, destek biletlerinde reklam satın almak isteyen biri bekliyor, genel durum sakin.')
+      .setPlaceholder('Örn: Spam yapan 2 kişiyi muteledim, destek biletlerinde reklam yapan üyeyi takip ettim.')
       .setRequired(true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(input));
