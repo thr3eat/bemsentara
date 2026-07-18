@@ -433,31 +433,64 @@ async function handleSelectInteraction(interaction) {
     }
 
     if (action === 'staff_action_whistleblower') {
-      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-      const modal = new ModalBuilder()
-        .setCustomId('modal_whistle_submit')
-        .setTitle('🤫 Anonim İhbar Hattı (SHA-256)');
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const AnonymousReport = require('../../models/AnonymousReport');
+        const active = await AnonymousReport.findOne({ realUserId: interaction.user.id }).sort({ createdAt: -1 });
+        const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-      const subjectInput = new TextInputBuilder()
-        .setCustomId('whistle_subject')
-        .setLabel('İhbar Konusu')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Örn: Kural ihlali veya yetkili suistimali')
-        .setRequired(true);
+        if (active && active.threadId) {
+          // User already has an active report: show close button instead of submit modal
+          const embed = new (require('discord.js').EmbedBuilder)()
+            .setColor(0xe67e22)
+            .setTitle(`🤫 Aktif İhbarınız Bulundu — #${active.reportId}`)
+            .setDescription(`Siz zaten bir aktif ihbar raporu göndermişsiniz. Eğer artık bu raporu kapatmak istiyorsanız "İhbarını Kapat" butonuna basın.`)
+            .addFields(
+              { name: 'Konu', value: active.subject || '—', inline: true },
+              { name: 'Oluşturulma', value: active.createdAt ? new Date(active.createdAt).toLocaleString() : '—', inline: true }
+            )
+            .setTimestamp();
 
-      const detailsInput = new TextInputBuilder()
-        .setCustomId('whistle_details')
-        .setLabel('İhbar Detayları')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Lütfen ihbarınızın tüm detaylarını buraya yazınız. Kimliğiniz şifrelenecektir.')
-        .setRequired(true);
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`whistle_close_${active.reportId}`)
+              .setLabel('🗑️ İhbarını Kapat')
+              .setStyle(ButtonStyle.Danger)
+          );
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(subjectInput),
-        new ActionRowBuilder().addComponents(detailsInput)
-      );
+          return interaction.editReply({ embeds: [embed], components: [row] });
+        }
 
-      return interaction.showModal(modal).catch(() => {});
+        // No active report: show submit modal
+        const modal = new ModalBuilder()
+          .setCustomId('modal_whistle_submit')
+          .setTitle('🤫 Anonim İhbar Hattı (SHA-256)');
+
+        const subjectInput = new TextInputBuilder()
+          .setCustomId('whistle_subject')
+          .setLabel('İhbar Konusu')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Örn: Kural ihlali veya yetkili suistimali')
+          .setRequired(true);
+
+        const detailsInput = new TextInputBuilder()
+          .setCustomId('whistle_details')
+          .setLabel('İhbar Detayları')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Lütfen ihbarınızın tüm detaylarını buraya yazınız. Kimliğiniz şifrelenecektir.')
+          .setRequired(true);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(subjectInput),
+          new ActionRowBuilder().addComponents(detailsInput)
+        );
+
+        await interaction.editReply({ content: '🔐 İhbar formu açılıyor...' });
+        return interaction.showModal(modal).catch(() => {});
+      } catch (err) {
+        console.error('[Whistle-Action] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
     }
 
     if (action === 'staff_action_redacted_ops') {

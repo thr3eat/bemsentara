@@ -691,6 +691,38 @@ async function handlePanelButton(interaction) {
     });
   }
 
+  // Close whistleblower report (user-owned or admin)
+  if (customId.startsWith('whistle_close_')) {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const reportId = customId.replace('whistle_close_', '');
+      const AnonymousReport = require('../../models/AnonymousReport');
+      const rpt = await AnonymousReport.findOne({ reportId });
+      if (!rpt) {
+        return interaction.followUp({ content: '❌ İlgili ihbar raporu bulunamadı.', ephemeral: true }).catch(() => {});
+      }
+
+      const auth = await getAuth(interaction.member);
+      if (rpt.realUserId !== interaction.user.id && !auth.isAdmin) {
+        return interaction.followUp({ content: '❌ Bu raporu kapatmaya yetkiniz yok.', ephemeral: true }).catch(() => {});
+      }
+
+      // Notify thread if exists
+      if (rpt.threadId) {
+        const thread = await interaction.client.channels.fetch(rpt.threadId).catch(() => null);
+        if (thread && thread.isTextBased()) {
+          await thread.send({ content: `🗑️ Bu ihbar raporu **${interaction.user.tag}** veya yönetim tarafından kapatıldı. (Dosya: #${rpt.reportId})` }).catch(() => {});
+        }
+      }
+
+      await rpt.deleteOne().catch(() => {});
+      return interaction.followUp({ content: `✅ İhbarınız (#${reportId}) başarıyla kapatıldı.`, ephemeral: true }).catch(() => {});
+    } catch (err) {
+      console.error('[Whistle-Close] Hata:', err.message);
+      return interaction.followUp({ content: `❌ Hata: ${err.message}`, ephemeral: true }).catch(() => {});
+    }
+  }
+
   if (customId === "panel_emergency_call") {
     const allowedSpecial = ["1031620522406072350", "1492888195807969510"];
     if (!allowedSpecial.includes(interaction.user.id)) {
