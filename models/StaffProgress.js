@@ -158,7 +158,7 @@ const staffProgressSchema = new mongoose.Schema({
   postponeBlocked: { type: Boolean, default: false },
 
   // İstifa / Emeklilik / Kov
-  status: { type: String, default: 'active', enum: ['active', 'resigned', 'retired', 'dismissed'] },
+  status: { type: String, default: 'active', enum: ['active', 'resigned', 'retired', 'dismissed', 'resigning'] },
   resignedAt: { type: Date, default: null },
   resignReason: { type: String, default: null },
   retiredAt: { type: Date, default: null },
@@ -217,7 +217,28 @@ const staffProgressSchema = new mongoose.Schema({
   },
 
   // Konum Bilgisi (V6.1)
-  city: { type: String, default: '' }
+  city: { type: String, default: '' },
+
+  // Haftalık Maaş İstatistikleri (Maaş çekildiğinde sıfırlanır)
+  weeklyStats: {
+    voiceMinutes: { type: Number, default: 0 },
+    ticketsSolved: { type: Number, default: 0 },
+    moderationActions: { type: Number, default: 0 }
+  },
+
+  // Burnout & Zorunlu Sıcak Bölge İzni
+  burnoutLeaveUntil: { type: Date, default: null },
+
+  // PIP (Performans İyileştirme Planı) Süreci
+  pip: {
+    isActive: { type: Boolean, default: false },
+    signed: { type: Boolean, default: false },
+    startedAt: { type: Date, default: null },
+    consecutiveSuccessDays: { type: Number, default: 0 }
+  },
+
+  // 2FA Güvenlik Geçiş Süresi
+  securityClearanceUntil: { type: Date, default: null }
 }, { timestamps: true });
 
 const StaffProgress = mongoose.models.StaffProgress

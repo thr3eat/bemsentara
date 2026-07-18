@@ -1119,6 +1119,850 @@ async function handleButtonInteraction(interaction) {
     return;
   }
 
+  if (customId === "staff_claim_salary_transfer") {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.followUp({ content: '❌ Personel kaydınız bulunamadı.', ephemeral: true });
+
+      const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      if (p.lastSalaryClaimedAt && (Date.now() - new Date(p.lastSalaryClaimedAt).getTime() < ONE_WEEK_MS)) {
+        return interaction.followUp({ content: '❌ Bu hafta zaten maaş aldınız.', ephemeral: true });
+      }
+
+      const voiceMinutes = p.weeklyStats?.voiceMinutes || 0;
+      const ticketsSolved = p.weeklyStats?.ticketsSolved || 0;
+      const moderationActions = p.weeklyStats?.moderationActions || 0;
+      
+      const gross = (voiceMinutes * 1) + (ticketsSolved * 10) + (moderationActions * 5);
+      if (gross <= 0) {
+        return interaction.followUp({ content: '❌ Aktifliğiniz bulunmamaktadır.', ephemeral: true });
+      }
+
+      const lastClaimDate = p.lastSalaryClaimedAt || new Date(0);
+      const warnsThisWeek = p.disciplinary?.warns?.filter(w => {
+        const wDate = w.date ? new Date(w.date) : (w.createdAt ? new Date(w.createdAt) : null);
+        return wDate && wDate > lastClaimDate;
+      }) || [];
+      const hasWarning = warnsThisWeek.length > 0;
+      const disciplinaryDeduction = hasWarning ? Math.floor(gross * 0.15) : 0;
+      const taxDeduction = Math.floor(gross * 0.10);
+      const netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
+
+      p.gamification = p.gamification || {};
+      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + netPay;
+      p.lastSalaryClaimedAt = new Date();
+      
+      // Reset weekly statistics
+      p.weeklyStats = { voiceMinutes: 0, ticketsSolved: 0, moderationActions: 0 };
+      await p.save();
+
+      const successEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('✅ Ödeme Başarıyla Tamamlandı!')
+        .setDescription(
+          `Sayın <@${interaction.user.id}>,\n\n` +
+          `**Net Maaşınız (${netPay} TL)** başarıyla yetkili cüzdanınıza aktarılmıştır.\n\n` +
+          `💳 **Güncel Cüzdan Bakiyeniz:** \`${p.gamification.ecoCoins} TL\`\n` +
+          `*Haftalık aktiflik sayaçlarınız sıfırlanmıştır.*`
+        )
+        .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
+    } catch (err) {
+      console.error('[Salary-Transfer] Hata:', err.message);
+      await interaction.followUp({ content: `❌ İşlem sırasında bir hata oluştu: ${err.message}`, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId.startsWith("staff_resign_approve_") || customId.startsWith("staff_resign_reject_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Bu işlemi gerçekleştirmek için **Üst Yönetim** yetkisine (Level >= 4) sahip olmalısınız!", ephemeral: true });
+    }
+
+    const isApprove = customId.startsWith("staff_resign_approve_");
+    const targetUserId = customId.replace(isApprove ? "staff_resign_approve_" : "staff_resign_reject_", "");
+    
+    await interaction.deferUpdate().catch(() => {});
+
+    const p = await StaffProgress.findOne({ userId: targetUserId });
+    if (!p) {
+      return interaction.followUp({ content: "❌ İlgili personelin kaydı veritabanında bulunamadı.", ephemeral: true }).catch(() => {});
+    }
+
+    if (isApprove) {
+      const activeDays = p.stats?.activeDays || 0;
+      const hasSeverance = activeDays >= 60;
+      const severancePay = hasSeverance ? Math.floor((p.gamification?.totalPoints || 0) * 0.5 + (p.gamification?.currentXP || 0) * 0.2) : 0;
+      
+      const finalCoins = (p.gamification?.ecoCoins || 0) + severancePay;
+      if (finalCoins > 0) {
+        try {
+          const Economy = require("../../models/Economy");
+          const { saveStoreNow } = require("../../models/Store");
+          let eco = await Economy.findOne({ userId: targetUserId });
+          if (!eco) {
+            eco = new Economy({ userId: targetUserId });
+          }
+          eco.balance = (eco.balance || 0) + finalCoins;
+          eco.totalEarned = (eco.totalEarned || 0) + finalCoins;
+          await eco.save();
+          saveStoreNow();
+        } catch (ecoErr) {
+          console.error('[Resign-Approve] Wallet transfer error:', ecoErr.message);
+        }
+      }
+
+      const { resignFromStaff } = require("../services/staffSystem");
+      await resignFromStaff(targetUserId, p.resignReason || 'Mülakat Sonrası Onaylandı', interaction.client);
+
+      try {
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (targetUser) {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle("🤝 İstifanız Üst Yönetim Tarafından Onaylandı")
+            .setDescription(
+              `Merhaba <@${targetUserId}>,\n\n` +
+              `İstifa başvurunuz üst yönetim mülakatı sonrasında **onaylanmıştır**.\n\n` +
+              `**📊 BİLGİLER**\n` +
+              `• **Kıdem Tazminatı:** ${hasSeverance ? `${severancePay} TL` : 'Hak Edilmedi (<60 Gün)'}\n` +
+              `• **Cüzdana Aktarılan Toplam Tutar:** \`${finalCoins} TL\` (Maaş bakiyeniz + Tazminatınız genel cüzdanınıza aktarılmıştır.)\n` +
+              `• **Hizmet Süresi:** ${activeDays} gün\n\n` +
+              `Hizmetleriniz ve emekleriniz için teşekkür eder, bundan sonraki hayatınızda başarılar dileriz! 💚`
+            )
+            .setFooter({ text: "Eko Yıldız • Üst Yönetim Kurulu" })
+            .setTimestamp();
+          await targetUser.send({ embeds: [dmEmbed] }).catch(() => {});
+        }
+      } catch (dmErr) {
+        console.warn(`[Resign-Approve] DM send error to ${targetUserId}:`, dmErr.message);
+      }
+
+      const doneEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('✅ İstifa Başvurusu Mülakatı Onaylandı')
+        .setDescription(
+          `**Personel:** <@${targetUserId}>\n` +
+          `**Onaylayan Yönetici:** <@${interaction.user.id}>\n` +
+          `**Aktif Gün:** ${activeDays} gün\n` +
+          `**Tazminat Ödemesi:** ${hasSeverance ? `${severancePay} TL` : 'Yok'}\n` +
+          `**Cüzdana Aktarılan Toplam:** ${finalCoins} TL`
+        )
+        .setTimestamp();
+      await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+
+    } else {
+      p.status = 'active';
+      p.resignedAt = null;
+      p.resignReason = null;
+      await p.save();
+
+      try {
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+        if (targetUser) {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("❌ İstifa Talebiniz Görüşülmek Üzere Askıya Alındı")
+            .setDescription(
+              `Merhaba <@${targetUserId}>,\n\n` +
+              `İstifa talebiniz üst yönetim tarafından **reddedilmiş veya görüşülmek üzere askıya alınmıştır**.\n` +
+              `Görevinize aktif olarak iade edildiniz. Lütfen detaylar için üst yönetim ile iletişime geçiniz.`
+            )
+            .setFooter({ text: "Eko Yıldız • Üst Yönetim Kurulu" })
+            .setTimestamp();
+          await targetUser.send({ embeds: [dmEmbed] }).catch(() => {});
+        }
+      } catch (_) {}
+
+      const rejEmbed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('❌ İstifa Talebi Görüşülmek Üzere Reddedildi')
+        .setDescription(`**Personel:** <@${targetUserId}>\n**Reddeden/Görüşen Yönetici:** <@${interaction.user.id}>\n*Yetkili aktif göreve iade edildi.*`)
+        .setTimestamp();
+      await interaction.editReply({ embeds: [rejEmbed], components: [] }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId.startsWith("incident_inspect_") || customId.startsWith("incident_approve_") || customId.startsWith("incident_reject_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Bu dosyayı incelemek veya onaylamak için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    const parts = customId.split("_");
+    const action = parts[1]; // inspect, approve, reject
+    const caseId = parts[2];
+    const reporterId = parts[3];
+
+    if (action === "inspect") {
+      return interaction.reply({ content: `📂 **${caseId}** numaralı dosya şu anda yetkilimiz <@${interaction.user.id}> tarafından inceleniyor.`, ephemeral: false });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    if (action === "approve") {
+      const reporterProgress = await StaffProgress.findOne({ userId: reporterId });
+      if (reporterProgress) {
+        reporterProgress.gamification = reporterProgress.gamification || {};
+        reporterProgress.gamification.ecoCoins = (reporterProgress.gamification.ecoCoins || 0) + 50;
+        reporterProgress.gamification.currentXP = (reporterProgress.gamification.currentXP || 0) + 100;
+        await reporterProgress.save();
+
+        try {
+          const reporterUser = await interaction.client.users.fetch(reporterId).catch(() => null);
+          if (reporterUser) {
+            const reportEmbed = new EmbedBuilder()
+              .setColor(0x2ecc71)
+              .setTitle("⚖️ Vaka Raporunuz Onaylandı!")
+              .setDescription(
+                `Tebrikler Dedektif! **${caseId}** numaralı vaka raporunuz üst yönetim tarafından onaylandı.\n\n` +
+                `**🎁 KAZANILAN ÖDÜLLER:**\n` +
+                `• **+50 TL (EkoCoin)**\n` +
+                `• **+100 Elmas (💎)**`
+              )
+              .setTimestamp();
+            await reporterUser.send({ embeds: [reportEmbed] }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
+      const originalEmbed = interaction.message.embeds[0];
+      const doneEmbed = EmbedBuilder.from(originalEmbed)
+        .setColor(0x2ecc71)
+        .setTitle(`⚖️ Vaka Onaylandı (${caseId})`)
+        .setDescription(`**Onaylayan Koordinatör:** <@${interaction.user.id}>\n*Yetkiliye +50 TL ve +100 Elmas (💎) ödülü verildi.*`);
+
+      await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+    } else if (action === "reject") {
+      const originalEmbed = interaction.message.embeds[0];
+      const doneEmbed = EmbedBuilder.from(originalEmbed)
+        .setColor(0x95a5a6)
+        .setTitle(`❌ Vaka Kapatıldı - Yetersiz Delil (${caseId})`)
+        .setDescription(`**Kapatan Koordinatör:** <@${interaction.user.id}>\n*Delil yetersizliği veya geçersiz rapor nedeniyle dosya arşive kaldırıldı.*`);
+
+      await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId.startsWith("audit_inspect_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Personel incelemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    const targetUserId = customId.replace("audit_inspect_", "");
+    const targetProgress = await StaffProgress.findOne({ userId: targetUserId });
+    if (!targetProgress) {
+      return interaction.reply({ content: "❌ Personel kaydı bulunamadı.", ephemeral: true });
+    }
+
+    const { calculateKpi } = require("../services/staffDutyService");
+    const kpi = calculateKpi(targetProgress);
+
+    function drawBar(value, max) {
+      const percentage = Math.min(100, Math.max(0, Math.floor((value / max) * 100)));
+      const filledCount = Math.floor(percentage / 10);
+      const emptyCount = 10 - filledCount;
+      const bar = '█'.repeat(filledCount) + '░'.repeat(emptyCount);
+      return `\`[${bar}] %${percentage}\` (\`${value}/${max}\`)`;
+    }
+
+    const reportEmbed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle(`🔍 Personel Denetim Raporu (<@${targetUserId}>)`)
+      .setDescription("Seçilen yetkilinin genel aktiflik ve disiplin analiz dökümü aşağıdadır.")
+      .addFields(
+        { name: '🎫 Ticket Çözüm Skoru', value: drawBar(targetProgress.stats?.ticketsSolved || 0, 50), inline: false },
+        { name: '🎤 Ses Aktiflik Skoru', value: drawBar(targetProgress.stats?.totalVoiceMinutes || 0, 500), inline: false },
+        { name: '⚠️ Disiplin Skoru', value: drawBar(Math.max(0, 100 - (targetProgress.disciplinary?.warns?.length || 0) * 10), 100), inline: false },
+        { name: '📊 Genel KPI Puanı', value: drawBar(kpi, 100), inline: false }
+      )
+      .setFooter({ text: 'Eko Yıldız • Akıllı AI Denetim Servisi' })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [reportEmbed], ephemeral: true });
+  }
+
+  if (customId === "staff_use_coffee_break") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: "❌ Personel kaydınız bulunamadı." });
+
+      p.burnoutLeaveUntil = new Date(Date.now() + 12 * 60 * 60 * 1000);
+      await p.save();
+
+      if (p.duty?.isActive) {
+        const { endDuty } = require("../services/staffDutyService");
+        await endDuty(interaction, interaction.client, 'Burnout nedeniyle zorunlu kahve izni başlatıldı.').catch(() => {});
+      }
+
+      const replyEmbed = new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setTitle("☕ Zorunlu Kahve İzni Aktif Edildi")
+        .setDescription(
+          `Sayın <@${interaction.user.id}>,\n\n` +
+          `Aşırı yorgunluk (Burnout) durumunuz nedeniyle **12 saatlik zorunlu dinlenme izniniz** başlatılmıştır.\n\n` +
+          `Bu süre boyunca aktif görev yapamayacak, moderasyon araçlarını kullanamayacaksınız. ` +
+          `İstirahat bitiş süreniz: <t:${Math.floor(p.burnoutLeaveUntil.getTime() / 1000)}:F>`
+        )
+        .setFooter({ text: "Eko Yıldız • İnsan Kaynakları" })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [replyEmbed] }).catch(() => {});
+    } catch (err) {
+      console.error('[Coffee-Break] Hata:', err.message);
+      await interaction.editReply({ content: `❌ Hata: ${err.message}` }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId === "tactical_alarm_all") {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const activeStaff = await StaffProgress.find({ status: 'active' });
+      const idleStaff = activeStaff.filter(s => !s.duty?.isActive);
+      let sentCount = 0;
+
+      for (const s of idleStaff) {
+        try {
+          const user = await interaction.client.users.fetch(s.userId).catch(() => null);
+          if (user) {
+            const alarmEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("🚨 TAKTİK KOMUTA ACİL ALARMI")
+              .setDescription(
+                `Sayın Yetkili,\n\n` +
+                `Üst yönetim tarafından acil durum kapsamında **aktif nöbete çağrıldınız**!\n` +
+                `Lütfen en kısa sürede kontrol panelinizi açarak nöbetinizi başlatın.`
+              )
+              .setFooter({ text: 'Eko Yıldız • Komuta Merkezi' })
+              .setTimestamp();
+            await user.send({ embeds: [alarmEmbed] });
+            sentCount++;
+          }
+        } catch (_) {}
+      }
+
+      return interaction.editReply({ content: `🚨 **Telsiz çağrısı tamamlandı.** Toplam **${sentCount}** aktif olmayan yetkiliye acil nöbet çağrısı gönderildi.` });
+    } catch (err) {
+      console.error('[Tactical-Alarm] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "tactical_announce_leader") {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const leader = await StaffProgress.findOne({ status: 'active' }).sort({ 'gamification.currentXP': -1 });
+      if (!leader) {
+        return interaction.editReply({ content: "❌ Aktif personel bulunamadı." });
+      }
+
+      leader.gamification = leader.gamification || {};
+      leader.gamification.ecoCoins = (leader.gamification.ecoCoins || 0) + 100;
+      await leader.save();
+
+      const leaderEmbed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle('🏆 HAFTANIN LİDER YETKİLİSİ')
+        .setDescription(
+          `Haftalık üstün performansı ve gayretleriyle **Haftanın Lider Yetkilisi** seçilen personelimiz ilan edilmiştir!\n\n` +
+          `👤 **Lider Yetkili:** <@${leader.userId}>\n` +
+          `✨ **Mevcut Elmas Puanı:** \`${leader.gamification?.currentXP || 0} Elmas\`\n` +
+          `🎁 **Kazanılan Hak Ediş:** **+100 TL (EkoCoin)**\n\n` +
+          `Örnek duruşu ve üstün gayretleri için kendisini tebrik eder, başarılarının devamını dileriz! 💚`
+        )
+        .setFooter({ text: 'Eko Yıldız • Üst Yönetim Kurulu' })
+        .setTimestamp();
+
+      const { CHANNELS } = require("../services/staffAutomation");
+      const adminLogChanId = CHANNELS.TERFI_LOG;
+      const adminLogChan = await interaction.client.channels.fetch(adminLogChanId).catch(() => null);
+      if (adminLogChan && adminLogChan.isTextBased()) {
+        await adminLogChan.send({ embeds: [leaderEmbed] });
+      }
+
+      return interaction.editReply({ content: `🏆 **Haftanın lideri ilan edildi:** <@${leader.userId}> yetkilisine +100 TL ödülü teslim edildi.` });
+    } catch (err) {
+      console.error('[Tactical-Leader] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === "tactical_change_radio") {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isManager = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isManager) {
+      return interaction.reply({ content: "❌ Bu işlemi başlatmak için **Üst Yönetim** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId('modal_tactical_change_radio')
+      .setTitle('📋 Telsiz Frekansı Değiştir');
+
+    const input = new TextInputBuilder()
+      .setCustomId('radio_freq')
+      .setLabel('Yeni Telsiz Frekansı')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Örn: 145.500 MHz')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId.startsWith("staff_2fa_")) {
+    const parts = customId.split("_");
+    const clickedCode = parts[2];
+    const correctCode = parts[3];
+    const targetUserId = parts[4];
+
+    if (interaction.user.id !== targetUserId) {
+      return interaction.reply({ content: "❌ Bu doğrulama ekranı size ait değildir.", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: targetUserId });
+    if (!p) return;
+
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const disabledRows = [];
+    if (interaction.message.components.length > 0) {
+      const row = new ActionRowBuilder();
+      interaction.message.components[0].components.forEach(btn => {
+        const disabledBtn = ButtonBuilder.from(btn).setDisabled(true);
+        if (btn.customId === customId) {
+          disabledBtn.setStyle(clickedCode === correctCode ? ButtonStyle.Success : ButtonStyle.Danger);
+        }
+        row.addComponents(disabledBtn);
+      });
+      disabledRows.push(row);
+    }
+
+    if (clickedCode === correctCode) {
+      p.securityClearanceUntil = new Date(Date.now() + 5 * 60 * 1000); // 5 mins clearance
+      await p.save();
+
+      const successEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle("✅ GÜVENLİK GEÇİŞİ ONAYLANDI")
+        .setDescription(
+          `Erişim yetkiniz başarıyla **onaylandı**.\n\n` +
+          `Lütfen sunucu kanalındaki menüden yapmak istediğiniz işlemi **5 dakika içinde** tekrar seçerek gerçekleştiriniz.`
+        )
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [successEmbed], components: disabledRows }).catch(() => {});
+    } else {
+      // Reduce KPI by -5
+      const { calculateKpi } = require("../services/staffDutyService");
+      p.warnings = p.warnings || { count: 0 };
+      p.warnings.count = (p.warnings.count || 0) + 1; // treating as a warning equivalent, or we can just subtract KPI directly by modifying warnings.count or adding disciplinary warning!
+      // Let's add a disciplinary warning or warning increment to deduct KPI
+      // Or we can deduct from warnings count. Let's add an official warning:
+      p.disciplinary = p.disciplinary || { warns: [], commendations: [] };
+      p.disciplinary.warns.push({
+        date: new Date(),
+        reason: "İki Faktörlü Personel Doğrulamasında Yanlış Koda Tıklama (Güvenlik İhlali Teşebbüsü)",
+        issuedBy: "Sistem Otomasyonu (2FA)"
+      });
+      await p.save();
+
+      const failEmbed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle("🚨 ERİŞİM REDDEDİLDİ - GÜVENLİK İHLALİ")
+        .setDescription(
+          `Doğrulama kodu hatalı! Güvenlik ihlali teşebbüsü tespit edildi.\n\n` +
+          `• **Uygulanan Ceza:** Sicilinize Disiplin Uyarısı işlendi (-10 KPI).\n` +
+          `• **Güvenlik Durumu:** Olay üst yönetim loglarına raporlanmıştır.`
+        )
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [failEmbed], components: disabledRows }).catch(() => {});
+
+      // Log security incident to CEZA_LOG
+      try {
+        const { CHANNELS } = require("../services/staffAutomation");
+        const adminLogChanId = CHANNELS.CEZA_LOG;
+        const adminLogChan = await interaction.client.channels.fetch(adminLogChanId).catch(() => null);
+        if (adminLogChan && adminLogChan.isTextBased()) {
+          const logEmbed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("🚨 GÜVENLİK GEÇİŞİ İHLAL RAPORU")
+            .setDescription(`👤 <@${targetUserId}> adlı yetkili 2FA doğrulaması sırasında yanlış koda tıkladı.`)
+            .addFields(
+              { name: '👤 Yetkili', value: `<@${targetUserId}> (${targetUserId})`, inline: true },
+              { name: '🔒 Tıklanan Kod', value: clickedCode, inline: true },
+              { name: '🔑 Beklenen Kod', value: correctCode, inline: true },
+              { name: '🔨 Ceza', value: 'Sicil Disiplin Uyarısı (-10 KPI)', inline: false }
+            )
+            .setTimestamp();
+          await adminLogChan.send({ embeds: [logEmbed] });
+        }
+      } catch (logErr) {
+        console.error('[Staff-2FA] Log error:', logErr.message);
+      }
+    }
+    return;
+  }
+
+  if (customId === "staff_pip_sign") {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || !p.pip?.isActive) {
+        return interaction.followUp({ content: "❌ Aktif bir PIP kontratınız bulunmamaktadır.", ephemeral: true }).catch(() => {});
+      }
+
+      p.pip.signed = true;
+      p.pip.startedAt = new Date();
+      p.pip.consecutiveSuccessDays = 0;
+      await p.save();
+
+      const signEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle("📋 PIP Kontratı İmzalandı ve Başlatıldı")
+        .setDescription(
+          `Sayın Yetkili,\n\n` +
+          `**Performans İyileştirme Planı (PIP)** resmi olarak başlamıştır.\n\n` +
+          `• **Hedef:** 3 gün boyunca günlük hedeflerinizin **2 katını** tamamlayın.\n` +
+          `• **Ödül:** Eski rütbe ve yetkileriniz geri verilecek, sicil temizlenecektir.\n` +
+          `• **Süreç Durumu:** 1. Gün aktif hedefleri panelinize yüklenmiştir.`
+        )
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [signEmbed], components: [] }).catch(() => {});
+    } catch (err) {
+      console.error('[PIP-Sign] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId === "staff_pip_status") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p || !p.pip?.isActive) {
+        return interaction.editReply({ content: "❌ Aktif bir PIP kaydınız bulunmuyor." });
+      }
+
+      const statusEmbed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle("📊 PIP İlerleme Raporu")
+        .setDescription(
+          `**Başlangıç Tarihi:** <t:${Math.floor(new Date(p.pip.startedAt).getTime() / 1000)}:F>\n` +
+          `**Başarılı Gün Streak:** \`${p.pip.consecutiveSuccessDays || 0} / 3 gün\`\n\n` +
+          `*Rütbe tenzilatını engellemek için kalan günleri de başarıyla tamamlamalısınız. Hedefleriniz günlük 2 katıdır.*`
+        )
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [statusEmbed] }).catch(() => {});
+    } catch (err) {
+      console.error('[PIP-Status] Hata:', err.message);
+      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+    return;
+  }
+
+  if (customId === "staff_unit_logistics_manage") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffUnit = require("../../models/StaffUnit");
+      const UnitBudget = require("../../models/UnitBudget");
+      const userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
+      
+      if (!userUnit || !userUnit.unitName || userUnit.rank !== 3) {
+        return interaction.editReply({ content: "❌ Bu paneli görüntüleme yetkiniz yoktur. Sadece Birim Liderleri lojistiği yönetebilir." });
+      }
+
+      let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+      if (!ub) {
+        ub = new UnitBudget({ unitName: userUnit.unitName });
+        await ub.save();
+      }
+
+      const logisticsEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle(`📦 Birim Lojistik Masası (${userUnit.unitName})`)
+        .setDescription(
+          `Biriminizin ortak kaynak havuzu aşağıda listelenmiştir. Lider olarak prim dağıtabilir, reklam satın alabilir veya ekstra izin kredisi fonlayabilirsiniz.\n\n` +
+          `💰 **Ortak Birim Bütçesi:** \`${ub.budget} TL\`\n` +
+          `💎 **Ortak Birim Elması:** \`${ub.diamonds} 💎\``
+        )
+        .setFooter({ text: 'Eko Yıldız • Birim Lojistiği' })
+        .setTimestamp();
+
+      const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('unit_logistics_bonus_trigger')
+          .setLabel('💸 Prim Dağıt')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('unit_logistics_ad_trigger')
+          .setLabel('💎 Birim Reklamı Al (500 💎)')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('unit_logistics_leave_trigger')
+          .setLabel('🎫 İzin Kredisi Fonla (200 TL)')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await interaction.editReply({ embeds: [logisticsEmbed], components: [row] }).catch(() => {});
+    } catch (err) {
+      console.error('[Unit-Logistics] Hata:', err.message);
+      await interaction.editReply({ content: `❌ Hata: ${err.message}` }).catch(() => {});
+    }
+    return;
+  }
+
+  if (customId === "unit_logistics_bonus_trigger" || customId === "unit_logistics_leave_trigger") {
+    const StaffUnit = require("../../models/StaffUnit");
+    const userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
+    if (!userUnit || userUnit.rank !== 3) {
+      return interaction.reply({ content: "❌ Birim Lideri değilsiniz.", ephemeral: true });
+    }
+
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    if (customId === "unit_logistics_bonus_trigger") {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_unit_logistics_bonus')
+        .setTitle('💸 Prim Dağıtım Formu');
+
+      const targetInput = new TextInputBuilder()
+        .setCustomId('bonus_target_id')
+        .setLabel('Prim Verilecek Yetkili ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      const amountInput = new TextInputBuilder()
+        .setCustomId('bonus_amount')
+        .setLabel('Prim Miktarı (TL)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Örn: 100')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(targetInput),
+        new ActionRowBuilder().addComponents(amountInput)
+      );
+      return interaction.showModal(modal).catch(() => {});
+    } else {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_unit_logistics_leave')
+        .setTitle('🎫 İzin Kredisi Fonlama Masası');
+
+      const targetInput = new TextInputBuilder()
+        .setCustomId('leave_target_id')
+        .setLabel('Kredi Tanımlanacak Yetkili ID')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Yetkilinin Discord ID\'si')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(targetInput));
+      return interaction.showModal(modal).catch(() => {});
+    }
+  }
+
+  if (customId === "unit_logistics_ad_trigger") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffUnit = require("../../models/StaffUnit");
+      const UnitBudget = require("../../models/UnitBudget");
+      const userUnit = await StaffUnit.findOne({ userId: interaction.user.id });
+      if (!userUnit || userUnit.rank !== 3) {
+        return interaction.editReply({ content: "❌ Birim Lideri değilsiniz." });
+      }
+
+      const ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+      if (!ub || ub.diamonds < 500) {
+        return interaction.editReply({ content: `❌ Havuzda yeterli elmas bulunmuyor. Gerekli: 500 💎 | Mevcut: \`${ub ? ub.diamonds : 0} 💎\`` });
+      }
+
+      ub.diamonds -= 500;
+      await ub.save();
+
+      const { CHANNELS } = require("../services/staffAutomation");
+      const logChan = await interaction.client.channels.fetch(CHANNELS.TERFI_LOG).catch(() => null);
+      if (logChan && logChan.isTextBased()) {
+        const adEmbed = new EmbedBuilder()
+          .setColor(0xf1c40f)
+          .setTitle(`📢 BİRİM MOTİVASYON REKLAMI - ${userUnit.unitName}`)
+          .setDescription(
+            `🚀 **${userUnit.unitName}** Birimi Lideri <@${interaction.user.id}> ortak birim havuzundan **500 💎** kullanarak birim reklamı yayınlattı!\n\n` +
+            `**"${userUnit.unitName} birimi olarak sunucuda adaleti ve aktifliği sağlamak için gece gündüz nöbetteyiz. Tüm üyelerimize iyi görevler dileriz!"**\n\n` +
+            `Birlik ve beraberliğiniz daim olsun! 💚`
+          )
+          .setTimestamp();
+        await logChan.send({ embeds: [adEmbed] });
+      }
+
+      return interaction.editReply({ content: "✅ **Birim motivasyon reklamı satın alındı ve duyuruldu!**" });
+    } catch (err) {
+      console.error('[Unit-Ad] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId.startsWith("hearing_defense_btn_")) {
+    const hearingId = customId.replace("hearing_defense_btn_", "");
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_hearing_defense_${hearingId}`)
+      .setTitle('⚖️ Savunma Beyan Formu');
+
+    const input = new TextInputBuilder()
+      .setCustomId('defense_text')
+      .setLabel('Savunma Gerekçeniz')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Lütfen olay anını ve savunmanızı detaylıca buraya yazınız.')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  if (customId.startsWith("hearing_accept_btn_")) {
+    await interaction.deferUpdate().catch(() => {});
+    try {
+      const hearingId = customId.replace("hearing_accept_btn_", "");
+      const DisciplinaryHearing = require("../../models/DisciplinaryHearing");
+      const hearing = await DisciplinaryHearing.findOne({ hearingId });
+      if (!hearing || hearing.status !== "pending_defense") {
+        return interaction.followUp({ content: "❌ Soruşturma bulunamadı veya zaten sonuçlandırıldı.", ephemeral: true }).catch(() => {});
+      }
+
+      hearing.status = 'accepted';
+      await hearing.save();
+
+      const { addDisciplinaryWarn } = require("../services/staffDutyService");
+      await addDisciplinaryWarn(hearing.targetUserId, hearing.reason, hearing.issuedBy);
+
+      const doneEmbed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle("✅ Cezayı Kabul Ettiniz")
+        .setDescription("Suçlamayı kabul ettiniz ve disiplin uyarısı sicilinize işlendi. KPI puanınız düşürülmüştür.")
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+    } catch (err) {
+      console.error('[Hearing-Accept] Hata:', err.message);
+    }
+    return;
+  }
+
+  if (customId.startsWith("hearing_coord_approve_") || customId.startsWith("hearing_coord_reject_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+    const isCoord = (managerProgress && managerProgress.level >= 5) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isCoord) {
+      return interaction.reply({ content: "❌ Soruşturmaları değerlendirmek için **Genel Koordinatör** (Level >= 5) yetkisine sahip olmalısınız!", ephemeral: true });
+    }
+
+    await interaction.deferUpdate().catch(() => {});
+
+    const isApprove = customId.startsWith("hearing_coord_approve_");
+    const hearingId = customId.replace(isApprove ? "hearing_coord_approve_" : "hearing_coord_reject_", "");
+    
+    try {
+      const DisciplinaryHearing = require("../../models/DisciplinaryHearing");
+      const hearing = await DisciplinaryHearing.findOne({ hearingId });
+      if (!hearing || hearing.status !== "submitted_defense") {
+        return interaction.followUp({ content: "❌ Soruşturma bulunamadı veya savunması henüz gönderilmemiş.", ephemeral: true }).catch(() => {});
+      }
+
+      if (isApprove) {
+        // Defense justified -> Warn canceled
+        hearing.status = 'rejected';
+        await hearing.save();
+
+        try {
+          const targetUser = await interaction.client.users.fetch(hearing.targetUserId).catch(() => null);
+          if (targetUser) {
+            const okEmbed = new EmbedBuilder()
+              .setColor(0x2ecc71)
+              .setTitle("⚖️ Disiplin Soruşturması Sonucu: İPTAL")
+              .setDescription(`Yapılan inceleme ve savunmanız sonucunda, hakkınızdaki disiplin uyarısı talebi **iptal edilmiştir**.\n\n*Sicilinize herhangi bir ceza işlenmemiştir.*`)
+              .setTimestamp();
+            await targetUser.send({ embeds: [okEmbed] }).catch(() => {});
+          }
+        } catch (_) {}
+
+        const doneEmbed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle("⚖️ Savunma Haklı Bulundu ve Ceza İptal Edildi")
+          .setDescription(`**Değerlendiren Koordinatör:** <@${interaction.user.id}>\n*Soruşturma kapatıldı ve disiplin uyarısı iptal edildi.*`)
+          .setTimestamp();
+        await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+      } else {
+        // Defense rejected -> Warn applied
+        hearing.status = 'accepted';
+        await hearing.save();
+
+        const { addDisciplinaryWarn } = require("../services/staffDutyService");
+        await addDisciplinaryWarn(hearing.targetUserId, hearing.reason, hearing.issuedBy);
+
+        try {
+          const targetUser = await interaction.client.users.fetch(hearing.targetUserId).catch(() => null);
+          if (targetUser) {
+            const failEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("🔨 Disiplin Soruşturması Sonucu: RED")
+              .setDescription(`Savunmanız kurul tarafından yetersiz bulunmuş ve disiplin uyarısı sicilinize **işlenmiştir** (-10 KPI).\n\n📝 **Gerekçe:** ${hearing.reason}`)
+              .setTimestamp();
+            await targetUser.send({ embeds: [failEmbed] }).catch(() => {});
+          }
+        } catch (_) {}
+
+        const doneEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("🔨 Savunma Reddedildi ve Ceza Kesildi")
+          .setDescription(`**Değerlendiren Koordinatör:** <@${interaction.user.id}>\n*Savunma reddedildi ve disiplin uyarısı sicile işlendi.*`)
+          .setTimestamp();
+        await interaction.editReply({ embeds: [doneEmbed], components: [] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Hearing-Coord] Hata:', err.message);
+    }
+    return;
+  }
+
   if (customId === "staff_accept_nightshift") {
     await interaction.deferUpdate().catch(() => { });
     const { recordOvertimeTask } = require("../services/staffSystem");
@@ -1225,25 +2069,33 @@ async function handleButtonInteraction(interaction) {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     const modal = new ModalBuilder()
       .setCustomId('modal_staff_incident_report')
-      .setTitle('📝 Vaka Raporu Oluştur');
+      .setTitle('📝 Vaka Raporu Formu (Adli Tutanak)');
 
-    const targetInput = new TextInputBuilder()
-      .setCustomId('incident_target')
-      .setLabel('Olayla İlgili Kullanıcı ID / Kullanıcı Adı')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('İhlal yapan kullanıcının Discord ID\'si veya adı')
+    const summaryInput = new TextInputBuilder()
+      .setCustomId('incident_summary')
+      .setLabel('Olay Özeti (Neler Yaşandı?)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Olay anında yaşanan ihlalleri detaylı olarak özetleyin.')
       .setRequired(true);
 
-    const descInput = new TextInputBuilder()
-      .setCustomId('incident_description')
-      .setLabel('Olay Detayı ve Bulgular')
+    const suspectsInput = new TextInputBuilder()
+      .setCustomId('incident_suspects')
+      .setLabel('Şüpheli ID\'leri (Virgülle Ayırın)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Örn: 1031620522406072350, 1228088674206617621')
+      .setRequired(true);
+
+    const proofsInput = new TextInputBuilder()
+      .setCustomId('incident_proofs')
+      .setLabel('Kanıt Linkleri (Ekran Görüntüsü/Video)')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Olay anında yaşanan durumları ve kanıtları buraya yazınız.')
+      .setPlaceholder('Kanıt resim/video linklerini ekleyin.')
       .setRequired(true);
 
     modal.addComponents(
-      new ActionRowBuilder().addComponents(targetInput),
-      new ActionRowBuilder().addComponents(descInput)
+      new ActionRowBuilder().addComponents(summaryInput),
+      new ActionRowBuilder().addComponents(suspectsInput),
+      new ActionRowBuilder().addComponents(proofsInput)
     );
     return interaction.showModal(modal).catch(() => {});
   }

@@ -387,55 +387,61 @@ async function handleSelectInteraction(interaction) {
           });
         }
 
-        const { calculateKpi } = require('../services/staffDutyService');
-        const kpiScore = calculateKpi(p);
-
-        const BASE_SALARIES = {
-          1: 50,
-          2: 100,
-          3: 150,
-          4: 200,
-          5: 300
-        };
-
-        const base = BASE_SALARIES[p.level] || 50;
-        const gross = Math.floor(base * (kpiScore / 100));
+        const voiceMinutes = p.weeklyStats?.voiceMinutes || 0;
+        const ticketsSolved = p.weeklyStats?.ticketsSolved || 0;
+        const moderationActions = p.weeklyStats?.moderationActions || 0;
         
-        // Deduct 15 E.C. for each active warning
-        const warnsCount = p.disciplinary?.warns?.length || 0;
-        const penaltyDeduction = warnsCount * 15;
-        
-        // 10% income tax
-        const tax = Math.floor(gross * 0.10);
-        
-        // Net salary
-        const netPay = Math.max(0, gross - penaltyDeduction - tax);
+        const gross = (voiceMinutes * 1) + (ticketsSolved * 10) + (moderationActions * 5);
 
-        p.gamification = p.gamification || {};
-        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + netPay;
-        p.lastSalaryClaimedAt = new Date();
-        await p.save();
+        if (gross <= 0) {
+          return interaction.editReply({
+            content: '⚠️ **Bu hafta hiç aktifliğiniz (ses süresi, çözülen ticket veya mod işlemi) bulunmamaktadır.** Maaş hak edişiniz: **0 TL**.'
+          });
+        }
+
+        const lastClaimDate = p.lastSalaryClaimedAt || new Date(0);
+        const warnsThisWeek = p.disciplinary?.warns?.filter(w => {
+          const wDate = w.date ? new Date(w.date) : (w.createdAt ? new Date(w.createdAt) : null);
+          return wDate && wDate > lastClaimDate;
+        }) || [];
+        
+        const hasWarning = warnsThisWeek.length > 0;
+        const disciplinaryDeduction = hasWarning ? Math.floor(gross * 0.15) : 0;
+        const taxDeduction = Math.floor(gross * 0.10);
+        const netPay = Math.max(0, gross - disciplinaryDeduction - taxDeduction);
 
         const embed = new EmbedBuilder()
-          .setColor(0x2ecc71)
-          .setTitle('💼 Eko Yıldız Yetkili Maaş Bordrosu')
+          .setColor(0xf1c40f)
+          .setTitle('💼 Eko Yıldız Resmi Haftalık Maaş Bordrosu')
           .setDescription(
             `Sayın <@${interaction.user.id}>,\n\n` +
-            `Haftalık aktiflik durumunuz ve KPI performans puanınız Finansal Yönetim Departmanı tarafından onaylandı. Maaş ödemeniz gerçekleştirilmiştir.\n\n` +
+            `Haftalık aktiflik durumunuz ve performans dökümünüz aşağıdadır. Ödemenizi cüzdana aktarmak için lütfen alttaki butona tıklayın.\n\n` +
             `**📋 MAAŞ DETAYLARI VE KESİNTİLER**\n` +
             `\`\`\`diff\n` +
-            `+ Brüt Hak Ediş: ${gross} TL (Rütbe Tabanı: ${base} TL | KPI: %${kpiScore})\n` +
-            `- Disiplin Cezası Kesintisi: -${penaltyDeduction} TL (${warnsCount} Uyarı)\n` +
-            `- Gelir Vergisi Kesintisi (%10): -${tax} TL\n` +
+            `+ Seste Kalma: ${voiceMinutes} dk x 1 TL = +${voiceMinutes * 1} TL\n` +
+            `+ Çözülen Bilet: ${ticketsSolved} adet x 10 TL = +${ticketsSolved * 10} TL\n` +
+            `+ Mod İşlemleri: ${moderationActions} adet x 5 TL = +${moderationActions * 5} TL\n` +
             `-----------------------------------------------\n` +
-            `+ Net Ödenen Maaş: ${netPay} TL\n` +
+            `+ Brüt Hak Ediş: ${gross} TL\n` +
+            `- Disiplin Kesintisi (%15): -${disciplinaryDeduction} TL ${hasWarning ? '((!) Disiplin Uyarısı Alındı)' : '(0 Uyarı)'}\n` +
+            `- Gelir Vergisi Kesintisi (%10): -${taxDeduction} TL\n` +
+            `-----------------------------------------------\n` +
+            `+ Net Ödenecek Maaş: ${netPay} TL\n` +
             `\`\`\`\n` +
-            `• **Güncel Cüzdan Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} TL\``
+            `• **Mevcut Yetkili Cüzdan Bakiyesi:** 💳 \`${p.gamification?.ecoCoins || 0} TL\``
           )
-          .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
+          .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı | Bordro' })
           .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
+        const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('staff_claim_salary_transfer')
+            .setLabel('💰 Net Maaşı Cüzdana Aktar')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
       } catch (err) {
         console.error('[Salary-Claim] Hata:', err.message);
         return interaction.editReply({ content: `❌ Hata: ${err.message}` });
@@ -519,7 +525,8 @@ async function handleSelectInteraction(interaction) {
         const p = await StaffProgress.findOne({ userId: interaction.user.id });
         if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
 
-        const { calculateKpi, getKpiGrade, chatWithAI } = require('../services/staffSystem');
+        const { chatWithAI } = require('../services/staffSystem');
+        const { calculateKpi, getKpiGrade } = require('../services/staffDutyService');
         const kpiScore = calculateKpi(p);
         const kpiGrade = getKpiGrade(kpiScore);
 
@@ -620,6 +627,97 @@ Lütfen yetkiliye hitaben, karnesini takdim eden resmi bir AI Eğitim Mentoru di
     const { PermissionFlagsBits } = require('discord.js');
     if (!interaction.member?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
       return interaction.reply({ content: '❌ Bu menüyü kullanabilmek için üyeleri denetleme yetkiniz olmalıdır.', ephemeral: true });
+    }
+
+    // 2FA Security Check (exempting Tactical Desk itself)
+    if (action !== 'staff_action_tactical_desk') {
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.reply({ content: '❌ Personel kaydınız bulunamadı.', ephemeral: true });
+
+      const hasClearance = p.securityClearanceUntil && new Date(p.securityClearanceUntil) > new Date();
+      if (!hasClearance) {
+        const codesPool = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA"];
+        const shuffled = codesPool.sort(() => 0.5 - Math.random());
+        const chosen = shuffled.slice(0, 3);
+        const correctCode = chosen[Math.floor(Math.random() * 3)];
+
+        await interaction.reply({ content: '🔐 **Güvenlik Geçişi Gerekli!** Bu kritik işlemi gerçekleştirebilmek için DM kutunuza gönderilen iki faktörlü personel doğrulamasını tamamlayınız.', ephemeral: true }).catch(() => {});
+
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle('🛡️ GEÇİCİ GÜVENLİK YETKİSİ (SECURITY CLEARANCE)')
+            .setDescription(
+              `Sayın Yetkili,\n\n` +
+              `Kritik bir yönetim eylemi tetiklediniz. İşlemin size ait olduğunu doğrulamak için lütfen **KOD ${correctCode}** butonuna tıklayınız.\n\n` +
+              `*Yanlış koda tıklanması durumunda yetkisiz erişim logu tutulacak ve KPI puanınız düşürülecektir. 60 saniye süreniz vardır.*`
+            )
+            .setFooter({ text: 'Eko Yıldız • Güvenlik Departmanı' })
+            .setTimestamp();
+
+          const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`staff_2fa_${chosen[0]}_${correctCode}_${interaction.user.id}`).setLabel(`🔓 Kod ${chosen[0]}`).setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`staff_2fa_${chosen[1]}_${correctCode}_${interaction.user.id}`).setLabel(`🔓 Kod ${chosen[1]}`).setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`staff_2fa_${chosen[2]}_${correctCode}_${interaction.user.id}`).setLabel(`🔓 Kod ${chosen[2]}`).setStyle(ButtonStyle.Primary)
+          );
+
+          await interaction.user.send({ embeds: [dmEmbed], components: [row] });
+        } catch (dmErr) {
+          console.warn(`[Staff-2FA] DM failed to ${interaction.user.id}:`, dmErr.message);
+        }
+        return;
+      }
+    }
+
+    if (action === 'staff_action_tactical_desk') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const activeStaff = await StaffProgress.find({ status: 'active' });
+        
+        const onDuty = activeStaff.filter(s => s.duty?.isActive && !s.duty?.isBreakActive);
+        const onBreak = activeStaff.filter(s => s.duty?.isActive && s.duty?.isBreakActive);
+        const idle = activeStaff.filter(s => !s.duty?.isActive);
+
+        const onDutyMentions = onDuty.map(s => `<@${s.userId}>`).join(', ') || 'Yok';
+        const onBreakMentions = onBreak.map(s => `<@${s.userId}>`).join(', ') || 'Yok';
+        const idleCount = idle.length;
+
+        const embed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle('📡 Taktik Komuta ve Operasyon Masası (Canlı)')
+          .setDescription('Sunucu genelindeki yetkili kadrosunun anlık aktiflik durumları ve komuta konsolu.')
+          .addFields(
+            { name: `🟢 Aktif Nöbette (${onDuty.length} Yetkili)`, value: onDutyMentions, inline: false },
+            { name: `🟡 Kahve Molasında (${onBreak.length} Yetkili)`, value: onBreakMentions, inline: false },
+            { name: `🔴 Nöbette Değil / Serbest`, value: `Toplam **${idleCount}** yetkili serbest zamanda.`, inline: false }
+          )
+          .setFooter({ text: 'Taktik Komuta Konsolu' })
+          .setTimestamp();
+
+        const { ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('tactical_alarm_all')
+            .setLabel('🚨 Tüm Ekibi Nöbete Çağır')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId('tactical_announce_leader')
+            .setLabel('📊 Haftalık Lideri İlan Et')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId('tactical_change_radio')
+            .setLabel('📋 Telsiz Frekansı Değiştir')
+            .setStyle(ButtonStyle.Primary)
+        );
+
+        return interaction.editReply({ embeds: [embed], components: [row] });
+      } catch (err) {
+        console.error('[Tactical-Desk] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
     }
 
     if (action === 'staff_action_warn') {

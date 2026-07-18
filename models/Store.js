@@ -123,6 +123,7 @@ const collections = {
   posts: null,
   stories: null,
   liveStreams: null,
+  appMeta: null,
 };
 
 function onStoreMutate() {
@@ -140,6 +141,7 @@ collections.rankMetadata = new InMemoryCollection("rankMetadata", onStoreMutate)
 collections.posts        = new InMemoryCollection("posts",        onStoreMutate);
 collections.stories      = new InMemoryCollection("stories",      onStoreMutate);
 collections.liveStreams  = new InMemoryCollection("liveStreams",  onStoreMutate);
+collections.appMeta     = new InMemoryCollection("appMeta", onStoreMutate);
 
 const users       = collections.users;
 const tickets     = collections.tickets;
@@ -151,6 +153,7 @@ const rankMetadata = collections.rankMetadata;
 const posts        = collections.posts;
 const stories      = collections.stories;
 const liveStreams  = collections.liveStreams;
+const appMeta = collections.appMeta;
 /** @deprecated eski importlar için */
 const wikis = wikiArticles;
 
@@ -272,4 +275,5 @@ module.exports = {
   InMemoryCollection,
   initStore,
   saveStoreNow,
+  appMeta,
 };

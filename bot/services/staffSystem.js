@@ -286,6 +286,12 @@ function getTargetCheckDate() {
 
 async function hasInactivityRole(userId, client) {
   try {
+    const StaffProgress = require('../../models/StaffProgress');
+    const p = await StaffProgress.findOne({ userId }).catch(() => null);
+    if (p && p.burnoutLeaveUntil && new Date(p.burnoutLeaveUntil) > new Date()) {
+      return true;
+    }
+
     const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     if (!guild) return false;
     const member = await guild.members.fetch(userId).catch(() => null);
@@ -368,6 +374,10 @@ function getDailyTaskCompletionStats(progress) {
   const today = todayStr();
   const isToday = progress.daily?.date === today;
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  if (progress.pip?.isActive && progress.pip?.signed) {
+    req.greets = Math.min(req.greets * 2, 20);
+    req.voiceMinutes = Math.min(req.voiceMinutes * 2, 180);
+  }
 
   const targetVoice = req.voiceMinutes + (isToday ? (progress.daily?.transferredVoiceMinutes || 0) : 0);
   const targetGreets = req.greets + (isToday ? (progress.daily?.transferredGreets || 0) : 0);
@@ -708,6 +718,26 @@ async function addVoiceMinutes(userId, minutes, client) {
     p.daily.voiceMinutes += minutes;
     p.stats.totalVoiceMinutes = (p.stats.totalVoiceMinutes || 0) + minutes;
 
+    p.weeklyStats = p.weeklyStats || { voiceMinutes: 0, ticketsSolved: 0, moderationActions: 0 };
+    p.weeklyStats.voiceMinutes = (p.weeklyStats.voiceMinutes || 0) + minutes;
+
+    try {
+      const StaffUnit = require('../../models/StaffUnit');
+      const UnitBudget = require('../../models/UnitBudget');
+      const userUnit = await StaffUnit.findOne({ userId });
+      if (userUnit && userUnit.unitName) {
+        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        if (!ub) {
+          ub = new UnitBudget({ unitName: userUnit.unitName });
+        }
+        ub.budget = (ub.budget || 0) + minutes * 0.5; // 0.5 TL per voice minute
+        ub.diamonds = (ub.diamonds || 0) + minutes * 2; // 2 diamonds per voice minute
+        await ub.save();
+      }
+    } catch (e) {
+      console.error('[staffSystem] Unit budget increment error in voice:', e.message);
+    }
+
     // Log voice activity to active duty session
     try {
       const { logDutyActivity } = require('./staffDutyService');
@@ -847,6 +877,26 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
 
     p.stats.moderationActions = (p.stats.moderationActions || 0) + 1;
     p.daily.moderationActionsToday = (p.daily.moderationActionsToday || 0) + 1;
+
+    p.weeklyStats = p.weeklyStats || { voiceMinutes: 0, ticketsSolved: 0, moderationActions: 0 };
+    p.weeklyStats.moderationActions = (p.weeklyStats.moderationActions || 0) + 1;
+
+    try {
+      const StaffUnit = require('../../models/StaffUnit');
+      const UnitBudget = require('../../models/UnitBudget');
+      const userUnit = await StaffUnit.findOne({ userId });
+      if (userUnit && userUnit.unitName) {
+        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        if (!ub) {
+          ub = new UnitBudget({ unitName: userUnit.unitName });
+        }
+        ub.budget = (ub.budget || 0) + 5; // 5 TL per mod action
+        ub.diamonds = (ub.diamonds || 0) + 20; // 20 diamonds per mod action
+        await ub.save();
+      }
+    } catch (e) {
+      console.error('[staffSystem] Unit budget increment error in mod:', e.message);
+    }
 
     // Log mod activity to active duty session
     try {
@@ -1158,6 +1208,26 @@ async function recordTicketSolved(userId, client) {
 
     p.stats.ticketsSolved = (p.stats.ticketsSolved || 0) + 1;
     p.daily.ticketsSolvedToday = (p.daily.ticketsSolvedToday || 0) + 1;
+
+    p.weeklyStats = p.weeklyStats || { voiceMinutes: 0, ticketsSolved: 0, moderationActions: 0 };
+    p.weeklyStats.ticketsSolved = (p.weeklyStats.ticketsSolved || 0) + 1;
+
+    try {
+      const StaffUnit = require('../../models/StaffUnit');
+      const UnitBudget = require('../../models/UnitBudget');
+      const userUnit = await StaffUnit.findOne({ userId });
+      if (userUnit && userUnit.unitName) {
+        let ub = await UnitBudget.findOne({ unitName: userUnit.unitName });
+        if (!ub) {
+          ub = new UnitBudget({ unitName: userUnit.unitName });
+        }
+        ub.budget = (ub.budget || 0) + 10; // 10 TL per ticket
+        ub.diamonds = (ub.diamonds || 0) + 50; // 50 diamonds per ticket
+        await ub.save();
+      }
+    } catch (e) {
+      console.error('[staffSystem] Unit budget increment error in ticket:', e.message);
+    }
 
     // Log ticket activity to active duty session
     try {
@@ -1900,6 +1970,22 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
 
   const fields = [];
 
+  // 📝 ÖNCEKİ VARDİYADAN KALAN NOTLAR (Dinamik)
+  try {
+    const ServerConfig = require('../../models/ServerConfig');
+    const sConf = await ServerConfig.findOne({ guildId: progress.guildId || GUILD_ID });
+    if (sConf && sConf.latestHandoverNote) {
+      const timeTag = sConf.latestHandoverAt ? `<t:${Math.floor(new Date(sConf.latestHandoverAt).getTime() / 1000)}:R>` : '';
+      fields.push({
+        name: '📝 ÖNCEKİ VARDİYADAN KALAN NOTLAR',
+        value: `👤 **Yazan:** <@${sConf.latestHandoverAuthor}>\n🕒 **Zaman:** ${timeTag}\n> *"${sConf.latestHandoverNote}"*`,
+        inline: false
+      });
+    }
+  } catch (confErr) {
+    console.error('[generateMorningBriefingEmbed] Handover fetch error:', confErr.message);
+  }
+
   // ── FIELD 0.5: GÜNCELLEME DUYURUSU ───────────────────────────────────────
   fields.push({
     name: '📢 BİRİM VE PARA BİRİMİ GÜNCELLEMESİ',
@@ -1994,6 +2080,17 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     const kpiGrade = getKpiGrade(kpiScore);
 
     let dutyText = '';
+    const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
+    const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
+
+    if (isResting) {
+      dutyText += `☕ **Ruh Hali:** Zorunlu İstirahatte (Kahve İzni)\n`;
+    } else if (isBurnout) {
+      dutyText += `⚠️ **Ruh Hali:** Aşırı Yorgun (Burnout)\n`;
+    } else {
+      dutyText += `🟢 **Ruh Hali:** Dinç / Aktif\n`;
+    }
+
     if (progress.duty?.isActive && progress.duty.startedAt) {
       const elapsedMins = Math.floor((Date.now() - new Date(progress.duty.startedAt).getTime()) / 1000 / 60);
       const elapsedHrs = Math.floor(elapsedMins / 60);
@@ -2068,6 +2165,63 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
 
 async function getMorningBriefingComponents(progress) {
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+
+  const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
+  const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
+
+  if (isResting) {
+    const rowResting = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_update_progress')
+        .setLabel('🔄 GÜNCELLE')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('staff_resting_dummy')
+        .setLabel('☕ Zorunlu Kahve İzni Aktif')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+    return [rowResting];
+  }
+
+  if (isBurnout) {
+    const rowBurnout = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('staff_update_progress')
+        .setLabel('🔄 GÜNCELLE')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('staff_use_coffee_break')
+        .setLabel('☕ Zorunlu Kahve İzni Kullan (12 Saat)')
+        .setStyle(ButtonStyle.Danger)
+    );
+    return [rowBurnout];
+  }
+
+  if (progress.pip?.isActive) {
+    if (!progress.pip.signed) {
+      const rowPipSign = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('staff_pip_sign')
+          .setLabel('📋 PIP Kontratını İmzala ve Harekete Geç')
+          .setStyle(ButtonStyle.Success)
+      );
+      return [rowPipSign];
+    } else {
+      const rowPipActive = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('staff_update_progress')
+          .setLabel('🔄 GÜNCELLE')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('staff_pip_status')
+          .setLabel('📋 PIP Durumu Sorgula')
+          .setStyle(ButtonStyle.Secondary)
+      );
+      return [rowPipActive];
+    }
+  }
+
   const rowButtons = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('staff_update_progress')
@@ -2185,14 +2339,21 @@ async function getMorningBriefingComponents(progress) {
   if (progress.level >= 3) {
     const managerSelect = new StringSelectMenuBuilder()
       .setCustomId('staff_manager_actions')
-      .setPlaceholder('🛡️ Yönetim & Sicil İşlemleri')
-      .addOptions([
-        { label: '⚠️ Disiplin Uyarısı Ver', description: 'Bir yetkiliye resmi uyarısını verin (KPI -10).', value: 'staff_action_warn', emoji: '⚠️' },
-        { label: '💚 Teşekkür / Takdir Belgesi Ver', description: 'Bir yetkiliye takdirini verin (KPI +5).', value: 'staff_action_commend', emoji: '💚' },
-        { label: '📋 Personel Sicil Raporu Sorgula', description: 'Bir yetkilinin sicilini ve performansını sorgulayın.', value: 'staff_action_sicil', emoji: '📋' },
-        { label: '🚪 Yetkili İlişiğini Kes (Kov)', description: 'Bir yetkiliyi kadrodan ihraç edin.', value: 'staff_action_dismiss', emoji: '🚪' },
-        { label: '📈 Yetkili İstatistiklerini Düzenle', description: 'Yetkilinin bilet, ses, mesaj değerlerini ayarlayın.', value: 'staff_action_set_stats', emoji: '📈' }
-      ]);
+      .setPlaceholder('🛡️ Yönetim & Sicil İşlemleri');
+      
+    const options = [
+      { label: '⚠️ Disiplin Uyarısı Ver', description: 'Bir yetkiliye resmi uyarısını verin (KPI -10).', value: 'staff_action_warn', emoji: '⚠️' },
+      { label: '💚 Teşekkür / Takdir Belgesi Ver', description: 'Bir yetkiliye takdirini verin (KPI +5).', value: 'staff_action_commend', emoji: '💚' },
+      { label: '📋 Personel Sicil Raporu Sorgula', description: 'Bir yetkilinin sicilini ve performansını sorgulayın.', value: 'staff_action_sicil', emoji: '📋' },
+      { label: '🚪 Yetkili İlişiğini Kes (Kov)', description: 'Bir yetkiliyi kadrodan ihraç edin.', value: 'staff_action_dismiss', emoji: '🚪' },
+      { label: '📈 Yetkili İstatistiklerini Düzenle', description: 'Yetkilinin bilet, ses, mesaj değerlerini ayarlayın.', value: 'staff_action_set_stats', emoji: '📈' }
+    ];
+
+    if (progress.level >= 4) {
+      options.push({ label: '📡 Taktik Operasyon Masası', description: 'Canlı ekip durumunu ve komuta merkezini yönetin.', value: 'staff_action_tactical_desk', emoji: '📡' });
+    }
+
+    managerSelect.addOptions(options);
     rowManager = new ActionRowBuilder().addComponents(managerSelect);
   }
 
@@ -2234,6 +2395,20 @@ async function getMorningBriefingComponents(progress) {
   const componentsList = [rowButtons, rowSelect, rowPersonal];
   if (rowManager) componentsList.push(rowManager);
   componentsList.push(rowSettings);
+
+  try {
+    const StaffUnit = require('../../models/StaffUnit');
+    const userUnit = await StaffUnit.findOne({ userId: progress.userId });
+    if (userUnit && userUnit.unitName && userUnit.rank === 3) {
+      const rowUnitLeader = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('staff_unit_logistics_manage')
+          .setLabel('📦 Birim Lojistiğini Yönet')
+          .setStyle(ButtonStyle.Success)
+      );
+      componentsList.push(rowUnitLeader);
+    }
+  } catch (_) {}
 
   return componentsList;
 }
@@ -3334,6 +3509,70 @@ async function runDailyCheck(client) {
         }
       }
 
+      // PIP Kontrolü (Eğer aktif ise)
+      if (p.pip?.isActive) {
+        if (!p.pip.signed) {
+          // Kontrat imzalanmamışsa otomatik demote
+          p.pip.isActive = false;
+          await p.save();
+          try {
+            const user = await client.users.fetch(p.userId);
+            await user.send({ content: "❌ **Performans İyileştirme Planı (PIP) Kontratını imzalamadığınız için** görevinize son verilmiştir/rütbeniz düşürülmüştür." }).catch(() => {});
+          } catch (_) {}
+          await removeRole(p, client);
+          continue;
+        }
+
+        const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+        const targetVoice = Math.min(req.voiceMinutes * 2, 180) + (p.daily?.transferredVoiceMinutes || 0);
+        const targetGreets = Math.min(req.greets * 2, 20);
+        const greetDone = p.daily?.date === checkDate && (p.daily?.greetCount || 0) >= targetGreets;
+        const voiceDone = p.daily?.date === checkDate && (p.daily?.voiceMinutes || 0) >= targetVoice;
+        const completedToday = greetDone && voiceDone;
+
+        const isOnLeave = p.leaves?.usedDays?.includes(checkDate);
+        const isUserInactive = isOnLeave || (await hasInactivityRole(p.userId, client));
+
+        if (isUserInactive) {
+          await p.save();
+        } else if (completedToday) {
+          p.pip.consecutiveSuccessDays = (p.pip.consecutiveSuccessDays || 0) + 1;
+          if (p.pip.consecutiveSuccessDays >= 3) {
+            p.pip.isActive = false;
+            p.pip.signed = false;
+            p.warnings.count = 0; // Reset warnings
+            await p.save();
+            try {
+              const user = await client.users.fetch(p.userId);
+              const successEmbed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle('🎉 PIP BAŞARIYLA TAMAMLANDI!')
+                .setDescription(`Tebrikler! 3 günlük PIP (Performans İyileştirme Planı) sürecini başarıyla tamamladınız ve yetkilerinizi korudunuz. Görevinize normal hedeflerle devam edebilirsiniz.`)
+                .setTimestamp();
+              await user.send({ embeds: [successEmbed] }).catch(() => {});
+            } catch (_) {}
+          } else {
+            await p.save();
+          }
+        } else {
+          // Failed to complete PIP target
+          p.pip.isActive = false;
+          p.pip.signed = false;
+          await p.save();
+          try {
+            const user = await client.users.fetch(p.userId);
+            const failEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle('❌ PIP BAŞARISIZ OLDU')
+              .setDescription(`Performans İyileştirme Planı (PIP) hedeflerini tamamlayamadığınız için rütbeniz düşürülmüştür.`)
+              .setTimestamp();
+            await user.send({ embeds: [failEmbed] }).catch(() => {});
+          } catch (_) {}
+          await removeRole(p, client);
+        }
+        continue;
+      }
+
       // Bugünü veya hedef günü kontrol et (görevi tamamladı mı?)
       const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
       const targetVoice = req.voiceMinutes + (p.daily?.transferredVoiceMinutes || 0);
@@ -3354,9 +3593,32 @@ async function runDailyCheck(client) {
         p.warnings.count = (p.warnings.count || 0) + 1;
         p.warnings.lowActivityNotified = false; // Aktif gün < 2 kontrolü için sıfırla
 
-        // 3 gün uyarısı sonrası rol al (5 → 3 sıkılaştırıldı)
+        // 3 gün uyarısı sonrası PIP sürecine al
         if (p.warnings.count >= 3) {
-          await removeRole(p, client);
+          p.pip = {
+            isActive: true,
+            signed: false,
+            startedAt: null,
+            consecutiveSuccessDays: 0
+          };
+          await p.save();
+          
+          try {
+            const user = await client.users.fetch(p.userId);
+            const pipNotifyEmbed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setTitle("⚠️ Performans İyileştirme Planı (PIP) Kontratı")
+              .setDescription(
+                `Sayın Yetkili <@${p.userId}>,\n\n` +
+                `Günlük hedeflerinizi 3 gün boyunca aksattığınız tespit edilmiştir. Sistem tarafından kadrodan ihraç edilmek veya tenzilat (demote) almak üzeresiniz.\n\n` +
+                `Ancak İnsan Kaynakları politikalarımız gereği size son bir şans tanınarak **Performans İyileştirme Planı (PIP)** başlatılmıştır.\n\n` +
+                `• **Ne Yapmalısınız?** Panelinizdeki **[📋 PIP Kontratını İmzala]** butonuna tıklayarak kontratı imzalamalı ve 3 gün boyunca iki katı olan hedefleri başarıyla tamamlamalısınız.\n` +
+                `• **İmzalamazsanız?** Görevinize son verilecektir.`
+              )
+              .setFooter({ text: 'Eko Yıldız • İnsan Kaynakları' })
+              .setTimestamp();
+            await user.send({ embeds: [pipNotifyEmbed] }).catch(() => {});
+          } catch (_) {}
         } else {
           await sendWarningDM(p, client);
           await p.save();
@@ -3366,7 +3628,6 @@ async function runDailyCheck(client) {
         if (p.stats.consecutiveDays > 0 && p.stats.consecutiveDays % 30 === 0) {
           await sendRequirementIncreaseDM(p, client);
         }
-        // ✅ BUGFIX: Gece 23:30'da morning briefing atmayı engelle, verileri kaydet
         await p.save().catch(() => { });
       }
 

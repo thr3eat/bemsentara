@@ -3,6 +3,18 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const crypto = require("crypto");
 
+function _safeString(input, maxLen = 1000) {
+  if (input === undefined || input === null) return '';
+  let s = String(input);
+  // Prevent accidental huge allocations
+  if (s.length > maxLen) {
+    const remaining = s.length - maxLen;
+    s = s.slice(0, maxLen) + `\n... (truncated ${remaining} chars)`;
+  }
+  // Avoid breaking markdown/codeblocks in embeds
+  s = s.replace(/```/g, "`\u200b``");
+  return s;
+}
 /**
  * Saves error details and returns a button component to report it.
  */
@@ -12,9 +24,9 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
     const errorData = {
       _id: errorId,
       errorName: error.name || "Error",
-      errorMessage: error.message || String(error),
-      errorStack: error.stack || null,
-      context: context || "Unknown Context",
+      errorMessage: _safeString(error && (error.message || String(error)), 2000),
+      errorStack: _safeString(error && error.stack, 8000) || null,
+      context: _safeString(context, 200) || "Unknown Context",
       guildId: guildId || null,
       userId: userId || null,
       reported: false,
@@ -47,9 +59,9 @@ async function saveErrorAndGetButton(error, context, guildId, userId) {
             .setTitle("🚨 BİR HATA OLUŞTU")
             .setColor(0xe74c3c)
             .addFields(
-              { name: "HATA", value: `\`\`\`js\n${error.message || String(error)}\n\`\`\`` },
-              { name: "HANGİ SİSTEMDE", value: system },
-              { name: "HANGİ KOMUTTA", value: command }
+              { name: "HATA", value: `\`\`\`js\n${_safeString(error && (error.message || String(error)), 900)}\n\`\`\`` },
+              { name: "HANGİ SİSTEMDE", value: _safeString(system, 200) },
+              { name: "HANGİ KOMUTTA", value: _safeString(command, 200) }
             )
             .setTimestamp();
 
@@ -95,7 +107,7 @@ async function sendErrorReplyWithButton(interaction, error, context) {
       .setColor(0xe74c3c)
       .setTitle("🔧 OTOMATİK HATA DÜZELTME SİHİRBAZI")
       .setDescription(
-        `⚠️ **Hata Algılandı:** \`${error.message || String(error)}\`\n\n` +
+        `⚠️ **Hata Algılandı:** \`${_safeString(error && (error.message || String(error)), 300)}\`\n\n` +
         `⚙️ **Hata otomatik olarak onarılıyor** ⏳\n` +
         `Lütfen 15 saniye bekleyin... Aktarılıyorsunuz.\n\n` +
         `🛠️ *Otomatik Hata Düzeltme Sihirbazı sistemi stabilize etmeye çalışıyor (Bot yeniden başlatılmayacaktır).*`

@@ -151,6 +151,74 @@ async function endDuty(interaction, client, handoverNotes = null) {
     p.daily.dutyMinutesToday = (p.daily.dutyMinutesToday || 0) + durationMins;
     if (handoverNotes) {
       p.daily.incidentReportsToday = (p.daily.incidentReportsToday || 0) + 1;
+
+      // Save latest handover notes to ServerConfig
+      try {
+        const ServerConfig = require('../../models/ServerConfig');
+        let sConf = await ServerConfig.findOne({ guildId: p.guildId || (interaction.guild ? interaction.guild.id : '1466927911364726845') });
+        if (!sConf) {
+          sConf = new ServerConfig({ guildId: p.guildId || (interaction.guild ? interaction.guild.id : '1466927911364726845') });
+        }
+        sConf.latestHandoverNote = handoverNotes;
+        sConf.latestHandoverAuthor = userId;
+        sConf.latestHandoverAt = new Date();
+        await sConf.save();
+      } catch (confErr) {
+        console.error('[staffDutyService] ServerConfig handover notes save error:', confErr.message);
+      }
+
+      // Run AI Audit Log check
+      try {
+        let isAnomaly = false;
+        let anomalyReason = '';
+        if (durationMins >= 120 && tickets === 0 && mods === 0) {
+          isAnomaly = true;
+          anomalyReason = 'Çok uzun süre (2+ saat) nöbette kalınmasına rağmen sıfır ticket çözüldü ve sıfır moderasyon işlemi yapıldı.';
+        } else if (handoverNotes.length < 15 && durationMins >= 60) {
+          isAnomaly = true;
+          anomalyReason = '1 saatten fazla nöbette kalınmasına rağmen devir notu çok kısa veya yetersiz.';
+        } else {
+          const { chatWithAI } = require('./staffSystem');
+          const aiPrompt = `Aşağıdaki vardiya devir notunu ve nöbet istatistiklerini ciddiyet, doğruluk ve tutarlılık açısından analiz et. Herhangi bir ciddiyetsizlik, spam, veya tembellik anomalisi var mı? Sadece EVET veya HAYIR ile başla, ardından kısa bir cümleyle açıkla.
+Not: "${handoverNotes}"
+İstatistikler: Süre: ${durationMins} dakika, Çözülen Ticket: ${tickets}, Moderasyon: ${mods}`;
+          const aiResponse = await chatWithAI([{ role: 'user', content: aiPrompt }], 'Sen bir denetleme yapay zekasısın.').catch(() => '');
+          if (aiResponse && aiResponse.toUpperCase().startsWith('EVET')) {
+            isAnomaly = true;
+            anomalyReason = aiResponse.replace(/^(EVET|Evet)[\s,.:]*/i, '').trim() || 'AI tarafından şüpheli devir notu/ciddiyetsiz davranış tespiti.';
+          }
+        }
+
+        if (isAnomaly) {
+          const { CHANNELS } = require('./staffAutomation');
+          const adminLogChanId = CHANNELS.CEZA_LOG || CHANNELS.TERFI_LOG;
+          const adminLogChan = await client.channels.fetch(adminLogChanId).catch(() => null);
+          if (adminLogChan && adminLogChan.isTextBased()) {
+            const anomalyEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle('⚠️ Akıllı Denetleme: Yetkili Anomalisi Tespit Edildi')
+              .setDescription(`👤 <@${userId}> adlı yetkilinin vardiya devrinde şüpheli durum tespit edildi.`)
+              .addFields(
+                { name: '👤 Yetkili', value: `<@${userId}> (${userId})`, inline: true },
+                { name: '⏱️ Süre / Aktiflik', value: `${durationMins} dk (Ses: ${voiceMins} dk | Ticket: ${tickets} | Mod: ${mods})`, inline: true },
+                { name: '📝 Vardiya Notu', value: `\`\`\`${handoverNotes}\`\`\``, inline: false },
+                { name: '🔍 Tespit Edilen Anomali', value: anomalyReason, inline: false }
+              )
+              .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`audit_inspect_${userId}`)
+                .setLabel('🔍 Personeli İncelemeye Al')
+                .setStyle(ButtonStyle.Danger)
+            );
+
+            await adminLogChan.send({ embeds: [anomalyEmbed], components: [row] });
+          }
+        }
+      } catch (auditErr) {
+        console.error('[staffDutyService] AI Audit Log check error:', auditErr.message);
+      }
     }
 
     if (!p.gamification) {
