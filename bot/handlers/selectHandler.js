@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   TextInputBuilder,
   TextInputStyle,
+  EmbedBuilder,
 } = require("discord.js");
 
 async function handleSelectInteraction(interaction) {
@@ -386,7 +387,7 @@ async function handleSelectInteraction(interaction) {
           });
         }
 
-        const { calculateKpi } = require('../services/staffSystem');
+        const { calculateKpi } = require('../services/staffDutyService');
         const kpiScore = calculateKpi(p);
 
         const BASE_SALARIES = {
