@@ -107,28 +107,68 @@ discordBot.once("ready", async () => {
           }
         }
 
-        if (sentAny) {
-          // distribute small reward to staff users
-          try {
-            const staffUsers = users.find({}).filter(u => u.isStaff || u.isAdmin);
-            for (const u of staffUsers) {
-              try {
-                let eco = await Economy.findOne({ userId: String(u.discordId) });
-                if (!eco) {
-                  eco = new Economy({ userId: String(u.discordId), balance: 0, totalEarned: 0 });
-                }
-                eco.balance = (eco.balance || 0) + 25;
-                eco.totalEarned = (eco.totalEarned || 0) + 25;
-                await eco.save();
-              } catch (_) {}
-            }
-          } catch (_) {}
+        // distribute small reward to staff users & send DM announcements
+        try {
+          const StaffProgress = require("./models/StaffProgress");
+          const staffList = await StaffProgress.find({ status: "active" });
 
-          // mark announced
-          appMeta.create({ key: "release_v6_5_announced", value: true, createdAt: new Date() });
-          const { saveStoreNow } = require("./models/Store");
-          saveStoreNow();
+          const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+          const dmEmbed = new EmbedBuilder()
+            .setColor(0x7c6af7)
+            .setTitle('📣 Sürüm v6.5 — Yeni Özellikler ve Güncellemeler')
+            .setDescription('Merhaba Değerli Yetkilimiz! 🎉\nv6.5 sürümümüz başarıyla yayına alındı. Bu güncelleme ile sistemimize yepyeni gerçekçi kurumsal özellikler eklendi:')
+            .addFields(
+              { name: '🔹 1) Dinamik Bordro & Vergi Kesintisi', value: 'Maaşlar artık haftalık aktiflik, ticket ve ses sürenize göre hesaplanıyor.', inline: false },
+              { name: '🔹 2) Resmi İstifa & Kıdem Tazminatı', value: '3 günlük ihbar süresi ve kıdem tazminatı (60+ gün aktiflik) sistemi getirildi.', inline: false },
+              { name: '🔹 3) Vaka Raporu ve Delil Arşivi', value: '`CASE-XXXX` ID formatında delil dosyaları ve kurul onay mekanizması.', inline: false },
+              { name: '🔹 4) Vardiya Devir & AI Denetimi', value: 'Devir notları kaydediliyor ve yapay zeka ile denetleniyor.', inline: false },
+              { name: '🔹 5) Mental Yorgunluk & Kahve İzni', value: 'Çok çalışan yetkililerimiz için zorunlu dinlenme ve kahve izni modu.', inline: false },
+              { name: '🔹 6) Taktik Operasyon Masası', value: 'Canlı ekip paneli, nöbete çağırma telsiz duyuruları ve lider seçimi.', inline: false },
+              { name: '🔹 7) Personel 2FA', value: 'Kritik sicil ve yetkili işlemlerinden önce butonlu DM doğrulaması.', inline: false },
+              { name: '🔹 8) Performans İyileştirme Planı (PIP)', value: 'Hedeflerin gerisinde kalan yetkililere son şans hedefleri.', inline: false },
+              { name: '🔹 9) Birim Lojistiği & Bütçe Yönetimi', value: 'Ortak havuzdan prim dağıtma ve izin kredisi satın alma.', inline: false },
+              { name: '🔹 10) Disiplin Mahkemesi & İhbar Hattı', value: 'Savunma yapma hakları ve SHA-256 şifreli çift yönlü ihbar tüneli.', inline: false }
+            )
+            .setFooter({ text: 'Eko Yıldız • Sürüm v6.5 — Küçük jest: +25 EkoCoin (tek seferlik)' })
+            .setTimestamp();
+
+          const dmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('Web Paneline Git').setStyle(5).setURL(`${BASE_URL}/dashboard`)
+          );
+
+          for (const u of staffList) {
+            // Distribute reward in Economy
+            try {
+              let eco = await Economy.findOne({ userId: String(u.userId) });
+              if (!eco) {
+                eco = new Economy({ userId: String(u.userId), balance: 0, totalEarned: 0 });
+              }
+              eco.balance = (eco.balance || 0) + 25;
+              eco.totalEarned = (eco.totalEarned || 0) + 25;
+              await eco.save();
+            } catch (ecoErr) {
+              console.error(`Economy reward error for ${u.userId}:`, ecoErr.message);
+            }
+
+            // Send DM
+            try {
+              const discordUser = await discordBot.users.fetch(u.userId).catch(() => null);
+              if (discordUser) {
+                await discordUser.send({ embeds: [dmEmbed], components: [dmRow] }).catch(() => {});
+                sentAny = true;
+              }
+            } catch (dmErr) {
+              console.warn(`Could not send release announcement DM to ${u.userId}:`, dmErr.message);
+            }
+          }
+        } catch (err) {
+          logger.error("Staff reward/announcement loop error:", err.message);
         }
+
+        // mark announced to prevent duplicate spam on reboots
+        appMeta.create({ key: "release_v6_5_announced", value: true, createdAt: new Date() });
+        const { saveStoreNow } = require("./models/Store");
+        saveStoreNow();
       }
     } catch (releaseErr) {
       logger.error("[Release v6.5] Announcement error:", releaseErr.message);
