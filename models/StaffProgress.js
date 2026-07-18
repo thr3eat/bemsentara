@@ -189,6 +189,8 @@ const staffProgressSchema = new mongoose.Schema({
     examQuestionIndex: { type: Number, default: 0 },
     completedAt: { type: Date, default: null },
     enrolledAt: { type: Date, default: null },       // Okula ilk kaydolma tarihi
+    lastActiveAt: { type: Date, default: null },     // Son okul aktivite tarihi
+    lastKickReviewAt: { type: Date, default: null }, // Son atılma inceleme tarihi
     autoGradWarned: { type: Boolean, default: false } // Otomatik mezuniyet uyarısı gönderildi mi?
   },
 

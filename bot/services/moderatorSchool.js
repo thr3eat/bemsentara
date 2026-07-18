@@ -112,6 +112,16 @@ const EXAM_QUESTIONS = [
 
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const REMINDER_ATTEMPT_LIMIT = 3;
+const SCHOOL_KICK_INACTIVE_DAYS = 3;
+const SCHOOL_KICK_WARNING_THRESHOLD = 1;
+const SCHOOL_KICK_TARGET_USER_ID = '1444656401216442497';
+const SCHOOL_KICK_TAG_NAME = 'EKO-MOD-KIYAĞI';
+
+function shouldEscalateSchoolKick({ daysInactive, warningCount, aiRecommendation }) {
+  const normalized = (aiRecommendation || '').toString().trim().toUpperCase();
+  const wantsKick = normalized.includes('ATILSIN') && !normalized.includes('ATILMASIN');
+  return daysInactive >= SCHOOL_KICK_INACTIVE_DAYS && warningCount >= SCHOOL_KICK_WARNING_THRESHOLD && wantsKick;
+}
 
 // Active sessions in memory
 const activeTrainings = new Map(); // userId -> { phase, step, timeout, lastMessageId }
@@ -367,6 +377,69 @@ async function deleteExamFromDB(userId) {
 /**
  * Startup Hook: Checks active staff on boot and sends the contract message if they haven't started.
  */
+async function reviewInactiveSchoolStudents(client) {
+  try {
+    const students = await StaffProgress.find({
+      'schoolSystem.status': {
+        $in: ['in_school', 'pending_contract', 'phase1_blocks_completed', 'phase1_exam_submitted', 'phase1_completed', 'phase2_blocks_completed', 'phase2_exam_submitted', 'phase2_completed', 'exam_passed']
+      }
+    });
+
+    for (const p of students) {
+      try {
+        const lastActiveAt = p.schoolSystem?.lastActiveAt ? new Date(p.schoolSystem.lastActiveAt) : p.schoolSystem?.enrolledAt ? new Date(p.schoolSystem.enrolledAt) : null;
+        if (!lastActiveAt) continue;
+        const daysInactive = Math.floor((Date.now() - lastActiveAt.getTime()) / (1000 * 60 * 60 * 24));
+        const warningCount = p.warnings?.count || 0;
+        const shouldReview = daysInactive >= SCHOOL_KICK_INACTIVE_DAYS && warningCount >= SCHOOL_KICK_WARNING_THRESHOLD;
+        if (!shouldReview) continue;
+        if (p.schoolSystem?.lastKickReviewAt) {
+          const lastReviewAt = new Date(p.schoolSystem.lastKickReviewAt);
+          if (Math.floor((Date.now() - lastReviewAt.getTime()) / (1000 * 60 * 60 * 24)) < 1) continue;
+        }
+
+        const aiRecommendation = await getSchoolKickRecommendation(p.userId, daysInactive, warningCount);
+        p.schoolSystem.lastKickReviewAt = new Date();
+        await p.save().catch(() => {});
+
+        if (shouldEscalateSchoolKick({ daysInactive, warningCount, aiRecommendation })) {
+          await sendSchoolKickDecisionDM(p.userId, client, {
+            studentTag: `<@${p.userId}>`,
+            daysInactive,
+            warningCount,
+            aiRecommendation
+          });
+        }
+      } catch (innerErr) {
+        logger.error(`[ModeratorSchool] reviewInactiveSchoolStudents inner error for ${p.userId}:`, innerErr.message);
+      }
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] reviewInactiveSchoolStudents error:', err.message);
+  }
+}
+
+async function massGraduateSchoolStudents(client) {
+  try {
+    const students = await StaffProgress.find({
+      'schoolSystem.status': {
+        $in: ['in_school', 'pending_contract', 'phase1_blocks_completed', 'phase1_exam_submitted', 'phase1_completed', 'phase2_blocks_completed', 'phase2_exam_submitted', 'phase2_completed', 'exam_passed']
+      }
+    });
+
+    for (const p of students) {
+      try {
+        if (p.schoolSystem?.status === 'graduated') continue;
+        await graduateStudent(p.userId, 'Kıyak Mezuniyet (Toplu)', client, { score: 100, reason: 'Toplu kıyak mezuniyeti uygulandı. EKO-MOD-KIYAĞI tagı verildi.' });
+      } catch (innerErr) {
+        logger.error(`[ModeratorSchool] massGraduateSchoolStudents inner error for ${p.userId}:`, innerErr.message);
+      }
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] massGraduateSchoolStudents error:', err.message);
+  }
+}
+
 async function initializeModeratorSchool(client) {
   try {
     logger.info('[ModeratorSchool] Startup kontrolü yapılıyor...');
@@ -384,6 +457,12 @@ async function initializeModeratorSchool(client) {
     // Ensure Update Roles message exists in school server
     await ensureSchoolUpdateRolesMessage(client).catch(() => { });
     await ensureGraduationExamMessage(client).catch(() => { });
+    await massGraduateSchoolStudents(client).catch(() => {});
+    await reviewInactiveSchoolStudents(client).catch(() => {});
+
+    setInterval(() => {
+      reviewInactiveSchoolStudents(client).catch(() => {});
+    }, 6 * 60 * 60 * 1000);
 
     // Restore saved training and exam sessions from DB after 5 seconds
     setTimeout(async () => {
@@ -815,6 +894,16 @@ async function handleSchoolButtons(interaction, client) {
       await saveExamToDB(userId, session).catch(() => {});
       await askExamQuestion(userId, client);
     }
+    return;
+  }
+
+  const kickDecisionMatch = customId.match(/^school_kick_decision_(yes|no)_(\d+)$/);
+  if (kickDecisionMatch) {
+    await interaction.deferUpdate().catch(() => { });
+    const [, decisionType, targetUserId] = kickDecisionMatch;
+    const decision = decisionType === 'yes' ? 'kick' : 'keep';
+    await applySchoolKickDecision(targetUserId, client, decision, { aiRecommendation: decisionType === 'yes' ? 'EVET, ATILSIN' : 'HAYIR, ATILMASIN' });
+    await interaction.editReply({ content: decision === 'kick' ? '🗑️ Karar kaydedildi; öğrenciye atılma işlemi yönlendirildi.' : '✅ Karar kaydedildi; öğrenci okul sürecine devam edecek.', embeds: [], components: [] }).catch(() => { });
     return;
   }
 
@@ -1917,6 +2006,93 @@ async function handleSchoolExamReply(message, client) {
   return true;
 }
 
+async function touchSchoolActivity(userId) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (!p || !p.schoolSystem) return;
+    p.schoolSystem.lastActiveAt = new Date();
+    await p.save().catch(() => {});
+  } catch (err) {
+    logger.error('[ModeratorSchool] touchSchoolActivity error:', err.message);
+  }
+}
+
+async function applySchoolKiyakTag(member) {
+  try {
+    if (!member) return;
+    const currentName = member.nickname || member.user?.username || '';
+    if (!currentName) return;
+    const tag = `[${SCHOOL_KICK_TAG_NAME}]`;
+    if (currentName.includes(tag)) return;
+    const cleaned = currentName.replace(/^\[[^\]]+\]\s*/, '');
+    await member.setNickname(`${tag} ${cleaned}`.trim()).catch(() => {});
+  } catch (err) {
+    logger.error('[ModeratorSchool] applySchoolKiyakTag error:', err.message);
+  }
+}
+
+async function getSchoolKickRecommendation(studentName, daysInactive, warningCount) {
+  try {
+    const prompt = `Bir moderatör okulu öğrencisi için karar ver. Öğrenci: ${studentName || 'Bilinmeyen'}\n3 gün boyunca aktif değil, ${warningCount} uyarısı var.\nSadece bir kelime veya kısa ifade olarak cevap ver: EVET, ATILSIN veya HAYIR, ATILMASIN.`;
+    const response = await chatWithAI(prompt, 'Sen moderatör okulu karar destek AI’sın. Çok kısa cevap ver.', 'ticket', { max_tokens: 40, temperature: 0.2 });
+    const text = (response || '').toString().trim().toUpperCase();
+    if (text.includes('ATILSIN')) return 'EVET, ATILSIN';
+    if (text.includes('ATILMASIN')) return 'HAYIR, ATILMASIN';
+    return daysInactive >= SCHOOL_KICK_INACTIVE_DAYS && warningCount >= SCHOOL_KICK_WARNING_THRESHOLD ? 'EVET, ATILSIN' : 'HAYIR, ATILMASIN';
+  } catch (err) {
+    logger.error('[ModeratorSchool] getSchoolKickRecommendation error:', err.message);
+    return 'EVET, ATILSIN';
+  }
+}
+
+async function sendSchoolKickDecisionDM(userId, client, payload = {}) {
+  try {
+    const targetUser = await client.users.fetch(SCHOOL_KICK_TARGET_USER_ID).catch(() => null);
+    if (!targetUser) return;
+
+    const description = payload.aiRecommendation
+      ? `AI tavsiyesi: **${payload.aiRecommendation}**`
+      : 'AI tavsiyesi bekleniyor.';
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff6b35)
+      .setTitle('🧭 Moderatör Okulu Karar Paneli')
+      .setDescription(`Merhaba! ${payload.studentTag || 'Bu öğrenci'} adlı adayın okul sürecinde ${payload.daysInactive || 0} gün inaktif olduğu ve ${payload.warningCount || 0} uyarı aldığı tespit edildi.\n\n${description}`);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`school_kick_decision_yes_${userId}`).setLabel('EVET, ATILSIN').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`school_kick_decision_no_${userId}`).setLabel('HAYIR, ATILMASIN').setStyle(ButtonStyle.Secondary)
+    );
+
+    await targetUser.send({ embeds: [embed], components: [row] }).catch(() => {});
+  } catch (err) {
+    logger.error('[ModeratorSchool] sendSchoolKickDecisionDM error:', err.message);
+  }
+}
+
+async function applySchoolKickDecision(userId, client, decision, payload = {}) {
+  try {
+    const targetUser = await client.users.fetch(userId).catch(() => null);
+    if (!targetUser) return;
+
+    if (decision === 'kick') {
+      const schoolGuild = client.guilds.cache.get(SCHOOL_GUILD_ID);
+      if (schoolGuild) {
+        const member = await schoolGuild.members.fetch(userId).catch(() => null);
+        if (member && member.kickable) {
+          await member.kick(`Okul sürecinde inaktiflik ve uyarı sonrası AI tavsiyesiyle atıldı. ${payload.aiRecommendation || ''}`);
+        }
+      }
+
+      await targetUser.send({ content: `🚫 Moderatör okulu sürecinde inaktifliğin ve uyarıların nedeniyle okuldan atıldın. Yeni bir başvuru için tekrar kayıt olabilirsin.` }).catch(() => {});
+    } else {
+      await targetUser.send({ content: '✅ Okul sürecine devam edebilirsin. AI tavsiyesi, atılmamanı önerdi.' }).catch(() => {});
+    }
+  } catch (err) {
+    logger.error('[ModeratorSchool] applySchoolKickDecision error:', err.message);
+  }
+}
+
 async function graduateStudent(userId, adminName, client, evalResult = null) {
   try {
     const user = await client.users.fetch(userId);
@@ -1937,6 +2113,7 @@ async function graduateStudent(userId, adminName, client, evalResult = null) {
         const member = await mainGuild.members.fetch(userId).catch(() => null);
         if (member) {
           await member.roles.remove([MAIN_SCHOOL_ROLES.TRAINEE, MAIN_SCHOOL_ROLES.INFO_ROLE]).catch(() => { });
+          await applySchoolKiyakTag(member).catch(() => {});
           const savedRoles = p.schoolSystem.originalRoles || [];
           if (savedRoles.length > 0) {
             await member.roles.add(savedRoles).catch(() => { });
@@ -1960,6 +2137,7 @@ async function graduateStudent(userId, adminName, client, evalResult = null) {
         const schoolMember = await schoolGuild.members.fetch(userId).catch(() => null);
         if (schoolMember) {
           await schoolMember.roles.add(SCHOOL_ROLES.MOD_EKIBI).catch(() => { });
+          await applySchoolKiyakTag(schoolMember).catch(() => {});
           setTimeout(async () => {
             await schoolMember.kick('Mezun oldu!').catch(() => { });
           }, 5000);
@@ -2221,6 +2399,7 @@ async function handleTrainingRequestConfirm(interaction, client) {
       p.schoolSystem.phase = isPhase1 ? 1 : 2;
       p.schoolSystem.status = 'in_school';
       p.schoolSystem.step = 0;
+      p.schoolSystem.lastActiveAt = new Date();
       await p.save().catch(() => {});
     }
 
@@ -2394,5 +2573,8 @@ module.exports = {
   graduateStudent,
   passPhase1,
   passPhase2,
+  shouldEscalateSchoolKick,
+  sendSchoolKickDecisionDM,
+  applySchoolKickDecision,
 };
 
