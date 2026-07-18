@@ -2720,7 +2720,8 @@ async function handleButtonInteraction(interaction) {
           .setDescription(
             `Davalı yetkili <@${c.targetUserId}> suçlu bulunmuş ve ceza onaylanmıştır.\n\n` +
             `• **Kesilen Ceza:** \`${fine} TL\`\n` +
-            `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)'}
+            `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ` +
+            (p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)')
           )
           .setTimestamp();
 

@@ -22,6 +22,35 @@ async function handleSelectInteraction(interaction) {
     return renderPanel(interaction, selected);
   }
 
+  // ── Birleştirilmiş Sistem Masası (Tek Select) yönlendirici
+  if (customId === 'staff_system_desk') {
+    const action = interaction.values[0];
+    await interaction.deferUpdate().catch(() => {});
+    const managerActions = ['staff_action_warn','staff_action_commend','staff_action_sicil','staff_action_dismiss','staff_action_set_stats','staff_action_risk_compliance','staff_action_tactical_desk'];
+
+    try {
+      if (managerActions.includes(action)) {
+        interaction.customId = 'staff_manager_actions';
+        interaction.values = [action];
+        return handleSelectInteraction(interaction);
+      }
+
+      if (action && action.startsWith('task_')) {
+        interaction.customId = 'select_daily_task';
+        interaction.values = [action];
+        return handleSelectInteraction(interaction);
+      }
+
+      // Default to personal actions handler
+      interaction.customId = 'staff_personal_actions';
+      interaction.values = [action];
+      return handleSelectInteraction(interaction);
+    } catch (err) {
+      console.error('[staff_system_desk router] Error:', err.message);
+      return interaction.followUp({ content: '❌ Bir hata oluştu, lütfen tekrar deneyin.', ephemeral: true });
+    }
+  }
+
   if (customId.startsWith("eposta_remove_select_")) {
     const ticketId = interaction.customId.replace("eposta_remove_select_", "");
     const targetUserId = interaction.values[0];

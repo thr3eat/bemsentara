@@ -2154,48 +2154,49 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     const kpiScore = calculateKpi(progress);
     const kpiGrade = getKpiGrade(kpiScore);
 
-    let dutyText = '';
+    // Prepare compact duty/performance fields (3-column grid)
+    let dutyStatusCell = '';
+    let kpiCell = '';
+    let locationCell = '';
     const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
     const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
 
     if (isResting) {
-      dutyText += `☕ **Ruh Hali:** Zorunlu İstirahatte (Kahve İzni)\n`;
+      dutyStatusCell += `☕ Ruh Hali:\n**İstirahatte**`;
     } else if (isBurnout) {
-      dutyText += `⚠️ **Ruh Hali:** Aşırı Yorgun (Burnout)\n`;
+      dutyStatusCell += `⚠️ Ruh Hali:\n**Aşırı Yorgun**`;
     } else {
-      dutyText += `🟢 **Ruh Hali:** Dinç / Aktif\n`;
+      dutyStatusCell += `🟢 Ruh Hali:\n**Aktif**`;
     }
 
     if (progress.duty?.isActive && progress.duty.startedAt) {
       const elapsedMins = Math.floor((Date.now() - new Date(progress.duty.startedAt).getTime()) / 1000 / 60);
       const elapsedHrs = Math.floor(elapsedMins / 60);
       const elapsedRemainingMins = elapsedMins % 60;
-      
+
       if (progress.duty.isBreakActive && progress.duty.breakStartedAt) {
         const breakMins = Math.floor((Date.now() - new Date(progress.duty.breakStartedAt).getTime()) / 1000 / 60);
-        dutyText += `🟡 **Nöbet Durumu:** ☕ KAHVE MOLASINDA (${breakMins} dakikadır)\n`;
+        dutyStatusCell += `\nNöbet: Kahve Molası (${breakMins} dk)`;
       } else {
-        dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n`;
+        dutyStatusCell += `\nNöbet: Aktif (${elapsedHrs} sa ${elapsedRemainingMins} dk)`;
       }
-      dutyText += `🎙️ **Nöbet Ses Süresi:** \`${progress.duty.sessionVoiceMinutes || 0} dk\`\n`;
-      dutyText += `🎫 **Nöbet Bilet Çözümü:** \`${progress.duty.sessionTicketsSolved || 0} adet\`\n`;
-      dutyText += `🛡️ **Nöbet Mod İşlemi:** \`${progress.duty.sessionModerationActions || 0} adet\`\n`;
+
+      dutyStatusCell += `\nSes: \`${progress.duty.sessionVoiceMinutes || 0}\` dk`;
+      dutyStatusCell += `\nBilet: \`${progress.duty.sessionTicketsSolved || 0}\``;
     } else {
-      dutyText += `🔴 **Nöbet Durumu:** 💤 Serbest Zaman (Nöbette Değil)\n`;
+      dutyStatusCell += `\nNöbet: Serbest`;
     }
-    
+
     const warnsCount = progress.disciplinary?.warns?.length || 0;
     const commsCount = progress.disciplinary?.commendations?.length || 0;
-    
-    dutyText += `\n📍 **Konum / Şehir:** \`${progress.city || 'Belirtilmedi'}\` (TRT / UTC+3)\n`;
-    dutyText += `📊 **Performans KPI:** \`${kpiScore}/100\` (${kpiGrade.label})\n`;
-    dutyText += `🎖️ **Sicil Özeti:** 💚 \`${commsCount} Takdir\` | ⚠️ \`${warnsCount} Disiplin Uyarısı\``;
 
-    fields.push({
-      name: '🛡️ NÖBET VE PERFORMANS KARTI (KPI & SİCİL)',
-      value: dutyText.trim(),
-      inline: false
-    });
+    locationCell = `📍 Konum:\n\`${progress.city || 'Belirtilmedi'}\``;
+    kpiCell = `📊 KPI:\n\`${kpiScore}/100\` (${kpiGrade.label})\nSicil: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\``;
+
+    // Push three inline fields to create a 3-column grid
+    fields.push({ name: '🟢 Nöbet Durumu', value: dutyStatusCell.trim(), inline: true });
+    fields.push({ name: '📊 Performans KPI', value: kpiCell.trim(), inline: true });
+    fields.push({ name: '📍 Operasyon Konumu', value: locationCell.trim(), inline: true });
   } catch (kpiErr) {
     console.error('[staffSystem] KPI field build error:', kpiErr.message);
   }
@@ -2233,7 +2234,9 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     inline: false
   });
 
-  embed.addFields(fields).setTimestamp();
+  embed.addFields(fields)
+    .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} (UTC+3) • KPI Skoru: ${typeof kpiScore !== 'undefined' ? `${kpiScore}/100` : '—'}` })
+    .setTimestamp();
 
   return embed;
 }
@@ -2426,17 +2429,14 @@ async function getMorningBriefingComponents(progress) {
     }
   } catch (_) { }
 
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId('select_daily_task')
-    .setPlaceholder('🎯 Seçimli Görevi Değiştir')
-    .addOptions(options);
-  const rowSelect = new ActionRowBuilder().addComponents(selectMenu);
+  // Build a single combined select menu to reduce UI clutter
+  const combinedOptions = [];
 
-  // Row 2: Kişisel İşlemler Seçim Menüsü
-  const personalSelect = new StringSelectMenuBuilder()
-    .setCustomId('staff_personal_actions')
-    .setPlaceholder('⚙️ Kişisel Yetkili İşlemleri');
-    const personalOptions = [
+  // Task options (prefixed with task_)
+  options.forEach(o => combinedOptions.push({ label: o.label, description: o.description, value: o.value }));
+
+  // Personal options
+  const personalOptions = [
       { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
       { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
       { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
@@ -2461,17 +2461,13 @@ async function getMorningBriefingComponents(progress) {
       { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
     );
 
-    personalSelect.addOptions(personalOptions);
-  const rowPersonal = new ActionRowBuilder().addComponents(personalSelect);
+    // Append personal options to combined
+    personalOptions.forEach(opt => combinedOptions.push(opt));
 
-  // Row 3: Yönetim & Sicil İşlemleri (Sadece Level >= 3 için)
-  let rowManager = null;
+  // Manager options (only show if eligible)
+  let managerOptions = [];
   if (progress.level >= 3) {
-    const managerSelect = new StringSelectMenuBuilder()
-      .setCustomId('staff_manager_actions')
-      .setPlaceholder('🛡️ Yönetim & Sicil İşlemleri');
-      
-    const options = [
+    managerOptions = [
       { label: '⚠️ Disiplin Uyarısı Ver', description: 'Bir yetkiliye resmi uyarısını verin (KPI -10).', value: 'staff_action_warn', emoji: '⚠️' },
       { label: '💚 Teşekkür / Takdir Belgesi Ver', description: 'Bir yetkiliye takdirini verin (KPI +5).', value: 'staff_action_commend', emoji: '💚' },
       { label: '📋 Personel Sicil Raporu Sorgula', description: 'Bir yetkilinin sicilini ve performansını sorgulayın.', value: 'staff_action_sicil', emoji: '📋' },
@@ -2481,14 +2477,30 @@ async function getMorningBriefingComponents(progress) {
     ];
 
     if (progress.level >= 6) {
-      options.push({ label: '📡 Taktik Operasyon Masası', description: 'Canlı ekip durumunu ve komuta merkezini yönetin.', value: 'staff_action_tactical_desk', emoji: '📡' });
+      managerOptions.push({ label: '📡 Taktik Operasyon Masası', description: 'Canlı ekip durumunu ve komuta merkezini yönetin.', value: 'staff_action_tactical_desk', emoji: '📡' });
     }
-
-    managerSelect.addOptions(options);
-    rowManager = new ActionRowBuilder().addComponents(managerSelect);
+    managerOptions.forEach(opt => combinedOptions.push(opt));
   }
 
-  const isOnDuty = progress.duty?.isActive;
+  // Replace whistle option with close option if an active anonymous report exists
+  try {
+    const AnonymousReport = require('../../models/AnonymousReport');
+    const activeReport = await AnonymousReport.findOne({ realUserId: progress.userId }).sort({ createdAt: -1 }).catch(() => null);
+    if (activeReport) {
+      // remove any existing whistle option from combinedOptions
+      for (let i = combinedOptions.length - 1; i >= 0; i--) {
+        if (combinedOptions[i].value === 'staff_action_whistleblower') combinedOptions.splice(i, 1);
+      }
+      combinedOptions.push({ label: '🔒 İhbarını Kapat', description: 'Mevcut anonim ihbarını kapat ve thread’i sonlandır.', value: 'staff_action_whistleblower_close', emoji: '🔒' });
+    }
+  } catch (_) {}
+
+  // Build the single select menu
+  const combinedSelect = new StringSelectMenuBuilder()
+    .setCustomId('staff_system_desk')
+    .setPlaceholder('📁 SİSTEM HAREKÂT MASASI')
+    .addOptions(combinedOptions.slice(0, 25)); // limit to 25 options
+  const rowSelect = new ActionRowBuilder().addComponents(combinedSelect);
   const isBreakActive = progress.duty?.isBreakActive;
 
   const dutyBtn = new ButtonBuilder()
@@ -2523,8 +2535,7 @@ async function getMorningBriefingComponents(progress) {
     dynamicBtn
   );
 
-  const componentsList = [rowButtons, rowSelect, rowPersonal];
-  if (rowManager) componentsList.push(rowManager);
+  const componentsList = [rowButtons, rowSelect];
   componentsList.push(rowSettings);
 
   try {
