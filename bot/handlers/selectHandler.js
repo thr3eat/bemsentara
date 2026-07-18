@@ -369,6 +369,116 @@ async function handleSelectInteraction(interaction) {
       return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
+    if (action === 'staff_action_claim_salary') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const p = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (!p) return interaction.editReply({ content: '❌ Personel kaydınız bulunamadı.' });
+
+        const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        if (p.lastSalaryClaimedAt && (Date.now() - new Date(p.lastSalaryClaimedAt).getTime() < ONE_WEEK_MS)) {
+          const diffMs = ONE_WEEK_MS - (Date.now() - new Date(p.lastSalaryClaimedAt).getTime());
+          const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+          const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+          return interaction.editReply({
+            content: `⚠️ **Maaşınızı zaten bu hafta aldınız!**\nBir sonraki maaş hak edişinize: **${diffDays} gün ${diffHours} saat** var.`
+          });
+        }
+
+        const { calculateKpi } = require('../services/staffSystem');
+        const kpiScore = calculateKpi(p);
+
+        const BASE_SALARIES = {
+          1: 50,
+          2: 100,
+          3: 150,
+          4: 200,
+          5: 300
+        };
+
+        const base = BASE_SALARIES[p.level] || 50;
+        const salary = Math.floor(base * (kpiScore / 100));
+
+        p.gamification = p.gamification || {};
+        p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + salary;
+        p.lastSalaryClaimedAt = new Date();
+        await p.save();
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('🪙 Maaş Ödemesi Gerçekleştirildi')
+          .setDescription(
+            `Sayın <@${interaction.user.id}>,\n\n` +
+            `Haftalık aktiflik durumunuz ve KPI puanınız üst yönetim tarafından onaylandı. Maaşınız başarıyla hesabınıza yatırıldı!\n\n` +
+            `• **Maaş Seviyesi (Rütbe Seviyesi):** Level ${p.level}\n` +
+            `• **Performans Puanınız (KPI):** \`${kpiScore} / 100\`\n` +
+            `• **Hesaba Aktarılan Tutar:** 🪙 **+${salary} EkoCoin**\n\n` +
+            `• **Güncel Bakiyeniz:** 💳 \`${p.gamification.ecoCoins} E.C.\``
+          )
+          .setFooter({ text: 'Eko Yıldız • Finansal Yönetim Departmanı' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error('[Salary-Claim] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
+    if (action === 'staff_action_leaderboard') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const StaffProgress = require('../../models/StaffProgress');
+        const allProgress = await StaffProgress.find({ status: 'active' });
+        
+        const sorted = allProgress
+          .map(doc => {
+            const xp = doc.gamification?.currentXP || 0;
+            const coins = doc.gamification?.ecoCoins || 0;
+            const level = doc.level || 1;
+            return {
+              userId: doc.userId,
+              xp,
+              coins,
+              level,
+              rawDoc: doc
+            };
+          })
+          .sort((a, b) => b.xp - a.xp)
+          .slice(0, 5);
+
+        const embed = new EmbedBuilder()
+          .setColor(0xf1c40f)
+          .setTitle('🏆 Eko Yıldız Haftalık Yetkili Liderlik Tablosu')
+          .setDescription('Sunucumuzda haftanın en yüksek tecrübe puanına (XP) ve aktifliğine sahip Top 5 yetkilisi listesi:')
+          .setFooter({ text: 'Eko Yıldız • Yetkili Rekabet Sistemi' })
+          .setTimestamp();
+
+        const ROLE_NAMES = {
+          1: '📋 Stajyer / Deneme Mod',
+          2: '🛡️ Moderatör',
+          3: '⚔️ Baş Moderatör / Supervisor',
+          4: '🛡️ Yönetici / Co-Admin',
+          5: '👑 Yönetici Kurul'
+        };
+
+        const emojis = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+        const listText = sorted.map((item, idx) => {
+          const roleName = ROLE_NAMES[item.level] || 'Yetkili';
+          return `${emojis[idx]} <@${item.userId}> - **${item.xp} XP**\n` +
+                 `   • *Rütbe:* ${roleName} | *Bakiye:* \`${item.coins} E.C.\``;
+        }).join('\n\n');
+
+        embed.addFields({ name: '📊 TOP 5 YETKİLİ', value: listText || 'Listelenecek yetkili bulunamadı.' });
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error('[Leaderboard] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
     if (action === 'staff_action_resign') {
       const modal = new ModalBuilder()
         .setCustomId('modal_staff_resign')

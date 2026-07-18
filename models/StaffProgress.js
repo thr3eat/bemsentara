@@ -159,6 +159,7 @@ const staffProgressSchema = new mongoose.Schema({
   retiredAt: { type: Date, default: null },
   dismissedAt: { type: Date, default: null },
   dismissReason: { type: String, default: null },
+  lastSalaryClaimedAt: { type: Date, default: null },
 
   // Bildirim ve Tercih Ayarları
   settings: {

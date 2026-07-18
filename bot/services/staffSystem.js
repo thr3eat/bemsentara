@@ -2141,6 +2141,8 @@ async function getMorningBriefingComponents(progress) {
       { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
       { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
       { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
+      { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
+      { label: '📊 Yetkili Liderlik Tablosu', description: 'Haftanın en aktif Top 5 yetkilisini görün.', value: 'staff_action_leaderboard', emoji: '📊' },
       { label: '🚪 İstifa Başvurusu Yap', description: 'Gerekçenizi belirterek istifa edin.', value: 'staff_action_resign', emoji: '🚪' },
       { label: '🎖️ Emeklilik Başvurusu', description: 'Koşulları sağlıyorsanız emekli olun.', value: 'staff_action_retire', emoji: '🎖️' },
       { label: '💬 Koç AI ile Görüş', description: 'AI Personel Koçunuz ile sohbet başlatın.', value: 'staff_action_talk_to_coach', emoji: '💬' }
