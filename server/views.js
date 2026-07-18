@@ -3223,10 +3223,15 @@ function renderAdminPage(user) {
     <div id="adm-users" class="card" style="display:none;">
       <h1 style="font-size:2rem;font-weight:800;margin-bottom:0.5rem;">⚙️ Admin Paneli</h1>
       <p class="text-muted mb-3">Kullanıcı yetkileri ve ban yönetimi.</p>
-      <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">
-        <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;" onkeydown="if(event.key==='Enter') adminSearchUsers()">
+      <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+        <input type="text" id="admin-search" placeholder="Discord adı veya ID" style="flex:1;min-width:220px;" onkeydown="if(event.key==='Enter') adminSearchUsers()">
         <button type="button" class="btn" onclick="adminSearchUsers()">Ara</button>
       </div>
+      <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <input type="text" id="restore-staff-query" placeholder="Geri almak istediğin kullanıcı adı veya ID" style="flex:1;min-width:220px;" />
+        <button type="button" class="btn btn-success" onclick="restoreStaffByQuery()">↩️ Personel Geri Al</button>
+      </div>
+      <div id="restore-staff-result" style="margin-bottom:1rem;color:var(--success);"></div>
       <div id="admin-results"></div>
       <hr class="divider" style="margin-top:2rem;">
       <a href="/debug" style="color:var(--accent);">🔍 Debug sayfası</a>
@@ -3625,6 +3630,9 @@ function renderAdminPage(user) {
             const banBtn = u.isBanned
               ? '<button type="button" class="btn btn-sm btn-success" onclick="quickUnban(\\\''+adminEsc(u.discordId)+'\\\')">✅ Banı Kaldır</button>'
               : '<button type="button" class="btn btn-sm btn-danger" onclick="quickBan(\\\''+adminEsc(u.discordId)+'\\\',\\\''+adminEsc(u.discordUsername)+'\\\')">🚫 Yasakla</button>';
+          const restoreBtn = !u.isStaff
+              ? '<button type="button" class="btn btn-sm btn-success" onclick="restoreStaff(\\\''+adminEsc(u.discordId)+'\\\')">↩️ Geri Al</button>'
+              : '';
             return '<div class="admin-user-row" data-discord-id="' + adminEsc(u.discordId) + '" style="background:rgba(0,0,0,0.3);border:1px solid '+(u.isBanned?'rgba(248,113,113,.4)':'var(--border)')+';border-radius:14px;padding:1.25rem;margin-bottom:1rem;">' +
               '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">' +
               (u.discordAvatar ? '<img src="'+adminEsc(u.discordAvatar)+'" style="width:36px;height:36px;border-radius:50%;">' : '') +
@@ -3634,7 +3642,7 @@ function renderAdminPage(user) {
               '<label style="cursor:pointer;"><input type="checkbox" class="admin-cb-admin" ' + (u.isAdmin ? 'checked' : '') + '> Admin</label>' +
               '<label style="cursor:pointer;"><input type="checkbox" class="admin-cb-staff" ' + (u.isStaff ? 'checked' : '') + '> Staff</label>' +
               '<button type="button" class="btn btn-sm" onclick="adminSaveRoles(this)">💾 Kaydet</button>' +
-              banBtn + '</div></div>';
+              restoreBtn + banBtn + '</div></div>';
           }).join('');
         } catch (err) {
           box.innerHTML = '<p style="color:var(--danger);">Bağlantı hatası.</p>';
@@ -3669,6 +3677,46 @@ function renderAdminPage(user) {
         const d = await res.json().catch(() => ({}));
         if (res.ok) { showToast(d.message || 'Ban kaldırıldı.', 'success'); adminSearchUsers(); }
         else showToast(d.error || 'Hata', 'error');
+      }
+
+      async function restoreStaff(query) {
+        await restoreStaffQuery(query);
+      }
+
+      async function restoreStaffByQuery() {
+        const query = document.getElementById('restore-staff-query').value.trim();
+        await restoreStaffQuery(query);
+      }
+
+      async function restoreStaffQuery(query) {
+        const resultBox = document.getElementById('restore-staff-result');
+        if (!query) {
+          showToast('Discord kullanıcı adı veya ID girin.', 'warning');
+          resultBox.innerText = '';
+          return;
+        }
+        resultBox.innerText = '⏳ Geri alınıyor...';
+        try {
+          const res = await fetch('/api/admin/restore-staff', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+          });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) {
+            showToast(d.message || 'Kullanıcı başarıyla geri alındı.', 'success');
+            resultBox.style.color = 'var(--success)';
+            resultBox.innerText = d.message || '✅ Personel geri alındı.';
+            adminSearchUsers();
+          } else {
+            showToast(d.error || 'Geri alma başarısız.', 'error');
+            resultBox.style.color = 'var(--danger)';
+            resultBox.innerText = d.error || '❌ Hata oluştu.';
+          }
+        } catch (err) {
+          showToast('Bağlantı hatası.', 'error');
+          resultBox.style.color = 'var(--danger)';
+          resultBox.innerText = 'Bağlantı hatası oluştu.';
+        }
       }
 
       adminSearchUsers();

@@ -1008,6 +1008,79 @@ router.post("/api/admin/users/:discordId/roles", async (req, res) => {
   });
 });
 
+router.post("/api/admin/restore-staff", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const query = String(req.body.query || '').trim();
+  if (!query) return res.status(400).json({ error: 'Kullanıcı adı veya Discord ID girin.' });
+
+  const StaffProgress = require("../../models/StaffProgress");
+  const { getDiscordClient } = require("../../bot/discordClient");
+  const { ROLES } = require("../../bot/services/staffSystem");
+
+  let user = null;
+  if (/^[0-9]{17,20}$/.test(query)) {
+    user = await User.findOne({ discordId: query });
+  }
+  if (!user) {
+    const allUsers = await User.find({});
+    const lowerQuery = query.toLowerCase();
+    user = allUsers.find((u) =>
+      String(u.discordId) === query ||
+      (u.discordUsername || '').toLowerCase() === lowerQuery ||
+      (u.robloxUsername || '').toLowerCase() === lowerQuery
+    );
+  }
+
+  if (!user) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  }
+
+  const userId = String(user.discordId);
+  let progress = await StaffProgress.findOne({ userId });
+  if (progress && progress.status === 'active') {
+    return res.status(400).json({ error: 'Bu kullanıcı zaten aktif staff durumunda.' });
+  }
+
+  if (!progress) {
+    progress = new StaffProgress({
+      userId,
+      guildId: process.env.STAFF_GUILD_ID || '1367646464804655104',
+      level: 1,
+      status: 'active',
+      joinedAt: new Date(),
+      promotedAt: new Date(),
+    });
+  } else {
+    progress.status = 'active';
+    progress.dismissedAt = null;
+    progress.dismissReason = null;
+    progress.resignedAt = null;
+    progress.resignReason = null;
+    progress.retiredAt = null;
+  }
+
+  await progress.save();
+  user.isStaff = true;
+  await user.save();
+  saveStoreNow();
+
+  const client = getDiscordClient();
+  if (client && client.isReady()) {
+    const guild = await client.guilds.fetch(process.env.STAFF_GUILD_ID || '1367646464804655104').catch(() => null);
+    if (guild) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (member) {
+        const roleId = ROLES[1];
+        if (roleId && !member.roles.cache.has(roleId)) {
+          await member.roles.add(roleId, 'Staff restore işlemi').catch(() => {});
+        }
+      }
+    }
+  }
+
+  res.json({ success: true, message: `✅ ${user.discordUsername || user.discordId} personel olarak geri alındı. Rol verildi.` });
+});
+
 router.post("/api/admin/action", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
