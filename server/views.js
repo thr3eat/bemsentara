@@ -3617,7 +3617,28 @@ function renderAdminPage(user) {
         return el.innerHTML;
       }
 
-      async function adminSearchUsers() {
+      window.showToast = function(message, type = 'info', duration = 3500) {
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.position = 'fixed';
+        toast.style.right = '24px';
+        toast.style.bottom = '24px';
+        toast.style.zIndex = '9999';
+        toast.style.padding = '14px 18px';
+        toast.style.borderRadius = '16px';
+        toast.style.background = type === 'success' ? 'rgba(34,197,94,0.95)' : type === 'error' ? 'rgba(239,68,68,0.95)' : type === 'warning' ? 'rgba(245,158,11,0.95)' : 'rgba(75,85,99,0.95)';
+        toast.style.color = '#fff';
+        toast.style.fontWeight = '600';
+        toast.style.boxShadow = '0 16px 40px rgba(0,0,0,0.18)';
+        toast.style.maxWidth = '320px';
+        toast.style.lineHeight = '1.4';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.remove();
+        }, duration);
+      }
+
+      window.adminSearchUsers = async function() {
         const q = document.getElementById('admin-search').value.trim();
         const box = document.getElementById('admin-results');
         box.innerHTML = '<p style="color:var(--muted);">Aranıyor...</p>';
@@ -3649,7 +3670,7 @@ function renderAdminPage(user) {
         }
       }
 
-      async function adminSaveRoles(btn) {
+      window.adminSaveRoles = async function(btn) {
         const row = btn.closest('.admin-user-row');
         const id = row.getAttribute('data-discord-id');
         const isAdmin = row.querySelector('.admin-cb-admin').checked;
@@ -3663,12 +3684,12 @@ function renderAdminPage(user) {
         else showToast(d.error || 'Kaydedilemedi', 'error');
       }
 
-      function quickBan(id, name) {
+      window.quickBan = function(id, name) {
         document.getElementById('ban-id').value = id;
         admTab('bans', document.querySelectorAll('.adm-tab')[2]);
       }
 
-      async function quickUnban(id) {
+      window.quickUnban = async function(id) {
         if (!confirm('Bu kullanıcının banını kaldırmak istiyor musun?')) return;
         const res = await fetch('/api/admin/users/' + encodeURIComponent(id) + '/unban', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3679,11 +3700,11 @@ function renderAdminPage(user) {
         else showToast(d.error || 'Hata', 'error');
       }
 
-      async function restoreStaff(query) {
+      window.restoreStaff = async function(query) {
         await restoreStaffQuery(query);
       }
 
-      async function restoreStaffByQuery() {
+      window.restoreStaffByQuery = async function() {
         const query = document.getElementById('restore-staff-query').value.trim();
         await restoreStaffQuery(query);
       }

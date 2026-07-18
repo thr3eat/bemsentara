@@ -1021,14 +1021,22 @@ router.post("/api/admin/restore-staff", async (req, res) => {
   if (/^[0-9]{17,20}$/.test(query)) {
     user = await User.findOne({ discordId: query });
   }
+
   if (!user) {
-    const allUsers = await User.find({});
-    const lowerQuery = query.toLowerCase();
-    user = allUsers.find((u) =>
-      String(u.discordId) === query ||
-      (u.discordUsername || '').toLowerCase() === lowerQuery ||
-      (u.robloxUsername || '').toLowerCase() === lowerQuery
-    );
+    const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const exactMatches = await User.find({
+      $or: [
+        { discordId: query },
+        { discordUsername: new RegExp('^' + safeQuery + '$', 'i') },
+        { robloxUsername: new RegExp('^' + safeQuery + '$', 'i') },
+      ]
+    });
+
+    if (exactMatches.length === 1) {
+      user = exactMatches[0];
+    } else if (exactMatches.length > 1) {
+      return res.status(400).json({ error: 'Birden fazla eşleşme bulundu. Lütfen Discord ID kullanın.' });
+    }
   }
 
   if (!user) {
