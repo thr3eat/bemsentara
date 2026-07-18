@@ -1266,6 +1266,62 @@ async function handleButtonInteraction(interaction) {
     return interaction.showModal(modal).catch(() => {});
   }
 
+  // ── Kahve Molası Başlat/Bitir butonu ───────────────────────────────────────
+  if (customId === "staff_duty_break_start" || customId === "staff_duty_break_end") {
+    await interaction.deferUpdate().catch(() => { });
+    
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return;
+
+      const { GUILD2_ID } = require('../../config');
+      const guild = await interaction.client.guilds.fetch(GUILD2_ID).catch(() => null);
+      let logChan = null;
+      if (guild) {
+        logChan = guild.channels.cache.find(c => c.name === 'yetkili-rapor-log');
+      }
+
+      if (customId === "staff_duty_break_start") {
+        p.duty.isBreakActive = true;
+        p.duty.breakStartedAt = new Date();
+        await p.save();
+
+        if (logChan) {
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`☕ **${interaction.user.tag}** (\`${interaction.user.id}\`) kahve molasına çıktı.`)
+            .setTimestamp();
+          await logChan.send({ embeds: [embed] }).catch(() => {});
+        }
+      } else {
+        const breakStarted = p.duty.breakStartedAt ? new Date(p.duty.breakStartedAt).getTime() : Date.now();
+        const breakMins = Math.floor((Date.now() - breakStarted) / 1000 / 60);
+
+        p.duty.isBreakActive = false;
+        p.duty.breakStartedAt = null;
+        await p.save();
+
+        if (logChan) {
+          const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setDescription(`🟢 **${interaction.user.tag}** (\`${interaction.user.id}\`) kahve molasından döndü. (Mola Süresi: \`${breakMins} dakika\`)`)
+            .setTimestamp();
+          await logChan.send({ embeds: [embed] }).catch(() => {});
+        }
+      }
+
+      const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+      const embed = await generateMorningBriefingEmbed(p, interaction.client);
+      const components = await getMorningBriefingComponents(p);
+
+      await interaction.editReply({ embeds: [embed], components }).catch(() => { });
+    } catch (err) {
+      console.error('[Duty-Break] Hata:', err.message);
+    }
+    return;
+  }
+
   // ── Görev İlerlemesini Güncelle butonu ────────────────────────────────────
   if (customId === "staff_update_progress") {
     await interaction.deferUpdate().catch(() => { });

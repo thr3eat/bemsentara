@@ -1980,7 +1980,12 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
       const elapsedHrs = Math.floor(elapsedMins / 60);
       const elapsedRemainingMins = elapsedMins % 60;
       
-      dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n`;
+      if (progress.duty.isBreakActive && progress.duty.breakStartedAt) {
+        const breakMins = Math.floor((Date.now() - new Date(progress.duty.breakStartedAt).getTime()) / 1000 / 60);
+        dutyText += `🟡 **Nöbet Durumu:** ☕ KAHVE MOLASINDA (${breakMins} dakikadır)\n`;
+      } else {
+        dutyText += `🟢 **Nöbet Durumu:** ⚡ AKTİF NÖBETTE (${elapsedHrs} sa ${elapsedRemainingMins} dk)\n`;
+      }
       dutyText += `🎙️ **Nöbet Ses Süresi:** \`${progress.duty.sessionVoiceMinutes || 0} dk\`\n`;
       dutyText += `🎫 **Nöbet Bilet Çözümü:** \`${progress.duty.sessionTicketsSolved || 0} adet\`\n`;
       dutyText += `🛡️ **Nöbet Mod İşlemi:** \`${progress.duty.sessionModerationActions || 0} adet\`\n`;
@@ -2173,10 +2178,22 @@ async function getMorningBriefingComponents(progress) {
   }
 
   const isOnDuty = progress.duty?.isActive;
+  const isBreakActive = progress.duty?.isBreakActive;
+
   const dutyBtn = new ButtonBuilder()
     .setCustomId(isOnDuty ? 'staff_duty_end' : 'staff_duty_start')
     .setLabel(isOnDuty ? '🛑 Nöbeti Bitir' : '⚡ Nöbete Başla')
     .setStyle(isOnDuty ? ButtonStyle.Danger : ButtonStyle.Success);
+
+  const dynamicBtn = isOnDuty
+    ? new ButtonBuilder()
+        .setCustomId(isBreakActive ? 'staff_duty_break_end' : 'staff_duty_break_start')
+        .setLabel(isBreakActive ? '🟢 Molayı Bitir' : '☕ Mola Ver')
+        .setStyle(isBreakActive ? ButtonStyle.Success : ButtonStyle.Secondary)
+    : new ButtonBuilder()
+        .setCustomId('staff_incident_report')
+        .setLabel('📝 Vaka Raporu')
+        .setStyle(ButtonStyle.Danger);
 
   const rowSettings = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -2192,10 +2209,7 @@ async function getMorningBriefingComponents(progress) {
       .setCustomId('staff_ai_assistant')
       .setLabel('🤖 AI Asistan')
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('staff_incident_report')
-      .setLabel('📝 Vaka Raporu')
-      .setStyle(ButtonStyle.Danger)
+    dynamicBtn
   );
 
   const componentsList = [rowButtons, rowSelect, rowPersonal];

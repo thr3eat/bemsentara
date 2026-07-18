@@ -191,7 +191,9 @@ const staffProgressSchema = new mongoose.Schema({
     startedAt: { type: Date, default: null },
     sessionVoiceMinutes: { type: Number, default: 0 },
     sessionTicketsSolved: { type: Number, default: 0 },
-    sessionModerationActions: { type: Number, default: 0 }
+    sessionModerationActions: { type: Number, default: 0 },
+    isBreakActive: { type: Boolean, default: false },
+    breakStartedAt: { type: Date, default: null }
   },
 
   // Performans KPI Değerlendirmeleri (V6.0)
