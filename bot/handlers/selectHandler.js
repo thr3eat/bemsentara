@@ -379,11 +379,11 @@ async function handleSelectInteraction(interaction) {
           const insActive = p.insuranceActive || false;
           const insEmbed = new EmbedBuilder()
             .setColor(0x34495e)
-            .setTitle('⚖️ Malpractice Court & Sorumluluk Sigortası')
+            .setTitle('⚖️ Mahkeme & Sorumluluk Sigortası')
             .setDescription(
-              `Şu an aktif bir görevi kötüye kullanma davanız (malpractice) bulunmamaktadır.\n\n` +
+              `Şu an aktif bir mahkeme (görevi kötüye kullanma) dosyanız bulunmamaktadır.\n\n` +
               `🛡️ **Mesleki Sorumluluk Sigortası Durumu:** ${insActive ? '🟢 **AKTİF**' : '🔴 **PASİF**'}\n\n` +
-              `*Sigortanız aktif olduğunda, gelecekteki davalarda alacağınız cezalar ve tazminatlar sigorta tarafından karşılanır. Sigortanız yoksa cezalar doğrudan haftalık hak edişinizden kesilir.*`
+              `*Sigortanız aktif olduğunda, gelecekteki mahkeme davalarında alacağınız cezalar ve tazminatlar sigorta tarafından karşılanır. Sigortanız yoksa cezalar doğrudan haftalık hak edişinizden kesilir.*`
             )
             .setTimestamp();
 

@@ -3103,9 +3103,16 @@ Bu personelin bugünkü görevleri henüz başlatmadığını belirten çok kıs
           await role.setPosition(botMember.roles.highest.position - 1).catch(() => { });
         }
 
+        // Ensure we have member object for role operations
+        let invokingMember = interaction.member;
+        if (!invokingMember || !invokingMember.roles) {
+          invokingMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+          if (!invokingMember) return interaction.editReply({ content: '❌ Sunucu üyesi bilgisi alınamadı.' });
+        }
+
         // Add role to user
-        if (!interaction.member.roles.cache.has(role.id)) {
-          await interaction.member.roles.add(role.id);
+        if (!invokingMember.roles.cache.has(role.id)) {
+          await invokingMember.roles.add(role.id).catch(() => {});
         }
 
         return interaction.editReply({ content: `🎨 İsim renginiz başarıyla **${finalHex}** olarak güncellendi ve rolünüz tanımlandı!` });

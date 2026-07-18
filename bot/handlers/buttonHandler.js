@@ -2532,7 +2532,7 @@ async function handleButtonInteraction(interaction) {
       p.insuranceActive = true;
       await p.save();
 
-      return interaction.editReply({ content: "🛡️ **Mesleki Sorumluluk Sigortanız Aktif Edildi!**\n\n`100 TL` cüzdanınızdan tahsil edilmiştir. Gelecekteki malpractice davalarının tazminatları sigorta fonu tarafından karşılanacaktır." });
+      return interaction.editReply({ content: "🛡️ **Mesleki Sorumluluk Sigortanız Aktif Edildi!**\n\n`100 TL` cüzdanınızdan tahsil edilmiştir. Gelecekteki mahkeme davalarının tazminatları sigorta fonu tarafından karşılanacaktır." });
     } catch (err) {
       console.error('[Malpractice-Insurance-Buy] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
@@ -2602,15 +2602,8 @@ async function handleButtonInteraction(interaction) {
   }
 
   if (customId.startsWith("malpractice_court_won_") || customId.startsWith("malpractice_court_lost_")) {
-    const StaffProgress = require("../../models/StaffProgress");
-    const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-    if (!isLevel4) {
-      return interaction.reply({ content: "❌ Mahkeme kararlarını nihai sonuca bağlamak için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
-    }
-
+    // Fetch case and allow AI fallback if no higher-ranked reviewer exists
     await interaction.deferUpdate().catch(() => {});
-
     const isWon = customId.startsWith("malpractice_court_won_");
     const caseId = customId.replace(isWon ? "malpractice_court_won_" : "malpractice_court_lost_", "");
 
@@ -2624,6 +2617,74 @@ async function handleButtonInteraction(interaction) {
       const p = await StaffProgress.findOne({ userId: c.targetUserId });
       if (!p) return;
 
+      // Check if current actor has sufficient level
+      const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+      const isLevel4 = (managerProgress && managerProgress.level >= 4) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
+
+      if (!isLevel4) {
+        // Check if any higher-ranked person exists than target's level
+        const higherExists = await StaffProgress.exists({ level: { $gt: (p.level || 1) } });
+        if (higherExists) {
+          return interaction.reply({ content: "❌ Mahkeme kararlarını nihai sonuca bağlamak için hedef kişiden daha üstün rütbeye sahip bir yöneticinin onayı gerekir.", ephemeral: true });
+        }
+
+        // No higher-ranked person exists: use AI to decide
+        try {
+          const { chatWithAI } = require('../services/staffSystem');
+          const prompt = `Eko Yıldız mahkeme sistemi için bağımsız bir hakem AI'sın. Verilen dava metnini değerlendir ve tek kelimeyle karar ver: GUILTY veya INNOCENT. Ayrıca kısa bir gerekçe ve önerilen para cezası (TL) ver.\n\nDAVANIN GEREKÇESİ: ${c.reason}\nSIGORTA AKTIF MI: ${p.insuranceActive ? 'EVET' : 'HAYIR'}`;
+          const aiText = await chatWithAI([{ role: 'user', content: prompt }], null, 'ticket').catch(() => 'INNOCENT\nGerekçe: Yetersiz kanıt\nFine: 0');
+          // Parse simple AI response
+          const verdict = /GUILTY/i.test(aiText) ? 'lost' : 'won';
+          const fineMatch = aiText.match(/Fine:\s*(\d+)/i);
+          const fineAmount = fineMatch ? parseInt(fineMatch[1], 10) : (verdict === 'lost' ? (c.fineAmount || 100) : 0);
+
+          if (verdict === 'won') {
+            c.status = 'won';
+            c.settledAmount = 0;
+            await c.save();
+            const wonEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+              .setColor(0x2ecc71)
+              .setTitle(`✅ Mahkeme Kararı (AI Hakem): Davalı Suçsuz Bulundu - #${caseId}`)
+              .setDescription(`AI hakem kararı: Davalı yetkili <@${c.targetUserId}> suçsuz bulundu.\n\n**Gerekçe:** ${aiText}`)
+              .setTimestamp();
+            await interaction.editReply({ embeds: [wonEmbed], components: [] }).catch(() => {});
+          } else {
+            c.status = 'lost';
+            const fine = fineAmount || (c.fineAmount || 100);
+            let finalPaid = 0;
+            if (p.insuranceActive) {
+              finalPaid = 0;
+            } else {
+              finalPaid = fine;
+              p.gamification = p.gamification || {};
+              p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - finalPaid;
+              await p.save();
+            }
+
+            c.settledAmount = finalPaid;
+            await c.save();
+
+            const lostEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+              .setColor(0xe74c3c)
+              .setTitle(`❌ Mahkeme Kararı (AI Hakem): Davalı Suçlu Bulundu - #${caseId}`)
+              .setDescription(
+                `AI hakem kararı: Davalı yetkili <@${c.targetUserId}> suçlu bulundu.\n\n` +
+                `• **Kesilen Ceza:** \`${fine}\` TL\n` +
+                `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)'}\n\n` +
+                `**Gerekçe:** ${aiText}`
+              )
+              .setTimestamp();
+
+            await interaction.editReply({ embeds: [lostEmbed], components: [] }).catch(() => {});
+          }
+        } catch (aiErr) {
+          console.error('[Malpractice-AI-Fallback] Hata:', aiErr.message);
+          return interaction.followUp({ content: '❌ AI hakem kararı alınamadı. Lütfen bir yöneticiye başvurun.', ephemeral: true });
+        }
+        return;
+      }
+
+      // If executor is level4 or admin, apply manual decision
       if (isWon) {
         c.status = "won";
         c.settledAmount = 0;
@@ -2659,14 +2720,14 @@ async function handleButtonInteraction(interaction) {
           .setDescription(
             `Davalı yetkili <@${c.targetUserId}> suçlu bulunmuş ve ceza onaylanmıştır.\n\n` +
             `• **Kesilen Ceza:** \`${fine} TL\`\n` +
-            `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)'}`
+            `• **Cebinden Tahsil Edilen:** \`${finalPaid} TL\` ${p.insuranceActive ? '(🛡️ Sigortalı: Sigorta fonundan karşılandı)' : '(Sigortasız: Yetkili cüzdanından düşüldü)'}
           )
           .setTimestamp();
 
         await interaction.editReply({ embeds: [lostEmbed], components: [] }).catch(() => {});
       }
     } catch (err) {
-      console.error('[Malpractice-Court-Judge] Hata:', err.message);
+      console.error('[Mahkeme-Court-Judge] Hata:', err.message);
     }
     return;
   }

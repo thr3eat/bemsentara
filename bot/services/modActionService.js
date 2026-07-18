@@ -273,7 +273,15 @@ async function executeModAction(interaction, targetUser, reasonKey, kanitAttachm
   const guild = interaction.guild;
 
   // ── Rol kontrolü: Sadece belirtilen role sahip kişiler kullanabilir ──────────
-  if (!interaction.member.roles.cache.has(MODISLEM_ROLE_ID)) {
+  // Ensure we have a guild member object and roles cache
+  let invokingMember = interaction.member;
+  if (!invokingMember || !invokingMember.roles) {
+    if (!interaction.guild) return interaction.editReply({ content: '❌ Bu işlem sadece sunucu içinde kullanılabilir.' });
+    invokingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!invokingMember) return interaction.editReply({ content: '❌ Sunucu üyesi bilgisi alınamadı. Lütfen tekrar deneyin.' });
+  }
+
+  if (!invokingMember.roles.cache.has(MODISLEM_ROLE_ID)) {
     return interaction.editReply({ content: "❌ Bu komutu kullanma yetkiniz yok." });
   }
 

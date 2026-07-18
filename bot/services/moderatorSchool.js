@@ -1291,9 +1291,23 @@ async function handleSchoolButtons(interaction, client) {
   if (customId.startsWith('school_exam_pass_') || customId.startsWith('school_exam_fail_')) {
     await interaction.deferUpdate().catch(() => { });
 
-    const isManager = interaction.member.roles.cache.has(SCHOOL_ROLES.ASAMA_3) ||
-      interaction.member.roles.cache.has(SCHOOL_ROLES.ADMIN) ||
-      interaction.member.permissions.has('Administrator');
+    // Ensure member object exists for role checks
+    let invokingMember = interaction.member;
+    if (!invokingMember || !invokingMember.roles) {
+      if (!interaction.guild) {
+        await interaction.followUp({ content: '❌ Bu işlem sadece sunucu içinde kullanılabilir.', ephemeral: true }).catch(() => {});
+        return;
+      }
+      invokingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      if (!invokingMember) {
+        await interaction.followUp({ content: '❌ Sunucu üyesi bilgisi alınamadı.', ephemeral: true }).catch(() => {});
+        return;
+      }
+    }
+
+    const isManager = invokingMember.roles.cache.has(SCHOOL_ROLES.ASAMA_3) ||
+      invokingMember.roles.cache.has(SCHOOL_ROLES.ADMIN) ||
+      invokingMember.permissions.has('Administrator');
     if (!isManager) {
       await interaction.followUp({ content: '❌ Bu işlemi gerçekleştirmek için yetkiniz bulunmamaktadır.', ephemeral: true }).catch(() => { });
       return;

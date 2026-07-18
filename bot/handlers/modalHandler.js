@@ -300,7 +300,7 @@ async function handleModalSubmit(interaction) {
       const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
       const logEmbed = new EmbedBuilder()
         .setColor(0xe67e22)
-        .setTitle(`⚖️ Malpractice Court - Savunma Dilekçesi Verildi (#${caseId})`)
+        .setTitle(`⚖️ Mahkeme - Savunma Dilekçesi Verildi (#${caseId})`)
         .setDescription(`Yetkili <@${c.targetUserId}> kendisi hakkındaki iddialara karşı avukat savunması sunmuştur.`)
         .addFields(
           { name: '👤 Yetkili', value: `<@${c.targetUserId}>`, inline: true },

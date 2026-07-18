@@ -2,7 +2,7 @@
 
 const { EmbedBuilder } = require('discord.js');
 const StaffProgress = require('../../models/StaffProgress');
-const { chatWithAI } = require('./aiService');
+const { chatWithAI, TICKET_SYSTEM_PROMPT, STORY_SYSTEM_PROMPT, PERSONAL_ASSISTANT_SYSTEM_PROMPT } = require('./aiService');
 const staffAutomation = require('./staffAutomation');
 
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
@@ -2035,13 +2035,13 @@ Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.ci
     return embed;
   }
 
+  const userAvatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
   const embed = new EmbedBuilder()
     .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
-    .setTitle(`☀️ Günlük Görev Brifingi & İlerleme`)
-    .setDescription(
-      (aiMessage ? `🤖 **AI Koçun:** "${aiMessage}"\n\n` : '') +
-      `Bugünün görevleri aktif edildi! Sitede veya ses kanallarında aktif kalarak hedeflerini tamamla. 💪`
-    );
+    .setAuthor({ name: `${displayName} — ${ROLE_NAMES[progress.level]}`, iconURL: userAvatar })
+    .setTitle('☀️ Günlük Brifing')
+    .setThumbnail(userAvatar)
+    .setDescription(aiMessage ? `🤖 ${aiMessage}` : 'Günaydın! Bugünkü görevlerinizi aşağıda görebilirsiniz. Kısa ve net adımlarla ilerleyin.');
 
   const fields = [];
 
@@ -2443,7 +2443,7 @@ async function getMorningBriefingComponents(progress) {
       { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
       { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
       { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
-      { label: '⚖️ Malpractice Court (Mahkeme)', description: 'Aktif malpractice davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
+      { label: '⚖️ Mahkeme', description: 'Aktif mahkeme davalarınızı sorgulayın ve uzlaşın.', value: 'staff_action_malpractice', emoji: '⚖️' },
       { label: '🤫 İhbar Hattı (Whistleblower Desk)', description: 'Anonim şekilde yönetime ihbarda bulunun (SHA-256 Korumalı).', value: 'staff_action_whistleblower', emoji: '🤫' },
       { label: '🕵️ Redacted Ops (Gizli Teşkilat)', description: 'Aktif gizli ajan görevlerinizi sorgulayın ve çözün.', value: 'staff_action_redacted_ops', emoji: '🕵️' },
       { label: '🗺️ Izgara Kontrol Masası (Grid Control)', description: 'Aktif sektör bölgelerini denetleyin.', value: 'staff_action_grid_control', emoji: '🗺️' }
@@ -5317,6 +5317,11 @@ module.exports = {
   postponeDailyTask,
   generateMorningBriefingEmbed,
   getMorningBriefingComponents,
+  // AI helpers
+  chatWithAI,
+  PERSONAL_ASSISTANT_SYSTEM_PROMPT,
+  TICKET_SYSTEM_PROMPT,
+  STORY_SYSTEM_PROMPT,
   generateGreetProgressEmbed,
   getGreetProgressComponents,
   generateSettingsEmbed,
