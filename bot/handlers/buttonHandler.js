@@ -223,11 +223,18 @@ async function handleButtonInteraction(interaction) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
     try {
       const parts = customId.split('_');
-      const action = parts[1]; // prev,next,done
-      const userId = parts.slice(2).join('_');
+      const action = parts[1]; // prev,next,done,accept,complete
+      let userId = null;
+      let extra = null;
+      if (action === 'complete') {
+        userId = parts[2];
+        extra = parts.slice(3).join('_'); // step id
+      } else {
+        userId = parts.slice(2).join('_');
+      }
       const { handleWalkthroughAction } = require('../services/staffSystem');
-      await handleWalkthroughAction(userId, action, interaction.client);
-      return interaction.editReply({ content: '✅ Rehber ilerletildi.' });
+      await handleWalkthroughAction(userId, action, interaction.client, extra);
+      return interaction.editReply({ content: '✅ Rehber eylemi işlendi.' });
     } catch (err) {
       console.error('[walkthrough_action] Error:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });

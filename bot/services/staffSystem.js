@@ -5402,20 +5402,34 @@ async function recordGamePlay(userId, gameType, client) {
 }
 
 // ── Interactive Walkthrough (Ne yapacağımı bilmiyorum?) ─────────────────
-const WALK_STEPS = [
-  'Merhaba! Bu kısa rehber seni bugün ne yapman gerektiğine adım adım yönlendirecek. Hazırsan "İleri"ye bas.',
-  '1) Paneli aç: Sol alt köşedeki **Moderasyon Anasayfası** butonuna tıkla. Oradan tüm menülere erişebilirsin.',
-  '2) Günlük Görevler: "Günlük Brifing" kısmında bugün yapman gereken selamlaşma ve ses hedeflerini göreceksin. Hedefleri tamamla.',
-  '3) Nöbete Başla: Ses kanalında aktif olmak ve ticket çözmek istiyorsan "⚡ Nöbete Başla" butonunu kullan. Vardiya süresince otomatik ödül alırsın.',
-  '4) Birim Fonlama: Birim lideriysen "🏢 Birim Fonlama" ile prim dağıtabilir veya birim reklamı alabilirsin.',
-  '5) VIP Mağaza ve Yatırımlar: Cüzdanından TL/Elmas yönetimi için "Kurumsal Kredi & Finans Merkezi"ni kullan.',
-  'Tebrikler! Rehberi tamamladın. Her zaman tekrar çalıştırmak istersen aynı butona tıklayabilirsin.'
-];
+const WALK_PLANS = {
+  default: {
+    id: 'default',
+    title: 'Günlük Hızlı Plan',
+    description: 'Bugün öncelikle takip etmen gereken adımları sırayla gösterir. İstersen planı kabul et, sistem adımları günlere dağıtsın.',
+    steps: [
+      { id: 'open_panel', text: 'Paneli aç: Moderasyon Anasayfası ile tüm menülere eriş.', action: false },
+      { id: 'daily_tasks', text: 'Günlük Görevler: Selamlaşma ve ses hedeflerini kontrol et ve tamamla.', action: true },
+      { id: 'start_duty', text: 'Nöbete Başla: Ses kanalında aktif ol ve ticket çöz.', action: true },
+      { id: 'unit_fund', text: 'Birim Fonlama: Birim lideriysen sponsorluk veya fon yönetimi yap.', action: false },
+      { id: 'vip_store', text: 'VIP Mağaza: Profil teması veya rozet satın al.', action: false }
+    ]
+  }
+};
 
 async function startWalkthrough(userId, client) {
   try {
     const p = await getOrCreate(userId, GUILD_ID, client);
-    p.walkthrough = { active: true, step: 0 };
+    const plan = WALK_PLANS.default;
+    p.walkthrough = {
+      active: true,
+      step: 0,
+      planId: plan.id,
+      plan: plan,
+      accepted: false,
+      completedSteps: [],
+      schedule: {}
+    };
     await p.save().catch(() => {});
     await sendWalkthroughStep(p, client);
   } catch (err) {
@@ -5423,23 +5437,42 @@ async function startWalkthrough(userId, client) {
   }
 }
 
+function formatStepIndex(progress) {
+  const plan = progress.walkthrough?.plan || WALK_PLANS.default;
+  const max = (plan.steps || []).length;
+  const idx = Math.max(0, Math.min(progress.walkthrough?.step || 0, max - 1));
+  return { idx, max };
+}
+
 async function sendWalkthroughStep(progress, client) {
   try {
     if (!progress.walkthrough || !progress.walkthrough.active) return;
-    const stepIndex = Math.max(0, Math.min((progress.walkthrough.step || 0), WALK_STEPS.length - 1));
-    const text = WALK_STEPS[stepIndex];
+    const plan = progress.walkthrough.plan || WALK_PLANS.default;
+    const { idx, max } = formatStepIndex(progress);
+    const step = plan.steps[idx];
 
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
     const embed = new EmbedBuilder()
-      .setTitle(`🧭 Rehber — Adım ${stepIndex + 1} / ${WALK_STEPS.length}`)
-      .setDescription(text)
+      .setTitle(`🧭 ${plan.title} — Adım ${idx + 1}/${max}`)
+      .setDescription(step.text + (plan.description && idx === 0 ? '\n\n' + plan.description : ''))
       .setColor(0x3498db)
       .setTimestamp();
 
     const row = new ActionRowBuilder();
-    if (stepIndex > 0) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_prev_${progress.userId}`).setLabel('◀️ Geri').setStyle(ButtonStyle.Secondary));
-    if (stepIndex < WALK_STEPS.length - 1) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_next_${progress.userId}`).setLabel('İleri ▶️').setStyle(ButtonStyle.Primary));
-    row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_done_${progress.userId}`).setLabel('Bitti ✅').setStyle(ButtonStyle.Success));
+    if (idx > 0) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_prev_${progress.userId}`).setLabel('◀️ Geri').setStyle(ButtonStyle.Secondary));
+    if (idx < max - 1) row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_next_${progress.userId}`).setLabel('İleri ▶️').setStyle(ButtonStyle.Primary));
+
+    // Action button for steps that are actionable
+    if (step.action && !progress.walkthrough.completedSteps?.includes(step.id)) {
+      row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_complete_${progress.userId}_${step.id}`).setLabel('✔️ Yapıldı').setStyle(ButtonStyle.Success));
+    }
+
+    // Accept plan (only shown on first step and not yet accepted)
+    if (idx === 0 && !progress.walkthrough.accepted) {
+      row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_accept_${progress.userId}`).setLabel('Planı Kabul Et').setStyle(ButtonStyle.Primary));
+    }
+
+    row.addComponents(new ButtonBuilder().setCustomId(`walkthrough_done_${progress.userId}`).setLabel('Bitti ✅').setStyle(ButtonStyle.Secondary));
 
     const user = await client.users.fetch(progress.userId).catch(() => null);
     if (!user) return;
@@ -5449,13 +5482,22 @@ async function sendWalkthroughStep(progress, client) {
   }
 }
 
-async function handleWalkthroughAction(userId, action, client) {
+function datePlusDays(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function handleWalkthroughAction(userId, action, client, extra) {
   try {
     const p = await getOrCreate(userId, GUILD_ID, client);
     if (!p) return;
-    p.walkthrough = p.walkthrough || { active: false, step: 0 };
+    p.walkthrough = p.walkthrough || { active: false, step: 0, plan: WALK_PLANS.default };
+    const plan = p.walkthrough.plan || WALK_PLANS.default;
+    const { idx, max } = formatStepIndex(p);
+
     if (action === 'next') {
-      p.walkthrough.step = Math.min((p.walkthrough.step || 0) + 1, WALK_STEPS.length - 1);
+      p.walkthrough.step = Math.min((p.walkthrough.step || 0) + 1, max - 1);
     } else if (action === 'prev') {
       p.walkthrough.step = Math.max((p.walkthrough.step || 0) - 1, 0);
     } else if (action === 'done') {
@@ -5465,7 +5507,32 @@ async function handleWalkthroughAction(userId, action, client) {
       const user = await client.users.fetch(userId).catch(() => null);
       if (user) await user.send('✅ Rehberi tamamladın! Tekrar başlatmak istersen her zaman "Ne yapacağımı bilmiyorum?" butonuna tıklayabilirsin.').catch(() => {});
       return;
+    } else if (action === 'accept') {
+      // Accept plan: generate a simple schedule mapping each step to consecutive days starting today
+      p.walkthrough.accepted = true;
+      p.walkthrough.acceptedAt = new Date();
+      p.walkthrough.schedule = {};
+      for (let i = 0; i < plan.steps.length; i++) {
+        const day = datePlusDays(i);
+        p.walkthrough.schedule[day] = p.walkthrough.schedule[day] || [];
+        p.walkthrough.schedule[day].push(plan.steps[i].id);
+      }
+      // Notify user
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) await user.send(`✅ Plan kabul edildi. Adımlar bugün ve sonraki günlere dağıtıldı. Takibini panelden yapabilirsin.`).catch(() => {});
+    } else if (action === 'complete' && extra) {
+      // extra expected as step id
+      const stepId = extra;
+      p.walkthrough.completedSteps = p.walkthrough.completedSteps || [];
+      if (!p.walkthrough.completedSteps.includes(stepId)) p.walkthrough.completedSteps.push(stepId);
+      // auto-advance if current step
+      if (plan.steps[idx] && plan.steps[idx].id === stepId) {
+        p.walkthrough.step = Math.min(idx + 1, max - 1);
+      }
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) await user.send(`✔️ "${stepId}" işaretlendi.`).catch(() => {});
     }
+
     await p.save().catch(() => {});
     await sendWalkthroughStep(p, client);
   } catch (err) {
