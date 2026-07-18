@@ -2674,7 +2674,7 @@ async function handleButtonInteraction(interaction) {
   if (customId === "risk_toggle_karantina" || customId === "risk_toggle_api_speed" || customId === "risk_toggle_ohal") {
     const StaffProgress = require("../../models/StaffProgress");
     const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isLevel4 = (managerProgress && managerProgress.level >= 4) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isLevel4 = (managerProgress && managerProgress.level >= 4) || (interaction.member && interaction.member.permissions.has(PermissionFlagsBits.Administrator));
     if (!isLevel4) {
       return interaction.reply({ content: "❌ Global risk kontrol yetkisi için **Sekreter** (Level >= 4) yetkisine sahip olmalısınız!", ephemeral: true });
     }
