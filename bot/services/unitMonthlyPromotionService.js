@@ -23,12 +23,13 @@ const RANK_TITLES = {
 };
 
 /**
- * Ayın sonunda tüm birim üyelerinin sınavını otomatik olarak tetikle
+ * Ayın sonunda tüm birim üyelerine SADECE ORT DERECEDC ÖDÜL ver
+ * Haftalık/aylık terfi sistemi kaldırıldı - şimdi sadece motivasyon mesajı gönderiliyor
  * Cron job ile her ayın son günü çalışacak
  */
 async function triggerMonthlyPromotionCycle(client) {
   try {
-    console.log('[monthlyPromotion] 🔄 Aylık terfi döngüsü başlatılıyor...');
+    console.log('[monthlyPromotion] 📢 Aylık motivasyon ve orta derece ödül döngüsü başlatılıyor...');
 
     // Tüm birim üyelerini bul
     const allMembers = await StaffUnit.find({ unitName: { $exists: true, $ne: null } });
@@ -38,11 +39,10 @@ async function triggerMonthlyPromotionCycle(client) {
       return { success: false, message: 'No unit members found' };
     }
 
-    let promotedCount = 0;
-    let examinedCount = 0;
+    let rewardedCount = 0;
     const results = [];
 
-    // Her üye için sınav döngüsünü başlat
+    // Her üye için orta derece ödül ver
     const { hasInactivityRole } = require('./staffSystem');
     const currentMonthStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -50,32 +50,27 @@ async function triggerMonthlyPromotionCycle(client) {
       try {
         // İnaktiflik alanları veya izindekileri atla
         if (await hasInactivityRole(member.userId, client)) {
-          console.log(`[monthlyPromotion] Skipping promotion/coach message for inactive/leave user: ${member.userId}`);
+          console.log(`[monthlyPromotion] Skipping reward for inactive/leave user: ${member.userId}`);
           continue;
         }
 
         // Bu ay zaten gönderilmişse atla
         if (member.lastCoachMotivationMonth === currentMonthStr) {
-          console.log(`[monthlyPromotion] Motivation already sent this month for ${member.userId}`);
+          console.log(`[monthlyPromotion] Reward already sent this month for ${member.userId}`);
           continue;
         }
 
         const user = await client.users.fetch(member.userId).catch(() => null);
         if (!user) continue;
 
-        // Sınav tarihi ayarla (sonraki gün başında)
-        const examDate = new Date();
-        examDate.setDate(examDate.getDate() + 1);
-        examDate.setHours(9, 0, 0, 0);
-
-        // Motivasyon mesajı gönder
-        await sendMotivationFromCoach(user, member, client);
+        // Orta derece ödül gönder (terfi yok, sadece motivasyon ve ödül)
+        await sendMonthlyMediumReward(user, member, client);
 
         // Gönderildiğini kaydet
         member.lastCoachMotivationMonth = currentMonthStr;
         await member.save();
 
-        examinedCount++;
+        rewardedCount++;
 
         // 50ms delay to prevent rate limit
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -84,8 +79,8 @@ async function triggerMonthlyPromotionCycle(client) {
       }
     }
 
-    console.log(`[monthlyPromotion] ✅ Döngü tamamlandı. ${examinedCount} üye incelendi.`);
-    return { success: true, examinedCount, promotedCount };
+    console.log(`[monthlyPromotion] ✅ Döngü tamamlandı. ${rewardedCount} üyeye ödül verildi.`);
+    return { success: true, rewardedCount };
   } catch (err) {
     console.error('[monthlyPromotion] Hata:', err.message);
     return { success: false, error: err.message };
@@ -102,87 +97,50 @@ async function sendMotivationFromCoach(user, member, client) {
     const currentRank = RANK_TITLES[member.rank] || RANK_TITLES[1];
     const nextRank = member.rank < 4 ? RANK_TITLES[member.rank + 1] : null;
 
-    // Koçu bul
-    const coach = await getCoachForUnit(member.unitName);
-    const coachName = coach?.name || 'Koçunuz';
-
-    // AI ile motivasyon mesajı oluştur
-    const motivationPrompt = `Sen ${coachName} adlı ${birimLabel} biriminin koçusun. 
-${user.username} adlı ekip üyeniz için motivasyon mesajı yaz.
-
-Bilgiler:
-- Mevcut Rütbe: ${currentRank.label}
-- ${nextRank ? `Hedef Rütbe: ${nextRank.label}` : 'En Yüksek Rütbedesin'}
-- Birim: ${birimLabel}
-- Ayın sonunda yeni sınav olacak
-
-Lütfen:
-1. Samimi ve motive edici bir ton kullan
-2. Bu ay yapması gerekenler hakkında tavsiyelerde bulun (3-4 tavsiye)
-3. Sınava hazırlık ipuçları ver
-4. Başarısını kutla ve ilerlemesini takdir et
-
-Türkçe, 200-300 kelime arası cevap ver.`;
-
-    let motivationText = await chatWithAI(motivationPrompt);
-
-    if (!motivationText) {
-      motivationText = generateFallbackMotivation(user.username, currentRank, nextRank, birimLabel, coachName);
-    }
-
-    // Embed oluştur
-    const embed = new EmbedBuilder()
-      .setColor(0xFFD700)
-      .setTitle(`💌 ${coachName}'dan Mesaj`)
+    // Orta derece ödülü gönder
+    const rewardEmbed = new EmbedBuilder()
+      .setColor(0x9B59B6)
+      .setTitle(`🎁 Aylık Motivasyon & Orta Derece Ödül`)
       .setDescription(
         `Merhaba **${user.username}**! 👋\n\n` +
-        `Ayın sonunda **${birimLabel}** biriminizin aylık sınav ve terfi değerlendirmesi yapılacak. ` +
-        `Bu sırada sana bazı tavsiyelerde bulunmak istedim.`
+        `Bu ay **${birimLabel}** biriminde gösterdiğin başarı ve çabalarından dolayı sana özel ödül hazırladık!`
       )
       .addFields(
         {
-          name: `${birimEmoji} Birim Koçunuzdan Tavsiyeler`,
-          value: motivationText,
+          name: `${birimEmoji} Birim Motivasyonu`,
+          value: 
+            `Bu ay da **${birimLabel}** biriminin değerli bir üyesi oldun!\n\n` +
+            `✅ Görevleri yerine getirdin\n` +
+            `✅ Takımla işbirliği yaptın\n` +
+            `✅ Birimine katkı sağladın\n\n` +
+            `**Teşekkürler! Devam et! 💪`,
           inline: false
         },
         {
-          name: '📊 Mevcut Durumunuz',
+          name: '🏆 Mevcut Durumunuz',
           value: `**Rütbe:** ${currentRank.emoji} ${currentRank.label}\n` +
-                 (nextRank ? `**Hedef:** ${nextRank.emoji} ${nextRank.label}\n` : '') +
                  `**Birim:** ${birimEmoji} ${birimLabel}`,
           inline: false
         },
         {
-          name: '🎯 Sınav Tarihi',
-          value: `Ayın son günü (${getMonthEndDate()})`,
+          name: '🎁 Bu Ayın Ödülü',
+          value: `**Orta Derece Ödül:** 500 EkoCoin\n` +
+                 `**Özel Badge:** 🌟 Loyal Member\n` +
+                 `**Bonus:** +50 XP`,
+          inline: false
+        },
+        {
+          name: '📌 Not',
+          value: `Terfi sistemimiz yerine sadece performans ödülüne geçtik. Her ay orta derece ödülü alacaksın.`,
           inline: false
         }
       )
-      .setFooter({ text: `EkoYıldız Birim Sistemi • ${coachName}` })
+      .setFooter({ text: `EkoYıldız Birim Sistemi` })
       .setTimestamp();
 
-    await user.send({ embeds: [embed] }).catch(err => {
+    await user.send({ embeds: [rewardEmbed] }).catch(err => {
       console.warn(`[monthlyPromotion] DM gönderme hatası (${user.tag}):`, err.message);
     });
-
-    // Koça da motivasyon gönderildiğini bildir (EĞER AYAR AÇIKSA)
-    if (coach) {
-      const coachNotificationEmbed = new EmbedBuilder()
-        .setColor(0x3498DB)
-        .setTitle('📢 Birim Üyesi Motivasyon Mesajı Gönderildi')
-        .setDescription(
-          `**${user.username}** adlı üyeye motivasyon ve aylık sınav hazırlık mesajını gönderdim.\n\n` +
-          `Mevcut rütbesi: ${currentRank.label}`
-        )
-        .setFooter({ text: 'EkoYıldız Birim Sistemi' })
-        .setTimestamp();
-
-      // Koça mesaj gönder (günlük tür - yalnızca "ALL" seviyesinde)
-      await sendMessageToCoach(client, coach.discordId, {
-        embed: coachNotificationEmbed,
-        messageType: 'daily'
-      }).catch(() => {});
-    }
 
     return true;
   } catch (err) {
@@ -192,30 +150,10 @@ Türkçe, 200-300 kelime arası cevap ver.`;
 }
 
 /**
- * Fallback motivasyon mesajı
+ * Fallback motivasyon mesajı (kullanımdan kaldırıldı - sadece ödül kalıyor)
  */
 function generateFallbackMotivation(username, currentRank, nextRank, birimLabel, coachName) {
-  return `Merhaba ${username},
-
-Bu ay yapman gerekenler:
-
-1️⃣ **Günlük Görevleri Takip Et** - Her gün birim görevlerini tamamla ve raporla
-
-2️⃣ **Etkinliklere Katıl** - Birim etkinliklerine aktif bir şekilde katıl
-
-3️⃣ **Ekip Üyeleriyle Çalış** - Diğer birim üyeleriyle işbirliği yap ve destekle
-
-4️⃣ **Sorumlulukları Al** - Birim için ekstra sorumluluklar alarak kendini göster
-
-${nextRank ? `
-**Sınava Hazırlık İpuçları:**
-- Birim kurallarını tekrar gözden geçir
-- Geçen ayın sınav sorularını çalış
-- Birim tarihçesini öğren
-- Liderlik becerilerini geliştir
-` : ''}
-
-Başarılarından gurur duyuyorum. Devam et! 💪`;
+  return `Bu ay harika bir performans gösterdin! Teşekkürler.`;
 }
 
 /**
@@ -374,9 +312,7 @@ async function notifyPromotionResult(userId, birimKey, score, promotion, client)
 
 module.exports = {
   triggerMonthlyPromotionCycle,
-  sendMotivationFromCoach,
-  processPromotionAfterExam,
-  notifyPromotionResult,
+  sendMonthlyMediumReward,
   getCoachForUnit,
   startMonthlyPromotionScheduler
 };

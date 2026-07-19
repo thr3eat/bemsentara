@@ -5244,33 +5244,45 @@ sendWebhook("Merhaba Discord! 👋", "Oyun Bildirimi", "Bir oyuncu sunucuya kat�
 
 
 // ─────────────────────────────────────────────
-// BRIEFING ONBOARDING MODAL
+// BRIEFING ONBOARDING MODAL - Telefon UI
 // ─────────────────────────────────────────────
 function renderBriefingOnboardingModal(user = null) {
   const content = `
-    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-      <div class="card" style="max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; animation: slideIn 0.3s ease;">
-        <h2 style="margin: 0 0 10px 0; color: var(--accent); font-size: 1.5rem;">🎯 Kişisel Tanışma Formu</h2>
-        <p style="color: var(--muted); margin: 0 0 30px 0; font-size: 0.95rem;">
-          Briefing'e erişmeden önce, seni biraz daha tanımak istiyoruz. 
-          Lütfen aşağıdaki soruları cevapla.
-        </p>
-
-        <div id="questions-container">
-          <!-- Sorular buraya yüklenecek -->
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 10px;">
+      <div class="phone-container" style="max-width: 420px; width: 100%; max-height: 90vh; overflow-y: auto; animation: slideIn 0.3s ease; background: var(--background); border-radius: 20px; display: flex; flex-direction: column;">
+        
+        <!-- Telefon Header -->
+        <div style="background: linear-gradient(135deg, var(--accent) 0%, rgba(167,139,250,0.8) 100%); padding: 20px; text-align: center; border-radius: 20px 20px 0 0; color: #000; sticky; top: 0; z-index: 100;">
+          <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 5px;">🎯 Tanıştığımıza Memnun!</div>
+          <div style="font-size: 0.85rem; opacity: 0.9;">Seni biraz daha tanımak istiyoruz</div>
+          <div style="margin-top: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.1); padding: 6px 12px; border-radius: 20px; display: inline-block;">
+            <span id="progress-text">Soru 1 / 5</span>
+          </div>
         </div>
 
-        <div id="form-container" style="display: none; margin-top: 20px;">
-          <textarea id="answers-textarea" placeholder="Cevaplarını buraya yazabilirsin..." 
-            style="width: 100%; height: 150px; padding: 12px; background: rgba(255,255,255,0.05); 
-            border: 1px solid var(--border); border-radius: 8px; color: var(--text); 
-            font-family: 'Outfit', sans-serif; resize: none;"></textarea>
-          
-          <button onclick="submitBriefingForm()" 
-            style="margin-top: 15px; padding: 12px 30px; background: var(--accent); 
-            color: #000; border: none; border-radius: 8px; font-weight: 600; 
-            cursor: pointer; width: 100%; transition: all 0.3s;">
-            ✅ Gönder
+        <!-- İçerik Alanı -->
+        <div style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column;">
+          <div id="questions-container" style="display: flex; flex-direction: column;"></div>
+          <div id="form-container" style="display: none; flex-direction: column;">
+            <div style="background: rgba(167,139,250,0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 4px solid var(--accent);">
+              <div style="font-size: 0.9rem; color: var(--muted); margin-bottom: 8px;">📋 Özetini Kontrol Et</div>
+              <textarea id="answers-textarea" placeholder="Cevaplarınız burada görünecek..." 
+                style="width: 100%; height: 150px; padding: 12px; background: rgba(255,255,255,0.05); 
+                border: 1px solid var(--border); border-radius: 8px; color: var(--text); 
+                font-family: 'Outfit', sans-serif; resize: none; font-size: 0.85rem;" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telefon Footer (Butonlar) -->
+        <div id="button-area" style="padding: 15px; background: rgba(255,255,255,0.02); border-top: 1px solid var(--border); border-radius: 0 0 20px 20px; display: flex; gap: 10px; justify-content: space-between;">
+          <button id="prev-btn" onclick="prevQuestion()" 
+            style="flex: 1; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-weight: 600; cursor: pointer; transition: all 0.3s; display: none;">
+            ⬅️ Geri
+          </button>
+          <button id="next-btn" onclick="nextQuestion()" 
+            style="flex: 1; padding: 12px; background: var(--accent); border: none; border-radius: 10px; color: #000; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+            ➡️ Devam Et
           </button>
         </div>
       </div>
@@ -5282,98 +5294,163 @@ function renderBriefingOnboardingModal(user = null) {
         to { transform: translateY(0); opacity: 1; }
       }
 
-      .question-item {
+      .phone-container {
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        border: 1px solid var(--border);
+      }
+
+      .category-header {
+        font-weight: 700;
+        color: var(--accent);
+        margin-top: 15px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--accent);
+      }
+
+      .question-card {
         background: rgba(255,255,255,0.02);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 15px;
         margin-bottom: 15px;
-        cursor: pointer;
-        transition: all 0.3s ease;
       }
 
-      .question-item:hover {
-        background: rgba(255,255,255,0.05);
-        border-color: var(--accent);
-      }
-
-      .question-item.selected {
-        background: rgba(167,139,250,0.15);
-        border-color: var(--accent);
-      }
-
-      .question-text {
-        font-weight: 600;
-        color: var(--text);
+      .question-card .emoji {
+        font-size: 1.4rem;
         margin-bottom: 8px;
       }
 
-      .question-num {
-        font-size: 0.85rem;
+      .question-card .text {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 10px;
+        font-size: 0.95rem;
+      }
+
+      .question-card input {
+        width: 100%;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+      }
+
+      .question-card input::placeholder {
         color: var(--muted);
       }
     </style>
 
     <script>
-      const questions = [
+      // Kategorize sorular
+      const questionCategories = [
         {
-          id: "hobbies",
-          text: "🎮 Hobilerin neler? (Müzik, oyun, spor, vs.)",
-          type: "text"
+          category: "🎮 Hobilerin & İlgilerin",
+          questions: [
+            {
+              id: "hobbies",
+              text: "🎮 Hobilerin neler?",
+              placeholder: "Müzik, oyun, spor, resim..."
+            },
+            {
+              id: "nocreen",
+              text: "📵 Ekranından uzakken ne yapıyorsun?",
+              placeholder: "Dışarı çık, kitap oku, spor yap..."
+            }
+          ]
         },
         {
-          id: "nocreen",
-          text: "📵 Telefonuna/Bilgisayarına bakmadığında ne yapıyorsun?",
-          type: "text"
+          category: "😊 Kişiliğin & Özelliklerin",
+          questions: [
+            {
+              id: "personality",
+              text: "😊 Kendini 3 kelimeyle tanımlayabilir misin?",
+              placeholder: "Ör: Çalışkan, Komik, Sadık..."
+            },
+            {
+              id: "music",
+              text: "🎵 Sevdiğin müzik türü nedir?",
+              placeholder: "Pop, Rap, Rock, Metal, Klasik..."
+            }
+          ]
         },
         {
-          id: "personality",
-          text: "😊 Kendini 3 kelimeyle tanımlayabilir misin?",
-          type: "text"
-        },
-        {
-          id: "goals",
-          text: "🎯 Sentara'da ne yapmak istiyorsun? (Kariyer, eğlence, vs.)",
-          type: "text"
-        },
-        {
-          id: "music",
-          text: "🎵 Sevdiğin müzik türü nedir?",
-          type: "text"
+          category: "🎯 Sentara Hedeflerin",
+          questions: [
+            {
+              id: "goals",
+              text: "🎯 Sentara'da ne yapmak istiyorsun?",
+              placeholder: "Kariyer yap, eğlen, ağ kur..."
+            }
+          ]
         }
       ];
+
+      // Tüm soruları düzleştir
+      let allQuestions = [];
+      questionCategories.forEach(cat => {
+        allQuestions = allQuestions.concat(cat.questions);
+      });
 
       let currentQuestion = 0;
       let answers = {};
 
       function loadQuestion() {
         const container = document.getElementById('questions-container');
-        const q = questions[currentQuestion];
+        const q = allQuestions[currentQuestion];
         
-        if (currentQuestion < questions.length) {
-          container.innerHTML = \`
-            <div class="question-item">
-              <div class="question-num">Soru \${currentQuestion + 1}/\${questions.length}</div>
-              <div class="question-text">\${q.text}</div>
-              <input type="text" id="answer-input" placeholder="Cevabını yaz..." 
-                value="\${answers[q.id] || ''}"
-                style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); 
-                border: 1px solid var(--border); border-radius: 6px; color: var(--text); 
-                font-family: 'Outfit', sans-serif; margin-top: 10px;" 
-                onkeypress="if(event.key==='Enter') nextQuestion()">
-              <button onclick="nextQuestion()" 
-                style="margin-top: 12px; padding: 10px 20px; background: var(--accent); 
-                color: #000; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
-                \${currentQuestion === questions.length - 1 ? '✅ Bitir' : '➡️ Devam Et'}
-              </button>
-            </div>
-          \`;
-          document.getElementById('answer-input').focus();
+        // Progress güncelle
+        document.getElementById('progress-text').textContent = \`Soru \${currentQuestion + 1} / \${allQuestions.length}\`;
+        
+        // Kategori kontrolü - kategori değiştiğinde header göster
+        let categoryIndex = 0;
+        let questionIndex = 0;
+        let counter = 0;
+        for (let c = 0; c < questionCategories.length; c++) {
+          if (counter + questionCategories[c].questions.length > currentQuestion) {
+            categoryIndex = c;
+            questionIndex = currentQuestion - counter;
+            break;
+          }
+          counter += questionCategories[c].questions.length;
         }
+
+        let categoryHeader = '';
+        if (questionIndex === 0 || (currentQuestion > 0 && allQuestions[currentQuestion - 1].category !== q.category)) {
+          categoryHeader = \`<div class="category-header">\${questionCategories[categoryIndex].category}</div>\`;
+        }
+
+        container.innerHTML = categoryHeader + \`
+          <div class="question-card">
+            <div class="emoji">\${q.text.split(' ')[0]}</div>
+            <div class="text">\${q.text}</div>
+            <input type="text" id="answer-input" placeholder="\${q.placeholder}" 
+              value="\${answers[q.id] || ''}"
+              onkeypress="if(event.key==='Enter') nextQuestion()">
+          </div>
+        \`;
+        
+        // Geri butonu kontrolü
+        document.getElementById('prev-btn').style.display = currentQuestion > 0 ? 'block' : 'none';
+        
+        // İleri butonu metni
+        const nextBtn = document.getElementById('next-btn');
+        if (currentQuestion === allQuestions.length - 1) {
+          nextBtn.innerHTML = '✅ Tamamla';
+        } else {
+          nextBtn.innerHTML = '➡️ Devam Et';
+        }
+
+        setTimeout(() => {
+          document.getElementById('answer-input').focus();
+        }, 100);
       }
 
       function nextQuestion() {
-        const q = questions[currentQuestion];
+        const q = allQuestions[currentQuestion];
         const input = document.getElementById('answer-input');
         const answer = input.value.trim();
         
@@ -5384,7 +5461,7 @@ function renderBriefingOnboardingModal(user = null) {
 
         answers[q.id] = answer;
 
-        if (currentQuestion < questions.length - 1) {
+        if (currentQuestion < allQuestions.length - 1) {
           currentQuestion++;
           loadQuestion();
         } else {
@@ -5392,12 +5469,73 @@ function renderBriefingOnboardingModal(user = null) {
         }
       }
 
+      function prevQuestion() {
+        if (currentQuestion > 0) {
+          const q = allQuestions[currentQuestion];
+          const input = document.getElementById('answer-input');
+          answers[q.id] = input.value.trim();
+          
+          currentQuestion--;
+          loadQuestion();
+        }
+      }
+
       function showForm() {
         document.getElementById('questions-container').style.display = 'none';
-        document.getElementById('form-container').style.display = 'block';
-        
-        const summary = questions.map((q, i) => 
-          \`Q\${i+1}: \${q.text}\\nA: \${answers[q.id] || 'Boş'}\`
+        document.getElementById('form-container').style.display = 'flex';
+        document.getElementById('button-area').innerHTML = \`
+          <button onclick="goBack()" 
+            style="flex: 1; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-weight: 600; cursor: pointer;">
+            ⬅️ Geri
+          </button>
+          <button onclick="submitBriefingForm()" 
+            style="flex: 1; padding: 12px; background: var(--accent); border: none; border-radius: 10px; color: #000; font-weight: 600; cursor: pointer;">
+            ✅ Gönder
+          </button>
+        \`;
+
+        // Özet göster
+        let summary = '';
+        allQuestions.forEach((q, i) => {
+          summary += \`<b>S\${i+1}:</b> \${q.text}\\n<b>C:</b> \${answers[q.id] || '(Boş)'}\\n\\n\`;
+        });
+        document.getElementById('answers-textarea').value = summary;
+      }
+
+      function goBack() {
+        document.getElementById('form-container').style.display = 'none';
+        document.getElementById('questions-container').style.display = 'flex';
+        currentQuestion = allQuestions.length - 1;
+        loadQuestion();
+      }
+
+      async function submitBriefingForm() {
+        try {
+          const response = await fetch('/api/briefing/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answers })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            alert('✅ Formu gönderdin! Briefing sayfasına yönlendiriliyorsun...');
+            window.location.href = '/briefing';
+          } else {
+            alert('❌ Hata: ' + (data.error || 'Bilinmeyen hata'));
+          }
+        } catch (err) {
+          alert('❌ Bağlantı hatası: ' + err.message);
+        }
+      }
+
+      // İlk soruyu yükle
+      loadQuestion();
+    </script>
+  `;
+  return _layout('Briefing Formu', user, content, '', '/briefing-form');
+}
         ).join('\\n\\n');
         
         document.getElementById('answers-textarea').value = summary;

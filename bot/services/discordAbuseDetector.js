@@ -795,8 +795,10 @@ async function handleMessageCreateAbuse(client, message) {
   }
 
   // 2. Reklam/Invite Link Check
+  // EXCEPTION: Forum kanallarında (isThread) link paylaşımını izin ver
+  const isForumChannel = message.channel.isThread?.() || false;
   const hasInviteLink = /(discord\.(gg|io|me|li)\/.+|discord(app)?\.com\/invite\/.+)/i.test(message.content);
-  if (hasInviteLink) {
+  if (hasInviteLink && !isForumChannel) {
     try {
       await message.delete().catch(() => {});
       if (message.member && message.member.moderatable) {
@@ -809,6 +811,8 @@ async function handleMessageCreateAbuse(client, message) {
     } catch (err) {
       console.error("[discordAbuseDetector] Reklam timeout error:", err.message);
     }
+  } else if (hasInviteLink && isForumChannel) {
+    console.log(`[discordAbuseDetector] Forum kanalında link paylaşımı izin verildi: ${message.author.tag}`);
   }
 
   if (!isAbuse) return;
