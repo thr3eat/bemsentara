@@ -139,6 +139,14 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Haftalık ve Aylık Lider Yetkili Seçim Zamanlayıcısı
+    try {
+      const { startModSelectionScheduler } = require("../services/modSelectionService");
+      startModSelectionScheduler(client);
+    } catch (err) {
+      console.error("[ready] Lider yetkili seçim zamanlayıcısı başlatılamadı:", err.message);
+    }
+
     // Okul otomatik mezuniyet kontrolü — günde bir kez (24 saatte bir)
     try {
       const { autoGraduateOverdueStudents } = require('../services/moderatorSchool');

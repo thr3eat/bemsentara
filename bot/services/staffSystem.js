@@ -2498,6 +2498,13 @@ async function getMorningBriefingComponents(progress) {
     .setLabel('🚨 Vaka Raporu')
     .setStyle(ButtonStyle.Danger);
 
+  // Phone-friendly layout toggle (Advanced -> Old briefing mode)
+  const briefingModeBtn = new ButtonBuilder()
+    .setCustomId('staff_briefing_mode_to_old')
+    .setLabel('📱 Eski Moda Brifing Moduna Geç')
+    .setStyle(ButtonStyle.Primary);
+
+
   // Include walkthrough helper in settings row
   const walkthroughBtn = new ButtonBuilder()
     .setCustomId('staff_help_walkthrough')

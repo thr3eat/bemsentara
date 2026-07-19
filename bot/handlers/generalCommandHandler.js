@@ -86,7 +86,8 @@ const GENERAL_COMMANDS = new Set([
   "staff-warn",
   "staff-commend",
   "staff-sicil",
-  "mod-anasayfa"
+  "mod-anasayfa",
+  "mod-secim-tetik"
 ]);
 
 async function handleGeneralCommand(interaction) {
@@ -133,6 +134,24 @@ async function handleGeneralCommand(interaction) {
       return interaction.editReply({ embeds: [embed], components });
     } catch (err) {
       console.error('[mod-anasayfa] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── mod-secim-tetik: Moderatör Seçim Panelini Tetikleme ─────────────────────
+  if (commandName === "mod-secim-tetik") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const MANAGER_ID = '1492888195807969510';
+      if (interaction.user.id !== MANAGER_ID) {
+        return interaction.editReply({ content: "❌ Bu komutu sadece **Kurul Yöneticisi** tetikleyebilir!" });
+      }
+
+      const type = interaction.options.getString("tip");
+      const { sendModSelectionPrompt } = require("../services/modSelectionService");
+      await sendModSelectionPrompt(interaction.client, type, interaction);
+    } catch (err) {
+      console.error('[mod-secim-tetik] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

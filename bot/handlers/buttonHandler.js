@@ -97,6 +97,23 @@ const GUILD_SYNC_MAP = {
 async function handleButtonInteraction(interaction) {
   const { customId } = interaction;
 
+  // ── Moderatör Seçim Onay Butonları ──────────────────────────────────────────
+  if (customId.startsWith("mod_confirm_weekly_") || customId.startsWith("mod_confirm_monthly_")) {
+    const isWeekly = customId.startsWith("mod_confirm_weekly_");
+    const type = isWeekly ? "weekly" : "monthly";
+    const prefix = isWeekly ? "mod_confirm_weekly_" : "mod_confirm_monthly_";
+    const targetUserId = customId.replace(prefix, "");
+    const { confirmModeratorSelection } = require("../services/modSelectionService");
+    return confirmModeratorSelection(interaction, targetUserId, type);
+  }
+
+  if (customId.startsWith("mod_confirm_cancel_")) {
+    const type = customId.replace("mod_confirm_cancel_", ""); // weekly or monthly
+    const { sendModSelectionPrompt } = require("../services/modSelectionService");
+    await interaction.deferUpdate();
+    return sendModSelectionPrompt(interaction.client, type, interaction);
+  }
+
   // ── Hata Sihirbazı Butonları ────────────────────────────────────────────
   if (customId.startsWith("wizard_ack_") || customId.startsWith("wizard_resolve_") || customId.startsWith("wizard_reply_") || customId.startsWith("wizard_ai_detail_")) {
     const { handleWizardButton } = require("../services/errorWizardService");

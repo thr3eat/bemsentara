@@ -9,6 +9,13 @@ const {
 async function handleSelectInteraction(interaction) {
   const customId = interaction.customId;
 
+  if (customId.startsWith("mod_select_dropdown_")) {
+    const type = customId.replace("mod_select_dropdown_", ""); // 'weekly' or 'monthly'
+    const selectedUserId = interaction.values[0];
+    const { handleSelectModerator } = require("../services/modSelectionService");
+    return handleSelectModerator(interaction, selectedUserId, type);
+  }
+
   if (customId.startsWith("reklam_package_select_")) {
     const { handlePurchaseSelection } = require("../services/reklamTicketService");
     return handlePurchaseSelection(interaction);

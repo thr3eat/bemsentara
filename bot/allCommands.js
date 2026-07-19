@@ -846,6 +846,20 @@ const staffCommands = [
     .setName("mod-anasayfa")
     .setDescription("👤 Moderatör Anasayfası / Görev İlerleme Takip Panelini açar")
     .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName("mod-secim-tetik")
+    .setDescription("🏆 (Yönetici) Haftalık ve Aylık Moderatör seçimi tetikler (Sadece Kurul yetkilidir)")
+    .addStringOption(o =>
+      o.setName("tip")
+        .setDescription("Seçim periyodu")
+        .setRequired(true)
+        .addChoices(
+          { name: "Haftalık Seçim", value: "weekly" },
+          { name: "Aylık Seçim", value: "monthly" }
+        )
+    )
+    .setDMPermission(true),
 ];
 
 const allCommands = [
