@@ -1983,353 +1983,115 @@ async function generateMorningBriefingEmbed(progress, client) {
 
   resetDaily(progress);
 
-  const levelInfo = LEVEL_TASKS[progress.level] || LEVEL_TASKS[1];
-  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const nextReq = PROMOTION_REQUIREMENTS[progress.level];
-  const MAX_WARNINGS = 3;
-  const daysLeft = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
-
-  const stats = getDailyTaskCompletionStats(progress);
-
-  if (!progress.currentQuestion) {
-    await ensureCoachQuestionsPool().catch(() => { });
-
-    const memory = progress.coachMemory ? (progress.coachMemory instanceof Map ? Object.fromEntries(progress.coachMemory) : progress.coachMemory) : {};
-    const CoachQuestion = require('../../models/CoachQuestion');
-    const dbQuestions = await CoachQuestion.find({}).catch(() => []);
-
-    const DEFAULT_QUESTIONS = [
-      { question: "Hangi futbol takımını tutuyorsun?", key: "favorite_team" },
-      { question: "En çok hangi bilgisayar veya Roblox oyununu seversin?", key: "favorite_game" },
-      { question: "Şu an hangi şehirde yaşıyorsun?", key: "city" },
-      { question: "En sevdiğin yemek nedir?", key: "favorite_food" },
-      { question: "En büyük hobin nedir?", key: "hobby" },
-      { question: "En çok hangi müzik türünü dinlersin?", key: "favorite_music" }
-    ];
-
-    const pool = dbQuestions.length > 0 ? dbQuestions : DEFAULT_QUESTIONS;
-    const unanswered = pool.filter(q => !memory[q.key]);
-
-    if (unanswered.length > 0) {
-      if (Math.random() < 0.4) {
-        const selected = unanswered[Math.floor(Math.random() * unanswered.length)];
-        progress.currentQuestion = selected.question;
-        progress.currentQuestionKey = selected.key;
-        await progress.save().catch(() => { });
-      }
-    }
-  }
-
-  // AI'dan kişiselleştirilmiş briefing al
-  let aiMessage = '';
-  let displayName = progress.userId;
-  let username = progress.userId;
-  try {
-    try {
-      const u = await client.users.fetch(progress.userId).catch(() => null);
-      if (u) {
-        displayName = u.globalName || u.username;
-        username = u.tag;
-      }
-    } catch (_) { }
-
-    const prompt = `Bu personel için kısa, samimi ve kişiye özel bir görev brifingi hazırla.
-- Yetkili İsmi/Rumuz: ${displayName}
-- Discord Kullanıcı Adı: ${username}
-- Moderatör seviyesi: ${ROLE_NAMES[progress.level]}
-- Sürekli aktif gün: ${progress.stats?.consecutiveDays || 0}
-- Uyarı sayısı: ${progress.warnings?.count || 0}/7
-- Yaşadığı Şehir: ${progress.city || 'Türkiye'}
-- Yerel Saat Dilimi: GMT+3 (Türkiye)
-- Bugünkü hedef: selamlaşma + ses aktifliği ve mevcut görevi tamamlamak.
-Yetkilinin ismiyle (${displayName}) hitap et. Yaşadığı şehre (${progress.city || 'Türkiye'}) özgü sıcak bir yerel selamlama veya o şehre özel tatlı bir detay ekle (örn: Trabzon ise hamsi/karadeniz, İzmir ise boyoz/ege, Adana ise kebap/sıcak, İstanbul ise trafik/boğaz vb. espriler veya yerel dokunuşlar yapabilirsin). Nazikçe motive et, cesaret ver ve destekleyici bir cümle kullan. Lütfen hiçbir soru cümlesi oluşturma.`;
-    aiMessage = await chatWithAI([{ role: 'user', content: prompt }], PERSONAL_ASSISTANT_SYSTEM_PROMPT).catch(() => '');
-    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || '';
-  } catch (_) { }
-
-  const nextLevelName = ROLE_NAMES[progress.level + 1] || 'Maksimum Seviye';
-  const marketSnapshot = {
-    state: progress.marketState || 'Boğa Piyasası',
-    multiplier: Number(progress.marketMultiplier || 2.5),
-    diamondRate: Number(progress.diamondRate || 8),
-    interestRate: Number(progress.interestRate || 14),
-    crisisTaxRate: Number(progress.crisisTaxRate || 0.1),
-    trend: progress.marketTrend || '▃ ▅ █ █ ▄'
-  };
-
-  const isProbationLocked = progress.probationStatus && !progress.probationSigned;
-
-  const isContractExpired = new Date() > new Date(progress.contractRenewDate || Date.now());
-
-  if (isProbationLocked) {
-    const embed = new EmbedBuilder()
-      .setColor(0x95a5a6)
-      .setTitle('🔒 Panel Kilitli - İK Gelişim Askısı (v0.7)')
-      .setDescription(
-        `Sayın Yetkili <@${progress.userId}>,\n\n` +
-        `İK Departmanı tarafından performans veya disiplin uyarısı sebebiyle **İK Gelişim Askısı (Probation)** moduna alındınız.\n\n` +
-        `İşlemlerinize devam edebilmek için lütfen alttaki butonları kullanarak **İK Sözleşmesini okuyup imzalayınız**.`
-      )
-      .setTimestamp();
-    return embed;
-  }
-
-  if (isContractExpired && !progress.contractSigned) {
-    const embed = new EmbedBuilder()
-      .setColor(0x95a5a6)
-      .setTitle('🔒 Panel Kilitli - Sözleşme Süreniz Doldu (v0.7)')
-      .setDescription(
-        `Sayın Yetkili <@${progress.userId}>,\n\n` +
-        `30 günlük kurumsal yemin ve sözleşme süreniz dolmuştur.\n\n` +
-        `Yetki panelinizi aktif hale getirebilmek için lütfen alttaki **Yemin/Sözleşme Yenileme** buton zincirini tamamlayınız.`
-      )
-      .setTimestamp();
-    return embed;
-  }
-
-  const userAvatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
-  const embed = new EmbedBuilder()
-    .setColor(progress.warnings?.count > 0 ? 0xff9500 : progress.level === 1 ? 0x7c6af7 : 0x4ade80)
-    .setAuthor({ name: `👤 ${displayName} | Komuta Merkezi`, iconURL: userAvatar })
-    .setTitle('☀️ Günlük Brifing')
-    .setThumbnail(userAvatar)
-    .setDescription(aiMessage ? `🤖 ${aiMessage}` : 'Günaydın! Bugünkü görevlerinizi aşağıda görebilirsiniz. Kısa ve net adımlarla ilerleyin.');
+  // ─── BRİFİNG KATEGORILERE AYRILDI: TEMIZ VE ODAKLI ────────────
+  // 1. Sabah Selamı (AI + Şehir Özgü)
+  // 2. Bugünkü Görevler (Selamlaşma, Ses, Birim)
+  // 3. Performans KPI (Nöbet, Sicil)
+  // 4. Terfi Yolu (Rütbe Atlaması)
+  // 5. Pazarlama Durumu (Borsa)
+  // 6. Koçun Sorusu (İnteraktif)
 
   const fields = [];
 
-  // 📝 ÖNCEKİ VARDİYADAN KALAN NOTLAR (Dinamik)
+  // ☀️ SABAH SELAMASI
+  let aiMessage = '';
+  let displayName = progress.userId;
   try {
-    const ServerConfig = require('../../models/ServerConfig');
-    const sConf = await ServerConfig.findOne({ guildId: progress.guildId || GUILD_ID });
-    if (sConf && sConf.latestHandoverNote) {
-      const timeTag = sConf.latestHandoverAt ? `<t:${Math.floor(new Date(sConf.latestHandoverAt).getTime() / 1000)}:R>` : '';
-      fields.push({
-        name: '📝 ÖNCEKİ VARDİYADAN KALAN NOTLAR',
-        value: `👤 **Yazan:** <@${sConf.latestHandoverAuthor}>\n🕒 **Zaman:** ${timeTag}\n> *"${sConf.latestHandoverNote}"*`,
-        inline: false
-      });
-    }
-  } catch (confErr) {
-    console.error('[generateMorningBriefingEmbed] Handover fetch error:', confErr.message);
-  }
+    const u = await client.users.fetch(progress.userId).catch(() => null);
+    if (u) displayName = u.globalName || u.username;
+  } catch (_) { }
 
-  // ── FIELD 0.5: GÜNCELLEME DUYURUSU ───────────────────────────────────────
-  fields.push({
-    name: '📢 BİRİM VE PARA BİRİMİ GÜNCELLEMESİ',
-    value: `⚠️ **Önemli Duyuru:** Sunucumuzdaki **EkoCoin (E.C.)** para birimi tamamen **TL (Türk Lirası)** olarak güncellenmiştir! Ayrıca rütbe atlamanızı sağlayan **XP (Tecrübe Puanı)** birimi artık **Elmas (💎)** olarak adlandırılacaktır. Tüm hak edişleriniz ve puanlarınız birebir korunarak yeni birimlere aktarılmıştır.`,
-    inline: false
-  });
+  const prompt = `${displayName} için samimi 1-2 cümlelik sabah selaması yap. Şehir: ${progress.city || 'Türkiye'}. Soru sorma.`;
+  aiMessage = await chatWithAI([{ role: 'user', content: prompt }]).catch(() => '');
+  aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || 'Günaydın! 💪';
 
-  // ── FIELD 1: BUGÜNKÜ GÖREVLER & İLERLEME ────────────────────────────────────
-  let tasksText = '';
-  tasksText += `💬 **Selamlaşma:** \`${stats.greetProgress}\` (${stats.greetPercent}%) ${progress.daily?.greeted ? '✅' : '❌'} *(Gereken: ${req.greets}x selam)*\n`;
-  tasksText += `🎤 **Ses Aktifliği:** \`${stats.voiceProgress}\` (${stats.voicePercent}%) *(Gereken: ${req.voiceMinutes} dk)*\n`;
+  fields.push({ name: '☀️ Sabah Selaması', value: aiMessage, inline: false });
 
-  if (progress.daily?.chosenTask) {
-    tasksText += `🎯 **Seçimli Görev:** ${CHOSEN_TASKS[progress.daily.chosenTask] || progress.daily.chosenTask} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}\n`;
-  }
-
-  if (userUnit && userUnit.unitName) {
+  // 📋 BUGÜNKÜ GÖREVLER
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const stats = getDailyTaskCompletionStats(progress);
+  let tasksText = `💬 Selamlaşma: \`${stats.greetProgress}/${req.greets}\` ${progress.daily?.greeted ? '✅' : '❌'}\n`;
+  tasksText += `🎤 Ses: \`${stats.voiceProgress}/${req.voiceMinutes} dk\`\n`;
+  if (progress.daily?.chosenTask) tasksText += `🎯 Seçim: ${CHOSEN_TASKS[progress.daily.chosenTask] || 'Görev'} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}\n`;
+  if (userUnit?.unitName) {
     const { UNIT_CONFIG } = require('./unitService');
-    const unitConf = UNIT_CONFIG[userUnit.unitName];
-    if (unitConf) {
-      tasksText += `🛡️ **Birim Görevi (${unitConf.label}):** ${unitConf.tasks} *(Birim Rütben: Rütbe ${userUnit.rank || 1})*\n`;
-    }
+    const uc = UNIT_CONFIG[userUnit.unitName];
+    if (uc) tasksText += `🛡️ Birim: ${uc.tasks} (Rütbe ${userUnit.rank || 1})`;
   }
+  fields.push({ name: `📋 Görevler [${stats.progressBar}] %${stats.totalPercent}`, value: tasksText, inline: false });
 
-  fields.push({
-    name: `📊 BUGÜNKÜ HEDEFLER & İLERLEME  [${stats.progressBar}] %${stats.totalPercent}`,
-    value: tasksText.trim() || '—',
-    inline: false
-  });
+  // 🏆 PERFORMANS
+  try {
+    const { calculateKpi } = require('./staffDutyService');
+    const kpi = calculateKpi(progress);
+    const warns = progress.disciplinary?.warns?.length || 0;
+    const comms = progress.disciplinary?.commendations?.length || 0;
+    let perfText = `📊 KPI: \`${kpi}/100\` | 💚${comms} | ⚠️${warns}\n`;
+    if (progress.duty?.isActive) {
+      const mins = Math.floor((Date.now() - new Date(progress.duty.startedAt)) / 1000 / 60);
+      const hrs = Math.floor(mins / 60);
+      perfText += `⚡ Nöbet: ${hrs}h ${mins % 60}m | 🎫${progress.duty.sessionTicketsSolved || 0}`;
+    } else {
+      perfText += `⚡ Nöbet: Serbest`;
+    }
+    fields.push({ name: '🏆 Performans', value: perfText, inline: false });
+  } catch (_) { }
 
-  // ── FIELD 2: TERFİ HEDEFLERİ ─────────────────────────────────────────────
+  // 🚀 TERFİ YOLU
+  const nextReq = PROMOTION_REQUIREMENTS[progress.level];
   if (nextReq) {
     const s = progress.stats || {};
-    const ticketsNeeded = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
-    const chatNeeded = Math.max(0, nextReq.chatMessages - (s.chatMessages || 0));
-    const voiceNeeded = Math.max(0, (nextReq.totalVoiceMinutes || 0) - (s.totalVoiceMinutes || 0));
-    const daysNeeded = Math.max(0, nextReq.activeDays - (s.activeDays || 0));
-    const modsNeeded = Math.max(0, (nextReq.moderationActions || 0) - (s.moderationActions || 0));
-    const reportsNeeded = Math.max(0, (nextReq.weeklyReports || 0) - (s.weeklyReports || 0));
-
-    const maxTickets = nextReq.ticketsSolved || 1;
-    const ticketProgress = Math.min(100, Math.floor(((s.ticketsSolved || 0) / maxTickets) * 100));
-
-    let promotionText = '';
-    if (progress.level < 4) {
-      promotionText += `• 🎫 **Ticket Çözümü:** \`${s.ticketsSolved || 0} / ${nextReq.ticketsSolved}\` ${ticketsNeeded > 0 ? `*(${ticketsNeeded} kaldı!)*` : '✅'}\n`;
-    }
-    if (nextReq.chatMessages) {
-      promotionText += `• 💬 **Mesaj Sayısı:** \`${s.chatMessages || 0} / ${nextReq.chatMessages}\` ${chatNeeded > 0 ? `*(${chatNeeded} kaldı!)*` : '✅'}\n`;
-    }
-    promotionText += `• 📅 **Aktif Gün Sayısı:** \`${s.activeDays || 0} / ${nextReq.activeDays} gün\` ${daysNeeded > 0 ? `*(${daysNeeded} gün kaldı!)*` : '✅'}\n`;
-    if (nextReq.moderationActions) {
-      promotionText += `• 🛡️ **Mod İşlemi:** \`${s.moderationActions || 0} / ${nextReq.moderationActions}\` ${modsNeeded > 0 ? `*(${modsNeeded} kaldı!)*` : '✅'}\n`;
-    }
-    if (nextReq.weeklyReports) {
-      promotionText += `• 📋 **Durum Raporu:** \`${s.weeklyReports || 0} / ${nextReq.weeklyReports}\` ${reportsNeeded > 0 ? `*(${reportsNeeded} kaldı!)*` : '✅'}\n`;
-    }
-
-    promotionText += `\n📈 **Atlama İlerlemesi:** %${ticketProgress} tamamlandı! *(Terfi için %${Math.floor((100 - ticketProgress) * 0.5)} daha çaba)*\n`;
-    promotionText += `🎁 **Terfi Ödülü:** ${levelInfo.rewards}\n`;
-    promotionText += `💡 **İpucu:** *${levelInfo.tips}*`;
-
-    fields.push({
-      name: `🚀 TERFİ YOLU (${ROLE_NAMES[progress.level]} ➔ ${nextLevelName})`,
-      value: promotionText.trim(),
-      inline: false
-    });
+    const need = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
+    const pct = Math.min(100, Math.floor(((s.ticketsSolved || 0) / (nextReq.ticketsSolved || 1)) * 100));
+    const nextLevel = ROLE_NAMES[progress.level + 1] || 'Max';
+    let promText = `🎫 \`${s.ticketsSolved || 0}/${nextReq.ticketsSolved}\` ${need > 0 ? `(${need} kaldı)` : '✅'}\n`;
+    promText += `📅 \`${s.activeDays || 0}/${nextReq.activeDays}\` gün\n📈 %${pct}`;
+    fields.push({ name: `🚀 ${ROLE_NAMES[progress.level]} ➔ ${nextLevel}`, value: promText, inline: false });
   }
 
-  // ── FIELD 3: KOÇUN SORUSU (Eğer Varsa) ────────────────────────────────────
+  // 📊 BORSA
+  const mkt = { state: progress.marketState || 'Boğa', mult: Number(progress.marketMultiplier || 2.5), rate: Number(progress.diamondRate || 8), trend: progress.marketTrend || '📈' };
+  fields.push({ name: '📊 Eko-Borsa', value: `**${mkt.state}** ${mkt.trend} | 1💎 = \`${mkt.rate}TL\` | x${mkt.mult.toFixed(1)}`, inline: false });
+
+  // ❓ KOÇUN SORUSU
   if (progress.currentQuestion) {
-    fields.push({
-      name: '❓ KOÇUN SORUSU',
-      value: `> **"${progress.currentQuestion}"**\n*(Aşağıdaki butonla cevaplayabilirsiniz!)*`,
-      inline: false
-    });
+    fields.push({ name: '❓ Koçun Sorusu', value: `> "${progress.currentQuestion}"`, inline: false });
   }
 
-  // ── FIELD 4: DİKKAT / UYARI ────────────────────────────────────────────────
-  if (daysLeft !== null && daysLeft > 0) {
-    fields.push({
-      name: '⚠️ UYARI LİMİTİ',
-      value: `🚨 **Son ${daysLeft} aktif olmayan gün hakkınız kaldı!** Sonrasında rolünüz geçici olarak alınır. Aktif kalmaya özen gösterin.`,
-      inline: false
-    });
+  // 💡 İPUCU
+  const tips = ['💡 Nöbet + ses/bilet = Ekstra 💎+TL!', '💡 Günlük rapor gir → KPI & 💎 al!', '💡 🚨 Acil Durum → Üst Yön. ping!'];
+  fields.push({ name: '💡 İpucu', value: tips[Math.floor(Math.random() * tips.length)], inline: false });
+
+  // ⚠️ UYARI
+  const MAX_WARNINGS = 3;
+  const daysLeft = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
+  if (daysLeft === 1) {
+    fields.push({ name: '⚠️ DİKKAT', value: `🚨 Son ${daysLeft} uyarı hakkınız kaldı!`, inline: false });
   }
 
-  // ── FIELD 3.5: NÖBET & PERFORMANS KARTI (Sicil / KPI) ─────────────────────
-  try {
-    const { calculateKpi, getKpiGrade } = require('./staffDutyService');
-    const kpiScore = calculateKpi(progress);
-    const kpiGrade = getKpiGrade(kpiScore);
+  // EMBED
+  const avatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
+  const embed = new EmbedBuilder()
+    .setColor(progress.level >= 4 ? 0xFFD700 : progress.level >= 3 ? 0x4ade80 : 0x7c6af7)
+    .setAuthor({ name: `👤 ${displayName}`, iconURL: avatar })
+    .setTitle('☀️ Günlük Brifing')
+    .setThumbnail(avatar)
+    .addFields(fields)
+    .setFooter({ text: `Sentara V6.0 | ${progress.city || 'TR'} | <t:${Math.floor(Date.now() / 1000)}:T>` })
+    .setTimestamp();
 
-    const kpiHistoryValues = Array.isArray(progress.performance?.kpiHistory)
-      ? progress.performance.kpiHistory.map(entry => {
-        if (typeof entry === 'number') return entry;
-        if (entry && typeof entry.value === 'number') return entry.value;
-        if (entry && typeof entry.score === 'number') return entry.score;
-        return parseInt(entry?.value || entry?.score || entry?.kpi || entry?.scoreValue || 100, 10) || 100;
-      }).filter(v => !Number.isNaN(v))
-      : [];
-
-    if (kpiHistoryValues.length === 0 && typeof progress.performance?.weeklyKpi === 'number') {
-      kpiHistoryValues.push(progress.performance.weeklyKpi);
-    }
-    if (kpiHistoryValues.length === 0) {
-      kpiHistoryValues.push(kpiScore);
-    }
-
-    const sparkChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    const minKpi = Math.min(...kpiHistoryValues);
-    const maxKpi = Math.max(...kpiHistoryValues);
-    const sparkline = kpiHistoryValues.map(value => {
-      const normalized = maxKpi === minKpi ? 0.5 : (value - minKpi) / (maxKpi - minKpi);
-      const index = Math.min(sparkChars.length - 1, Math.max(0, Math.round(normalized * (sparkChars.length - 1))));
-      return sparkChars[index];
-    }).join('');
-
-    // Prepare compact duty/performance fields (3-column grid)
-    let dutyStatusCell = '';
-    let kpiCell = '';
-    let locationCell = '';
-    const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
-    const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
-
-    if (isResting) {
-      dutyStatusCell += `☕ Ruh Hali:\n**İstirahatte**`;
-    } else if (isBurnout) {
-      dutyStatusCell += `⚠️ Ruh Hali:\n**Aşırı Yorgun**`;
-    } else {
-      dutyStatusCell += `🟢 Ruh Hali:\n**Aktif**`;
-    }
-
-    if (progress.duty?.isActive && progress.duty.startedAt) {
-      const elapsedMins = Math.floor((Date.now() - new Date(progress.duty.startedAt).getTime()) / 1000 / 60);
-      const elapsedHrs = Math.floor(elapsedMins / 60);
-      const elapsedRemainingMins = elapsedMins % 60;
-
-      if (progress.duty.isBreakActive && progress.duty.breakStartedAt) {
-        const breakMins = Math.floor((Date.now() - new Date(progress.duty.breakStartedAt).getTime()) / 1000 / 60);
-        dutyStatusCell += `\nNöbet: Kahve Molası (${breakMins} dk)`;
-      } else {
-        dutyStatusCell += `\nNöbet: Aktif (${elapsedHrs} sa ${elapsedRemainingMins} dk)`;
-      }
-
-      dutyStatusCell += `\nSes: \`${progress.duty.sessionVoiceMinutes || 0}\` dk`;
-      dutyStatusCell += `\nBilet: \`${progress.duty.sessionTicketsSolved || 0}\``;
-    } else {
-      dutyStatusCell += `\nNöbet: Serbest`;
-    }
-
-    const warnsCount = progress.disciplinary?.warns?.length || 0;
-    const commsCount = progress.disciplinary?.commendations?.length || 0;
-
-    locationCell = `📍 Konum:\n\`${progress.city || 'Belirtilmedi'}\``;
-    kpiCell = `📊 Performans KPI: \`${kpiScore}/100\`\n💚 Sicil Özeti: \`${commsCount} Takdir\` | \`${warnsCount} Uyarı\`\n📈 Trend Analizi: \`${sparkline}\``;
-
-    fields.push({ name: '🟢 Nöbet Durumu', value: dutyStatusCell.trim(), inline: true });
-    fields.push({ name: '📊 Performans KPI', value: kpiCell.trim(), inline: true });
-    fields.push({ name: '📍 Operasyon Konumu', value: locationCell.trim(), inline: true });
-  } catch (kpiErr) {
-    console.error('[staffSystem] KPI field build error:', kpiErr.message);
-  }
-
-  fields.push({
-    name: '📈 EKO-BORSA DURUMU',
-    value: `**${marketSnapshot.state}** ${marketSnapshot.trend}\n` +
-      `• Çarpan: **x${marketSnapshot.multiplier.toFixed(1)}**\n` +
-      `• 1 💎 = **${marketSnapshot.diamondRate} TL**\n` +
-      `• Faiz: **%${marketSnapshot.interestRate}**`,
-    inline: false
-  });
-
-  // ── FIELD 3.8: YENİ NESİL INTERAKTİF SİSTEMLER TANITIMI ───────────────────
-  fields.push({
-    name: '🚀 YENİ MODERASYON ENTEGRASYONLARI',
-    value: `• **⚡ Nöbet Sistemi:** Nöbete başladığınızda ses ve bilet aktifliğiniz loglanır, bitirdiğinizde **Elmas (💎) ve TL** kazandırır.\n` +
-      `• **🤖 AI Mod Asistanı:** Karşılaştığınız kural ihlallerini AI'a sorarak sunucu kurallarına en uygun cezayı/mute süresini öğrenin.\n` +
-      `• **📝 Vaka Raporu:** Sunucuda yaşanan kritik veya olağanüstü durumları form ile anında üst yönetimin loglarına rapor edin.\n` +
-      `• **⚙️ Yetkili Menüleri:** Sayfanın altındaki menülerden tek tıkla izin kullanabilir, yetkili sicillerini ve performans puanlarını sorgulayabilirsiniz.`,
-    inline: false
-  });
-
-  // ── FIELD 3.9: GÜNLÜK YETKİLİ İPUCU ───────────────────────────────────────
-  const STAFF_TIPS = [
-    "💡 **İpucu:** Herhangi bir kanaldan veya DM'den \`/mod-anasayfa\` komutunu kullanarak bu kontrol paneline anında erişebilirsiniz!",
-    "💡 **İpucu:** Nöbetinizi bitirirken karşınıza çıkan forma detaylı **Vardiya Devir Notu** yazarak üst yönetime durum özeti geçebilir ve ekstra saygınlık kazanabilirsiniz.",
-    "💡 **İpucu:** \`🤖 AI Asistan\` butonuna tıklayarak şüpheli bir durum veya kural ihlali hakkında AI'dan anında ceza/mute süresi tavsiyesi alabilirsiniz.",
-    "💡 **İpucu:** \`✍️ Günlük Rapor Gir\` butonunu kullanarak bugün yaptığınız çalışmaları özetleyin. AI Koçunuz raporunuzu inceleyip size anında KPI/Elmas (💎) puanı verecektir.",
-    "💡 **İpucu:** İzin kredilerinizi görmek ve yönetmek için \`⚙️ Kişisel Yetkili İşlemleri\` menüsünden \`📊 İzin Durumu Sorgula\` seçeneğini kullanabilirsiniz.",
-    "💡 **İpucu:** \`📋 Talepler\` butonunu kullanarak üst rütbelere izin veya görev istekleri gönderebilir ya da üst rütbelerden gelen emirleri takip edebilirsiniz.",
-    "💡 **İpucu:** Nöbete başladığınızda ses kanalında aktif kalmak ve bilet çözmek size ekstra **TL ve Elmas (💎)** kazandırır. \`⚡ Nöbete Başla\` butonu ile hemen başlayın!",
-    "💡 **İpucu:** \`🎓 AI Pratik Eğitimi\` menü seçeneğini kullanarak rastgele hazırlanan kural ihlali senaryolarını çözün, AI'dan puan ve ekstra rütbe Elmas (💎)/TL ödülü kazanın!",
-    "💡 **İpucu:** Sunucuda baskın, bypass veya ağır kural ihlali gibi acil durumlarda \`🚨 Acil Durum / Baskın Alarmı\` eylemini seçerek üst yönetime anında ping log gönderebilirsiniz.",
-    "💡 **İpucu:** Haftalık durumunuzu, güçlü yönlerinizi ve rütbe değerlendirmenizi AI Koçunuzdan resmi bir karne olarak almak için \`🧠 AI Performans Karnesi\` seçeneğini kullanın.",
-    "💡 **İpucu:** Aktiflik durumunuza ve haftalık KPI performans puanınıza göre hak kazandığınız yetkili maaşınızı almak için \`🪙 Haftalık Maaşımı Al\` seçeneğini kullanabilirsiniz.",
-    "💡 **İpucu:** \`📊 Yetkili Liderlik Tablosu\` seçeneğini kullanarak haftanın en aktif Top 5 yetkilisini ve sıralamanızı anlık olarak sorgulayabilirsiniz."
-  ];
-  const randomTip = STAFF_TIPS[Math.floor(Math.random() * STAFF_TIPS.length)];
-
-  fields.push({
-    name: '💡 REHBERLİK & GÜNLÜK İPUCU',
-    value: randomTip,
-    inline: false
-  });
+  return embed;
 
   // Insert today's theme and recommended route near the top
   try {
     const todayTheme = getTodayTheme();
     if (todayTheme) {
-      fields.unshift({ name: '📅 Günün Teması', value: `${todayTheme.emoji} ${todayTheme.name}`, inline: false });
-      fields.splice(1, 0, { name: '🚩 Günün Tavsiye Edilen Öncelikli Rota Görevi', value: todayTheme.recommended || 'Bugünün öncelikli rotası yok.', inline: false });
+      fields.unshift({ name: '📅 Tema', value: `${todayTheme.emoji} ${todayTheme.name}`, inline: false });
     }
   } catch (_) { }
 
   embed.addFields(fields)
-    .setFooter({ text: `Sentara V6.0 • Lokasyon: ${progress.city || 'Belirtilmedi'} • <t:${Math.floor(Date.now() / 1000)}:T>` })
+    .setFooter({ text: `Sentara V6.0 | <t:${Math.floor(Date.now() / 1000)}:T>` })
     .setTimestamp();
 
   return embed;
