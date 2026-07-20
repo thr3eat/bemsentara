@@ -412,7 +412,7 @@ function renderEnergyBar(percent) {
       // Initialize gamification if missing
       p.gamification = p.gamification || {};
 
-      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const pendingTickets = (await Ticket.find({ status: { $ne: 'closed' } }).catch(() => [])).length;
       const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
       const activeStaff = staffRecords.length;
       const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
@@ -455,7 +455,7 @@ function renderEnergyBar(percent) {
       const diamonds = (p.gamification.diamonds || 0);
       if (diamonds < 1) return interaction.editReply({ content: '❌ Satılık elmasınız bulunmuyor. Elmas satın almak için 💰 Eko-Borsa menüsünü açın ve **Elmas Al** butonuna basın!' });
 
-      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const pendingTickets = (await Ticket.find({ status: { $ne: 'closed' } }).catch(() => [])).length;
       const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
       const activeStaff = staffRecords.length;
       const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
@@ -490,7 +490,7 @@ function renderEnergyBar(percent) {
       // Initialize gamification if missing
       p.gamification = p.gamification || {};
 
-      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const pendingTickets = (await Ticket.find({ status: { $ne: 'closed' } }).catch(() => [])).length;
       const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
       const activeStaff = staffRecords.length;
       const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);

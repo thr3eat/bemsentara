@@ -62,7 +62,7 @@ async function handleLeverageModalSubmit(interaction) {
     }
 
     // Pazar durumunu al
-    const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+    const pendingTickets = (await Ticket.find({ status: { $ne: 'closed' } }).catch(() => [])).length;
     const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
     const activeStaff = staffRecords.length;
     const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
