@@ -5382,8 +5382,194 @@ async function renderRoleCustomizationPanel(interaction, setupDoc) {
   await interaction.editReply({ embeds: [embed], components: [rankMenu, saveRow] }).catch(() => { });
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// ╔─ MODERATÖR HİYERARŞİK DASHBOARD BUTON İŞLEYİCİSİ ──────────────────────────╗
+// ╚─────────────────────────────────────────────────────────────────────────────╝
+
+async function handleModeratorDashboard(interaction) {
+  const { customId } = interaction;
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const { 
+    generateModeratorDashboard, 
+    getSubcategoryEmbed, 
+    getActionEmbed, 
+    createActionButtons,
+    setNavState,
+    getNavState
+  } = require('../services/staffSystem');
+
+  try {
+    // Level 1: Ana Kategoriler
+    if (customId === 'mod_dashboard_open') {
+      await interaction.deferUpdate().catch(() => {});
+      const { embed, components } = generateModeratorDashboard();
+      setNavState(interaction.user.id, { level: 1, category: null, subcategory: null });
+      return interaction.message.edit({ embeds: [embed], components });
+    }
+
+    // Category → Subcategory Navigation
+    if (customId.startsWith('mod_cat_')) {
+      await interaction.deferUpdate().catch(() => {});
+      const category = customId.replace('mod_cat_', '');
+      const result = getSubcategoryEmbed(category);
+      
+      if (!result) {
+        return interaction.editReply({ content: '❌ Kategori bulunamadı.', ephemeral: true });
+      }
+
+      const { embed, subcategories } = result;
+      
+      // Create subcategory buttons
+      const rows = [];
+      for (let i = 0; i < subcategories.length; i += 2) {
+        const row = new ActionRowBuilder();
+        
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`mod_subcat_${subcategories[i].id}`)
+            .setLabel(subcategories[i].name.replace(/^[^\s]+\s+/, ''))
+            .setStyle(ButtonStyle.Primary)
+        );
+
+        if (i + 1 < subcategories.length) {
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`mod_subcat_${subcategories[i + 1].id}`)
+              .setLabel(subcategories[i + 1].name.replace(/^[^\s]+\s+/, ''))
+              .setStyle(ButtonStyle.Primary)
+          );
+        }
+        rows.push(row);
+      }
+
+      // Add back button
+      rows.push(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('mod_nav_home')
+            .setLabel('🏠 Ana Sayfa')
+            .setStyle(ButtonStyle.Danger)
+        )
+      );
+
+      setNavState(interaction.user.id, { level: 2, category, subcategory: null });
+      return interaction.message.edit({ embeds: [embed], components: rows });
+    }
+
+    // Subcategory → Actions Navigation
+    if (customId.startsWith('mod_subcat_')) {
+      await interaction.deferUpdate().catch(() => {});
+      const subcategoryId = customId.replace('mod_subcat_', '');
+      const result = getActionEmbed(subcategoryId);
+      
+      if (!result) {
+        return interaction.editReply({ content: '❌ Alt-kategori bulunamadı.', ephemeral: true });
+      }
+
+      const { embed, actions } = result;
+      const buttons = createActionButtons(actions);
+      
+      setNavState(interaction.user.id, { level: 3, subcategory: subcategoryId });
+      return interaction.message.edit({ embeds: [embed], components: buttons });
+    }
+
+    // Action Button Handling (Level 4)
+    if (customId.startsWith('mod_action_')) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      const actionId = customId.replace('mod_action_', '');
+      
+      // Simulate action execution
+      const actionEmbed = new EmbedBuilder()
+        .setTitle('✅ İşlem Başlatıldı')
+        .setDescription(`**İşlem:** ${actionId}\n\n` +
+          `Bu işlem henüz tam olarak uygulanmadığı için simülasyon modunda çalışıyor.\n` +
+          `Gerçek implementasyon için her işlem için özel handler eklenmelidir.`)
+        .setColor(0x2ecc71)
+        .setFooter({ text: 'Eko Yıldız • Moderatör Sistemi' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [actionEmbed], ephemeral: true });
+    }
+
+    // Navigation: Back
+    if (customId === 'mod_nav_back') {
+      await interaction.deferUpdate().catch(() => {});
+      const state = getNavState(interaction.user.id);
+      
+      if (state.level === 3 || state.level === 2) {
+        // Go back to category
+        const result = getSubcategoryEmbed(state.category);
+        if (!result) {
+          return interaction.editReply({ content: '❌ Kategori bulunamadı.', ephemeral: true });
+        }
+
+        const { embed, subcategories } = result;
+        const rows = [];
+        for (let i = 0; i < subcategories.length; i += 2) {
+          const row = new ActionRowBuilder();
+          
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`mod_subcat_${subcategories[i].id}`)
+              .setLabel(subcategories[i].name.replace(/^[^\s]+\s+/, ''))
+              .setStyle(ButtonStyle.Primary)
+          );
+
+          if (i + 1 < subcategories.length) {
+            row.addComponents(
+              new ButtonBuilder()
+                .setCustomId(`mod_subcat_${subcategories[i + 1].id}`)
+                .setLabel(subcategories[i + 1].name.replace(/^[^\s]+\s+/, ''))
+                .setStyle(ButtonStyle.Primary)
+            );
+          }
+          rows.push(row);
+        }
+
+        rows.push(
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('mod_nav_home')
+              .setLabel('🏠 Ana Sayfa')
+              .setStyle(ButtonStyle.Danger)
+          )
+        );
+
+        setNavState(interaction.user.id, { level: 2, category: state.category, subcategory: null });
+        return interaction.message.edit({ embeds: [embed], components: rows });
+      }
+    }
+
+    // Navigation: Home
+    if (customId === 'mod_nav_home') {
+      await interaction.deferUpdate().catch(() => {});
+      const { embed, components } = generateModeratorDashboard();
+      setNavState(interaction.user.id, { level: 1, category: null, subcategory: null });
+      return interaction.message.edit({ embeds: [embed], components });
+    }
+
+  } catch (err) {
+    console.error('[handleModeratorDashboard] Error:', err.message);
+    return interaction.editReply({ content: `❌ Hata: ${err.message}`, ephemeral: true });
+  }
+}
+
+// Inject into main handler
+const originalHandler = handleButtonInteraction;
+async function enhancedButtonInteraction(interaction) {
+  const { customId } = interaction;
+
+  // Dashboard handlers
+  if (customId.startsWith('mod_')) {
+    return handleModeratorDashboard(interaction);
+  }
+
+  // Original handler chain
+  return originalHandler(interaction);
+}
+
 module.exports = {
-  handleButtonInteraction,
+  handleButtonInteraction: enhancedButtonInteraction,
   renderChannelSelectionPanel,
   renderChefsSelectionPanel,
   renderRoleCustomizationPanel

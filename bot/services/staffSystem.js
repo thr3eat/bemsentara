@@ -410,7 +410,362 @@ function getDailyTaskCompletionStats(progress) {
   };
 }
 
-// ── Kullanıcı al/oluştur ──────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// ╔─ MODERATÖR HİYERARŞİK DASHBOARD SİSTEMİ ──────────────────────────────────╗
+// ║ 4-Seviye Navigasyon: Kategori → Alt-Kategori → Alt-Alt-Kategori → İşlem   ║
+// ╚─────────────────────────────────────────────────────────────────────────────╝
+
+/**
+ * Ana Moderatör Dashboard'unu oluştur
+ * Level 1: Kategori seçimi
+ */
+function generateModeratorDashboard() {
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+  const embed = new EmbedBuilder()
+    .setTitle('📊 MODERATÖR HİYERARŞİK YÖNETİM DASHBOARD')
+    .setDescription(
+      '**Hoş Geldiniz!** Aşağıda bulunan ana kategorilerden birini seçerek ' +
+      'personel yönetimine başlayabilirsiniz.\n\n' +
+      '🎯 **Sistem Özellikleri:**\n' +
+      '• 4-Seviyeli Hiyerarşik Navigasyon\n' +
+      '• Kategori → Alt-Kategori → Alt-Alt-Kategori → İşlemler\n' +
+      '• Kurumsal Dashboard Tasarımı\n' +
+      '• Renkli Durum İndikatörleri'
+    )
+    .setColor(0x2c3e50)
+    .setThumbnail('https://cdn.discordapp.com/attachments/1/dashboard-icon.png')
+    .addFields(
+      { name: '👥 KATEGORİLER:', value: '`1` Personel Yönetimi | `2` Disiplin | `3` İK | `4` Sistem | `5` Raporlama', inline: false },
+      { name: '⚡ HIZLI ERIŞIM:', value: 'Aşağıdaki butonlardan navigasyona başlayın', inline: false }
+    )
+    .setFooter({ text: 'Eko Yıldız • Moderatör Sistemi | Profesyonel Yönetim Aracı' })
+    .setTimestamp();
+
+  // Level 1: Ana Kategoriler
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('mod_cat_personnel')
+      .setLabel('👥 Personel Yönetimi')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('👥'),
+    new ButtonBuilder()
+      .setCustomId('mod_cat_discipline')
+      .setLabel('🛡️ Disiplin')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🛡️'),
+    new ButtonBuilder()
+      .setCustomId('mod_cat_hr')
+      .setLabel('📋 İK')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('📋')
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('mod_cat_system')
+      .setLabel('⚙️ Sistem')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('⚙️'),
+    new ButtonBuilder()
+      .setCustomId('mod_cat_reporting')
+      .setLabel('📊 Raporlama')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('📊'),
+    new ButtonBuilder()
+      .setCustomId('mod_cat_settings')
+      .setLabel('🔧 Ayarlar')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🔧')
+  );
+
+  return { embed, components: [row1, row2] };
+}
+
+/**
+ * Level 2: Alt-Kategori Seçimi
+ */
+function getSubcategoryEmbed(category) {
+  const { EmbedBuilder } = require('discord.js');
+
+  const categories = {
+    personnel: {
+      title: '👥 PERSONEL YÖNETİMİ',
+      description: 'Personel bilgileri, arama, rol atama ve görev yönetimi işlemleri',
+      color: 0x3498db,
+      subcategories: [
+        { id: 'personnel_search', name: '🔍 Personel Arama', description: 'Ad, sicil numarası veya role göre personel ara' },
+        { id: 'personnel_roles', name: '👑 Rol Atama', description: 'Personele rol ata veya mevcut rollerini yönet' },
+        { id: 'personnel_leave', name: '📅 İzin Yönetimi', description: 'Personel izinleri kayıt et ve yönet' },
+        { id: 'personnel_attendance', name: '📍 Devam Takibi', description: 'Günlük devam/devamsızlık kaydı' }
+      ]
+    },
+    discipline: {
+      title: '🛡️ DİSİPLİN İŞLEMLERİ',
+      description: 'Uyarı, ceza, tedbir ve inceleme işlemleri',
+      color: 0xe74c3c,
+      subcategories: [
+        { id: 'discipline_warnings', name: '⚠️ Uyarı Sistemi', description: 'Resmi uyarı ver ve uyarı geçmişi görüntüle' },
+        { id: 'discipline_suspensions', name: '🚫 Askıya Alma', description: 'Personeli geçici olarak askıya al' },
+        { id: 'discipline_reviews', name: '👁️ Disiplin İncelemeleri', description: 'Açık incelemeler ve soruşturma durumları' },
+        { id: 'discipline_records', name: '📝 Disiplin Kayıtları', description: 'Tarihsel disiplin işlemlerini görüntüle' }
+      ]
+    },
+    hr: {
+      title: '📋 İNSAN KAYNAKLARI',
+      description: 'Maaş, sosyal yardımlar, sözleşme ve fayda yönetimi',
+      color: 0xf39c12,
+      subcategories: [
+        { id: 'hr_salary', name: '💰 Maaş Yönetimi', description: 'Maaş hesapla, denetçi artışları ve bonuslar' },
+        { id: 'hr_benefits', name: '🎁 Sosyal Yardımlar', description: 'Sağlık, emeklilik ve diğer faydaları yönet' },
+        { id: 'hr_contracts', name: '📜 Sözleşme Yönetimi', description: 'Çalışan sözleşmelerini gözden geçir ve güncelleştir' },
+        { id: 'hr_promotions', name: '⬆️ Terfi Yönetimi', description: 'Terfi teklifleri ve kariyer planlama' }
+      ]
+    },
+    system: {
+      title: '⚙️ SİSTEM YÖNETİMİ',
+      description: 'Sunucu ayarları, duyurular ve sistem konfigürasyonu',
+      color: 0x9b59b6,
+      subcategories: [
+        { id: 'system_settings', name: '🔩 Sunucu Ayarları', description: 'Discord sunucu ayarlarını yapılandır' },
+        { id: 'system_announcements', name: '📢 Duyurular', description: 'Tüm personele sistem duyuruları gönder' },
+        { id: 'system_logs', name: '📜 Sistem Logları', description: 'Sistem ve audit loglarını görüntüle' },
+        { id: 'system_backup', name: '💾 Yedekleme', description: 'Sistem verilerini yedekle ve geri yükle' }
+      ]
+    },
+    reporting: {
+      title: '📊 RAPORLAMA VE ANALİTİKS',
+      description: 'İstatistikler, performans raporları ve analitik veriler',
+      color: 0x1abc9c,
+      subcategories: [
+        { id: 'reporting_stats', name: '📈 İstatistikler', description: 'Personel ve sistem istatistiklerini göster' },
+        { id: 'reporting_performance', name: '⭐ Performans Raporu', description: 'Personel performans analiz ve sıralama' },
+        { id: 'reporting_audit', name: '🔍 Denetim Raporu', description: 'Tüm sistem işlemlerinin denetim izi' },
+        { id: 'reporting_export', name: '📥 Rapor İndir', description: 'Raporları Excel/PDF formatında indir' }
+      ]
+    }
+  };
+
+  const cat = categories[category];
+  if (!cat) return null;
+
+  const embed = new EmbedBuilder()
+    .setTitle(cat.title)
+    .setDescription(cat.description)
+    .setColor(cat.color)
+    .setThumbnail('https://cdn.discordapp.com/attachments/1/subcategory-icon.png')
+    .addFields(
+      {
+        name: '📍 ALT KATEGORİLER:',
+        value: cat.subcategories.map(s => `**${s.name}** — ${s.description}`).join('\n\n'),
+        inline: false
+      },
+      {
+        name: '⚡ NAVIGASYON:',
+        value: '✅ Aşağıdaki butonlardan alt-kategorileri seçin\n🔙 Ana Sayfaya dönmek için **GERİ** tuşuna basın',
+        inline: false
+      }
+    )
+    .setFooter({ text: 'Eko Yıldız • Alt-Kategori Seçimi' })
+    .setTimestamp();
+
+  return { embed, subcategories: cat.subcategories };
+}
+
+/**
+ * Level 3: Alt-Alt-Kategori (İşlem Seçimi)
+ */
+function getActionEmbed(subcategoryId) {
+  const { EmbedBuilder } = require('discord.js');
+
+  const actions = {
+    personnel_search: {
+      title: '🔍 PERSONEL ARAMA',
+      description: 'Sistemde personel bilgilerini arayın ve görüntüleyin',
+      color: 0x3498db,
+      actions: [
+        { id: 'search_by_name', label: '👤 Ada Göre Ara', emoji: '👤', description: 'Personel adına göre ara' },
+        { id: 'search_by_id', label: '🆔 Sicil No. ile Ara', emoji: '🆔', description: 'Sicil numarasına göre ara' },
+        { id: 'search_by_role', label: '👑 Role Göre Ara', emoji: '👑', description: 'Belirli role sahip personelleri listele' },
+        { id: 'search_active', label: '🟢 Aktif Personeli Göster', emoji: '🟢', description: 'Tüm aktif personeli listele' }
+      ]
+    },
+    personnel_roles: {
+      title: '👑 ROL ATAMA VE YÖNETİMİ',
+      description: 'Personele rol atayın, kaldırın veya değiştirin',
+      color: 0x3498db,
+      actions: [
+        { id: 'role_assign', label: '➕ Rol Ata', emoji: '➕', description: 'Personele yeni rol ata' },
+        { id: 'role_remove', label: '➖ Rol Kaldır', emoji: '➖', description: 'Personelden rol çıkar' },
+        { id: 'role_promote', label: '⬆️ Terfi Yap', emoji: '⬆️', description: 'Personeli daha yüksek role terfi ettir' },
+        { id: 'role_demote', label: '⬇️ Hiyerarşi Aşağı Düşür', emoji: '⬇️', description: 'Personeli daha düşük role indir' }
+      ]
+    },
+    personnel_leave: {
+      title: '📅 İZİN YÖNETİMİ',
+      description: 'Personel izinlerini kayıt edin ve yönetin',
+      color: 0x3498db,
+      actions: [
+        { id: 'leave_request', label: '📝 İzin Talebi Oluştur', emoji: '📝', description: 'Yeni izin talebi ekle' },
+        { id: 'leave_approve', label: '✅ İzni Onayla', emoji: '✅', description: 'Beklemede olan izni onayla' },
+        { id: 'leave_reject', label: '❌ İzni Reddet', emoji: '❌', description: 'İzin talebini reddet' },
+        { id: 'leave_balance', label: '📊 İzin Bakiyesi', emoji: '📊', description: 'Personel izin bakiyelerini göster' }
+      ]
+    },
+    discipline_warnings: {
+      title: '⚠️ UYARI SİSTEMİ',
+      description: 'Resmi uyarı verin ve uyarı geçmişini takip edin',
+      color: 0xe74c3c,
+      actions: [
+        { id: 'warn_issue', label: '⚠️ Uyarı Ver', emoji: '⚠️', description: 'Personele resmi uyarı ver' },
+        { id: 'warn_view', label: '📋 Uyarı Geçmişi', emoji: '📋', description: 'Personelin tüm uyarılarını göster' },
+        { id: 'warn_clear', label: '🗑️ Uyarı Sil', emoji: '🗑️', description: 'Belirli bir uyarıyı kayıtlardan sil' },
+        { id: 'warn_stats', label: '📊 Uyarı İstatistikleri', emoji: '📊', description: 'Genel uyarı istatistiklerini göster' }
+      ]
+    },
+    discipline_suspensions: {
+      title: '🚫 ASKIYA ALMA İŞLEMLERİ',
+      description: 'Personeli geçici olarak askıya alın veya yeniden aktif edin',
+      color: 0xe74c3c,
+      actions: [
+        { id: 'susp_initiate', label: '🚫 Askıya Al', emoji: '🚫', description: 'Personeli geçici askıya al' },
+        { id: 'susp_extend', label: '⏱️ Süre Uzat', emoji: '⏱️', description: 'Askıya alma süresini uzat' },
+        { id: 'susp_remove', label: '✅ Askıya Alma Kaldır', emoji: '✅', description: 'Personeli aktif durama getir' },
+        { id: 'susp_view', label: '👁️ Askıya Alınmış Personel', emoji: '👁️', description: 'Şu anda askıya alınmış personeli listele' }
+      ]
+    },
+    hr_salary: {
+      title: '💰 MAAŞ YÖNETİMİ',
+      description: 'Maaşları hesaplayın, artırın ve bonusları yönetin',
+      color: 0xf39c12,
+      actions: [
+        { id: 'salary_calculate', label: '🧮 Maaş Hesapla', emoji: '🧮', description: 'Aylık maaşı hesapla' },
+        { id: 'salary_raise', label: '📈 Maaş Artışı', emoji: '📈', description: 'Personel maaşında artış yap' },
+        { id: 'salary_bonus', label: '🎁 Bonus Ver', emoji: '🎁', description: 'Personele ek bonus öde' },
+        { id: 'salary_history', label: '📜 Maaş Tarihi', emoji: '📜', description: 'Maaş değişiklikleri geçmişini göster' }
+      ]
+    },
+    system_settings: {
+      title: '🔩 SUNUCU AYARLARI',
+      description: 'Discord sunucu ayarlarını yapılandırın',
+      color: 0x9b59b6,
+      actions: [
+        { id: 'sys_channels', label: '📢 Kanal Ayarları', emoji: '📢', description: 'Sunucu kanallarını yönet' },
+        { id: 'sys_roles', label: '👑 Rol Ayarları', emoji: '👑', description: 'Sunucu rollerini yapılandır' },
+        { id: 'sys_perms', label: '🔐 İzin Ayarları', emoji: '🔐', description: 'Kanal ve rol izinlerini düzenle' },
+        { id: 'sys_prefix', label: '⚡ Bot Komut Ayarları', emoji: '⚡', description: 'Bot prefix ve ayarlarını değiştir' }
+      ]
+    },
+    reporting_stats: {
+      title: '📈 İSTATİSTİKLER',
+      description: 'Personel ve sistem istatistiklerini görüntüleyin',
+      color: 0x1abc9c,
+      actions: [
+        { id: 'stats_personnel', label: '👥 Personel İstatistikleri', emoji: '👥', description: 'Personel sayısı, devirler vb.' },
+        { id: 'stats_activity', label: '⚡ Aktivite İstatistikleri', emoji: '⚡', description: 'Sistemdeki aktivite metrikleri' },
+        { id: 'stats_performance', label: '⭐ Performans Sıralaması', emoji: '⭐', description: 'Personel performans ranking' },
+        { id: 'stats_trends', label: '📊 Trend Analizi', emoji: '📊', description: 'Zaman içindeki trend analizi' }
+      ]
+    }
+  };
+
+  const act = actions[subcategoryId];
+  if (!act) return null;
+
+  const embed = new EmbedBuilder()
+    .setTitle(act.title)
+    .setDescription(act.description)
+    .setColor(act.color)
+    .addFields(
+      {
+        name: '⚡ İŞLEMLER:',
+        value: act.actions.map(a => `**${a.label}** — ${a.description}`).join('\n\n'),
+        inline: false
+      },
+      {
+        name: '💡 İPUÇU:',
+        value: 'Aşağıdaki butonlardan gerçekleştirmek istediğiniz işlemi seçin. Tüm işlemler audit günlüğüne kaydedilecektir.',
+        inline: false
+      }
+    )
+    .setFooter({ text: 'Eko Yıldız • İşlem Seçimi' })
+    .setTimestamp();
+
+  return { embed, actions: act.actions };
+}
+
+/**
+ * Level 4: İşlem Butonları Oluştur
+ */
+function createActionButtons(actions) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const rows = [];
+
+  // Her 2 butona 1 row
+  for (let i = 0; i < actions.length; i += 2) {
+    const row = new ActionRowBuilder();
+    
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`mod_action_${actions[i].id}`)
+        .setLabel(actions[i].label.replace(/^[^\s]+\s+/, '')) // Emojisiz label
+        .setStyle(ButtonStyle.Success)
+        .setEmoji(actions[i].emoji)
+    );
+
+    if (i + 1 < actions.length) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`mod_action_${actions[i + 1].id}`)
+          .setLabel(actions[i + 1].label.replace(/^[^\s]+\s+/, ''))
+          .setStyle(ButtonStyle.Success)
+          .setEmoji(actions[i + 1].emoji)
+      );
+    } else {
+      // Tek buton varsa GERİ butonunu ekle
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId('mod_nav_back')
+          .setLabel('GERİ')
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
+    rows.push(row);
+  }
+
+  // Son satırda GERİ ve ANA SAYFA butonları
+  if (actions.length % 2 === 0) {
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('mod_nav_back')
+          .setLabel('🔙 Geri')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('mod_nav_home')
+          .setLabel('🏠 Ana Sayfa')
+          .setStyle(ButtonStyle.Secondary)
+      )
+    );
+  }
+
+  return rows;
+}
+
+/**
+ * Navigasyon durumunu sakla (kullanıcıya özel)
+ */
+const navigationState = new Map();
+
+function setNavState(userId, state) {
+  navigationState.set(userId, state);
+}
+
+function getNavState(userId) {
+  return navigationState.get(userId) || { level: 1, category: null, subcategory: null };
+}
+
+// ── Kullanıcı al/oluştur ──────────────────────────────────────────────────────
 async function getOrCreate(userId, guildId, client) {
   if (!client) {
     try {
@@ -5441,4 +5796,11 @@ module.exports = {
   handleInactivitySupportModal,
   handleInactivityProofModal,
   todayStr,
+  // Hierarchical Dashboard System
+  generateModeratorDashboard,
+  getSubcategoryEmbed,
+  getActionEmbed,
+  createActionButtons,
+  setNavState,
+  getNavState,
 };
