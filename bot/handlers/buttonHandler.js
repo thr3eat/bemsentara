@@ -2814,12 +2814,17 @@ function renderEnergyBar(percent) {
   }
 
   if (customId === "sponsorship_transfer") {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     const modal = new ModalBuilder().setCustomId('modal_sponsorship_transfer').setTitle('🏢 Birim Kasasına TL Aktar');
-    const amount = new TextInputBuilder().setCustomId('sponsorship_amount').setLabel('Aktarılacak TL').setStyle(TextInputStyle.Short).setRequired(true);
-    const unit = new TextInputBuilder().setCustomId('sponsorship_unit').setLabel('Birim Adı (BAN_BIRIMI / SES_BIRIMI / SOHBET_BIRIMI)').setStyle(TextInputStyle.Short).setRequired(true);
+    const amount = new TextInputBuilder().setCustomId('sponsorship_amount').setLabel('Aktarılacak TL').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('Örn: 1000');
+    const unit = new TextInputBuilder().setCustomId('sponsorship_unit').setLabel('Birim Adı').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('BAN_BIRIMI / SES_BIRIMI / SOHBET_BIRIMI');
     modal.addComponents(new ActionRowBuilder().addComponents(amount), new ActionRowBuilder().addComponents(unit));
-    return interaction.showModal(modal).catch(() => {});
+    await interaction.showModal(modal).catch(err => {
+      console.error('[sponsorship_transfer] Modal gösterilemedi:', err.message);
+      interaction.editReply({ content: '❌ Modal açılırken hata oluştu!' }).catch(() => {});
+    });
+    return;
   }
 
   if (customId === "vip_purchase_theme") {

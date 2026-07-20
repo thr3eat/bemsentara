@@ -268,6 +268,7 @@ async function handleModalSubmit(interaction) {
   }
 
   if (interaction.customId === 'modal_sponsorship_transfer') {
+    console.log('[Sponsorship-Modal] Modal gönderimi alındı');
     const amountStr = interaction.fields.getTextInputValue('sponsorship_amount').trim();
     const rawUnit = interaction.fields.getTextInputValue('sponsorship_unit').trim();
     const unitName = rawUnit.toUpperCase().includes('_BIRIMI') ? rawUnit.toUpperCase() : `${rawUnit.toUpperCase()}_BIRIMI`;
@@ -281,6 +282,7 @@ async function handleModalSubmit(interaction) {
 
       const validUnits = ['BAN_BIRIMI', 'SES_BIRIMI', 'SOHBET_BIRIMI'];
       if (!validUnits.includes(unitName)) {
+        console.log('[Sponsorship-Modal] Geçersiz birim:', unitName);
         return interaction.editReply({ content: '❌ Geçersiz birim adı. Kullanılabilir birimler: BAN_BIRIMI, SES_BIRIMI, SOHBET_BIRIMI.' });
       }
 
@@ -288,8 +290,10 @@ async function handleModalSubmit(interaction) {
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
 
-      if ((p.gamification?.ecoCoins || 0) < amount) {
-        return interaction.editReply({ content: `❌ Yetersiz bakiye! Cüzdanınızda sadece \`${p.gamification?.ecoCoins || 0} TL\` bulunmaktadır.` });
+      const userBalance = p.gamification?.ecoCoins || 0;
+      if (userBalance < amount) {
+        console.log('[Sponsorship-Modal] Yetersiz bakiye:', { userBalance, amount });
+        return interaction.editReply({ content: `❌ Yetersiz bakiye! Cüzdanınızda sadece \`${userBalance} TL\` bulunmaktadır.` });
       }
 
       const UnitBudget = require('../../models/UnitBudget');
@@ -297,15 +301,20 @@ async function handleModalSubmit(interaction) {
       if (!ub) {
         ub = new UnitBudget({ unitName, budget: 0 });
       }
-      ub.budget = (ub.budget || 0) + amount;
+      const oldBudget = ub.budget || 0;
+      ub.budget = oldBudget + amount;
       await ub.save();
 
-      p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - amount;
+      p.gamification.ecoCoins = userBalance - amount;
       await p.save();
 
-      return interaction.editReply({ content: `✅ **${amount} TL** ${unitName} birim bütçesine aktarılmıştır.` });
+      console.log('[Sponsorship-Modal] Transfer başarılı:', { unitName, amount, oldBudget, newBudget: ub.budget });
+
+      return interaction.editReply({ 
+        content: `✅ **${amount} TL** ${unitName} birim bütçesine aktarılmıştır!\n\n📊 **Birim Kasası Güncellenmesi:**\n• Eski Bakiye: \`${oldBudget} TL\`\n• Yeni Bakiye: \`${ub.budget} TL\`\n💰 **Kalan Cüzdanınız:** \`${p.gamification.ecoCoins} TL\`` 
+      });
     } catch (err) {
-      console.error('[Sponsorship-Modal] Hata:', err.message);
+      console.error('[Sponsorship-Modal] Hata:', err.message, err.stack);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
