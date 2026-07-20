@@ -1838,8 +1838,8 @@ function renderEnergyBar(percent) {
         });
       }
 
-      // Yeni izin süresi başlat (12 saat)
-      const newEndTime = new Date(Date.now() + 12 * 60 * 60 * 1000);
+      // Yeni izin süresi başlat (30 dakika)
+      const newEndTime = new Date(Date.now() + 30 * 60 * 1000);
       p.burnoutLeaveUntil = newEndTime;
       await p.save();
 
@@ -1853,7 +1853,7 @@ function renderEnergyBar(percent) {
         .setTitle("☕ Zorunlu Kahve İzni Aktif Edildi")
         .setDescription(
           `Sayın <@${interaction.user.id}>,\n\n` +
-          `Aşırı yorgunluk (Burnout) durumunuz nedeniyle **12 saatlik zorunlu dinlenme izniniz** başlatılmıştır.\n\n` +
+          `Aşırı yorgunluk (Burnout) durumunuz nedeniyle **30 dakikalık zorunlu dinlenme izniniz** başlatılmıştır.\n\n` +
           `Bu süre boyunca aktif görev yapamayacak, moderasyon araçlarını kullanamayacaksınız.\n\n` +
           `⏰ **İstirahat Bitiş Zamanı:** <t:${Math.floor(newEndTime.getTime() / 1000)}:F>`
         )
