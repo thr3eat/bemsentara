@@ -2153,10 +2153,9 @@ async function getMorningBriefingComponents(progress) {
         .setLabel('🔄 GÜNCELLE')
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId('staff_resting_dummy')
-        .setLabel('☕ Zorunlu Kahve İzni Aktif')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true)
+        .setCustomId('staff_use_coffee_break')
+        .setLabel('✅ İzni Sonlandır')
+        .setStyle(ButtonStyle.Success)
     );
     return [rowResting];
   }
@@ -2169,7 +2168,7 @@ async function getMorningBriefingComponents(progress) {
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId('staff_use_coffee_break')
-        .setLabel('☕ Zorunlu Kahve İzni Kullan (12 Saat)')
+        .setLabel('☕ Kahve İzni Başlat')
         .setStyle(ButtonStyle.Danger)
     );
     return [rowBurnout];

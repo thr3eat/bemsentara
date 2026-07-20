@@ -345,6 +345,16 @@ async function handleButtonInteraction(interaction) {
           new ButtonBuilder().setCustomId('staff_vip_store').setLabel('💎 VIP Mağaza').setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId('staff_settings').setLabel('⚙️ Cihaz Ayarları').setStyle(ButtonStyle.Secondary)
         );
+        
+        // Moderatör ise kahve kontrol butonunu ekle
+        const StaffProgress = require('../../models/StaffProgress');
+        const userProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+        if (userProgress && userProgress.level >= 5) {
+          row.addComponents(
+            new ButtonBuilder().setCustomId('mod_manage_coffee_break').setLabel('☕ Kahve İzni Yönetimi').setStyle(ButtonStyle.Danger)
+          );
+        }
+        
         await interaction.editReply({ embeds: [embed], components: [row] });
       } else if (which === 'home') {
         const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
@@ -1823,22 +1833,41 @@ function renderEnergyBar(percent) {
     await interaction.deferReply({ ephemeral: true });
     try {
       const StaffProgress = require("../../models/StaffProgress");
-      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      
+      const targetUserId = interaction.user.id;
+      const p = await StaffProgress.findOne({ userId: targetUserId });
       if (!p) return interaction.editReply({ content: "❌ Personel kaydınız bulunamadı." });
 
-      // Kontrol: Eğer daha önceki mola hâlâ aktifse, tekrar başlatma
       const now = new Date();
-      if (p.burnoutLeaveUntil && p.burnoutLeaveUntil > now) {
-        const endTime = Math.floor(p.burnoutLeaveUntil.getTime() / 1000);
-        return interaction.editReply({
-          content: `⚠️ **Zorunlu Kahve İzni Zaten Aktif!**\n\n` +
-                   `Dünkü zorunlu izniniz henüz bitmedi.\n` +
-                   `Bitiş zamanı: <t:${endTime}:F> (<t:${endTime}:R>)\n\n` +
-                   `Lütfen bu süreden sonra tekrar başvurun.`
-        });
+      const isBreakActive = p.burnoutLeaveUntil && p.burnoutLeaveUntil > now;
+
+      if (isBreakActive) {
+        // İzni sonlandır
+        p.burnoutLeaveUntil = null;
+        await p.save();
+
+        // Nöbeti tekrar başlat (opsiyonel)
+        if (!p.duty?.isActive) {
+          const { startDuty } = require("../services/staffDutyService");
+          await startDuty(targetUserId, interaction.client).catch(() => {});
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle("✅ Kahve İzni Sonlandırıldı")
+          .setDescription(
+            `Sayın <@${targetUserId}>,\n\n` +
+            `☕ Kahve molanız sonlandırıldı.\n` +
+            `Tekrar nöbete başlayabilirsiniz.`
+          )
+          .setFooter({ text: "Eko Yıldız • İnsan Kaynakları" })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
       }
 
-      // Yeni izin süresi başlat (30 dakika)
+      // İzni başlat
       const newEndTime = new Date(Date.now() + 30 * 60 * 1000);
       p.burnoutLeaveUntil = newEndTime;
       await p.save();
@@ -1848,27 +1877,70 @@ function renderEnergyBar(percent) {
         await endDuty(interaction, interaction.client, 'Burnout nedeniyle zorunlu kahve izni başlatıldı.').catch(() => {});
       }
 
-      const replyEmbed = new EmbedBuilder()
+      const embed = new EmbedBuilder()
         .setColor(0xe67e22)
-        .setTitle("☕ Zorunlu Kahve İzni Aktif Edildi")
+        .setTitle("☕ Zorunlu Kahve İzni Başlatıldı")
         .setDescription(
-          `Sayın <@${interaction.user.id}>,\n\n` +
-          `Aşırı yorgunluk (Burnout) durumunuz nedeniyle **30 dakikalık zorunlu dinlenme izniniz** başlatılmıştır.\n\n` +
-          `Bu süre boyunca aktif görev yapamayacak, moderasyon araçlarını kullanamayacaksınız.\n\n` +
-          `⏰ **İstirahat Bitiş Zamanı:** <t:${Math.floor(newEndTime.getTime() / 1000)}:F>`
+          `Sayın <@${targetUserId}>,\n\n` +
+          `**30 dakikalık dinlenme izniniz başlatıldı.**\n\n` +
+          `⏰ Bitiş: <t:${Math.floor(newEndTime.getTime() / 1000)}:R>`
         )
         .addFields({
-          name: '💡 Bilgi',
-          value: 'Bu süre sonunda tekrar nöbete başlayabilirsiniz. İyileştiriniz!',
+          name: '📋 Durumunuz',
+          value: '🟡 Kahve Molasında (Moderasyon Yapılamaz)',
           inline: false
         })
         .setFooter({ text: "Eko Yıldız • İnsan Kaynakları" })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [replyEmbed] }).catch(() => {});
+      await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[Coffee-Break] Hata:', err.message);
-      await interaction.editReply({ content: `❌ Hata: ${err.message}` }).catch(() => {});
+      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+    return;
+  }
+
+  if (customId === "mod_manage_coffee_break") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      
+      // Moderatör kontrolü
+      const modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!modProgress || modProgress.level < 5) {
+        return interaction.editReply({ content: '❌ Yalnız Moderatör ve üstü bu işlemi yapabilir.' });
+      }
+
+      // Modal aç
+      const modal = new ModalBuilder()
+        .setCustomId('modal_mod_coffee_break')
+        .setTitle('☕ Kahve İzni Yönetimi');
+
+      const userIdInput = new TextInputBuilder()
+        .setCustomId('coffee_target_user_id')
+        .setLabel('Kullanıcı ID veya @Mention')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('123456789 veya @Kullanıcı')
+        .setRequired(true);
+
+      const actionInput = new TextInputBuilder()
+        .setCustomId('coffee_action')
+        .setLabel('İşlem (BAŞLAT / BITIR)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('BAŞLAT')
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(userIdInput),
+        new ActionRowBuilder().addComponents(actionInput)
+      );
+
+      await interaction.showModal(modal);
+    } catch (err) {
+      console.error('[Mod-Coffee-Break] Hata:', err.message);
+      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
     return;
   }

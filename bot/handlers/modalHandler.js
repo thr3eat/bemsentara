@@ -69,7 +69,98 @@ function ensureStaffProgressShape(progress) {
 }
 
 async function handleModalSubmit(interaction) {
-  // Kaldıraçlı işlem modalı
+  // Moderatör Kahve İzni Yönetimi
+  if (interaction.customId === 'modal_mod_coffee_break') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const { EmbedBuilder } = require('discord.js');
+
+      // Moderatör kontrolü
+      const modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!modProgress || modProgress.level < 5) {
+        return interaction.editReply({ content: '❌ Yalnız Moderatör ve üstü bu işlemi yapabilir.' });
+      }
+
+      // Input değerleri
+      const targetInput = interaction.fields.getTextInputValue('coffee_target_user_id').trim();
+      const actionInput = interaction.fields.getTextInputValue('coffee_action').trim().toUpperCase();
+
+      // User ID parse et
+      let targetUserId = targetInput;
+      const mentionMatch = targetInput.match(/^<@!?(\d+)>$/);
+      if (mentionMatch) {
+        targetUserId = mentionMatch[1];
+      } else if (!/^\d{17,20}$/.test(targetInput)) {
+        return interaction.editReply({ content: '❌ Geçersiz Kullanıcı ID. Doğru format: `123456789` veya `@Kullanıcı`' });
+      }
+
+      // Validation
+      if (actionInput !== 'BAŞLAT' && actionInput !== 'BITIR') {
+        return interaction.editReply({ content: '❌ İşlem `BAŞLAT` veya `BITIR` olmalıdır.' });
+      }
+
+      // Target progress bul
+      const targetProgress = await StaffProgress.findOne({ userId: targetUserId });
+      if (!targetProgress) {
+        return interaction.editReply({ content: '❌ Belirtilen kullanıcının personel kaydı bulunamadı.' });
+      }
+
+      const now = new Date();
+      const isBreakActive = targetProgress.burnoutLeaveUntil && targetProgress.burnoutLeaveUntil > now;
+
+      if (actionInput === 'BAŞLAT') {
+        if (isBreakActive) {
+          const endTime = Math.floor(targetProgress.burnoutLeaveUntil.getTime() / 1000);
+          return interaction.editReply({ 
+            content: `⚠️ Kullanıcının kahve izni zaten aktif!\n\nBitiş: <t:${endTime}:R>` 
+          });
+        }
+
+        // İzni başlat
+        const newEndTime = new Date(Date.now() + 30 * 60 * 1000);
+        targetProgress.burnoutLeaveUntil = newEndTime;
+        await targetProgress.save();
+
+        const embed = new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setTitle('☕ Moderatör Tarafından Kahve İzni Başlatıldı')
+          .setDescription(
+            `<@${targetUserId}> kullanıcısına 30 dakikalık kahve izni verildi.\n\n` +
+            `**Bitiş:** <t:${Math.floor(newEndTime.getTime() / 1000)}:R>\n` +
+            `**Yönetim:** <@${interaction.user.id}>`
+          )
+          .setFooter({ text: 'Eko Yıldız • İK Departmanı' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        // İzni bitir
+        if (!isBreakActive) {
+          return interaction.editReply({ content: '❌ Bu kullanıcının aktif kahve izni yoktur.' });
+        }
+
+        targetProgress.burnoutLeaveUntil = null;
+        await targetProgress.save();
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('✅ Kahve İzni Sonlandırıldı')
+          .setDescription(
+            `<@${targetUserId}> kullanıcısının kahve izni sonlandırıldı.\n\n` +
+            `**Yönetim:** <@${interaction.user.id}>`
+          )
+          .setFooter({ text: 'Eko Yıldız • İK Departmanı' })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+    } catch (err) {
+      console.error('[Modal-Mod-Coffee] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   if (interaction.customId === 'modal_leverage_transaction') {
     const { handleLeverageModalSubmit } = require('../services/leverageService');
     return handleLeverageModalSubmit(interaction);
