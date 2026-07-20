@@ -2338,14 +2338,6 @@ async function generateMorningBriefingEmbed(progress, client) {
 
   resetDaily(progress);
 
-  // ─── BRİFİNG KATEGORILERE AYRILDI: TEMIZ VE ODAKLI ────────────
-  // 1. Sabah Selamı (AI + Şehir Özgü)
-  // 2. Bugünkü Görevler (Selamlaşma, Ses, Birim)
-  // 3. Performans KPI (Nöbet, Sicil)
-  // 4. Terfi Yolu (Rütbe Atlaması)
-  // 5. Pazarlama Durumu (Borsa)
-  // 6. Koçun Sorusu (İnteraktif)
-
   const fields = [];
 
   // ☀️ SABAH SELAMASI
@@ -2360,36 +2352,30 @@ async function generateMorningBriefingEmbed(progress, client) {
   aiMessage = await chatWithAI([{ role: 'user', content: prompt }]).catch(() => '');
   aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || 'Günaydın! 💪';
 
-  fields.push({ name: '☀️ Sabah Selaması', value: aiMessage, inline: false });
+  fields.push({ name: '☀️ Sabah', value: aiMessage, inline: false });
 
   // 📋 BUGÜNKÜ GÖREVLER
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const stats = getDailyTaskCompletionStats(progress);
-  let tasksText = `💬 Selamlaşma: \`${stats.greetProgress}/${req.greets}\` ${progress.daily?.greeted ? '✅' : '❌'}\n`;
-  tasksText += `🎤 Ses: \`${stats.voiceProgress}/${req.voiceMinutes} dk\`\n`;
-  if (progress.daily?.chosenTask) tasksText += `🎯 Seçim: ${CHOSEN_TASKS[progress.daily.chosenTask] || 'Görev'} ${progress.daily?.chosenTaskCompleted ? '✅' : '❌'}\n`;
-  if (userUnit?.unitName) {
-    const { UNIT_CONFIG } = require('./unitService');
-    const uc = UNIT_CONFIG[userUnit.unitName];
-    if (uc) tasksText += `🛡️ Birim: ${uc.tasks} (Rütbe ${userUnit.rank || 1})`;
-  }
-  fields.push({ name: `📋 Görevler [${stats.progressBar}] %${stats.totalPercent}`, value: tasksText, inline: false });
+  let tasksText = `💬 Selamlaşma: \`${stats.greetProgress}/${req.greets}\` ${progress.daily?.greeted ? '✅' : '⏳'}\n`;
+  tasksText += `🎤 Ses: \`${Math.floor((progress.daily?.voiceMinutes || 0))}/${req.voiceMinutes} dk\` ${(progress.daily?.voiceMinutes || 0) >= req.voiceMinutes ? '✅' : '⏳'}\n`;
+  if (progress.daily?.chosenTask) tasksText += `🎯 Görev: ${progress.daily?.chosenTaskCompleted ? '✅' : '⏳'}\n`;
+  fields.push({ name: `📋 Görevler ${stats.progressBar}`, value: tasksText, inline: true });
 
-  // 🏆 PERFORMANS
+  // 🏆 PERFORMANS & NÖBET
   try {
     const { calculateKpi } = require('./staffDutyService');
     const kpi = calculateKpi(progress);
-    const warns = progress.disciplinary?.warns?.length || 0;
-    const comms = progress.disciplinary?.commendations?.length || 0;
-    let perfText = `📊 KPI: \`${kpi}/100\` | 💚${comms} | ⚠️${warns}\n`;
+    let perfText = `📊 KPI: \`${kpi}/100\`\n`;
+    perfText += `💚 ${progress.disciplinary?.commendations?.length || 0} | ⚠️ ${progress.disciplinary?.warns?.length || 0}\n`;
     if (progress.duty?.isActive) {
       const mins = Math.floor((Date.now() - new Date(progress.duty.startedAt)) / 1000 / 60);
       const hrs = Math.floor(mins / 60);
-      perfText += `⚡ Nöbet: ${hrs}h ${mins % 60}m | 🎫${progress.duty.sessionTicketsSolved || 0}`;
+      perfText += `⚡ Nöbet: ${hrs}h ${mins % 60}m`;
     } else {
-      perfText += `⚡ Nöbet: Serbest`;
+      perfText += `⚡ Serbest`;
     }
-    fields.push({ name: '🏆 Performans', value: perfText, inline: false });
+    fields.push({ name: '🏆 Performans', value: perfText, inline: true });
   } catch (_) { }
 
   // 🚀 TERFİ YOLU
@@ -2398,31 +2384,45 @@ async function generateMorningBriefingEmbed(progress, client) {
     const s = progress.stats || {};
     const need = Math.max(0, nextReq.ticketsSolved - (s.ticketsSolved || 0));
     const pct = Math.min(100, Math.floor(((s.ticketsSolved || 0) / (nextReq.ticketsSolved || 1)) * 100));
-    const nextLevel = ROLE_NAMES[progress.level + 1] || 'Max';
-    let promText = `🎫 \`${s.ticketsSolved || 0}/${nextReq.ticketsSolved}\` ${need > 0 ? `(${need} kaldı)` : '✅'}\n`;
-    promText += `📅 \`${s.activeDays || 0}/${nextReq.activeDays}\` gün\n📈 %${pct}`;
-    fields.push({ name: `🚀 ${ROLE_NAMES[progress.level]} ➔ ${nextLevel}`, value: promText, inline: false });
+    let promText = `🎫 \`${s.ticketsSolved || 0}/${nextReq.ticketsSolved}\`\n`;
+    promText += `📅 \`${s.activeDays || 0}/${nextReq.activeDays}\` gün\n${getProgressBar(pct)}`;
+    fields.push({ name: `🚀 Terfi`, value: promText, inline: true });
   }
+
+  // 💰 MAAŞ & EKO
+  const gamif = progress.gamification || {};
+  let ecoText = `💰 TL: \`${Math.floor(gamif.ecoCoins || 0)}\`\n`;
+  ecoText += `💎 Elmas: \`${gamif.diamonds || 0}\`\n`;
+  ecoText += `📊 Borç: ${progress.loanAmount > 0 ? `\`${Math.floor(progress.loanAmount)}\` TL` : '✅ Yok'}`;
+  fields.push({ name: '💰 Eko-Cüzdan', value: ecoText, inline: true });
 
   // 📊 BORSA
   const mkt = { state: progress.marketState || 'Boğa', mult: Number(progress.marketMultiplier || 2.5), rate: Number(progress.diamondRate || 8), trend: progress.marketTrend || '📈' };
-  fields.push({ name: '📊 Eko-Borsa', value: `**${mkt.state}** ${mkt.trend} | 1💎 = \`${mkt.rate}TL\` | x${mkt.mult.toFixed(1)}`, inline: false });
+  let marketText = `**${mkt.state}** ${mkt.trend}\n`;
+  marketText += `1💎 = \`${mkt.rate} TL\`\n`;
+  marketText += `Kaldıraç: x${mkt.mult.toFixed(1)}`;
+  fields.push({ name: '📊 Borsa', value: marketText, inline: true });
+
+  // ⚡ DURUM
+  let statusText = '';
+  if (progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date()) {
+    const endTime = Math.floor(progress.burnoutLeaveUntil.getTime() / 1000);
+    statusText = `🟡 **Kahve Molasında**\n<t:${endTime}:R>`;
+  } else if (progress.duty?.isActive) {
+    statusText = `🟢 **Aktif Nöbette**`;
+  } else {
+    statusText = `🔴 **Serbest**`;
+  }
+  fields.push({ name: '⚡ Durum', value: statusText, inline: true });
 
   // ❓ KOÇUN SORUSU
   if (progress.currentQuestion) {
-    fields.push({ name: '❓ Koçun Sorusu', value: `> "${progress.currentQuestion}"`, inline: false });
+    fields.push({ name: '❓ Soru', value: `> "${progress.currentQuestion}"`, inline: false });
   }
 
   // 💡 İPUCU
-  const tips = ['💡 Nöbet + ses/bilet = Ekstra 💎+TL!', '💡 Günlük rapor gir → KPI & 💎 al!', '💡 🚨 Acil Durum → Üst Yön. ping!'];
+  const tips = ['💡 Nöbet + ses/bilet = Ekstra 💎+TL!', '💡 Günlük rapor gir → KPI & 💎!', '💡 🚨 Acil Durum → Üst Yön. ping!'];
   fields.push({ name: '💡 İpucu', value: tips[Math.floor(Math.random() * tips.length)], inline: false });
-
-  // ⚠️ UYARI
-  const MAX_WARNINGS = 3;
-  const daysLeft = progress.warnings?.count > 0 ? MAX_WARNINGS - progress.warnings.count : null;
-  if (daysLeft === 1) {
-    fields.push({ name: '⚠️ DİKKAT', value: `🚨 Son ${daysLeft} uyarı hakkınız kaldı!`, inline: false });
-  }
 
   // EMBED
   const avatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
@@ -2432,24 +2432,16 @@ async function generateMorningBriefingEmbed(progress, client) {
     .setTitle('☀️ Günlük Brifing')
     .setThumbnail(avatar)
     .addFields(fields)
-    .setFooter({ text: `Sentara V6.0 | ${progress.city || 'TR'} | <t:${Math.floor(Date.now() / 1000)}:T>` })
+    .setFooter({ text: `Sentara V6.0 | ${progress.city || 'TR'}` })
     .setTimestamp();
 
   return embed;
+}
 
-  // Insert today's theme and recommended route near the top
-  try {
-    const todayTheme = getTodayTheme();
-    if (todayTheme) {
-      fields.unshift({ name: '📅 Tema', value: `${todayTheme.emoji} ${todayTheme.name}`, inline: false });
-    }
-  } catch (_) { }
-
-  embed.addFields(fields)
-    .setFooter({ text: `Sentara V6.0 | <t:${Math.floor(Date.now() / 1000)}:T>` })
-    .setTimestamp();
-
-  return embed;
+function getProgressBar(percent) {
+  const filled = Math.floor(percent / 10);
+  const empty = 10 - filled;
+  return `\`${'█'.repeat(filled)}${'░'.repeat(empty)}\` %${percent}`;
 }
 
 async function getMorningBriefingComponents(progress) {
@@ -2510,7 +2502,11 @@ async function getMorningBriefingComponents(progress) {
       new ButtonBuilder()
         .setCustomId('staff_use_coffee_break')
         .setLabel('✅ İzni Sonlandır')
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('mod_dashboard_main')
+        .setLabel('📋 Mod Anasayfası')
+        .setStyle(ButtonStyle.Secondary)
     );
     return [rowResting];
   }
