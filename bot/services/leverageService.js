@@ -96,12 +96,15 @@ async function handleLeverageModalSubmit(interaction) {
     // İşlem sonucunu hesapla
     let profit = 0;
     let loss = 0;
-    const marketMovement = (Math.random() - 0.5) * mkt.mult;  // Pazar hareketi (çarpana bağlı)
+    // Pazar hareketi: -5% ile +5% arasında rastgele
+    const marketMovementPercent = (Math.random() - 0.5) * 10;  
     
     if (isSuccess) {
-      profit = totalInvestment * (marketMovement / 100);
+      // Kar = toplam yatırım × pazar hareketi yüzdesi
+      profit = totalInvestment * (marketMovementPercent / 100);
     } else {
-      loss = totalInvestment * (Math.abs(marketMovement) / 100) + interestCost;
+      // Zarar = toplam yatırım × pazar hareketi yüzdesi + faiz
+      loss = totalInvestment * (Math.abs(marketMovementPercent) / 100) + interestCost;
     }
 
     // Bakiye güncelle
@@ -133,19 +136,19 @@ async function handleLeverageModalSubmit(interaction) {
       resultEmbed.addFields(
         { name: '✅ Kâr', value: `+${profit.toFixed(2)} TL`, inline: true },
         { name: '💰 Elde Edilen Tutar', value: `${finalAmount.toFixed(2)} TL`, inline: true },
-        { name: '📉 Pazar Hareketi', value: `${marketMovement > 0 ? '📈' : '📉'} ${marketMovement.toFixed(2)}%`, inline: true }
+        { name: '📊 Pazar Hareketi', value: `${marketMovementPercent > 0 ? '📈' : '📉'} ${marketMovementPercent.toFixed(2)}%`, inline: true }
       );
     } else {
       resultEmbed.addFields(
         { name: '❌ Zarar', value: `-${loss.toFixed(2)} TL`, inline: true },
         { name: '⚠️ Kalan Tutar', value: `${Math.max(0, finalAmount).toFixed(2)} TL`, inline: true },
-        { name: '📉 Pazar Hareketi', value: `${marketMovement > 0 ? '📈' : '📉'} ${Math.abs(marketMovement).toFixed(2)}%`, inline: true }
+        { name: '📊 Pazar Hareketi', value: `${marketMovementPercent > 0 ? '📈' : '📉'} ${Math.abs(marketMovementPercent).toFixed(2)}%`, inline: true }
       );
 
       if (p.loanAmount > 0) {
         resultEmbed.addFields({
           name: '💳 BORÇ UYARISI',
-          value: `⚠️ Zararınız cüzdanınızı aştı. **${(p.loanAmount || 0).toFixed(2)} TL** borç yüklendi.\n\n💡 *Bardiya yapıp TL kazanarak borcunuzu ödeyin.*`,
+          value: `⚠️ Zararınız cüzdanınızı aştı. **${(p.loanAmount || 0).toFixed(2)} TL** borç yüklendi.\n\n💡 *Vardiya yapıp TL kazanarak borcunuzu ödeyin.*`,
           inline: false
         });
       }

@@ -1826,7 +1826,21 @@ function renderEnergyBar(percent) {
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!p) return interaction.editReply({ content: "❌ Personel kaydınız bulunamadı." });
 
-      p.burnoutLeaveUntil = new Date(Date.now() + 12 * 60 * 60 * 1000);
+      // Kontrol: Eğer daha önceki mola hâlâ aktifse, tekrar başlatma
+      const now = new Date();
+      if (p.burnoutLeaveUntil && p.burnoutLeaveUntil > now) {
+        const endTime = Math.floor(p.burnoutLeaveUntil.getTime() / 1000);
+        return interaction.editReply({
+          content: `⚠️ **Zorunlu Kahve İzni Zaten Aktif!**\n\n` +
+                   `Dünkü zorunlu izniniz henüz bitmedi.\n` +
+                   `Bitiş zamanı: <t:${endTime}:F> (<t:${endTime}:R>)\n\n` +
+                   `Lütfen bu süreden sonra tekrar başvurun.`
+        });
+      }
+
+      // Yeni izin süresi başlat (12 saat)
+      const newEndTime = new Date(Date.now() + 12 * 60 * 60 * 1000);
+      p.burnoutLeaveUntil = newEndTime;
       await p.save();
 
       if (p.duty?.isActive) {
@@ -1840,9 +1854,14 @@ function renderEnergyBar(percent) {
         .setDescription(
           `Sayın <@${interaction.user.id}>,\n\n` +
           `Aşırı yorgunluk (Burnout) durumunuz nedeniyle **12 saatlik zorunlu dinlenme izniniz** başlatılmıştır.\n\n` +
-          `Bu süre boyunca aktif görev yapamayacak, moderasyon araçlarını kullanamayacaksınız. ` +
-          `İstirahat bitiş süreniz: <t:${Math.floor(p.burnoutLeaveUntil.getTime() / 1000)}:F>`
+          `Bu süre boyunca aktif görev yapamayacak, moderasyon araçlarını kullanamayacaksınız.\n\n` +
+          `⏰ **İstirahat Bitiş Zamanı:** <t:${Math.floor(newEndTime.getTime() / 1000)}:F>`
         )
+        .addFields({
+          name: '💡 Bilgi',
+          value: 'Bu süre sonunda tekrar nöbete başlayabilirsiniz. İyileştiriniz!',
+          inline: false
+        })
         .setFooter({ text: "Eko Yıldız • İnsan Kaynakları" })
         .setTimestamp();
 
