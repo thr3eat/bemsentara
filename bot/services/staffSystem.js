@@ -2502,11 +2502,7 @@ async function getMorningBriefingComponents(progress) {
       new ButtonBuilder()
         .setCustomId('staff_use_coffee_break')
         .setLabel('✅ İzni Sonlandır')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId('mod_dashboard_main')
-        .setLabel('📋 Mod Anasayfası')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Success)
     );
     return [rowResting];
   }

@@ -346,15 +346,6 @@ async function handleButtonInteraction(interaction) {
           new ButtonBuilder().setCustomId('staff_settings').setLabel('⚙️ Cihaz Ayarları').setStyle(ButtonStyle.Secondary)
         );
         
-        // Moderatör ise kontrol panelini ekle
-        const StaffProgress = require('../../models/StaffProgress');
-        const userProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-        if (userProgress && userProgress.level >= 5) {
-          row.addComponents(
-            new ButtonBuilder().setCustomId('mod_dashboard_main').setLabel('📋 Mod Panel').setStyle(ButtonStyle.Danger)
-          );
-        }
-        
         await interaction.editReply({ embeds: [embed], components: [row] });
       } else if (which === 'home') {
         const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
@@ -1900,146 +1891,6 @@ function renderEnergyBar(percent) {
     }
     return;
   }
-
-  if (customId === "mod_manage_coffee_break") {
-    await interaction.deferReply({ ephemeral: true });
-    try {
-      const StaffProgress = require("../../models/StaffProgress");
-      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-      
-      // Moderatör kontrolü
-      const modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-      if (!modProgress || modProgress.level < 5) {
-        return interaction.editReply({ content: '❌ Yalnız Moderatör ve üstü bu işlemi yapabilir.' });
-      }
-
-      // Modal aç
-      const modal = new ModalBuilder()
-        .setCustomId('modal_mod_coffee_break')
-        .setTitle('☕ Kahve İzni Yönetimi');
-
-      const userIdInput = new TextInputBuilder()
-        .setCustomId('coffee_target_user_id')
-        .setLabel('Kullanıcı ID veya @Mention')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('123456789 veya @Kullanıcı')
-        .setRequired(true);
-
-      const actionInput = new TextInputBuilder()
-        .setCustomId('coffee_action')
-        .setLabel('İşlem (BAŞLAT / BITIR)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('BAŞLAT')
-        .setRequired(true);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(userIdInput),
-        new ActionRowBuilder().addComponents(actionInput)
-      );
-
-      await interaction.showModal(modal);
-    } catch (err) {
-      console.error('[Mod-Coffee-Break] Hata:', err.message);
-      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
-    }
-    return;
-  }
-
-  if (customId === "mod_back_to_briefing") {
-    await interaction.deferReply({ ephemeral: true });
-    try {
-      const StaffProgress = require('../../models/StaffProgress');
-      const { generateMorningBriefingEmbed, getMorningBriefingComponents } = require('../services/staffSystem');
-      
-      const p = await StaffProgress.findOne({ userId: interaction.user.id });
-      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
-
-      const embed = await generateMorningBriefingEmbed(p, interaction.client);
-      const comps = await getMorningBriefingComponents(p);
-
-      return interaction.editReply({ embeds: [embed], components: comps });
-    } catch (err) {
-      console.error('[Back-To-Briefing] Hata:', err.message);
-      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
-    }
-    return;
-  }
-    await interaction.deferReply({ ephemeral: true });
-    try {
-      const StaffProgress = require("../../models/StaffProgress");
-      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-      
-      const modProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-      if (!modProgress || modProgress.level < 5) {
-        return interaction.editReply({ content: '❌ Yalnız Moderatör ve üstü bu işlemi yapabilir.' });
-      }
-
-      // Mod Anasayfası
-      const embed = new EmbedBuilder()
-        .setColor(0xe74c3c)
-        .setTitle('📋 Moderatör Anasayfası')
-        .setDescription('**Rütbeniz:** ' + (require('./staffSystem').ROLE_NAMES[modProgress.level] || 'Moderatör'))
-        .addFields(
-          { name: '👥 Personel Yönetimi', value: '**Kahve İzni** · **Disiplin** · **Rütbe Kontrol**', inline: false },
-          { name: '📊 Raporlama', value: '**KPI Analiz** · **Vardiya Logları** · **Sicil İncelemesi**', inline: false },
-          { name: '⚙️ Sistem', value: '**Broadcast Duyuru** · **Pazar Kontrol** · **Log Görüntüle**', inline: false }
-        )
-        .setFooter({ text: 'Eko Yıldız • Moderatör Paneli' })
-        .setTimestamp();
-
-      const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('mod_coffee_manage')
-          .setLabel('☕ Kahve İzni')
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId('mod_discipline')
-          .setLabel('⚖️ Disiplin')
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId('mod_rank_check')
-          .setLabel('🏆 Rütbe')
-          .setStyle(ButtonStyle.Danger)
-      );
-
-      const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('mod_kpi_analyze')
-          .setLabel('📊 KPI')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId('mod_duty_logs')
-          .setLabel('📋 Vardiya Logları')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId('mod_audit_log')
-          .setLabel('📝 Audit Log')
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      const row3 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('mod_broadcast')
-          .setLabel('📢 Duyuru')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('mod_market_control')
-          .setLabel('📊 Pazar')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('mod_back_to_briefing')
-          .setLabel('⬅️ Geri')
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-      return interaction.editReply({ embeds: [embed], components: [row1, row2, row3] });
-    } catch (err) {
-      console.error('[Mod-Dashboard] Hata:', err.message);
-      await interaction.editReply({ content: `❌ Hata: ${err.message}` });
-    }
-    return;
-  }
-
   if (customId === "tactical_alarm_all") {
     await interaction.deferReply({ ephemeral: true });
     try {
@@ -2088,12 +1939,10 @@ function renderEnergyBar(percent) {
       const StaffProgress = require("../../models/StaffProgress");
       const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
       const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-    if (!isManager) {
-      return interaction.reply({ content: "❌ Bu komutu tetiklemek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
-    }
+      if (!isManager) {
+        return interaction.editReply({ content: "❌ Bu komutu tetiklemek için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!" });
+      }
 
-    await interaction.deferReply({ ephemeral: true });
-    try {
       const leader = await StaffProgress.findOne({ status: 'active' }).sort({ 'gamification.currentXP': -1 });
       if (!leader) {
         return interaction.editReply({ content: "❌ Aktif personel bulunamadı." });
@@ -2130,30 +1979,35 @@ function renderEnergyBar(percent) {
     }
   }
 
-  if (customId === "tactical_change_radio") {
+    if (customId === "tactical_change_radio") {
     await interaction.deferReply({ ephemeral: true });
     try {
       const StaffProgress = require("../../models/StaffProgress");
       const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
-    const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-    if (!isManager) {
-      return interaction.reply({ content: "❌ Bu işlemi başlatmak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
+      const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+      if (!isManager) {
+        return interaction.editReply({ content: "❌ Bu işlemi başlatmak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!" });
+      }
+
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      const modal = new ModalBuilder()
+        .setCustomId('modal_tactical_change_radio')
+        .setTitle('📋 Telsiz Frekansı Değiştir');
+
+      const input = new TextInputBuilder()
+        .setCustomId('radio_freq')
+        .setLabel('Yeni Telsiz Frekansı')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Örn: 145.500 MHz')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal).catch(() => {});
+    } catch (err) {
+      console.error('[Tactical-Radio] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
-
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder()
-      .setCustomId('modal_tactical_change_radio')
-      .setTitle('📋 Telsiz Frekansı Değiştir');
-
-    const input = new TextInputBuilder()
-      .setCustomId('radio_freq')
-      .setLabel('Yeni Telsiz Frekansı')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Örn: 145.500 MHz')
-      .setRequired(true);
-
-    modal.addComponents(new ActionRowBuilder().addComponents(input));
-    return interaction.showModal(modal).catch(() => {});
+    return;
   }
 
   if (customId.startsWith("staff_2fa_")) {
