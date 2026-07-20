@@ -360,6 +360,40 @@ async function handleSelectInteraction(interaction) {
       }
     }
 
+    if (action === 'staff_action_moderator_restaurant') {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+        const modal = new ModalBuilder()
+          .setCustomId('modal_moderator_restaurant')
+          .setTitle('🍽️ Moderatör Restorantı - Sipariş Form');
+        
+        const dishInput = new TextInputBuilder()
+          .setCustomId('restaurant_dish')
+          .setLabel('Ne Yemek Istiyorsun? (örn: Pizza, Burger, Döner)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Dilediğin yemeği yaz')
+          .setRequired(true);
+        
+        const priceInput = new TextInputBuilder()
+          .setCustomId('restaurant_price')
+          .setLabel('Fiyatı Ne Kadar Olsun? (TL)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('100-500 TL arası tavsiye edilir')
+          .setRequired(true);
+        
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(dishInput),
+          new ActionRowBuilder().addComponents(priceInput)
+        );
+        
+        return interaction.showModal(modal);
+      } catch (err) {
+        console.error('[Restaurant] Hata:', err.message);
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      }
+    }
+
     if (action === 'staff_action_sponsorship') {
       await interaction.deferReply({ ephemeral: true });
       try {

@@ -409,6 +409,9 @@ function renderEnergyBar(percent) {
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
 
+      // Initialize gamification if missing
+      p.gamification = p.gamification || {};
+
       const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
       const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
       const activeStaff = staffRecords.length;
@@ -417,13 +420,12 @@ function renderEnergyBar(percent) {
       const snapshot = getMarketSnapshot({ pendingTickets, warnings, chatMessages, activeStaff });
       const price = snapshot.diamondRate;
 
-      const wallet = p.gamification?.ecoCoins || 0;
+      const wallet = p.gamification.ecoCoins || 0;
       if (wallet < price) {
         return interaction.editReply({ content: `❌ Yetersiz Bakiye! Gerekli: ${price} TL, Cüzdanınız: ${wallet} TL\nVardiyeye girip ticket/voice ile TL kazanmayı deneyin.` });
       }
 
       // Deduct and add diamond
-      p.gamification = p.gamification || {};
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) - price;
       p.gamification.diamonds = (p.gamification.diamonds || 0) + 1;
       await p.save().catch(() => {});
@@ -448,8 +450,10 @@ function renderEnergyBar(percent) {
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
 
-      const diamonds = (p.gamification?.diamonds || 0);
-      if (diamonds < 1) return interaction.editReply({ content: '❌ Satılık elmasınız bulunmuyor.' });
+      // Initialize gamification if missing
+      p.gamification = p.gamification || {};
+      const diamonds = (p.gamification.diamonds || 0);
+      if (diamonds < 1) return interaction.editReply({ content: '❌ Satılık elmasınız bulunmuyor. Elmas satın almak için 💰 Eko-Borsa menüsünü açın ve **Elmas Al** butonuna basın!' });
 
       const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
       const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
@@ -468,6 +472,90 @@ function renderEnergyBar(percent) {
 • Kalan elmas: ${p.gamification.diamonds} 💎` });
     } catch (err) {
       console.error('[exchange_sell] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId === 'exchange_leverage') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    try {
+      const StaffProgress = require('../../models/StaffProgress');
+      const Ticket = require('../../models/Ticket');
+      const { getMarketSnapshot } = require('../services/marketSystem');
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      // Initialize gamification if missing
+      p.gamification = p.gamification || {};
+
+      const pendingTickets = await Ticket.countDocuments({ status: { $ne: 'closed' } }).catch(() => 0);
+      const staffRecords = await StaffProgress.find({ status: 'active' }).catch(() => []);
+      const activeStaff = staffRecords.length;
+      const warnings = staffRecords.reduce((s, r) => s + (r.warnings?.count || 0), 0);
+      const chatMessages = staffRecords.reduce((s, r) => s + (r.stats?.chatMessages || 0), 0);
+      const snapshot = getMarketSnapshot({ pendingTickets, warnings, chatMessages, activeStaff });
+
+      // Get market info
+      const mkt = {
+        state: p.marketState || 'Boğa Piyasası',
+        mult: Number(p.marketMultiplier || 2.5),
+        rate: Number(p.diamondRate || 8),
+        interest: Number(p.interestRate || 14),
+        trend: p.marketTrend || '▃ ▅ █ █ ▄'
+      };
+
+      const wallet = p.gamification.ecoCoins || 0;
+      const loanAmount = p.loanAmount || 0;
+
+      if (loanAmount > 0) {
+        return interaction.editReply({
+          content: `❌ Aktif Borç Var!\n\nŞu anda ${loanAmount} TL borcunuz bulunuyor. Önce borcunuzu ödeyin.\n\n**Borç Ödeme Talimatları:**\n1. Vardiyeye girin ve TL kazanın\n2. 💰 Eko-Borsa → Borç Durumunu Gör butonundan ödeme yapın\n3. Yeni kaldıraçlı işlem yapmadan önce borç sıfırlanmalıdır.`
+        });
+      }
+
+      // Show leverage transaction modal
+      const modal = new ModalBuilder()
+        .setCustomId('modal_leverage_transaction')
+        .setTitle('💸 Kaldıraçlı İşlem Hesaplayıcı');
+
+      const amountInput = new TextInputBuilder()
+        .setCustomId('leverage_amount')
+        .setLabel('Yatırım Tutarı (TL)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('50')
+        .setMinLength(1)
+        .setMaxLength(10)
+        .setRequired(true);
+
+      const multiplierInput = new TextInputBuilder()
+        .setCustomId('leverage_multiplier')
+        .setLabel(`Kaldıraç Oranı (1-${Math.floor(mkt.mult)})`)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder(Math.floor(mkt.mult).toString())
+        .setMinLength(1)
+        .setMaxLength(2)
+        .setRequired(true);
+
+      const typeInput = new TextInputBuilder()
+        .setCustomId('leverage_type')
+        .setLabel('İşlem Türü (YUK=Yükseliş/DÜS=Düşüş)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('YUK')
+        .setMinLength(3)
+        .setMaxLength(3)
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(amountInput),
+        new ActionRowBuilder().addComponents(multiplierInput),
+        new ActionRowBuilder().addComponents(typeInput)
+      );
+
+      await interaction.showModal(modal);
+    } catch (err) {
+      console.error('[exchange_leverage] Error:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

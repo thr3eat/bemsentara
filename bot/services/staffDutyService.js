@@ -146,8 +146,8 @@ async function endDuty(interaction, client, handoverNotes = null) {
     const isOhal = sConf && sConf.isOhalActive;
     const multiplier = isOhal ? 2.5 : 0.7;
 
-    const xpReward = Math.floor(((durationHours * 5) + (tickets * 10) + (mods * 5) + (voiceMins * 1)) * multiplier);
-    const coinRewardRaw = Math.floor(((durationHours * 2) + (tickets * 5) + (mods * 2)) * multiplier);
+    const xpReward = Math.floor(((durationHours * 15) + (tickets * 25) + (mods * 15) + (voiceMins * 3)) * multiplier);
+    const coinRewardRaw = Math.floor(((durationHours * 50) + (tickets * 40) + (mods * 30) + (voiceMins * 2)) * multiplier);
     const taxDeduction = Math.floor(coinRewardRaw * 0.10);
     const coinReward = Math.max(0, coinRewardRaw - taxDeduction);
 

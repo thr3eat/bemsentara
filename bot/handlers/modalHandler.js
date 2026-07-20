@@ -69,7 +69,14 @@ function ensureStaffProgressShape(progress) {
 }
 
 async function handleModalSubmit(interaction) {
+  // Kaldıraçlı işlem modalı
+  if (interaction.customId === 'modal_leverage_transaction') {
+    const { handleLeverageModalSubmit } = require('../services/leverageService');
+    return handleLeverageModalSubmit(interaction);
+  }
+
   if (interaction.customId === 'modal_tactical_change_radio') {
+
     const newFreq = interaction.fields.getTextInputValue('radio_freq');
     await interaction.deferReply({ ephemeral: true });
     try {
@@ -345,6 +352,65 @@ async function handleModalSubmit(interaction) {
       return interaction.editReply({ content: `✅ **Yatırım Fonuna TL Aktarıldı!**\n\n💵 **Kalan Cüzdan Bakiyesi:** \`${p.gamification.ecoCoins} TL\`\n📈 **Güncel Yatırım Fonu Bakiyeniz:** \`${p.savingsFund} TL\`` });
     } catch (err) {
       console.error('[Finance-Invest-Modal] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (interaction.customId === 'modal_moderator_restaurant') {
+    const dish = interaction.fields.getTextInputValue('restaurant_dish').trim();
+    const priceStr = interaction.fields.getTextInputValue('restaurant_price').trim();
+    const price = parseInt(priceStr, 10);
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      if (isNaN(price) || price <= 0 || price > 5000) {
+        return interaction.editReply({ content: '❌ Lütfen 1-5000 TL arası geçerli bir tutar giriniz!' });
+      }
+
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+
+      const wallet = p.gamification?.ecoCoins || 0;
+      if (wallet < price) {
+        return interaction.editReply({ content: `❌ Yetersiz bakiye! Cüzdanınızda sadece \`${wallet} TL\` bulunmaktadır.` });
+      }
+
+      // AI ile yemek tarifi/açıklaması oluştur
+      const { chatWithAI } = require('../services/aiService');
+      const aiPrompt = `${dish} için tatlı ve ilginç bir restoran menü açıklaması yaz. 1-2 cümle, Türkçe, samimi ve reklam tarzında olsun. Örn: "Usta şefimiz tarafından özel olarak hazırlanan Adana Kebabı, bahar baharat karışımı ile hazırlanmıştır..."`;
+      
+      let dishDescription = '';
+      try {
+        dishDescription = await chatWithAI([{ role: 'user', content: aiPrompt }]).catch(() => '');
+        dishDescription = dishDescription?.replace(/<think>[\s\S]*?<\/think>/g, '').trim().slice(0, 300) || `Lezzetli bir ${dish}`;
+      } catch (_) {
+        dishDescription = `Lezzetli bir ${dish}`;
+      }
+
+      // Yemeği sipariş et
+      p.gamification.ecoCoins = wallet - price;
+      p.restaurantOrders = (p.restaurantOrders || 0) + 1;
+      await p.save();
+
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor(0xF39C12)
+        .setTitle('🍽️ Sipariş Onaylandı!')
+        .setDescription(`Moderatör Restorantınıza hoş geldiniz!`)
+        .addFields(
+          { name: '🍴 Sipariş', value: `**${dish}**`, inline: true },
+          { name: '💰 Fiyat', value: `\`${price} TL\``, inline: true },
+          { name: '📝 Açıklama', value: dishDescription, inline: false },
+          { name: '🪙 Kalan Bakiye', value: `\`${p.gamification.ecoCoins} TL\``, inline: true },
+          { name: '📊 Toplam Sipariş', value: `${p.restaurantOrders} yemek`, inline: true }
+        )
+        .setFooter({ text: 'Sentara Moderatör Restorantı • Afiyet Olsun! 🍽️' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[Restaurant-Modal] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

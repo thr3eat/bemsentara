@@ -2343,7 +2343,8 @@ async function getMorningBriefingComponents(progress) {
   const personalOptions = [
     { label: '🏖️ İzin Kredisi Kullan', description: 'İzin krediniz varsa 1 gün izin kullanın.', value: 'staff_action_use_leave', emoji: '🌴' },
     { label: '📊 İzin Durumu Sorgula', description: 'Güncel izin kredilerinizi ve geçmişinizi görün.', value: 'staff_action_leave_status', emoji: '📅' },
-    { label: '🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
+    { label: '�️ Moderatör Restorantı', description: 'AI ile dilediğin yemeği sipariş et! TL ile ödeme yap.', value: 'staff_action_moderator_restaurant', emoji: '🍽️' },
+    { label: '�🎓 AI Pratik Eğitimi', description: 'Rastgele bir senaryoda bilginizi ölçün, puan ve ödül kazanın.', value: 'staff_action_practice_scenario', emoji: '🎓' },
     { label: '🧠 AI Performans Karnesi', description: 'AI Koçunuzdan haftalık performans ve durum değerlendirme karnenizi alın.', value: 'staff_action_ai_performance_card', emoji: '🧠' },
     { label: '🪙 Haftalık Maaşımı Al', description: 'Haftalık yetkili maaşınızı (EkoCoin) aktiflik durumunuza göre çekin.', value: 'staff_action_claim_salary', emoji: '🪙' },
     { label: '💳 Kurumsal Kredi & Finans Merkezi', description: 'Maaş avansı çekin, yatırım fonuna TL yatırın veya izin kredisi satın alın.', value: 'staff_action_finance_center', emoji: '💳' },
