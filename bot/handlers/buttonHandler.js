@@ -2778,6 +2778,11 @@ function renderEnergyBar(percent) {
       const state = createAuctionState({});
       const status = getAuctionStatus(state);
       const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      
+      const StaffProgress = require('../../models/StaffProgress');
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+      const myBid = p?.auctionBid || 0;
+      
       const embed = new EmbedBuilder()
         .setColor(0x8e44ad)
         .setTitle('💸 Haftalık Personel İhalesi')
@@ -2785,13 +2790,15 @@ function renderEnergyBar(percent) {
         .addFields(
           { name: '🎁 İhale Kalemi', value: status.itemLabel, inline: false },
           { name: '💰 Mevcut Teklif', value: `\`${status.highestOffer} TL\``, inline: true },
-          { name: '⏳ Bitiş', value: `<t:${Math.floor(new Date(status.endsAt).getTime() / 1000)}:R>`, inline: true }
+          { name: '⏳ Bitiş', value: `<t:${Math.floor(new Date(status.endsAt).getTime() / 1000)}:R>`, inline: true },
+          { name: '📊 Sizin Toplam Teklifiniz', value: `\`${myBid} TL\``, inline: true }
         );
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('staff_auction_bid').setLabel('💸 Teklifi 500 TL Arttır').setStyle(ButtonStyle.Success)
       );
       return interaction.editReply({ embeds: [embed], components: [row] });
     } catch (err) {
+      console.error('[Auction-Open] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }
@@ -2802,13 +2809,22 @@ function renderEnergyBar(percent) {
       const StaffProgress = require('../../models/StaffProgress');
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
       if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      
       const wallet = p.gamification?.ecoCoins || 0;
       if (wallet < 500) return interaction.editReply({ content: '❌ En az 500 TL cüzdan bakiyeniz olmalıdır.' });
+      
+      // İhale teklifi için ayrı alan kullan
       p.gamification.ecoCoins = wallet - 500;
-      p.savingsFund = (p.savingsFund || 0) + 500;
+      p.auctionBid = (p.auctionBid || 0) + 500;  // Ayrı ihale havuzu
+      
       await p.save();
-      return interaction.editReply({ content: '✅ **Teklifiniz alındı.** 500 TL ihale havuzuna aktarılmıştır.' });
+      
+      const totalBid = p.auctionBid || 500;
+      return interaction.editReply({ 
+        content: `✅ **Teklifiniz alındı!** 500 TL ihale havuzuna aktarılmıştır.\n\n📊 **İhale Durumu:**\n• **Cüzdanınız:** \`${p.gamification.ecoCoins} TL\`\n• **Toplam Teklif:** \`${totalBid} TL\`` 
+      });
     } catch (err) {
+      console.error('[Auction-Bid] Hata:', err.message);
       return interaction.editReply({ content: `❌ Hata: ${err.message}` });
     }
   }

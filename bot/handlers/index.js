@@ -3581,7 +3581,7 @@ function initializeDiscordHandlers(client) {
         else if (item === 'color_purple') { price = 500; roleName = '- MOR ROL RENGİ -'; successMessage = '🎨 Mor Rol Rengi satın alındı!'; }
         else if (item === 'color_pink') { price = 500; roleName = '- PEMBE ROL RENGİ -'; successMessage = '🎨 Pembe Rol Rengi satın alındı!'; }
         else if (item === 'color_orange') { price = 500; roleName = '- TURUNCU ROL RENGİ -'; successMessage = '🎨 Turuncu Rol Rengi satın alındı!'; }
-        else if (item === 'item_leave_1day' || item === 'ekstra_izin') { price = 800; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
+        else if (item === 'item_leave_1day' || item === 'ekstra_izin') { price = 2000; successMessage = '🏖️ +1 Gün İzin Hakkı satın alındı!'; }
 
         if ((p.gamification?.ecoCoins || 0) < price) {
           return interaction.reply({ content: `❌ Yetersiz E.C.! (Gereken: ${price} E.C. - Sizin: ${p.gamification?.ecoCoins || 0} E.C.)`, ephemeral: true });

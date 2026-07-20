@@ -264,6 +264,7 @@ const staffProgressSchema = new mongoose.Schema({
   taskBypassUsed: { type: Boolean, default: false },
   lotteryTickets: { type: Number, default: 0 },
   savingsFund: { type: Number, default: 0 },
+  auctionBid: { type: Number, default: 0 },  // Haftalık Personel İhalesi - Toplam Teklif
   loanAmount: { type: Number, default: 0 },
   marketMultiplier: { type: Number, default: 2.5 },
   marketState: { type: String, default: 'Boğa Piyasası' },
