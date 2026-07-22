@@ -179,6 +179,20 @@ async function handleSelectInteraction(interaction) {
         .setColor(0xe67e22);
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
+
+    if (selected === 'staff_menu_briefing_settings') {
+      const { generateBriefingSettingsEmbed, getBriefingSettingsComponents } = require('../services/staffSystem');
+      const embed = generateBriefingSettingsEmbed(p);
+      const components = getBriefingSettingsComponents(p);
+      return interaction.reply({ embeds: [embed], components, ephemeral: true });
+    }
+
+    if (selected === 'staff_menu_tutorial') {
+      const { generateTutorialEmbed, getTutorialComponents } = require('../services/staffSystem');
+      const embed = generateTutorialEmbed(1);
+      const components = getTutorialComponents(1);
+      return interaction.reply({ embeds: [embed], components, ephemeral: true });
+    }
   }
 
   // ── Panel hızlı menü (home) seçimi

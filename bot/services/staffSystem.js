@@ -9,6 +9,26 @@ const { getMarketSnapshot } = require('./marketSystem');
 // ── Konfigürasyon ──────────────────────────────────────────────────────────
 const GUILD_ID = process.env.STAFF_GUILD_ID || '1367646464804655104';
 
+const RANDOM_DUTY_POOL = {
+  'task_chat': { name: '💬 Aktif Sohbetçi', desc: 'Sohbet kanalında 15 mesaj yaz', target: 15, type: 'chat' },
+  'task_voice': { name: '🎧 Ses Devriyesi', desc: 'Ses kanalında 15 dakika kal', target: 15, type: 'voice' },
+  'task_ticket': { name: '🎫 Destekçi Mod', desc: 'En az 1 ticket/destek talebi çöz', target: 1, type: 'ticket' },
+  'task_mod': { name: '🛡️ Düzen Muhafızı', desc: 'En az 1 moderasyon işlemi yap (Warn/Timeout)', target: 1, type: 'mod' },
+  'task_greet': { name: '👋 Karşılama Elçisi', desc: 'Sohbette 3 yeni üyeye selam ver', target: 3, type: 'greet' },
+  'task_word_game': { name: '🔤 Kelime Avcısı', desc: 'Kelime oyununda 5 doğru kelime yaz', target: 5, type: 'word_game' },
+  'task_bom_game': { name: '💣 BOM Ustası', desc: 'BOM oyununda 5 doğru sayı yaz', target: 5, type: 'bom_game' },
+  'task_report_entry': { name: '📝 Vaka Raporlama', desc: 'Vaka veya olay özetini rapor paneline gir', target: 1, type: 'report' },
+  'task_community_help': { name: '🤝 Topluluk Rehberi', desc: 'Sohbette üyelere 10 mesajla rehberlik et', target: 10, type: 'chat' },
+  'task_voice_presence': { name: '🎤 Ses Süresi', desc: 'Ses kanallarında en az 25 dk aktif kal', target: 25, type: 'voice' },
+  'task_ticket_hero': { name: '🎟️ Ticket Çözücü', desc: 'Bugün en az 2 ticket vakası sonuçlandır', target: 2, type: 'ticket' }
+};
+
+function getRandomDutyDeck() {
+  const keys = Object.keys(RANDOM_DUTY_POOL);
+  const shuffled = keys.sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, 3);
+}
+
 const CHOSEN_TASKS = {
   'task_chat': '💬 Aktif Sohbetçi: Sohbette en az 15 mesaj gönder.',
   'task_double_chat': '💬 Çift Sohbet: Sohbette en az 30 mesaj gönder.',
@@ -40,6 +60,16 @@ const ROLE_NAMES = {
   5: '👨‍✈️ Kıdemli Sekreter',
   6: '💼 Genel Koordinatör',
 };
+
+/**
+ * Generates a formatted ASCII progress bar string
+ */
+function getProgressBar(percent, length = 10) {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  const filled = Math.min(length, Math.max(0, Math.round((pct / 100) * length)));
+  const empty = Math.max(0, length - filled);
+  return `\`[${'█'.repeat(filled)}${'░'.repeat(empty)}]\` **%${pct}**`;
+}
 
 // ── Seviyeye özgü günlük görevler ─────────────────────────────────────────
 const LEVEL_TASKS = {
@@ -374,33 +404,62 @@ async function syncAndFilterActiveStaff(allProgress, client) {
 function getDailyTaskCompletionStats(progress) {
   const today = todayStr();
   const isToday = progress.daily?.date === today;
-  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  if (progress.pip?.isActive && progress.pip?.signed) {
-    req.greets = Math.min(req.greets * 2, 20);
-    req.voiceMinutes = Math.min(req.voiceMinutes * 2, 180);
+
+  if (!progress.daily?.assignedTasks || progress.daily?.assignedTasks.length < 3) {
+    progress.daily = progress.daily || {};
+    progress.daily.assignedTasks = getRandomDutyDeck();
   }
 
+  const assignedKeys = progress.daily.assignedTasks || ['task_chat', 'task_voice', 'task_ticket'];
+  let completedCount = 0;
+
+  const assignedDutyDeck = assignedKeys.map(key => {
+    const info = RANDOM_DUTY_POOL[key] || { name: '📌 Günlük Görev', desc: 'Görev hedefini tamamla', target: 1, type: 'chat' };
+    let current = 0;
+    const target = info.target;
+
+    if (info.type === 'chat') current = isToday ? (progress.daily?.chatMessagesToday || 0) : 0;
+    else if (info.type === 'voice') current = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
+    else if (info.type === 'ticket') current = isToday ? (progress.daily?.ticketsSolvedToday || 0) : 0;
+    else if (info.type === 'mod') current = isToday ? (progress.daily?.moderationActionsToday || 0) : 0;
+    else if (info.type === 'greet') current = isToday ? (progress.daily?.greetCount || 0) : 0;
+    else if (info.type === 'word_game') current = isToday ? (progress.daily?.wordGamesPlayed || 0) : 0;
+    else if (info.type === 'bom_game') current = isToday ? (progress.daily?.bomGamesPlayed || 0) : 0;
+    else if (info.type === 'report') current = isToday ? (progress.daily?.incidentReportsToday || 0) : 0;
+
+    const isDone = current >= target;
+    if (isDone) completedCount++;
+
+    return {
+      key,
+      name: info.name,
+      desc: info.desc,
+      target,
+      current: Math.min(target, current),
+      progressText: `${Math.min(target, current)}/${target}`,
+      isDone,
+      icon: isDone ? '✅' : '⏳'
+    };
+  });
+
+  const totalTasks = assignedDutyDeck.length;
+  const totalPercent = Math.round((completedCount / totalTasks) * 100);
+  const progressBar = getProgressBar(totalPercent);
+
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const targetVoice = req.voiceMinutes + (isToday ? (progress.daily?.transferredVoiceMinutes || 0) : 0);
   const targetGreets = req.greets + (isToday ? (progress.daily?.transferredGreets || 0) : 0);
-
-  const greeted = isToday && progress.daily?.greeted;
   const greetsSent = isToday ? (progress.daily?.greetCount || 0) : 0;
   const voiceMinutes = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
 
-  const greetPercent = targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100;
-  const voicePercent = targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100;
-
-  const totalPercent = Math.round(greetPercent * 0.5 + voicePercent * 0.5);
-
-  const filledBars = Math.min(10, totalPercent > 0 ? Math.max(1, Math.floor(totalPercent / 10)) : 0);
-  const emptyBars = 10 - filledBars;
-  const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
-
   return {
-    greetPercent,
-    voicePercent,
+    assignedDutyDeck,
+    completedCount,
+    totalTasks,
     totalPercent,
     progressBar,
+    greetPercent: targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100,
+    voicePercent: targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100,
     greetProgress: `${greetsSent}/${targetGreets}`,
     voiceProgress: `${voiceMinutes}/${targetVoice} dk`,
     greetsSent,
@@ -2271,70 +2330,125 @@ function isPromotionEligible(progress) {
 async function generateMorningBriefingEmbed(progress, client) {
   resetDaily(progress);
 
-  const fields = [];
+  // Initialize briefing settings if missing
+  if (!progress.briefingSettings) {
+    progress.briefingSettings = {
+      enabledSections: {
+        greeting: true,
+        status: true,
+        promotion: true,
+        tasks: true,
+        quickLinks: true
+      },
+      order: ['greeting', 'status', 'promotion', 'tasks', 'quickLinks']
+    };
+  }
 
-  // ☀️ SABAH SELAMASI
-  let aiMessage = '';
+  const enabled = progress.briefingSettings.enabledSections || {};
+  const order = progress.briefingSettings.order || ['greeting', 'status', 'promotion', 'tasks', 'quickLinks'];
+
+  const fieldsMap = {};
+
+  // 1. ☀️ SABAH SELAMASI
+  if (enabled.greeting !== false) {
+    let aiMessage = '';
+    let displayName = progress.userId;
+    try {
+      const u = await client.users.fetch(progress.userId).catch(() => null);
+      if (u) displayName = u.globalName || u.username;
+    } catch (_) { }
+
+    const prompt = `${displayName} için samimi 1-2 cümlelik sabah selaması yap. Şehir: ${progress.city || 'Türkiye'}. Soru sorma.`;
+    aiMessage = await chatWithAI([{ role: 'user', content: prompt }]).catch(() => '');
+    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || 'Günaydın! 💪';
+
+    fieldsMap['greeting'] = { name: '☀️ Sabah Selamı', value: aiMessage, inline: false };
+  }
+
+  // 2. ⚡ DURUM & NÖBET
+  if (enabled.status !== false) {
+    let statusText = '';
+    if (progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date()) {
+      const endTime = Math.floor(progress.burnoutLeaveUntil.getTime() / 1000);
+      statusText = `☕ **İsteğe Bağlı Kahve Molasında** (<t:${endTime}:R>)`;
+    } else if (progress.duty?.isActive) {
+      const mins = Math.floor((Date.now() - new Date(progress.duty.startedAt)) / 1000 / 60);
+      const hrs = Math.floor(mins / 60);
+      statusText = `🟢 **Aktif Nöbette** (${hrs}h ${mins % 60}m)`;
+    } else {
+      statusText = `🔴 **Serbest**`;
+    }
+    fieldsMap['status'] = { name: '⚡ Durum', value: statusText, inline: true };
+  }
+
+  // 3. 🚀 TERFİ YOLU
+  if (enabled.promotion !== false) {
+    const eligible = isPromotionEligible(progress);
+    const nextReq = PROMOTION_REQUIREMENTS[progress.level];
+
+    if (eligible) {
+      fieldsMap['promotion'] = {
+        name: '🚀 Terfi Durumu',
+        value: `🎉 **TERFİYE HAK KAZANDINIZ!** ✅\nTüm terfi şartları (%100) başarıyla tamamlandı. Aşağıdaki **\`🚀 TERFİ ET / SINAVA GİR\`** butonuna basarak rütbenizi yükseltebilirsiniz!`,
+        inline: false
+      };
+    } else if (nextReq) {
+      const s = progress.stats || {};
+      const pct = Math.min(100, Math.floor(((s.ticketsSolved || 0) / (nextReq.ticketsSolved || 1)) * 100));
+      let promText = `⭐ **${ROLE_NAMES[progress.level]}** ➔ 👑 **${ROLE_NAMES[progress.level + 1] || 'Üst Rütbe'}**\n`;
+      promText += `🎫 Ticket: \`${s.ticketsSolved || 0}/${nextReq.ticketsSolved}\` | 💬 Mesaj: \`${s.chatMessages || 0}/${nextReq.chatMessages}\`\n`;
+      promText += `📅 Gün: \`${s.activeDays || 0}/${nextReq.activeDays}\` | 🛡️ Mod: \`${s.moderationActions || 0}/${nextReq.moderationActions}\`\n${getProgressBar(pct)}`;
+      fieldsMap['promotion'] = { name: '🚀 Terfi Yolu', value: promText, inline: false };
+    }
+  }
+
+  // 4. 📋 GÜNÜN RASTGELE GÖREV DESTESİ
+  if (enabled.tasks !== false) {
+    const stats = getDailyTaskCompletionStats(progress);
+    let tasksText = stats.assignedDutyDeck.map(t =>
+      `${t.icon} **${t.name}:** \`${t.progressText}\` — *${t.desc}*`
+    ).join('\n');
+    fieldsMap['tasks'] = {
+      name: `🎯 Günün Rastgele Görev Destesi (${stats.completedCount}/${stats.totalTasks})`,
+      value: tasksText + `\n${stats.progressBar}`,
+      inline: false
+    };
+  }
+
+  // 5. 💡 HIZLI ERİŞİM VE DETAYLAR REHBERİ
+  if (enabled.quickLinks !== false) {
+    fieldsMap['quickLinks'] = {
+      name: '💡 Hızlı Detaylar & Analiz',
+      value: '*Cüzdan, Borsa, Detaylı KPI ve Disiplin geçmişiniz için aşağıdaki menüyü kullanabilirsiniz.*',
+      inline: false
+    };
+  }
+
+  // Assemble fields according to order
+  const fields = [];
+  for (const key of order) {
+    if (fieldsMap[key]) {
+      fields.push(fieldsMap[key]);
+    }
+  }
+
+  if (fields.length === 0) {
+    fields.push({
+      name: '⚙️ Brifing Özelleştirildi',
+      value: 'Tüm bölümler kapalı. Açmak için **"⚙️ Brifing Ayarları"** menüsünü kullanın.',
+      inline: false
+    });
+  }
+
+  const avatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
+  const eligible = isPromotionEligible(progress);
+
   let displayName = progress.userId;
   try {
     const u = await client.users.fetch(progress.userId).catch(() => null);
     if (u) displayName = u.globalName || u.username;
   } catch (_) { }
 
-  const prompt = `${displayName} için samimi 1-2 cümlelik sabah selaması yap. Şehir: ${progress.city || 'Türkiye'}. Soru sorma.`;
-  aiMessage = await chatWithAI([{ role: 'user', content: prompt }]).catch(() => '');
-  aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || 'Günaydın! 💪';
-
-  fields.push({ name: '☀️ Sabah Selamı', value: aiMessage, inline: false });
-
-  // ⚡ DURUM & NÖBET
-  let statusText = '';
-  if (progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date()) {
-    const endTime = Math.floor(progress.burnoutLeaveUntil.getTime() / 1000);
-    statusText = `☕ **İsteğe Bağlı Kahve Molasında** (<t:${endTime}:R>)`;
-  } else if (progress.duty?.isActive) {
-    const mins = Math.floor((Date.now() - new Date(progress.duty.startedAt)) / 1000 / 60);
-    const hrs = Math.floor(mins / 60);
-    statusText = `🟢 **Aktif Nöbette** (${hrs}h ${mins % 60}m)`;
-  } else {
-    statusText = `🔴 **Serbest**`;
-  }
-  fields.push({ name: '⚡ Durum', value: statusText, inline: true });
-
-  // 🚀 TERFİ YOLU
-  const eligible = isPromotionEligible(progress);
-  const nextReq = PROMOTION_REQUIREMENTS[progress.level];
-
-  if (eligible) {
-    fields.push({
-      name: '🚀 Terfi Durumu',
-      value: `🎉 **TERFİYE HAK KAZANDINIZ!** ✅\nTüm terfi şartları (%100) başarıyla tamamlandı. Aşağıdaki **\`🚀 TERFİ ET / SINAVA GİR\`** butonuna basarak rütbenizi yükseltebilirsiniz!`,
-      inline: false
-    });
-  } else if (nextReq) {
-    const s = progress.stats || {};
-    const pct = Math.min(100, Math.floor(((s.ticketsSolved || 0) / (nextReq.ticketsSolved || 1)) * 100));
-    let promText = `⭐ **${ROLE_NAMES[progress.level]}** ➔ 👑 **${ROLE_NAMES[progress.level + 1] || 'Üst Rütbe'}**\n`;
-    promText += `🎫 Ticket: \`${s.ticketsSolved || 0}/${nextReq.ticketsSolved}\` | 💬 Mesaj: \`${s.chatMessages || 0}/${nextReq.chatMessages}\`\n`;
-    promText += `📅 Gün: \`${s.activeDays || 0}/${nextReq.activeDays}\` | 🛡️ Mod: \`${s.moderationActions || 0}/${nextReq.moderationActions}\`\n${getProgressBar(pct)}`;
-    fields.push({ name: '🚀 Terfi Yolu', value: promText, inline: false });
-  }
-
-  // 📋 BUGÜNKÜ GÖREV ÖZETİ
-  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const stats = getDailyTaskCompletionStats(progress);
-  let tasksText = `💬 Selam: \`${stats.greetProgress}/${req.greets}\` ${progress.daily?.greeted ? '✅' : '⏳'} | 🎤 Ses: \`${Math.floor((progress.daily?.voiceMinutes || 0))}/${req.voiceMinutes} dk\` ${(progress.daily?.voiceMinutes || 0) >= req.voiceMinutes ? '✅' : '⏳'}`;
-  fields.push({ name: `📋 Bugünkü Görev Özeti`, value: tasksText, inline: false });
-
-  // 💡 HIZLI ERİŞİM VE DETAYLAR REHBERİ
-  fields.push({
-    name: '💡 Hızlı Detaylar & Analiz',
-    value: '*Cüzdan, Borsa, Detaylı KPI ve Disiplin geçmişiniz için aşağıdaki menüyü kullanabilirsiniz.*',
-    inline: false
-  });
-
-  // EMBED
-  const avatar = (await client.users.fetch(progress.userId).catch(() => null))?.displayAvatarURL?.({ size: 128 }) || null;
   const embed = new EmbedBuilder()
     .setColor(eligible ? 0x2ecc71 : progress.level >= 4 ? 0xFFD700 : progress.level >= 3 ? 0x4ade80 : 0x7c6af7)
     .setAuthor({ name: `👤 ${displayName} | ${ROLE_NAMES[progress.level] || 'Moderatör'}`, iconURL: avatar })
@@ -2345,6 +2459,160 @@ async function generateMorningBriefingEmbed(progress, client) {
     .setTimestamp();
 
   return embed;
+}
+
+function generateBriefingSettingsEmbed(progress) {
+  if (!progress.briefingSettings) {
+    progress.briefingSettings = {
+      enabledSections: { greeting: true, status: true, promotion: true, tasks: true, quickLinks: true },
+      order: ['greeting', 'status', 'promotion', 'tasks', 'quickLinks']
+    };
+  }
+
+  const enabled = progress.briefingSettings.enabledSections || {};
+
+  const embed = new EmbedBuilder()
+    .setTitle('⚙️ GÜNLÜK BRİFİNG AYARLARI VE ÖZELLEŞTİRME')
+    .setColor(0x7c6af7)
+    .setDescription(
+      'Moderatör Anasayfası Brifinginizde gösterilecek alanları seçebilir ve görünümünü özelleştirebilirsiniz.\n\n' +
+      '**Mevcut Bölüm Durumları:**\n' +
+      `☀️ **Sabah Selamı:** ${enabled.greeting !== false ? '✅ Açık' : '❌ Kapalı'}\n` +
+      `⚡ **Durum & Nöbet:** ${enabled.status !== false ? '✅ Açık' : '❌ Kapalı'}\n` +
+      `🚀 **Terfi Yolu & İlerleme:** ${enabled.promotion !== false ? '✅ Açık' : '❌ Kapalı'}\n` +
+      `📋 **Görev Özeti:** ${enabled.tasks !== false ? '✅ Açık' : '❌ Kapalı'}\n` +
+      `💡 **Hızlı Detaylar & İpuçları:** ${enabled.quickLinks !== false ? '✅ Açık' : '❌ Kapalı'}\n\n` +
+      '*Aşağıdaki butonları kullanarak bölümleri açıp kapatabilir veya varsayılana sıfırlayabilirsiniz.*'
+    )
+    .setFooter({ text: 'Eko Yıldız • Brifing Ayarları' })
+    .setTimestamp();
+
+  return embed;
+}
+
+function getBriefingSettingsComponents(progress) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const enabled = progress.briefingSettings?.enabledSections || {};
+
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_toggle_greeting')
+      .setLabel(`☀️ Selam: ${enabled.greeting !== false ? 'Kapat' : 'Aç'}`)
+      .setStyle(enabled.greeting !== false ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_toggle_status')
+      .setLabel(`⚡ Durum: ${enabled.status !== false ? 'Kapat' : 'Aç'}`)
+      .setStyle(enabled.status !== false ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_toggle_promotion')
+      .setLabel(`🚀 Terfi: ${enabled.promotion !== false ? 'Kapat' : 'Aç'}`)
+      .setStyle(enabled.promotion !== false ? ButtonStyle.Danger : ButtonStyle.Success)
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_toggle_tasks')
+      .setLabel(`📋 Görevler: ${enabled.tasks !== false ? 'Kapat' : 'Aç'}`)
+      .setStyle(enabled.tasks !== false ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_toggle_quickLinks')
+      .setLabel(`💡 İpuçları: ${enabled.quickLinks !== false ? 'Kapat' : 'Aç'}`)
+      .setStyle(enabled.quickLinks !== false ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_reset_settings')
+      .setLabel('🔄 Sıfırla')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_briefing_return_home')
+      .setLabel('🔙 Anasayfaya Dön')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  return [row1, row2, row3];
+}
+
+function generateTutorialEmbed(step = 1) {
+  const embed = new EmbedBuilder().setColor(0x7c6af7).setTimestamp();
+
+  if (step === 1) {
+    embed
+      .setTitle('🔰 MODERATÖR ANASAYFASI REHBERİ (1/3) — Nöbet ve Durum')
+      .setDescription(
+        '**Hoş Geldiniz!** Moderatör Anasayfasına ilk girişinizde sistemin temel kullanımını keşfedelim:\n\n' +
+        '🟢 **`⚡ Nöbete Başla / Bitir` Butonu:**\n' +
+        'Sunucuda aktif şekilde görev yapmaya başladığınızda nöbeti başlatırsınız. Nöbet süreniz, aktifliğiniz ve puanlarınız otomatik kaydedilir.\n\n' +
+        '✍️ **`✍️ Rapor Gir` Paneli:**\n' +
+        'Gün içinde çözdüğünüz vakaları ve aldığınız notları rapor paneline aktarabilirsiniz.\n\n' +
+        '🔄 **`🔄 Güncelle`:**\n' +
+        'Anasayfa verilerinizi anlık olarak yeniler.\n\n' +
+        '*Devam etmek için aşağıdaki **"▶️ Sonraki Adım"** butonuna basın.*'
+      )
+      .setFooter({ text: 'Adım 1 / 3 — Nöbet & Durum Yönetimi' });
+  } else if (step === 2) {
+    embed
+      .setTitle('🔰 MODERATÖR ANASAYFASI REHBERİ (2/3) — Terfi ve Görev İlerlemesi')
+      .setDescription(
+        '🚀 **Terfi Yolu ve Görev Takibi:**\n\n' +
+        '🎫 **Ticket, Sohbet ve Ses Süreleri:**\n' +
+        'Anasayfadaki canlı ilerleme çubuğu (`[████░░░░░░] %40`), bir sonraki rütbeye geçmek için gereken şartları göstermektedir.\n\n' +
+        '🎉 **Otomatik Terfi İzni:**\n' +
+        'Şartlar %100 olduğunda otomatik **`🚀 TERFİ ET / SINAVA GİR`** butonu belirir.\n\n' +
+        '*Devam etmek için aşağıdaki **"▶️ Sonraki Adım"** butonuna basın.*'
+      )
+      .setFooter({ text: 'Adım 2 / 3 — Terfi Yolu & KPI' });
+  } else {
+    embed
+      .setTitle('🔰 MODERATÖR ANASAYFASI REHBERİ (3/3) — Özelleştirme ve Ayarlar')
+      .setDescription(
+        '⚙️ **Briefing Özelleştirme & İşlem Menüsü:**\n\n' +
+        '📊 **Detaylı İşlem Menüsü:**\n' +
+        'Aşağıdaki açılır menüden Cüzdan bakiyenizi, Borsa durumunu, Liderlik tablosunu ve Maaş talebini yönetebilirsiniz.\n\n' +
+        '⚙️ **Brifing Ayarları:**\n' +
+        'İstediğiniz zaman Brifinginizdeki bölümleri gizleyebilir, açabilir veya özelleştirebilirsiniz.\n\n' +
+        '☕ **Kahve Molası:**\n' +
+        'Yoğun günlerde 15 dakikalık mola alarak dinlenebilirsiniz.\n\n' +
+        '🎉 **Tebrikler! Rehberi tamamladınız. Artık hazırsınız!**'
+      )
+      .setFooter({ text: 'Adım 3 / 3 — Tamamlama' });
+  }
+
+  return embed;
+}
+
+function getTutorialComponents(step = 1) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+  const row = new ActionRowBuilder();
+
+  if (step > 1) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`staff_tutorial_prev_${step}`)
+        .setLabel('◀️ Önceki Adım')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  if (step < 3) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`staff_tutorial_next_${step}`)
+        .setLabel('▶️ Sonraki Adım')
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('staff_tutorial_finish')
+      .setLabel(step === 3 ? '✅ Rehberi Tamamla & Anasayfaya Geç' : '⏩ Rehberi Atla')
+      .setStyle(step === 3 ? ButtonStyle.Success : ButtonStyle.Secondary)
+  );
+
+  return [row];
 }
 
 async function getMorningBriefingComponents(progress) {
@@ -2402,6 +2670,18 @@ async function getMorningBriefingComponents(progress) {
         description: 'Sicil kayıtları, uyarılar ve KPI skor detayları',
         value: 'staff_menu_performance',
         emoji: '🏆'
+      },
+      {
+        label: '⚙️ Brifing Ayarları & Özelleştirme',
+        description: 'Brifing bölümlerini açın, kapatın veya düzenleyin',
+        value: 'staff_menu_briefing_settings',
+        emoji: '⚙️'
+      },
+      {
+        label: '🔰 Anasayfa Rehberi (Tutorial)',
+        description: 'Anasayfa rehberini ve kullanım turunu tekrar başlatın',
+        value: 'staff_menu_tutorial',
+        emoji: '🔰'
       },
       {
         label: '☕ İsteğe Bağlı Kahve Molası',
@@ -3069,13 +3349,16 @@ async function useLeaveCredit(userId) {
   }
 }
 
-async function removeRole(progress, client) {
+async function removeRole(progress, client, reasonText = null) {
   try {
+    const userRoleName = ROLE_NAMES[progress.level] || 'Moderatör';
+    const reasonHeader = reasonText || '3 gün üst üste görev yapamadığın';
+
     try {
       const { addNotification } = require("../../utils/notification");
       await addNotification(progress.userId, {
         title: "⏸️ Rolünüz Askıya Alındı",
-        message: "3 gün üst üste günlük görev yapılmadığı için personel rolleriniz askıya alındı. Yöneticilerle görüşerek tekrar başlayabilirsiniz.",
+        message: `${reasonHeader} için personel rolleriniz askıya alındı. Yöneticilerle görüşerek tekrar başlayabilirsiniz.`,
         icon: "⚠️"
       });
     } catch (nErr) {
@@ -3083,31 +3366,39 @@ async function removeRole(progress, client) {
     }
 
     const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    if (!guild) return;
-    const member = await guild.members.fetch(progress.userId).catch(() => null);
-    if (!member) return;
-    // Alınması gereken tüm yetkili ve mod rolleri
-    const rolesToRemove = [
-      ...Object.values(ROLES),
-      '1518709348506013706', // Kıdemli Sekreter (Level 5)
-      '1518692389169135666', // Moderatör Ekibi
-      '1518708137920823327', // modizm
-      '1518707673846251691', // adminizm
-      '1518692384928567456'  // Kaptan
-    ];
+    if (guild) {
+      const member = await guild.members.fetch(progress.userId).catch(() => null);
+      if (member) {
+        const rolesToRemove = [
+          ...Object.values(ROLES),
+          '1518709348506013706', // Kıdemli Sekreter (Level 5)
+          '1518692389169135666', // Moderatör Ekibi
+          '1518708137920823327', // modizm
+          '1518707673846251691', // adminizm
+          '1518692384928567456'  // Kaptan
+        ];
 
-    for (const rId of rolesToRemove) {
-      if (member.roles.cache.has(rId)) {
-        await member.roles.remove(rId, '3 gün üst üste görev yapmadı - Sistemden atıldı').catch(() => { });
+        for (const rId of rolesToRemove) {
+          if (member.roles.cache.has(rId)) {
+            await member.roles.remove(rId, `${reasonHeader} - Sistemden atıldı`).catch(() => { });
+          }
+        }
       }
     }
 
-    // Ayrıca ana sunucudan da (1367646464804655104) Level 5 vb. kalıcı rolleri silelim
     try {
       const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
       if (mainGuild) {
         const mainMember = await mainGuild.members.fetch(progress.userId).catch(() => null);
         if (mainMember) {
+          const rolesToRemove = [
+            ...Object.values(ROLES),
+            '1518709348506013706',
+            '1518692389169135666',
+            '1518708137920823327',
+            '1518707673846251691',
+            '1518692384928567456'
+          ];
           for (const rId of rolesToRemove) {
             if (mainMember.roles.cache.has(rId)) {
               await mainMember.roles.remove(rId, 'Görev yapılmadığı için sistemden silindi').catch(() => { });
@@ -3116,11 +3407,12 @@ async function removeRole(progress, client) {
         }
       }
     } catch (e) { }
+
     const embed = new EmbedBuilder()
       .setColor(0xff9500)
       .setTitle('⏸️ Personel Rolü Duraklatıldı — Geri Dön!')
       .setDescription(
-        `**3 gün üst üste görev yapamadığın** için **${ROLE_NAMES[progress.level]}** rolün alındı. ⚠️\n\n` +
+        `**${reasonHeader}** için **${userRoleName}** rolün alındı. ⚠️\n\n` +
         `💡 **Ama endişelenme! Geri gelmek ÇOOOOK basit:**\n` +
         `🤝 Yöneticilere yazabilirsin\n` +
         `💬 Neden yapamadığını anlatabilirsin\n` +
@@ -3137,7 +3429,7 @@ async function removeRole(progress, client) {
     const user = await client.users.fetch(progress.userId).catch(() => null);
     if (user) await user.send({ embeds: [embed] }).catch(() => { });
     await StaffProgress.deleteOne({ userId: progress.userId });
-    console.log(`[staffSystem] Rol alındı (5 gün): ${progress.userId}`);
+    console.log(`[staffSystem] Rol alındı: ${progress.userId} (${reasonHeader})`);
   } catch (err) {
     console.error('[staffSystem] Rol alma hatası:', err.message);
   }
@@ -3546,14 +3838,10 @@ async function runDailyCheck(client) {
       // PIP Kontrolü (Eğer aktif ise)
       if (p.pip?.isActive) {
         if (!p.pip.signed) {
-          // Kontrat imzalanmamışsa otomatik demote
+          // Kontrat imzalanmamışsa otomatik demote / rol askı
           p.pip.isActive = false;
           await p.save();
-          try {
-            const user = await client.users.fetch(p.userId);
-            await user.send({ content: "❌ **Performans İyileştirme Planı (PIP) Kontratını imzalamadığınız için** görevinize son verilmiştir/rütbeniz düşürülmüştür." }).catch(() => { });
-          } catch (_) { }
-          await removeRole(p, client);
+          await removeRole(p, client, 'Performans İyileştirme Planı (PIP) Kontratını imzalamadığınız');
           continue;
         }
 
@@ -5413,4 +5701,9 @@ module.exports = {
   createActionButtons,
   setNavState,
   getNavState,
+  getProgressBar,
+  generateBriefingSettingsEmbed,
+  getBriefingSettingsComponents,
+  generateTutorialEmbed,
+  getTutorialComponents,
 };

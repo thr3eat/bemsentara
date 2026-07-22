@@ -1805,6 +1805,83 @@ function renderEnergyBar(percent) {
     return handleSurveyDeclineButton(interaction, targetUserId, executorId);
   }
 
+  if (customId.startsWith("staff_tutorial_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    const { generateTutorialEmbed, getTutorialComponents, generateMorningBriefingEmbed, getMorningBriefingComponents } = require("../services/staffSystem");
+
+    if (customId === "staff_tutorial_finish") {
+      if (p) {
+        p.tutorialCompleted = true;
+        await p.save();
+      }
+      const embed = await generateMorningBriefingEmbed(p, interaction.client);
+      const components = await getMorningBriefingComponents(p);
+      return interaction.update({ content: "🎉 **Rehber Tamamlandı!** Anasayfanız aşağıdadır:", embeds: [embed], components });
+    }
+
+    let step = 1;
+    if (customId.startsWith("staff_tutorial_next_")) {
+      const current = parseInt(customId.replace("staff_tutorial_next_", ""));
+      step = Math.min(3, current + 1);
+    } else if (customId.startsWith("staff_tutorial_prev_")) {
+      const current = parseInt(customId.replace("staff_tutorial_prev_", ""));
+      step = Math.max(1, current - 1);
+    }
+
+    const embed = generateTutorialEmbed(step);
+    const components = getTutorialComponents(step);
+    return interaction.update({ embeds: [embed], components });
+  }
+
+  if (customId.startsWith("staff_briefing_")) {
+    const StaffProgress = require("../../models/StaffProgress");
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+    if (!p) return interaction.reply({ content: "❌ Personel kaydı bulunamadı.", ephemeral: true });
+
+    const {
+      generateBriefingSettingsEmbed,
+      getBriefingSettingsComponents,
+      generateMorningBriefingEmbed,
+      getMorningBriefingComponents
+    } = require("../services/staffSystem");
+
+    if (customId === "staff_briefing_return_home") {
+      const embed = await generateMorningBriefingEmbed(p, interaction.client);
+      const components = await getMorningBriefingComponents(p);
+      return interaction.update({ content: null, embeds: [embed], components });
+    }
+
+    if (customId === "staff_briefing_reset_settings") {
+      p.briefingSettings = {
+        enabledSections: { greeting: true, status: true, promotion: true, tasks: true, quickLinks: true },
+        order: ['greeting', 'status', 'promotion', 'tasks', 'quickLinks']
+      };
+      await p.save();
+      const embed = generateBriefingSettingsEmbed(p);
+      const components = getBriefingSettingsComponents(p);
+      return interaction.update({ embeds: [embed], components });
+    }
+
+    if (customId.startsWith("staff_briefing_toggle_")) {
+      const sectionKey = customId.replace("staff_briefing_toggle_", "");
+      if (!p.briefingSettings) {
+        p.briefingSettings = {
+          enabledSections: { greeting: true, status: true, promotion: true, tasks: true, quickLinks: true },
+          order: ['greeting', 'status', 'promotion', 'tasks', 'quickLinks']
+        };
+      }
+
+      const currentVal = p.briefingSettings.enabledSections[sectionKey] !== false;
+      p.briefingSettings.enabledSections[sectionKey] = !currentVal;
+      await p.save();
+
+      const embed = generateBriefingSettingsEmbed(p);
+      const components = getBriefingSettingsComponents(p);
+      return interaction.update({ embeds: [embed], components });
+    }
+  }
+
   if (customId.startsWith("invest_addmember_")) {
     const channelId = customId.replace("invest_addmember_", "");
     const modal = new ModalBuilder()

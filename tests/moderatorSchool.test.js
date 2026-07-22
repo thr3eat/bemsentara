@@ -30,3 +30,30 @@ test('moderatorSchool exports religion oath functions', () => {
   assert.equal(typeof completeModSchoolTransfer, 'function');
 });
 
+test('handleSchoolButtons opens modals for school_rel_custom and school_rel_paste_btn without reference errors', async () => {
+  const { handleSchoolButtons } = require('../bot/services/moderatorSchool');
+
+  let shownModal = null;
+  const mockInteractionCustom = {
+    customId: 'school_rel_custom',
+    user: { id: '123' },
+    showModal: (modal) => { shownModal = modal; return Promise.resolve(); }
+  };
+
+  await handleSchoolButtons(mockInteractionCustom, {});
+  assert.ok(shownModal);
+  assert.equal(shownModal.data.custom_id, 'school_rel_custom_modal');
+
+  shownModal = null;
+  const mockInteractionPaste = {
+    customId: 'school_rel_paste_btn',
+    user: { id: '123' },
+    showModal: (modal) => { shownModal = modal; return Promise.resolve(); }
+  };
+
+  await handleSchoolButtons(mockInteractionPaste, {});
+  assert.ok(shownModal);
+  assert.equal(shownModal.data.custom_id, 'school_rel_oath_modal');
+});
+
+

@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const noblox = require('noblox.js');
 const { chatWithAI } = require('./aiService');
