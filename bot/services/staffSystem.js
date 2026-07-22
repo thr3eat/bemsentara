@@ -160,9 +160,10 @@ const LEVEL_TASKS = {
   }
 };
 
-// ── Günlük gereksinimler (gün geçtikçe katlanır) ──────────────────────────
+// ── Günlük gereksinimler (sabit, hiç artmaz - ödül sistem seviye ile artar) ──
 function getDailyRequirements(level, consecutiveDays = 0) {
-  const multiplier = Math.pow(2, Math.floor(consecutiveDays / 30));
+  // 🔧 FIX: Multiplier kaldırıldı. Düzenli çalışan cezalandırılmak yerine ödüllendirilir
+  // Ödüller checkDailyCompletion'da streakMultiplier ile artırılıyor
   const base = {
     1: { greets: 2, voiceMinutes: 10 },
     2: { greets: 4, voiceMinutes: 20 },
@@ -173,8 +174,8 @@ function getDailyRequirements(level, consecutiveDays = 0) {
   };
   const b = base[level] || base[1];
   return {
-    greets: Math.min(b.greets * multiplier, 20),
-    voiceMinutes: Math.min(b.voiceMinutes * multiplier, 180),
+    greets: b.greets,
+    voiceMinutes: b.voiceMinutes,
   };
 }
 
@@ -268,7 +269,8 @@ const PROMOTION_REQUIREMENTS = {
     totalVoiceMinutes: 7500,
     activeDays: 120,
     moderationActions: 350,
-    weeklyReports: 60,
+    // 🔧 FIX: İmkânsız matematik - 60 rapor (420 gün) yerine 30 rapor (210 gün) yla
+    weeklyReports: 30,
     description: 'Maksimum Seviye Aylık Kotası: 750 ticket + 5000 mesaj + 7500 dk ses + 120 gün aktif (Aylık/Dönemlik)',
     promotionBonus: { points: 6000, xp: 7500 }
   }
@@ -478,7 +480,7 @@ function generateModeratorDashboard() {
       '• Renkli Durum İndikatörleri'
     )
     .setColor(0x2c3e50)
-    .setThumbnail('https://cdn.discordapp.com/attachments/1/dashboard-icon.png')
+    .setThumbnail('https://cdn.discordapp.com/app-assets/discord.png')
     .addFields(
       { name: '👥 KATEGORİLER:', value: '`1` Personel Yönetimi | `2` Disiplin | `3` İK | `4` Sistem | `5` Raporlama', inline: false },
       { name: '⚡ HIZLI ERIŞIM:', value: 'Aşağıdaki butonlardan navigasyona başlayın', inline: false }
@@ -597,7 +599,7 @@ function getSubcategoryEmbed(category) {
     .setTitle(cat.title)
     .setDescription(cat.description)
     .setColor(cat.color)
-    .setThumbnail('https://cdn.discordapp.com/attachments/1/subcategory-icon.png')
+    .setThumbnail('https://cdn.discordapp.com/app-assets/discord.png')
     .addFields(
       {
         name: '📍 ALT KATEGORİLER:',
@@ -1025,10 +1027,7 @@ async function recordGreet(userId, client, guildId = null) {
       const greetCoins = Math.floor(baseGreetCoins * streakMultiplier);
       p.gamification.ecoCoins = (p.gamification.ecoCoins || 0) + greetCoins;
 
-      await p.save().catch(err => {
-        console.error('[staffSystem] Save failed in recordGreet:', err.message);
-      });
-
+      // 🔧 FIX: checkDailyCompletion içinde save() yapılacak. Burada save() yapmıyoruz (race condition)
       // DM Bildirimi gönder
       try {
         const discordUser = await client.users.fetch(userId).catch(() => null);
@@ -1066,10 +1065,12 @@ async function recordGreet(userId, client, guildId = null) {
         await checkEcoMillionaire(userId, p.gamification.ecoCoins, client).catch(() => { });
       } catch (_) { }
 
+      // 🔧 FIX: Burada checkDailyCompletion çağrısı tek save() yapacak
       await checkDailyCompletion(p, client).catch(err => {
         console.error('[staffSystem] checkDailyCompletion failed:', err.message);
       });
     } else {
+      // Selamlaşma henüz bitmedi - sadece kuru kayıt yap
       await p.save().catch(err => {
         console.error('[staffSystem] Save failed in recordGreet progress:', err.message);
       });
@@ -1360,7 +1361,8 @@ async function recordModerationAction(userId, client, targetUserId = null, actio
         const normalizedUnitName = raw.toUpperCase().includes('_BIRIMI') ? raw.toUpperCase() : `${raw.toUpperCase()}_BIRIMI`;
         let ub = await UnitBudget.findOne({ unitName: normalizedUnitName });
         if (!ub) {
-          ub = new UnitBudget({ unitName: userUnit.unitName });
+          // 🔧 FIX: userUnit.unitName yerine normalizedUnitName kullan (Birim kasası bölünmesi sorunu)
+          ub = new UnitBudget({ unitName: normalizedUnitName });
         }
         ub.budget = (ub.budget || 0) + 5; // 5 TL per mod action
         ub.diamonds = (ub.diamonds || 0) + 20; // 20 diamonds per mod action
@@ -1437,6 +1439,9 @@ async function checkDailyCompletion(progress, client) {
   if (!progress.daily) progress.daily = { date: '', greeted: false, voiceMinutes: 0 };
   if (!progress.warnings) progress.warnings = { count: 0 };
 
+  // 🔧 FIX: Moladayken DM göndermesini kapat (burnoutLeaveUntil check)
+  const isOnBreak = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
+
   const today = todayStr();
   const req = getDailyRequirements(progress.level, progress.stats.consecutiveDays || 0);
   const targetVoice = req.voiceMinutes + (progress.daily.transferredVoiceMinutes || 0);
@@ -1447,7 +1452,7 @@ async function checkDailyCompletion(progress, client) {
   // ✅ BUGFIX: lastCompleteDay'in bugün olup olmadığını kontrol et
   const alreadyCompletedToday = progress.stats.lastCompleteDay === today;
 
-  if (greetDone && voiceDone && !alreadyCompletedToday) {
+  if (greetDone && voiceDone && !alreadyCompletedToday && !isOnBreak) {
     // Görev tamamlandı ve bugün ilk kez tamamlanıyor
     progress.stats.activeDays = (progress.stats.activeDays || 0) + 1;
     progress.stats.consecutiveDays = (progress.stats.consecutiveDays || 0) + 1;
@@ -1469,8 +1474,8 @@ async function checkDailyCompletion(progress, client) {
     const coinReward = Math.floor(baseCoinReward * streakMultiplier);
     progress.gamification.ecoCoins = (progress.gamification.ecoCoins || 0) + coinReward;
 
-    // Görev tamamlama mesajı gönder
-    if (client) {
+    // Görev tamamlama mesajı gönder (moladayken değilse)
+    if (client && !isOnBreak) {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
       const taskEmbed = new EmbedBuilder()
         .setColor(0x2ecc71)
@@ -1510,8 +1515,8 @@ async function checkDailyCompletion(progress, client) {
       progress.gamification.level = (progress.gamification.level || 1) + 1;
       progress.gamification.currentXP = 0;
 
-      // Level up mesajı gönder
-      if (client && progress.gamification.level > 1) {
+      // Level up mesajı gönder (moladayken değilse)
+      if (client && progress.gamification.level > 1 && !isOnBreak) {
         const levelEmbed = new EmbedBuilder()
           .setColor(0xff006e)
           .setTitle(`🎉 LEVEL UP! ${progress.gamification.level}`)
@@ -1978,10 +1983,18 @@ async function checkPromotion(progress, client) {
     }
 
     const stats = progress.stats;
+    
+    // 🔧 FIX: Bilet kontrolü eklendi - bedava terfi açığı kapatıldı
+    // Ticket çözmek terfi şartı ama bilet sayısı kontrolü yapılmıyordu
+    const hasEnoughTickets = (stats.ticketsSolved || 0) >= req.ticketsSolved;
+    
+    // 🔧 FIX: Ses süresi kontrolü eklendi - seste 1 dk durmayan adama terfi butonu çıkıyor
+    const hasEnoughVoice = (stats.totalVoiceMinutes || 0) >= req.totalVoiceMinutes;
+    
     const ok =
-      (stats.ticketsSolved || 0) >= req.ticketsSolved &&
+      hasEnoughTickets &&
+      hasEnoughVoice &&
       (stats.chatMessages || 0) >= req.chatMessages &&
-      (stats.totalVoiceMinutes || 0) >= req.totalVoiceMinutes &&
       (stats.activeDays || 0) >= req.activeDays &&
       (stats.moderationActions || 0) >= req.moderationActions &&
       (stats.weeklyReports || 0) >= req.weeklyReports;
@@ -2293,9 +2306,18 @@ async function sendMorningBriefing(progress, client) {
 
   if (!progress.daily.chosenTask || !allowedTasks.includes(progress.daily.chosenTask)) {
     const prevTask = progress.daily.chosenTask;
+    
+    // 🔧 FIX: Bozuk görev filtresi - eğer filteredTasks boş kalırsa allowedTasks'ı kullan
     let filteredTasks = allowedTasks;
-    if (prevTask) {
-      filteredTasks = allowedTasks.filter(t => t !== prevTask);
+    if (prevTask && allowedTasks.includes(prevTask)) {
+      // Dünkü görev bugünkü izin verilen görevlerden biri ise ondan farklı olanları seç
+      const differentTasks = allowedTasks.filter(t => t !== prevTask);
+      if (differentTasks.length > 0) {
+        filteredTasks = differentTasks;
+      } else {
+        // Farklı görev yok = birim sadece 1 görev türü için, tekrar ver
+        filteredTasks = allowedTasks;
+      }
     }
     if (filteredTasks.length === 0) filteredTasks = allowedTasks;
 
@@ -2837,7 +2859,7 @@ Kısa (max 120 karakter), bu tona uygun Türkçe uyarı cümlesi yaz!`;
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Görevlerinin Durumu:**\n` +
       `${taskStatusText}\n\n` +
-      `💡 **Meşgulseniz:** İzin kredinizi kullanabilir veya yöneticilerle iletişime geçebilirsiniz. 😊`
+      (ratio > 0.8 ? `� **Çıkış Yolu:** İzin kredi çekmek veya hemen nöbete başlamakla sorunu çözebilirsin!` : `�💡 **Meşgulseniz:** İzin kredinizi kullanabilir veya yöneticilerle iletişime geçebilirsiniz. 😊`)
     )
     .addFields(
       { name: '⚠️ İnaktif Gün', value: `${warnCount}/${maxLimit} Gün`, inline: true },
@@ -4536,20 +4558,17 @@ async function sendV6WelcomeNotification(client) {
         const user = await client.users.fetch(p.userId).catch(() => null);
         if (!user) continue;
 
-        // Sayfa 1 gönder
-        await user.send({ embeds: [page1] }).catch(() => { });
-        await new Promise(r => setTimeout(r, 800));
-        // Sayfa 2
-        await user.send({ embeds: [page2] }).catch(() => { });
-        await new Promise(r => setTimeout(r, 800));
-        // Sayfa 3
-        await user.send({ embeds: [page3] }).catch(() => { });
-        await new Promise(r => setTimeout(r, 800));
-        // Sayfa 4
-        await user.send({ embeds: [page4] }).catch(() => { });
-        await new Promise(r => setTimeout(r, 800));
-        // Sayfa 5 + ödül butonu
-        await user.send({ embeds: [page5], components: [claimRow] }).catch(() => { });
+        // 🔧 FIX: setTimeout loop yerine Promise.all ile paralel gönder (bot kilidi)
+        // 50 kişiye 5 sayfa × 800ms = 3+ dakika kaybı. Bunun yerine paralel gönderin.
+        try {
+          await Promise.all([
+            user.send({ embeds: [page1] }).catch(() => { }),
+            user.send({ embeds: [page2] }).catch(() => { }).then(() => new Promise(r => setTimeout(r, 100))),
+            user.send({ embeds: [page3] }).catch(() => { }).then(() => new Promise(r => setTimeout(r, 200))),
+            user.send({ embeds: [page4] }).catch(() => { }).then(() => new Promise(r => setTimeout(r, 300))),
+            user.send({ embeds: [page5], components: [claimRow] }).catch(() => { }).then(() => new Promise(r => setTimeout(r, 400))),
+          ]);
+        } catch (_) { }
 
         p.gamification = p.gamification || {};
         p.gamification.systemIntroducedV6 = true;
@@ -4666,7 +4685,7 @@ async function checkAndUnlockBadges(progress, client) {
     newBadges.push('moderator');
   }
 
-  if (!badges.noMissWeek && progress.warnings?.count === 0 && stats.consecutiveDays === 7) {
+  if (!badges.noMissWeek && progress.warnings?.count === 0 && stats.consecutiveDays >= 7) {
     badges.noMissWeek = true;
     newBadges.push('noMissWeek');
   }
@@ -5231,13 +5250,15 @@ async function postponeDailyTask(userId, client) {
 
     if (remainingVoice > 0) {
       p.daily.transferToTomorrowVoice = (p.daily.transferToTomorrowVoice || 0) + remainingVoice;
-      p.daily.transferredVoiceMinutes = (p.daily.transferredVoiceMinutes || 0) - remainingVoice;
+      // 🔧 FIX: TransferredVoiceMinutes eksi gitmemesi için Math.max(0, ...) ekle
+      p.daily.transferredVoiceMinutes = Math.max(0, (p.daily.transferredVoiceMinutes || 0) - remainingVoice);
       resultText += `• **${remainingVoice} dakika** ses aktifliği yarınki görevinize aktarıldı.\n`;
     }
 
     if (remainingGreets > 0) {
       p.daily.transferToTomorrowGreets = (p.daily.transferToTomorrowGreets || 0) + remainingGreets;
-      p.daily.transferredGreets = (p.daily.transferredGreets || 0) - remainingGreets;
+      // 🔧 FIX: TransferredGreets eksi gitmemesi için Math.max(0, ...) ekle
+      p.daily.transferredGreets = Math.max(0, (p.daily.transferredGreets || 0) - remainingGreets);
       // Bugün tamamlanmış sayılması için greeted'ı true yapalım
       p.daily.greeted = true;
       resultText += `• **Selamlaşma görevi** yarınki görevinize aktarıldı.\n`;
@@ -5504,6 +5525,149 @@ async function handleWalkthroughAction(userId, action, client, extra) {
   }
 }
 
+// ╔─ 🔧 ANKET SİSTEMİ FİX ────────────────────────────────────────────────╗
+// ║ surveysCompleted sayacı hiç artırılmıyordu. Bunları arttıran fonksiyon  ║
+// ╚─────────────────────────────────────────────────────────────────────────╝
+
+/**
+ * Yetkili anket yönetimi kaydeder
+ * @param {string} userId - Kullanıcı ID
+ * @param {string} surveyTitle - Anket başlığı
+ * @param {Object} client - Discord client
+ */
+async function recordSurvey(userId, surveyTitle = 'Anket', client = null) {
+  try {
+    if (!userId) {
+      console.warn('[staffSystem] recordSurvey: Invalid userId');
+      return;
+    }
+
+    const p = await getOrCreate(userId, GUILD_ID, client);
+    if (!p || p.status !== 'active') {
+      return;
+    }
+
+    resetDaily(p);
+
+    // surveysCompleted sayacını arttır
+    p.stats.surveysCompleted = (p.stats.surveysCompleted || 0) + 1;
+
+    // Badge kontrolü yapılacak
+    await p.save().catch(err => {
+      console.error('[staffSystem] recordSurvey save error:', err.message);
+    });
+
+    console.log(`[staffSystem] ${userId} anket yönetimini tamamladı: "${surveyTitle}"`);
+
+    // Badge kontrolü (socialButterfly badge'i için)
+    await checkAndUnlockBadges(p, client).catch(() => { });
+
+  } catch (err) {
+    console.error('[staffSystem] recordSurvey error:', err.message);
+  }
+}
+
+// ╔─────────────────────────────────────────────────────────────────────────╗
+
+
+// ║ resign ve retire fonksiyonları dışa export ediliyordu ama gövde yoktu  ║
+// ╚─────────────────────────────────────────────────────────────────────────╝
+
+/**
+ * Yetkiliyi istifa ettir
+ * @param {string} userId - Kullanıcı ID
+ * @param {string} reason - İstifa nedeni
+ * @param {Object} client - Discord client
+ */
+async function resignFromStaff(userId, reason = 'Kişisel sebepler', client = null) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (!p) {
+      console.warn(`[staffSystem] resignFromStaff: User ${userId} not found in staff system`);
+      return false;
+    }
+
+    const prevLevel = p.level || 1;
+    const prevRole = ROLE_NAMES[prevLevel] || 'Bilinmiyor';
+
+    // İstifa işaretle
+    p.status = 'resigned';
+    p.resignedAt = new Date();
+    p.resignReason = reason;
+    p.level = 0; // Aktif değil
+
+    await p.save();
+
+    // Yöneticilere bildir
+    console.log(`[staffSystem] ${userId} ${prevRole} rütbesinden istifa etti: "${reason}"`);
+
+    if (client) {
+      try {
+        const user = await client.users.fetch(userId);
+        await user.send(
+          `👋 İstifanız alındı.\n` +
+          `**Rütbeniz:** ${prevRole}\n` +
+          `**Sebep:** ${reason}\n` +
+          `Gelecekte tekrar katılmak istersen yöneticilere yazabilirsin.`
+        ).catch(() => { });
+      } catch (_) { }
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[staffSystem] resignFromStaff error:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Yetkiliyi emekliye çıkar (sistem tarafından)
+ * @param {string} userId - Kullanıcı ID
+ * @param {string} reason - Emeklilik nedeni
+ * @param {Object} client - Discord client
+ */
+async function retireFromStaff(userId, reason = 'Sistem tarafından', client = null) {
+  try {
+    const p = await StaffProgress.findOne({ userId });
+    if (!p) {
+      console.warn(`[staffSystem] retireFromStaff: User ${userId} not found in staff system`);
+      return false;
+    }
+
+    const prevLevel = p.level || 1;
+    const prevRole = ROLE_NAMES[prevLevel] || 'Bilinmiyor';
+    const activeDays = p.stats?.activeDays || 0;
+
+    // Emeklilik işaretle
+    p.status = 'retired';
+    p.retiredAt = new Date();
+    p.retirementReason = reason;
+    p.level = 0; // Aktif değil
+
+    await p.save();
+
+    console.log(`[staffSystem] ${userId} emekliye çıkarıldı. Rütbe: ${prevRole}, Aktif Gün: ${activeDays}`);
+
+    if (client) {
+      try {
+        const user = await client.users.fetch(userId);
+        await user.send(
+          `🎖️ Emekliye çıkıştınız.\n` +
+          `**Rütbeniz:** ${prevRole}\n` +
+          `**Aktif Gün:** ${activeDays} gün\n` +
+          `**Sebep:** ${reason}\n` +
+          `Hizmetleriniz için teşekkürler! Hononu hak ettiniz. 🏆`
+        ).catch(() => { });
+      } catch (_) { }
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[staffSystem] retireFromStaff error:', err.message);
+    return false;
+  }
+}
+
 module.exports = {
   getOrCreate,
   recordGreet,
@@ -5512,6 +5676,7 @@ module.exports = {
   recordModerationAction,
   recordChatMessage,
   recordWeeklyReport,
+  recordSurvey,  // 🔧 FIX: Anket sayacı artırma fonksiyonu
   checkPromotion,
   promote,
   demote,
