@@ -168,15 +168,17 @@ function initializeDiscordHandlers(client) {
       console.error('[ready] Okul otomatik mezuniyet zamanlayıcısı başlatılamadı:', err.message);
     }
 
-    // Soruşturma Sistemi Başlangıç Ayarı ve Zamanlayıcısı
+    // Soruşturma & Dava Sistemi Otomatik Buton Kurulumu ve Zamanlayıcısı
     try {
       const { setupTriggerButton, checkInactivityTimers } = require("../services/investigationService");
+      const { setupCourtTriggerButton } = require("../services/courtService");
       setupTriggerButton(client).catch(() => {});
+      setupCourtTriggerButton(client).catch(() => {});
       setInterval(() => {
         checkInactivityTimers(client).catch(() => {});
       }, 60000);
     } catch (err) {
-      console.error("[ready] Soruşturma sistemi başlatma hatası:", err.message);
+      console.error("[ready] Soruşturma & Dava sistemi başlatma hatası:", err.message);
     }
 
     // RoWifi Auto Detection Scheduler

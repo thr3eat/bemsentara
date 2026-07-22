@@ -95,43 +95,62 @@ async function ensureCourtRoles(guild) {
 }
 
 /**
- * Sets up trigger button in #dava-talebi / config channel
+ * Sets up trigger button in #soruşturma-başlat / #dava-talebi channel automatically
  */
 async function setupCourtTriggerButton(client) {
   try {
-    const channel = await client.channels.fetch(DAVA_TRIGGER_CHANNEL_ID).catch(() => null);
-    if (channel && channel.isTextBased()) {
-      const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
-      const exists = messages && messages.some(m => m.components.some(row => row.components.some(c => c.customId === 'court_petition_start')));
-      if (!exists) {
-        const embed = new EmbedBuilder()
-          .setTitle('⚖️ SUNUCU ADALET VE MAHKEME BAŞKANLIĞI')
-          .setDescription(
-            'Sunucumuzda adaletin sağlanması ve kural ihlallerinin adil bir duruşma ile değerlendirilmesi için **Dava Başlat** sistemini kullanabilirsiniz.\n\n' +
-            '📜 **Dilekçe Verme:** Şikayetinizi ve delillerinizi sunarak resmi dava açabilirsiniz.\n' +
-            '📖 **Yasa Kitabı:** Sunucu Ceza Kanun Maddelerini inceleyebilirsiniz.\n' +
-            '🔒 **Nöbetçi Hapishane (#kodos):** Mahkum durumunu ve kefalet işlemlerini kontrol edebilirsiniz.\n\n' +
-            '*Unutmayın: Asılsız davalar Madde 707 (İftira) kapsamında 2 kat ceza ile sonuçlanır!*'
-          )
-          .setColor(0xd4af37)
-          .setTimestamp();
+    for (const guild of client.guilds.cache.values()) {
+      // Find or create soruşturma-başlat / dava-talebi channel
+      let channel = guild.channels.cache.find(c =>
+        c.id === DAVA_TRIGGER_CHANNEL_ID ||
+        c.name.includes('sorusturma-baslat') ||
+        c.name.includes('soruşturma-başlat') ||
+        c.name.includes('dava-talebi') ||
+        c.name.includes('dava-baslat')
+      );
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('court_petition_start')
-            .setLabel('📜 Dava Dilekçesi Ver')
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId('court_lawbook_show')
-            .setLabel('📖 Yasa Kitabı (Maddeler)')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('court_jail_status')
-            .setLabel('🔒 Hapishane Durumu')
-            .setStyle(ButtonStyle.Secondary)
-        );
+      if (!channel) {
+        // Create soruşturma-başlat channel automatically
+        channel = await guild.channels.create({
+          name: '🔍-soruşturma-başlat',
+          type: ChannelType.GuildText,
+          reason: 'Mahkeme ve dava dilekçesi paneli için otomatik oluşturuldu.'
+        }).catch(() => null);
+      }
 
-        await channel.send({ embeds: [embed], components: [row] });
+      if (channel && channel.isTextBased()) {
+        const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+        const exists = messages && messages.some(m => m.components && m.components.some(row => row.components && row.components.some(c => c.customId === 'court_petition_start')));
+        if (!exists) {
+          const embed = new EmbedBuilder()
+            .setTitle('⚖️ SUNUCU ADALET VE MAHKEME BAŞKANLIĞI')
+            .setDescription(
+              'Sunucumuzda adaletin sağlanması ve kural ihlallerinin adil bir duruşma ile değerlendirilmesi için aşağıdaki butonlardan **Dava Başlat** sistemini kullanabilirsiniz.\n\n' +
+              '📜 **Dava Dilekçesi Ver:** Şikayetinizi ve delillerinizi sunarak resmi dava açabilirsiniz.\n' +
+              '📖 **Yasa Kitabı:** Sunucu Ceza Kanun Maddelerini inceleyebilirsiniz.\n' +
+              '🔒 **Nöbetçi Hapishane (#kodos):** Mahkum durumunu ve kefalet işlemlerini kontrol edebilirsiniz.\n\n' +
+              '*Unutmayın: Asılsız davalar Madde 707 (İftira) kapsamında 2 kat ceza ile sonuçlanır!*'
+            )
+            .setColor(0xd4af37)
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('court_petition_start')
+              .setLabel('📜 Dava Dilekçesi Ver')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId('court_lawbook_show')
+              .setLabel('📖 Yasa Kitabı (Maddeler)')
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId('court_jail_status')
+              .setLabel('🔒 Hapishane Durumu')
+              .setStyle(ButtonStyle.Secondary)
+          );
+
+          await channel.send({ embeds: [embed], components: [row] }).catch(() => {});
+        }
       }
     }
   } catch (err) {
