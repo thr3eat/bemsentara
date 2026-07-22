@@ -174,6 +174,8 @@ function initializeDiscordHandlers(client) {
       const { setupCourtTriggerButton } = require("../services/courtService");
       setupTriggerButton(client).catch(() => {});
       setupCourtTriggerButton(client).catch(() => {});
+      const { setupEkoYildizThanksPanel } = require("../services/ekoYildizThanksService");
+      setupEkoYildizThanksPanel(client).catch(() => {});
       setInterval(() => {
         checkInactivityTimers(client).catch(() => {});
       }, 60000);

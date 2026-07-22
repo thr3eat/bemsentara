@@ -945,6 +945,21 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId === 'ekoyildiz_thanks_modal') {
+    const { handleThanksModalSubmit } = require('../services/ekoYildizThanksService');
+    await handleThanksModalSubmit(interaction);
+    return;
+  }
+
+  if (interaction.customId.startsWith('ekoyildiz_survey_submit_modal_')) {
+    const parts = interaction.customId.replace('ekoyildiz_survey_submit_modal_', '').split('_');
+    const targetUserId = parts[0];
+    const executorId = parts[1];
+    const { handleSurveySubmitModal } = require('../services/ekoYildizThanksService');
+    await handleSurveySubmitModal(interaction, targetUserId, executorId);
+    return;
+  }
+
   // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
   if (interaction.customId === 'investigation_start_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

@@ -1784,6 +1784,27 @@ function renderEnergyBar(percent) {
     return handleContractSignature(interaction, caseCode, false);
   }
 
+  if (customId === "ekoyildiz_thanks_trigger_btn") {
+    const { handleThanksTriggerButton } = require("../services/ekoYildizThanksService");
+    return handleThanksTriggerButton(interaction);
+  }
+
+  if (customId.startsWith("ekoyildiz_survey_accept_")) {
+    const parts = customId.replace("ekoyildiz_survey_accept_", "").split("_");
+    const targetUserId = parts[0];
+    const executorId = parts[1];
+    const { handleSurveyAcceptButton } = require("../services/ekoYildizThanksService");
+    return handleSurveyAcceptButton(interaction, targetUserId, executorId);
+  }
+
+  if (customId.startsWith("ekoyildiz_survey_decline_")) {
+    const parts = customId.replace("ekoyildiz_survey_decline_", "").split("_");
+    const targetUserId = parts[0];
+    const executorId = parts[1];
+    const { handleSurveyDeclineButton } = require("../services/ekoYildizThanksService");
+    return handleSurveyDeclineButton(interaction, targetUserId, executorId);
+  }
+
   if (customId.startsWith("invest_addmember_")) {
     const channelId = customId.replace("invest_addmember_", "");
     const modal = new ModalBuilder()
