@@ -1368,6 +1368,246 @@ function renderEnergyBar(percent) {
     return restartInvestigation(interaction, channelId);
   }
 
+  // ── Mahkeme & Dava Sistemi Butonları ──────────────────────────────────────────
+  if (customId === "court_petition_start") {
+    const modal = new ModalBuilder()
+      .setCustomId("court_petition_modal")
+      .setTitle("📜 Dava Dilekçesi Oluştur");
+
+    const defendantInput = new TextInputBuilder()
+      .setCustomId("court_defendant")
+      .setLabel("Davalı (Şüpheli) Kullanıcı ID veya Mention")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("@Kullanıcı veya 123456789012345678")
+      .setRequired(true);
+
+    const articleInput = new TextInputBuilder()
+      .setCustomId("court_article")
+      .setLabel("Yasa Kitabı Maddesi (Örn: 101, 204, 301, 404)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("101 (Spam), 204 (Troll), 301 (Hakaret)...")
+      .setRequired(true);
+
+    const detailsInput = new TextInputBuilder()
+      .setCustomId("court_details")
+      .setLabel("Suçlama Detayları ve Gerekçe")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    const evidenceInput = new TextInputBuilder()
+      .setCustomId("court_evidence")
+      .setLabel("Kanıtlar (Görsel / Video / Mesaj Linki)")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false);
+
+    const penaltyInput = new TextInputBuilder()
+      .setCustomId("court_penalty")
+      .setLabel("Talep Edilen Ceza (Örn: Mute, Kamu Hizmeti)")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(defendantInput),
+      new ActionRowBuilder().addComponents(articleInput),
+      new ActionRowBuilder().addComponents(detailsInput),
+      new ActionRowBuilder().addComponents(evidenceInput),
+      new ActionRowBuilder().addComponents(penaltyInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  if (customId === "court_lawbook_show") {
+    const { LAW_ARTICLES } = require("../services/courtService");
+    const embed = new EmbedBuilder()
+      .setTitle("📜 SUNUCU CEZA KANUNU (YASA KİTABI)")
+      .setDescription(
+        Object.values(LAW_ARTICLES).map(a =>
+          `📌 **${a.code} — ${a.title}**\n` +
+          `📝 *Açıklama:* ${a.description}\n` +
+          `⚖️ *Yaptırım:* \`${a.penalty}\`\n`
+        ).join("\n")
+      )
+      .setColor(0xd4af37);
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (customId === "court_jail_status") {
+    const CourtCase = require("../../models/CourtCase");
+    const activeJailCases = await CourtCase.find({ status: "closed", "jailTask.active": true });
+    const embed = new EmbedBuilder()
+      .setTitle("🔒 NÖBETÇİ HAPİSHANE (#kodos) DURUMU")
+      .setDescription(
+        activeJailCases.length > 0
+          ? activeJailCases.map(c => `• <@${c.defendantId}> — Kalan Görev: ${c.jailTask.targetCount - c.jailTask.currentCount} Mesaj | Kefalet: **${c.jailTask.bailAmount} Coin**`).join("\n")
+          : "Şu anda hapishanede kayıtlı mahkum bulunmamaktadır."
+      )
+      .setColor(0x7f8c8d);
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (customId.startsWith("court_accept_")) {
+    const caseCode = customId.replace("court_accept_", "");
+    const { acceptCase } = require("../services/courtService");
+    return acceptCase(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_reject_")) {
+    const caseCode = customId.replace("court_reject_", "");
+    const { rejectCase } = require("../services/courtService");
+    return rejectCase(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_hire_lawyer_")) {
+    const caseCode = customId.replace("court_hire_lawyer_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_hire_lawyer_modal_${caseCode}`)
+      .setTitle("💼 Avukat Atama Paneli");
+
+    const lawyerIdInput = new TextInputBuilder()
+      .setCustomId("court_lawyer_id")
+      .setLabel("Avukat Kullanıcı ID veya Mention")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const lawyerTypeInput = new TextInputBuilder()
+      .setCustomId("court_lawyer_type")
+      .setLabel("Avukat Tipi (resmi / karaborsa)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("resmi veya karaborsa")
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(lawyerIdInput),
+      new ActionRowBuilder().addComponents(lawyerTypeInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_jury_start_")) {
+    const caseCode = customId.replace("court_jury_start_", "");
+    const { startJuryVote } = require("../services/courtService");
+    return startJuryVote(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_vote_guilty_")) {
+    const caseCode = customId.replace("court_vote_guilty_", "");
+    const { voteJury } = require("../services/courtService");
+    return voteJury(interaction, caseCode, true);
+  }
+
+  if (customId.startsWith("court_vote_innocent_")) {
+    const caseCode = customId.replace("court_vote_innocent_", "");
+    const { voteJury } = require("../services/courtService");
+    return voteJury(interaction, caseCode, false);
+  }
+
+  if (customId.startsWith("court_witness_")) {
+    const caseCode = customId.replace("court_witness_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_witness_modal_${caseCode}`)
+      .setTitle("🕵️ Şahit Çağırma Paneli");
+
+    const witnessInput = new TextInputBuilder()
+      .setCustomId("court_witness_id")
+      .setLabel("Şahit Kullanıcı ID veya Mention")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const statementInput = new TextInputBuilder()
+      .setCustomId("court_witness_statement")
+      .setLabel("Şahit İfadesi / İddiası")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(witnessInput),
+      new ActionRowBuilder().addComponents(statementInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_bribe_accept_")) {
+    const caseCode = customId.replace("court_bribe_accept_", "");
+    const CourtCase = require("../../models/CourtCase");
+    const Economy = require("../../models/Economy");
+    const courtCase = await CourtCase.findOne({ caseCode });
+
+    if (!courtCase || !courtCase.briberyState || !courtCase.briberyState.offered) {
+      return interaction.reply({ content: "❌ Aktif rüşvet teklifi bulunamadı.", ephemeral: true });
+    }
+
+    const amount = courtCase.briberyState.amount || 500;
+    const defEco = await Economy.findOne({ userId: courtCase.defendantId });
+    const judgeEco = await Economy.findOne({ userId: interaction.user.id });
+
+    if (defEco && judgeEco && (defEco.wallet || 0) >= amount) {
+      defEco.wallet -= amount;
+      judgeEco.wallet = (judgeEco.wallet || 0) + amount;
+      await defEco.save();
+      await judgeEco.save();
+    }
+
+    courtCase.status = "closed";
+    courtCase.verdict = "acquitted";
+    courtCase.verdictNote = "Rüşvet karşılığında gizlice dava düşürüldü.";
+    await courtCase.save();
+
+    return interaction.reply({ content: `🤫 Rüşvet kabul edildi ve **${amount} Coin** hesabınıza aktarıldı. Dava düşürüldü.`, ephemeral: true });
+  }
+
+  if (customId.startsWith("court_bribe_expose_")) {
+    const caseCode = customId.replace("court_bribe_expose_", "");
+    const { exposeBribe } = require("../services/courtService");
+    return exposeBribe(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_bribe_")) {
+    const caseCode = customId.replace("court_bribe_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_bribe_modal_${caseCode}`)
+      .setTitle("💸 Gizli Rüşvet Teklifi");
+
+    const amountInput = new TextInputBuilder()
+      .setCustomId("court_bribe_amount")
+      .setLabel("Teklif Edilecek Coin Miktarı")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("500")
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(amountInput));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_verdict_")) {
+    const caseCode = customId.replace("court_verdict_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_verdict_modal_${caseCode}`)
+      .setTitle("⚖️ Mahkeme Karar Paneli");
+
+    const verdictTypeInput = new TextInputBuilder()
+      .setCustomId("court_verdict_type")
+      .setLabel("Karar (acquitted / community_service / mouth_tape / jail / slander_penalty)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("community_service, mouth_tape, jail, acquitted...")
+      .setRequired(true);
+
+    const noteInput = new TextInputBuilder()
+      .setCustomId("court_verdict_note")
+      .setLabel("Karar Gerekçesi ve Açıklama")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(verdictTypeInput),
+      new ActionRowBuilder().addComponents(noteInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
   if (customId.startsWith("invest_addmember_")) {
     const channelId = customId.replace("invest_addmember_", "");
     const modal = new ModalBuilder()

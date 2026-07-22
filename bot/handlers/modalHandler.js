@@ -822,6 +822,85 @@ async function handleModalSubmit(interaction) {
     return handleWizardReplyModal(interaction);
   }
 
+  // ── Mahkeme & Dava Sistemi Modalleri ──────────────────────────────────────────
+  if (interaction.customId === 'court_petition_modal') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const defendantInput = interaction.fields.getTextInputValue('court_defendant');
+    const articleKey = interaction.fields.getTextInputValue('court_article');
+    const details = interaction.fields.getTextInputValue('court_details');
+    const evidence = interaction.fields.getTextInputValue('court_evidence') || 'Belirtilmedi';
+    const requestedPenalty = interaction.fields.getTextInputValue('court_penalty') || 'Standart Yaptırım';
+
+    const { filePetition } = require('../services/courtService');
+    await filePetition(interaction, { defendantInput, articleKey, details, evidence, requestedPenalty });
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_hire_lawyer_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const caseCode = interaction.customId.replace('court_hire_lawyer_modal_', '');
+    const lawyerIdInput = interaction.fields.getTextInputValue('court_lawyer_id');
+    const typeInput = interaction.fields.getTextInputValue('court_lawyer_type').toLowerCase();
+    const isBlackmarket = typeInput.includes('karaborsa');
+
+    const { hireLawyer } = require('../services/courtService');
+    await hireLawyer(interaction, caseCode, lawyerIdInput.replace(/[<@!>]/g, '').trim(), isBlackmarket);
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_witness_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const caseCode = interaction.customId.replace('court_witness_modal_', '');
+    const witnessId = interaction.fields.getTextInputValue('court_witness_id').replace(/[<@!>]/g, '').trim();
+    const statement = interaction.fields.getTextInputValue('court_witness_statement');
+
+    const CourtCase = require('../../models/CourtCase');
+    const courtCase = await CourtCase.findOne({ caseCode });
+    if (courtCase) {
+      if (!courtCase.witnesses) courtCase.witnesses = [];
+      courtCase.witnesses.push({ userId: witnessId, testimony: statement, timestamp: new Date() });
+      await courtCase.save();
+
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setTitle(`🕵️ ŞAHİT İFADESİ EKLENDİ — Dava ${caseCode}`)
+        .setDescription(`**Şahit:** <@${witnessId}>\n**İfade:** ${statement}`)
+        .setColor(0x9b59b6);
+
+      await interaction.editReply({ embeds: [embed] });
+
+      const channel = interaction.guild.channels.cache.get(courtCase.channelId);
+      if (channel) {
+        await channel.send({ embeds: [embed] }).catch(() => {});
+        await channel.permissionOverwrites.edit(witnessId, { ViewChannel: true, SendMessages: true }).catch(() => {});
+      }
+    } else {
+      await interaction.editReply({ content: '❌ Dava bulunamadı.' });
+    }
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_bribe_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const caseCode = interaction.customId.replace('court_bribe_modal_', '');
+    const amount = interaction.fields.getTextInputValue('court_bribe_amount');
+
+    const { offerBribe } = require('../services/courtService');
+    await offerBribe(interaction, caseCode, amount);
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_verdict_modal_')) {
+    await interaction.deferReply().catch(() => {});
+    const caseCode = interaction.customId.replace('court_verdict_modal_', '');
+    const verdictType = interaction.fields.getTextInputValue('court_verdict_type').trim();
+    const note = interaction.fields.getTextInputValue('court_verdict_note');
+
+    const { applyVerdict } = require('../services/courtService');
+    await applyVerdict(interaction, caseCode, verdictType, note);
+    return;
+  }
+
   // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
   if (interaction.customId === 'investigation_start_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

@@ -370,36 +370,48 @@ async function handleModerationCommand(interaction) {
           const member = await guild.members.fetch(targetUserId).catch(() => null);
 
           if (seviye === "very_high" || seviye === "high") {
-            await guild.bans.create(targetUserId, { reason: `Tam Ban (${seviye}): ${sebep}` }).catch(() => {});
-            if (member) {
+            try {
+              await guild.bans.create(targetUserId, { reason: `Tam Ban (${seviye}): ${sebep}` });
               discGuildNames.push(guild.name);
-              discordLogs.push(`${guild.name} (Banlandı)`);
-            } else {
-              discordLogs.push(`${guild.name} (Gıyabında Banlandı)`);
+              discordLogs.push(member ? `${guild.name} (Banlandı)` : `${guild.name} (Gıyabında Banlandı)`);
+            } catch (bErr) {
+              console.error(`[tamban] Guild ${guild.name} ban error:`, bErr.message);
+              discordLogs.push(`${guild.name} (Hata: ${bErr.message})`);
             }
           } else if (seviye === "medium") {
             const { TMT_GUILD_ID } = require("../../config");
             const isMain = guild.id === TMT_GUILD_ID || guild.id === "1367646464804655104";
             if (isMain) {
-              await guild.bans.create(targetUserId, { reason: `Tam Ban (Orta): ${sebep}` }).catch(() => {});
-              if (member) {
+              try {
+                await guild.bans.create(targetUserId, { reason: `Tam Ban (Orta): ${sebep}` });
                 discGuildNames.push(guild.name);
-                discordLogs.push(`${guild.name} (Banlandı)`);
-              } else {
-                discordLogs.push(`${guild.name} (Gıyabında Banlandı)`);
+                discordLogs.push(member ? `${guild.name} (Banlandı)` : `${guild.name} (Gıyabında Banlandı)`);
+              } catch (bErr) {
+                console.error(`[tamban] Guild ${guild.name} ban error:`, bErr.message);
+                discordLogs.push(`${guild.name} (Hata: ${bErr.message})`);
               }
             } else {
               if (member) {
-                discGuildNames.push(guild.name);
-                await member.kick(`Tam Ban (Orta): ${sebep}`).catch(() => {});
-                discordLogs.push(`${guild.name} (Atıldı)`);
+                try {
+                  discGuildNames.push(guild.name);
+                  await member.kick(`Tam Ban (Orta): ${sebep}`);
+                  discordLogs.push(`${guild.name} (Atıldı)`);
+                } catch (kErr) {
+                  console.error(`[tamban] Guild ${guild.name} kick error:`, kErr.message);
+                  discordLogs.push(`${guild.name} (Hata: ${kErr.message})`);
+                }
               }
             }
           } else if (seviye === "low") {
             if (member) {
-              discGuildNames.push(guild.name);
-              await member.kick(`Tam Ban (Düşük): ${sebep}`).catch(() => {});
-              discordLogs.push(`${guild.name} (Atıldı)`);
+              try {
+                discGuildNames.push(guild.name);
+                await member.kick(`Tam Ban (Düşük): ${sebep}`);
+                discordLogs.push(`${guild.name} (Atıldı)`);
+              } catch (kErr) {
+                console.error(`[tamban] Guild ${guild.name} kick error:`, kErr.message);
+                discordLogs.push(`${guild.name} (Hata: ${kErr.message})`);
+              }
             }
           } else if (seviye === "very_low") {
             if (member) {

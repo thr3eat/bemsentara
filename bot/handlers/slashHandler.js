@@ -498,6 +498,12 @@ async function handleSlashCommand(interaction) {
       return interaction.editReply({ content: `🎮 **/\`${commandName}\` oyunu yakında başlıyor!** 🎮` });
     }
 
+    // Court / Dava komutları
+    if (["dava-kurulum", "dava-ac", "yasa-kitabi", "kodos-tahliye"].includes(commandName)) {
+      const { handleCourtCommand } = require("./courtCommandHandler");
+      return handleCourtCommand(interaction);
+    }
+
     // Moderasyon komutları
     if (["mute", "unmute", "modaction", "bulk-delete", "ban", "unban", "karaliste"].includes(commandName)) {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {

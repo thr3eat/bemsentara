@@ -848,18 +848,26 @@ const staffCommands = [
     .setDMPermission(true),
 
   new SlashCommandBuilder()
-    .setName("mod-secim-tetik")
-    .setDescription("🏆 (Yönetici) Haftalık ve Aylık Moderatör seçimi tetikler (Sadece Kurul yetkilidir)")
-    .addStringOption(o =>
-      o.setName("tip")
-        .setDescription("Seçim periyodu")
-        .setRequired(true)
-        .addChoices(
-          { name: "Haftalık Seçim", value: "weekly" },
-          { name: "Aylık Seçim", value: "monthly" }
-        )
-    )
-    .setDMPermission(true),
+    .setName("dava-kurulum")
+    .setDescription("⚖️ Dava ve Mahkeme Sistemi dilekçe paneli kurulumunu yapar")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("dava-ac")
+    .setDescription("📜 Bir kullanıcı hakkında resmi dava dilekçesi oluşturur")
+    .addUserOption(o => o.setName("supheli").setDescription("Dava açılacak şüpheli").setRequired(true))
+    .addStringOption(o => o.setName("madde").setDescription("Ceza Kanunu Maddesi (Örn: 101, 204, 301, 404, 505)").setRequired(true))
+    .addStringOption(o => o.setName("detay").setDescription("Suçlama detayları").setRequired(true))
+    .addStringOption(o => o.setName("kanit").setDescription("Resim/Video/Mesaj Linki kanıtlar").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("yasa-kitabi")
+    .setDescription("📖 Sunucu Ceza Kanun Maddelerini listeler"),
+
+  new SlashCommandBuilder()
+    .setName("kodos-tahliye")
+    .setDescription("🔒 Nöbetçi Hapishane (#kodos) mahkumunun kefaletini öder veya tahliye eder")
+    .addUserOption(o => o.setName("mahkum").setDescription("Tahliye edilecek kişi").setRequired(true)),
 ];
 
 const allCommands = [

@@ -131,6 +131,7 @@ function onStoreMutate() {
   scheduleSave(collections);
 }
 
+collections.courtCases  = new InMemoryCollection("courtCases",  onStoreMutate);
 collections.users       = new InMemoryCollection("users",       onStoreMutate);
 collections.tickets     = new InMemoryCollection("tickets",     onStoreMutate);
 collections.economies   = new InMemoryCollection("economies",   onStoreMutate);
@@ -143,6 +144,7 @@ collections.stories      = new InMemoryCollection("stories",      onStoreMutate)
 collections.liveStreams  = new InMemoryCollection("liveStreams",  onStoreMutate);
 collections.appMeta     = new InMemoryCollection("appMeta", onStoreMutate);
 
+const courtCases  = collections.courtCases;
 const users       = collections.users;
 const tickets     = collections.tickets;
 const economies   = collections.economies;
@@ -261,6 +263,7 @@ function reviveDates(record) {
 }
 
 module.exports = {
+  courtCases,
   users,
   tickets,
   economies,

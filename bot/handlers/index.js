@@ -1458,6 +1458,16 @@ function initializeDiscordHandlers(client) {
       }
     }
 
+    // ── Mahkeme & Kamu Hizmeti / Hapishane Görevi Mesaj Sayacı ───────────────
+    if (message.guild && !message.author.bot) {
+      try {
+        const { handleCourtMessageCount } = require("../services/courtService");
+        await handleCourtMessageCount(message);
+      } catch (err) {
+        console.error("[messageCreate] Court task message count error:", err.message);
+      }
+    }
+
     // Whistleblower Thread-to-DM tüneli
     if (message.guild && !message.author.bot && message.channel.isThread()) {
       try {
