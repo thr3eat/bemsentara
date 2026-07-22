@@ -1417,6 +1417,51 @@ function renderEnergyBar(percent) {
     return interaction.showModal(modal);
   }
 
+  if (customId === "court_staff_petition_start") {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu butonu sadece yetkili ve moderatörler kullanabilir.", ephemeral: true });
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId("court_staff_petition_modal")
+      .setTitle("🛡️ Yetkili Dava & İddianame Oluştur");
+
+    const defendantInput = new TextInputBuilder()
+      .setCustomId("court_defendant")
+      .setLabel("Davalı (Şüpheli) Kullanıcı ID veya Mention")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("@Kullanıcı veya 123456789012345678")
+      .setRequired(true);
+
+    const articleInput = new TextInputBuilder()
+      .setCustomId("court_article")
+      .setLabel("Yasa Kitabı Maddesi (Örn: 101, 102, 204, 301)")
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder("101, 102, 204, 301...")
+      .setRequired(true);
+
+    const detailsInput = new TextInputBuilder()
+      .setCustomId("court_details")
+      .setLabel("Suçlama Detayları ve Gerekçe")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    const evidenceInput = new TextInputBuilder()
+      .setCustomId("court_evidence")
+      .setLabel("Kanıtlar (Görsel / Video / Mesaj Linki)")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(defendantInput),
+      new ActionRowBuilder().addComponents(articleInput),
+      new ActionRowBuilder().addComponents(detailsInput),
+      new ActionRowBuilder().addComponents(evidenceInput)
+    );
+
+    return interaction.showModal(modal);
+  }
+
   if (customId === "court_lawbook_show") {
     const { LAW_ARTICLES } = require("../services/courtService");
     const embed = new EmbedBuilder()
@@ -1444,6 +1489,100 @@ function renderEnergyBar(percent) {
       )
       .setColor(0x7f8c8d);
     return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (customId.startsWith("court_indictment_start_")) {
+    const caseCode = customId.replace("court_indictment_start_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_indictment_modal_${caseCode}`)
+      .setTitle("📋 İddianame Hazırlama Paneli");
+
+    const indictmentInput = new TextInputBuilder()
+      .setCustomId("court_indictment_text")
+      .setLabel("Savcılık İddianame Metni ve Suçlama")
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder("Şüpheli hakkında Madde X uyarınca açılan amme davası iddianamesi...")
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(indictmentInput));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_kyok_")) {
+    const caseCode = customId.replace("court_kyok_", "");
+    const { issueKYOK } = require("../services/courtService");
+    return issueKYOK(interaction, caseCode, "Savcılık incelemesi sonucu kanıt yetersizliği.");
+  }
+
+  if (customId.startsWith("court_settlement_start_")) {
+    const caseCode = customId.replace("court_settlement_start_", "");
+    const { sendToSettlement } = require("../services/courtService");
+    return sendToSettlement(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_settle_agree_")) {
+    const caseCode = customId.replace("court_settle_agree_", "");
+    const CourtCase = require("../../models/CourtCase");
+    const courtCase = await CourtCase.findOne({ caseCode });
+
+    if (courtCase) {
+      courtCase.status = "closed";
+      courtCase.phase = "closed";
+      courtCase.verdict = "acquitted";
+      courtCase.verdictNote = "Uzlaştırma Bürosunda taraflar anlaşarak davayı düşürdü.";
+      await courtCase.save();
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("🤝 UZLAŞMA SAĞLANDI — DAVA DÜŞÜRÜLDÜ")
+      .setDescription("Taraflar uzlaşma şartlarını kabul etti. Dava mahkemeye gitmeden dostane şekilde kapatıldı!")
+      .setColor(0x2ecc71);
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (customId.startsWith("court_settle_reject_")) {
+    const caseCode = customId.replace("court_settle_reject_", "");
+    const { acceptCase } = require("../services/courtService");
+    return acceptCase(interaction, caseCode);
+  }
+
+  if (customId.startsWith("court_precaution_toggle_")) {
+    const caseCode = customId.replace("court_precaution_toggle_", "");
+    const { applyPrecautionaryMeasure } = require("../services/courtService");
+    return applyPrecautionaryMeasure(interaction, caseCode, "chat_restriction");
+  }
+
+  if (customId.startsWith("court_appeal_istinaf_")) {
+    const caseCode = customId.replace("court_appeal_istinaf_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_appeal_modal_istinaf_${caseCode}`)
+      .setTitle("⚖️ İstinaf (Üst Mahkeme) İtirazı");
+
+    const reasonInput = new TextInputBuilder()
+      .setCustomId("court_appeal_reason")
+      .setLabel("İstinaf İtiraz Gerekçesi")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_appeal_aym_")) {
+    const caseCode = customId.replace("court_appeal_aym_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_appeal_modal_aym_${caseCode}`)
+      .setTitle("🏛️ Anayasa Mahkemesi (AYM) İtirazı");
+
+    const reasonInput = new TextInputBuilder()
+      .setCustomId("court_appeal_reason")
+      .setLabel("AYM Bireysel Başvuru Gerekçesi")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+    return interaction.showModal(modal);
   }
 
   if (customId.startsWith("court_accept_")) {

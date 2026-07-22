@@ -13,9 +13,12 @@ const CourtCase = {
     return Promise.resolve(courtCases.find(query));
   },
   create(data) {
+    const year = new Date().getFullYear();
     const defaults = {
       caseCode: `DAVA-${Math.floor(100000 + Math.random() * 900000)}`,
+      investigationNo: `Dosya No: ${year}/${Math.floor(100 + Math.random() * 900)}`,
       channelId: null,
+      phase: 'prosecution', // prosecution, kyok, settlement, indictment, trial, appeal, aym, closed
       status: 'pending_approval', // pending_approval, court_active, closed, archived, rejected
       plaintiffId: null,        // Davacı
       defendantId: null,        // Davalı
@@ -27,6 +30,21 @@ const CourtCase = {
       reason: 'Belirtilmedi',
       evidence: 'Yok',
       requestedPenalty: '1 Gün Mute / Kamu Hizmeti',
+      kyokReason: null,
+      indictmentDetails: null,
+      summonsSentAt: null,
+      precautionaryMeasures: {
+        chatRestricted: false,
+        newsBan: false,
+        defenseChannelId: null
+      },
+      settlement: {
+        active: false,
+        agreed: false,
+        condition: null,
+        settlementChannelId: null
+      },
+      appeals: [], // [{ level: 'istinaf'|'aym', appellantId, reason, verdict, verdictBy, createdAt }]
       isBlackmarketLawyer: false,
       briberyState: {
         offered: false,

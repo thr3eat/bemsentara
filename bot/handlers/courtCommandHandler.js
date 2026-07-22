@@ -92,6 +92,23 @@ async function handleCourtCommand(interaction) {
 
     return interaction.editReply({ embeds: [embed] });
   }
+
+  if (commandName === 'sabika-kaydi') {
+    await interaction.deferReply({ ephemeral: true });
+    const targetUser = interaction.options.getUser('kullanici') || interaction.user;
+    const { getSabikaKaydi } = require('../services/courtService');
+    const embed = await getSabikaKaydi(targetUser.id);
+    return interaction.editReply({ embeds: [embed] });
+  }
+
+  if (commandName === 'istinaf-basvuru') {
+    await interaction.deferReply({ ephemeral: true });
+    const caseCode = interaction.options.getString('dava_kodu');
+    const level = interaction.options.getString('seviye');
+    const reason = interaction.options.getString('gerekce');
+    const { applyAppeal } = require('../services/courtService');
+    return applyAppeal(interaction, caseCode, level, reason);
+  }
 }
 
 module.exports = { handleCourtCommand };

@@ -21,6 +21,101 @@ async function handleSelectInteraction(interaction) {
     return handlePurchaseSelection(interaction);
   }
 
+  // ── Mahkeme 3-Kademeli Hiyerarşik Kategori Menüsü
+  if (customId === 'court_main_category_select') {
+    const selected = interaction.values[0];
+    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+    if (selected === 'court_cat_prosecution') {
+      const embed = new EmbedBuilder()
+        .setTitle('🏢 SAVCILIK & SORUŞTURMA BÜROSU (1. KATEGORİ)')
+        .setDescription(
+          'İhbarlar önce Savcılık Makamına düşer ve Gizli Soruşturma Dosyası (`Dosya No: 2026/104`) açılır.\n\n' +
+          '📌 **Mevcut Alt İşlemler:**\n' +
+          '├ 📜 **Dilekçe Verme:** Vatandaş ihbarı oluşturma\n' +
+          '├ 🛡️ **Yetkili Dava Başlat:** Moderatör kamu davası açma\n' +
+          '└ ❌ **KYOK & İddianame:** Savcılık kararları'
+        )
+        .setColor(0xe67e22);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('court_petition_start').setLabel('📜 Dava Dilekçesi Ver').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('court_staff_petition_start').setLabel('🛡️ (Yetkili) Dava Başlat').setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
+
+    if (selected === 'court_cat_trial') {
+      const embed = new EmbedBuilder()
+        .setTitle('⚖️ MAHKEME & YARGILAMA BÜROSU (2. KATEGORİ)')
+        .setDescription(
+          'İddianamesi kabul edilen davaların duruşmaları bu büro üzerinden yürütülür.\n\n' +
+          '📌 **Duruşma Mekanizmaları:**\n' +
+          '├ 💼 **Avukat Tayini:** Resmi veya Karaborsa Avukat dahil etme\n' +
+          '├ 📊 **Jüri Oylaması:** 10 dakikalık halk ve jüri oylaması\n' +
+          '├ 🕵️ **Şahit Kürsüsü:** İfade ve delil sunumu\n' +
+          '└ 💸 **Gizli Rüşvet & İfşa:** Çıkar teklifi ve yolsuzluk ifşası'
+        )
+        .setColor(0xd4af37);
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (selected === 'court_cat_law') {
+      const { LAW_ARTICLES } = require('../services/courtService');
+      const embed = new EmbedBuilder()
+        .setTitle('📜 MEVZUAT & SİCİL BÜROSU (3. KATEGORİ)')
+        .setDescription(
+          'Sunucu Ceza Kanunu (Yasa Kitabı) ve Üye Adli Sicil Sorgulaması:\n\n' +
+          Object.values(LAW_ARTICLES).map(a => `📌 **${a.code} — ${a.title}**\n\`${a.penalty}\``).join('\n\n') +
+          '\n\n*Sicilinizi sorgulamak için `/sabika-kaydi` komutunu kullanabilirsiniz.*'
+        )
+        .setColor(0x3498db);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('court_lawbook_show').setLabel('📖 Yasa Kitabını Aç').setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
+
+    if (selected === 'court_cat_jail') {
+      const CourtCase = require('../../models/CourtCase');
+      const activeJailCases = await CourtCase.find({ status: 'closed', 'jailTask.active': true });
+      const embed = new EmbedBuilder()
+        .setTitle('🔒 İNFAZ & İHTİYATİ TEDBİR BÜROSU (4. KATEGORİ)')
+        .setDescription(
+          'Nöbetçi Hapishane (#kodos), Kefalet ve İhtiyati Tedbir (Sohbet Hapsi) Durumu:\n\n' +
+          (activeJailCases.length > 0
+            ? activeJailCases.map(c => `• <@${c.defendantId}> — Kalan Görev: ${c.jailTask.targetCount - c.jailTask.currentCount} Mesaj | Kefalet: **${c.jailTask.bailAmount} Coin**`).join('\n')
+            : 'Şu anda aktif hapishane mahkumu bulunmamaktadır.')
+        )
+        .setColor(0x7f8c8d);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('court_jail_status').setLabel('🔒 Hapishane Durumu').setStyle(ButtonStyle.Secondary)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
+
+    if (selected === 'court_cat_settlement') {
+      const embed = new EmbedBuilder()
+        .setTitle('🤝 UZLAŞMA & İTİRAZ BÜROSU (5. KATEGORİ)')
+        .setDescription(
+          'Dava öncesi uzlaşma ve dava sonrası itiraz mercileri:\n\n' +
+          '├ 🤝 **Uzlaştırma Bürosu (#uzlaştırma):** Dava açılmadan dostane çözüm\n' +
+          '├ ⚖️ **İstinaf (Üst Mahkeme):** Yerel mahkeme kararlarına 24 saat içinde itiraz\n' +
+          '└ 🏛️ **Anayasa Mahkemesi (AYM):** Kurucu ve Yüksek Heyet katında bireysel başvuru\n\n' +
+          '*İtiraz etmek için `/istinaf-basvuru` komutunu kullanabilirsiniz.*'
+        )
+        .setColor(0x9b59b6);
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+  }
+
   // ── Panel hızlı menü (home) seçimi
   if (customId === 'panel_home_select') {
     const selected = interaction.values[0];

@@ -26,6 +26,8 @@ const User = {
       canManageTickets: false,
       botVerified: false,
       botPin: null,
+      criminalRecord: [],
+      isOrnekVatandas: true,
       profileBio: null,
       profileColor: "#7c6af7",
       browserNotificationsEnabled: false,

@@ -499,7 +499,7 @@ async function handleSlashCommand(interaction) {
     }
 
     // Court / Dava komutları
-    if (["dava-kurulum", "dava-ac", "yasa-kitabi", "kodos-tahliye"].includes(commandName)) {
+    if (["dava-kurulum", "dava-ac", "yasa-kitabi", "kodos-tahliye", "sabika-kaydi", "istinaf-basvuru"].includes(commandName)) {
       const { handleCourtCommand } = require("./courtCommandHandler");
       return handleCourtCommand(interaction);
     }

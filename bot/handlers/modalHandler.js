@@ -836,6 +836,18 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId === 'court_staff_petition_modal') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const defendantInput = interaction.fields.getTextInputValue('court_defendant');
+    const articleKey = interaction.fields.getTextInputValue('court_article');
+    const details = interaction.fields.getTextInputValue('court_details');
+    const evidence = interaction.fields.getTextInputValue('court_evidence') || 'Belirtilmedi';
+
+    const { filePetition } = require('../services/courtService');
+    await filePetition(interaction, { defendantInput, articleKey, details, evidence, requestedPenalty: 'Yetkili Kamu Davası' });
+    return;
+  }
+
   if (interaction.customId.startsWith('court_hire_lawyer_modal_')) {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const caseCode = interaction.customId.replace('court_hire_lawyer_modal_', '');
@@ -898,6 +910,28 @@ async function handleModalSubmit(interaction) {
 
     const { applyVerdict } = require('../services/courtService');
     await applyVerdict(interaction, caseCode, verdictType, note);
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_indictment_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const caseCode = interaction.customId.replace('court_indictment_modal_', '');
+    const indictmentText = interaction.fields.getTextInputValue('court_indictment_text');
+
+    const { issueIndictment } = require('../services/courtService');
+    await issueIndictment(interaction, caseCode, indictmentText);
+    return;
+  }
+
+  if (interaction.customId.startsWith('court_appeal_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const isAYM = interaction.customId.includes('_aym_');
+    const level = isAYM ? 'aym' : 'istinaf';
+    const caseCode = interaction.customId.replace(`court_appeal_modal_${level}_`, '');
+    const reason = interaction.fields.getTextInputValue('court_appeal_reason');
+
+    const { applyAppeal } = require('../services/courtService');
+    await applyAppeal(interaction, caseCode, level, reason);
     return;
   }
 

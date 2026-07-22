@@ -868,6 +868,22 @@ const staffCommands = [
     .setName("kodos-tahliye")
     .setDescription("🔒 Nöbetçi Hapishane (#kodos) mahkumunun kefaletini öder veya tahliye eder")
     .addUserOption(o => o.setName("mahkum").setDescription("Tahliye edilecek kişi").setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("sabika-kaydi")
+    .setDescription("📑 Bir kullanıcının adli sicil kaydını ve Örnek Vatandaş durumunu görüntüler")
+    .addUserOption(o => o.setName("kullanici").setDescription("Sorgulanacak kullanıcı").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("istinaf-basvuru")
+    .setDescription("⚖️ Mahkeme kararına İstinaf (Üst Mahkeme) veya Anayasa Mahkemesi (AYM) itirazı yapar")
+    .addStringOption(o => o.setName("dava_kodu").setDescription("İtiraz edilecek dava kodu (Örn: DAVA-123456)").setRequired(true))
+    .addStringOption(o => o.setName("seviye").setDescription("İtiraz mercii (istinaf / aym)").setRequired(true)
+      .addChoices(
+        { name: "İstinaf (Bölge Adliye Mahkemesi)", value: "istinaf" },
+        { name: "Anayasa Mahkemesi (AYM)", value: "aym" }
+      ))
+    .addStringOption(o => o.setName("gerekce").setDescription("İtiraz gerekçesi").setRequired(true)),
 ];
 
 const allCommands = [
