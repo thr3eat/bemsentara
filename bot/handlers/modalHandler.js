@@ -960,6 +960,18 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId === 'school_rel_custom_modal') {
+    const { handleReligionCustomModalSubmit } = require('../services/moderatorSchool');
+    await handleReligionCustomModalSubmit(interaction, interaction.client);
+    return;
+  }
+
+  if (interaction.customId === 'school_rel_oath_modal') {
+    const { handleReligionOathModalSubmit } = require('../services/moderatorSchool');
+    await handleReligionOathModalSubmit(interaction, interaction.client);
+    return;
+  }
+
   // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
   if (interaction.customId === 'investigation_start_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

@@ -22,3 +22,11 @@ test('shouldEscalateSchoolKick returns false when the AI recommendation says kee
 
   assert.equal(result, false);
 });
+
+test('moderatorSchool exports religion oath functions', () => {
+  const { sendReligionOathEmbed, handleReligionOathModalSubmit, completeModSchoolTransfer } = require('../bot/services/moderatorSchool');
+  assert.equal(typeof sendReligionOathEmbed, 'function');
+  assert.equal(typeof handleReligionOathModalSubmit, 'function');
+  assert.equal(typeof completeModSchoolTransfer, 'function');
+});
+

@@ -935,100 +935,74 @@ async function handleSchoolButtons(interaction, client) {
   if (customId === 'school_accept_contract') {
     await interaction.deferUpdate().catch(() => { });
 
-    // 1. Reply to DM
     await interaction.editReply({
-      content: ' Tamamdır. Sözleşmeyi kabul ettiğine göre seni moderatör ekibine transfer ediyorum. Orada diğer arkadaşım Selinle tanışırsın. Ona benden selam gönderirsin.',
+      content: ' Tamamdır. Sözleşmeyi kabul ettin. Moderatör okuluna geçmeden önce son bir yemin adımımız var.',
       embeds: [], components: []
     }).catch(() => { });
 
-    // 2. Backup roles and demote user on Discord
-    const mainGuild = client.guilds.cache.get(MAIN_GUILD_ID);
-    if (mainGuild) {
-      try {
-        const member = await mainGuild.members.fetch(userId).catch(() => null);
-        if (member) {
-          const originalRoles = [...member.roles.cache.keys()].filter(r => r !== mainGuild.roles.everyone.id);
+    // Ask Religion question to start Religion Oath process
+    const embedRel = new EmbedBuilder()
+      .setColor(0x7c6af7)
+      .setTitle('🙏 Moderatörlük Dini Yemin Adımı')
+      .setDescription(
+        `Moderatör Okuluna girmeden önce inandığınız dine uygun olarak 5 maddelik özel bir moderatörlük yemini hazırlayacağız.\n\n` +
+        `Lütfen inandığınız dini / inancı aşağıdaki butonlardan seçin (veya başka bir inanç belirtin):`
+      )
+      .setFooter({ text: 'Eko Yıldız • Moderatör Okulu Yemin Paneli' });
 
-          let p = await StaffProgress.findOne({ userId });
-          if (p) {
-            p.schoolSystem = p.schoolSystem || {};
-            p.schoolSystem.originalRoles = originalRoles;
-            p.schoolSystem.originalLevel = p.level;
-            await p.save();
-          }
+    const rowRel = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('school_rel_islam').setLabel('İslam').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('school_rel_hristiyan').setLabel('Hristiyanlık').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('school_rel_musevi').setLabel('Musevilik').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('school_rel_deizm').setLabel('Deizm / Ateizm').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('school_rel_custom').setLabel('Diğer / Kendi Dinim').setStyle(ButtonStyle.Secondary)
+    );
 
-          // Remove Mod roles and add School roles
-          const ROLES_TO_REMOVE = [
-            '1518692386836971610', // Personel
-            '1518692389169135666', // Moderator
-          ];
+    await user.send({ embeds: [embedRel], components: [rowRel] }).catch(() => {});
+    return;
+  }
 
-          // Also remove level-based rank roles from staffSystem
-          try {
-            const { ROLES } = require('./staffSystem');
-            if (ROLES) {
-              for (const roleId of Object.values(ROLES)) {
-                ROLES_TO_REMOVE.push(roleId);
-              }
-            }
-          } catch (_) { }
+  if (customId.startsWith('school_rel_')) {
+    if (customId === 'school_rel_custom') {
+      const modal = new ModalBuilder()
+        .setCustomId('school_rel_custom_modal')
+        .setTitle('📝 Dini / İnancınızı Yazın');
 
-          await member.roles.remove(ROLES_TO_REMOVE).catch(() => { });
-          await member.roles.add([MAIN_SCHOOL_ROLES.TRAINEE, MAIN_SCHOOL_ROLES.INFO_ROLE]).catch(() => { });
-        }
-      } catch (roleErr) {
-        logger.error('[ModeratorSchool] Discord role backup/update error:', roleErr.message);
-      }
+      const input = new TextInputBuilder()
+        .setCustomId('custom_religion_text')
+        .setLabel('Dininiz / İnancınız')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Örn: Budizm, Şamanizm, Agnostisizm vb.')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal);
     }
 
-    // 3. Roblox demotion
-    try {
-      const robloxUser = await User.findOne({ discordId: userId });
-      if (robloxUser && robloxUser.robloxId) {
-        const robloxId = parseInt(robloxUser.robloxId);
-        await noblox.setRank(MOD_ROBLOX_GROUP, robloxId, 1).catch(() => { });
-      }
-    } catch (rbErr) {
-      logger.error('[ModeratorSchool] Roblox demote error:', rbErr.message);
+    if (customId === 'school_rel_paste_btn') {
+      const modal = new ModalBuilder()
+        .setCustomId('school_rel_oath_modal')
+        .setTitle('📜 5 Satırlık Yemini Yapıştırın');
+
+      const input = new TextInputBuilder()
+        .setCustomId('oath_pasted_text')
+        .setLabel('Yukarıdaki 5 Satırlık Yemini Yapıştırın')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Yukarıdaki 5 satır yemini aynen buraya yapıştırın...')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal);
     }
 
-    // 4. Wait 2 seconds and introduce Selin
-    setTimeout(async () => {
-      try {
-        const embed = new EmbedBuilder()
-          .setThumbnail(getSelinImage()).setColor(0xff75a0)
-          .setTitle('🌸 Selammmm, Tanıştığıma Memnun Oldum! 🌸')
-          .setDescription(
-            `Ben Selin! ✨ Animeli konuşurum falan filan neyse şimdi moderatör okulu kolay 1 günlük iş hızlıca yaparsın tamammı? 🎀\n\n` +
-            `Şimdi aşağıdaki butona tıkla ki moderatör okuluna transferini gerçekleştireyim. Sunucuya katıl ve sonra **KATILDIM** butonuna bas! 💕`
-          );
+    await interaction.deferUpdate().catch(() => {});
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel('Okul Sunucusuna Katıl')
-            .setStyle(ButtonStyle.Link)
-            .setURL('https://discord.gg/y9q8xhjkFD'),
-          new ButtonBuilder()
-            .setCustomId('school_joined_school_server')
-            .setLabel('KATILDIM')
-            .setStyle(ButtonStyle.Success)
-        );
+    let religionName = 'İslam';
+    if (customId === 'school_rel_hristiyan') religionName = 'Hristiyanlık';
+    if (customId === 'school_rel_musevi') religionName = 'Musevilik';
+    if (customId === 'school_rel_deizm') religionName = 'Deizm / Ateizm / Seküler Vicdan';
 
-        await user.send({ embeds: [embed], components: [row] });
-
-        let p = await StaffProgress.findOne({ userId });
-        if (p) {
-          p.schoolSystem.status = 'in_school';
-          // Okula kayıt tarihini sadece ilk sefer set et
-          if (!p.schoolSystem.enrolledAt) {
-            p.schoolSystem.enrolledAt = new Date();
-          }
-          await p.save();
-        }
-      } catch (dmErr) {
-        logger.error('[ModeratorSchool] Selin intro DM error:', dmErr.message);
-      }
-    }, 2000);
+    await sendReligionOathEmbed(userId, client, religionName, interaction);
     return;
   }
 
@@ -2564,6 +2538,253 @@ async function autoGraduateOverdueStudents(client) {
   }
 }
 
+/**
+ * Generates 5-line AI Religion Oath and presents it to the user with copy-paste requirement
+ */
+async function sendReligionOathEmbed(userId, client, religionName, interaction = null) {
+  try {
+    const user = await client.users.fetch(userId).catch(() => null);
+    if (!user) return;
+
+    const { chatWithAI } = require('./aiService');
+    const prompt = `Kullanıcının belirttiği inanç/din (${religionName}) esaslarına, kutsal değerlerine ve adalet ilkelerine uygun olarak; moderatörlük görevinde tarafsız, dürüst, kul hakkı yemeyen, doğruluğu savunan ve yetkisini kötüye kullanmayan TAM OLARAK 5 SATIRDAN OLUŞAN kutsal ve ciddi bir moderatörlük yemeni oluştur.\n\n` +
+      `KURALLAR:\n` +
+      `- Tam olarak 5 satır olmalı.\n` +
+      `- Her satır numaralı ve bağımsız bir yemin cümlesi olmalı (1., 2., 3., 4., 5.).\n` +
+      `- Asla başlık, giriş mesajı, dipnot veya açıklama ekleme.\n` +
+      `- Doğrudan 5 satırlık yemin metnini yaz.`;
+
+    let aiText = await chatWithAI(
+      [{ role: 'user', content: prompt }],
+      'Sen EkoYıldız Moderatör Okulu Yemin Asistanısın. Türkçe, ciddi ve resmi yemin metinleri hazırlarsın.'
+    ).catch(() => '');
+
+    let lines = aiText ? aiText.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
+
+    if (lines.length < 5) {
+      lines = [
+        `1. ${religionName} inancım ve vicdanım üzerine ant içerim ki moderatörlük görevimde asla taraflı davranmayacağım.`,
+        `2. Sunucu sakinlerinin haklarını koruyacak, kul hakkına girmeyecek ve adaletle hükmedeceğim.`,
+        `3. Yetkilerimi kendi çıkarım veya hırslarım için asla kötüye kullanmayacağım.`,
+        `4. Kuralları herkese eşit uygulayacak, doğruluktan ve dürüstlükten ayrılmayacağım.`,
+        `5. EkoYıldız ailesine ve moderatörlük yeminime sonuna kadar sadık kalacağıma söz veriyorum.`
+      ];
+    }
+
+    lines = lines.slice(0, 5);
+    const oathText = lines.join('\n');
+
+    let p = await StaffProgress.findOne({ userId });
+    if (p) {
+      p.schoolSystem = p.schoolSystem || {};
+      p.schoolSystem.pendingOathText = oathText;
+      p.schoolSystem.pendingOathReligion = religionName;
+      await p.save();
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xd4af37)
+      .setTitle(`📜 MODERATÖRLÜK DİNİ YEMİNİ — ${religionName.toUpperCase()}`)
+      .setDescription(
+        `Yapay zeka tarafından **${religionName}** inancınıza uygun olarak hazırlanan 5 satırlık yemin metniniz aşağıdadır:\n\n` +
+        `\`\`\`text\n${oathText}\n\`\`\`\n\n` +
+        `⚠️ **ZORUNLU KOPYALA-YAPIŞTIR ONAYI:**\n` +
+        `Lütfen yukarıdaki **5 satırlık yemin metnini kopyalayın** ve aşağıdaki **"✍️ Yemini Yapıştır & Onayla"** butonuna tıklayarak açılan alana yapıştırın!`
+      )
+      .setFooter({ text: 'Eko Yıldız • Moderatör Okulu Yemin Paneli' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('school_rel_paste_btn')
+        .setLabel('✍️ Yemini Yapıştır & Onayla')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    if (interaction && (interaction.deferred || interaction.replied)) {
+      await interaction.editReply({ embeds: [embed], components: [row] }).catch(() => {});
+    } else {
+      await user.send({ embeds: [embed], components: [row] }).catch(() => {});
+    }
+  } catch (err) {
+    logger.error(`[ModeratorSchool] sendReligionOathEmbed error for ${userId}:`, err.message);
+  }
+}
+
+/**
+ * Handles custom religion text input modal submit
+ */
+async function handleReligionCustomModalSubmit(interaction, client) {
+  await interaction.deferUpdate().catch(() => {});
+  const customReligion = interaction.fields.getTextInputValue('custom_religion_text') || 'İslam / Evrensel Vicdan';
+  await sendReligionOathEmbed(interaction.user.id, client, customReligion, interaction);
+}
+
+/**
+ * Handles oath copy-paste modal submit
+ */
+async function handleReligionOathModalSubmit(interaction, client) {
+  await interaction.deferUpdate().catch(() => {});
+  const userId = interaction.user.id;
+  const pastedText = interaction.fields.getTextInputValue('oath_pasted_text') || '';
+
+  const p = await StaffProgress.findOne({ userId });
+  const pendingOath = p?.schoolSystem?.pendingOathText || '';
+
+  const cleanPending = pendingOath.replace(/\r/g, '').trim().toLowerCase();
+  const cleanPasted = pastedText.replace(/\r/g, '').trim().toLowerCase();
+
+  const pendingLines = cleanPending.split('\n').map(l => l.trim()).filter(Boolean);
+  const pastedLines = cleanPasted.split('\n').map(l => l.trim()).filter(Boolean);
+
+  let isMatch = false;
+  if (cleanPending === cleanPasted) {
+    isMatch = true;
+  } else if (pastedLines.length >= 5) {
+    let matchCount = 0;
+    for (let i = 0; i < Math.min(5, pendingLines.length); i++) {
+      if (pastedLines.some(pl => pl.includes(pendingLines[i].substring(0, 15)))) {
+        matchCount++;
+      }
+    }
+    if (matchCount >= 3) isMatch = true;
+  }
+
+  if (!isMatch && cleanPasted.length < 50) {
+    const embedErr = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle('⚠️ Yemin Metni Eksik veya Hatalı!')
+      .setDescription(
+        'Yemin metnini eksik veya hatalı yapıştırdınız.\n\n' +
+        'Lütfen size verilen **5 satırlık metni tam kopyalayıp** tekrar **"✍️ Yemini Yapıştır & Onayla"** butonuna tıklayarak yapıştırın.'
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('school_rel_paste_btn')
+        .setLabel('✍️ Yemini Yapıştır & Onayla (Tekrar Dene)')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    return interaction.editReply({ embeds: [embedErr], components: [row] }).catch(() => {});
+  }
+
+  await completeModSchoolTransfer(userId, client, interaction);
+}
+
+/**
+ * Completes final transfer to Moderator Okulu after Oath verification
+ */
+async function completeModSchoolTransfer(userId, client, interaction = null) {
+  try {
+    const user = await client.users.fetch(userId).catch(() => null);
+
+    const welcomeEmbed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🎉 YEMİN ETTİN! MODERATÖRLÜĞE HOŞ GELDİN! 📜✨')
+      .setDescription(
+        `Kutsal ve vicdani yeminin başarıyla kaydedildi ve kabul edildi!\n\n` +
+        `Sözleşmen ve yeminin tamamlandığı için moderatör ekibine transferin gerçekleştiriliyor. Orada Selin ile tanışacaksın!`
+      );
+
+    if (interaction && (interaction.deferred || interaction.replied)) {
+      await interaction.editReply({ embeds: [welcomeEmbed], components: [] }).catch(() => {});
+    } else if (user) {
+      await user.send({ embeds: [welcomeEmbed] }).catch(() => {});
+    }
+
+    // Backup roles and demote user on Discord
+    const mainGuild = client.guilds.cache.get(MAIN_GUILD_ID);
+    if (mainGuild) {
+      try {
+        const member = await mainGuild.members.fetch(userId).catch(() => null);
+        if (member) {
+          const originalRoles = [...member.roles.cache.keys()].filter(r => r !== mainGuild.roles.everyone.id);
+
+          let p = await StaffProgress.findOne({ userId });
+          if (p) {
+            p.schoolSystem = p.schoolSystem || {};
+            p.schoolSystem.originalRoles = originalRoles;
+            p.schoolSystem.originalLevel = p.level;
+            p.schoolSystem.oathCompleted = true;
+            await p.save();
+          }
+
+          // Remove Mod roles and add School roles
+          const ROLES_TO_REMOVE = [
+            '1518692386836971610', // Personel
+            '1518692389169135666', // Moderator
+          ];
+
+          try {
+            const { ROLES } = require('./staffSystem');
+            if (ROLES) {
+              for (const roleId of Object.values(ROLES)) {
+                ROLES_TO_REMOVE.push(roleId);
+              }
+            }
+          } catch (_) { }
+
+          await member.roles.remove(ROLES_TO_REMOVE).catch(() => { });
+          await member.roles.add([MAIN_SCHOOL_ROLES.TRAINEE, MAIN_SCHOOL_ROLES.INFO_ROLE]).catch(() => { });
+        }
+      } catch (roleErr) {
+        logger.error('[ModeratorSchool] Discord role backup/update error:', roleErr.message);
+      }
+    }
+
+    // Roblox demotion
+    try {
+      const robloxUser = await User.findOne({ discordId: userId });
+      if (robloxUser && robloxUser.robloxId) {
+        const robloxId = parseInt(robloxUser.robloxId);
+        await noblox.setRank(MOD_ROBLOX_GROUP, robloxId, 1).catch(() => { });
+      }
+    } catch (rbErr) {
+      logger.error('[ModeratorSchool] Roblox demote error:', rbErr.message);
+    }
+
+    // Wait 2 seconds and introduce Selin
+    setTimeout(async () => {
+      try {
+        if (!user) return;
+        const embed = new EmbedBuilder()
+          .setThumbnail(getSelinImage()).setColor(0xff75a0)
+          .setTitle('🌸 Selammmm, Tanıştığıma Memnun Oldum! 🌸')
+          .setDescription(
+            `Ben Selin! ✨ Animeli konuşurum falan filan neyse şimdi moderatör okulu kolay 1 günlük iş hızlıca yaparsın tamammı? 🎀\n\n` +
+            `Şimdi aşağıdaki butona tıkla ki moderatör okuluna transferini gerçekleştireyim. Sunucuya katıl ve sonra **KATILDIM** butonuna bas! 💕`
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('Okul Sunucusuna Katıl')
+            .setStyle(ButtonStyle.Link)
+            .setURL('https://discord.gg/y9q8xhjkFD'),
+          new ButtonBuilder()
+            .setCustomId('school_joined_school_server')
+            .setLabel('KATILDIM')
+            .setStyle(ButtonStyle.Success)
+        );
+
+        await user.send({ embeds: [embed], components: [row] });
+
+        let p = await StaffProgress.findOne({ userId });
+        if (p) {
+          p.schoolSystem.status = 'in_school';
+          if (!p.schoolSystem.enrolledAt) {
+            p.schoolSystem.enrolledAt = new Date();
+          }
+          await p.save();
+        }
+      } catch (dmErr) {
+        logger.error('[ModeratorSchool] Selin intro DM error:', dmErr.message);
+      }
+    }, 2000);
+  } catch (err) {
+    logger.error(`[ModeratorSchool] completeModSchoolTransfer error for ${userId}:`, err.message);
+  }
+}
+
 module.exports = {
   initializeModeratorSchool,
   sendContractDM,
@@ -2580,5 +2801,9 @@ module.exports = {
   shouldEscalateSchoolKick,
   sendSchoolKickDecisionDM,
   applySchoolKickDecision,
+  sendReligionOathEmbed,
+  handleReligionCustomModalSubmit,
+  handleReligionOathModalSubmit,
+  completeModSchoolTransfer,
 };
 
