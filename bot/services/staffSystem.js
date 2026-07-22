@@ -2299,6 +2299,8 @@ async function sendMorningBriefing(progress, client) {
     }
     if (filteredTasks.length === 0) filteredTasks = allowedTasks;
 
+    // 🔧 FIX: randomTask tanımsızlığı düzeltildi
+    const randomTask = filteredTasks[Math.floor(Math.random() * filteredTasks.length)];
     progress.daily.chosenTask = randomTask;
     progress.daily.chosenTaskCompleted = false;
     await progress.save().catch(() => { });
