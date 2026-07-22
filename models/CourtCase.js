@@ -33,6 +33,12 @@ const CourtCase = {
       kyokReason: null,
       indictmentDetails: null,
       summonsSentAt: null,
+      contract: {
+        terms: null,
+        status: null, // 'pending_signature', 'signed', 'rejected'
+        sentBy: null,
+        createdAt: null
+      },
       precautionaryMeasures: {
         chatRestricted: false,
         newsBan: false,

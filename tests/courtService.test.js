@@ -80,3 +80,35 @@ test('CourtCase flexible caseCode lookup (case-insensitive and prefix tolerant)'
   assert.ok(match3);
 });
 
+test('CourtCase contract signing updates case status to closed and acquitted', async () => {
+  const { handleContractSignature } = require('../bot/services/courtService');
+  const code = `DAVA-${Math.floor(100000 + Math.random() * 900000)}`;
+  const defId = 'DEF-USER-777';
+
+  const courtCase = await CourtCase.create({
+    caseCode: code,
+    plaintiffId: 'PLA-USER-111',
+    defendantId: defId,
+    contract: {
+      terms: '200 Coin ödeme ve özür',
+      status: 'pending_signature',
+      sentBy: 'ADMIN-1',
+      createdAt: new Date()
+    }
+  });
+
+  const fakeInteraction = {
+    user: { id: defId },
+    update: async () => {},
+    client: { guilds: { cache: { values: () => [] } } }
+  };
+
+  await handleContractSignature(fakeInteraction, code, true);
+
+  const updated = await CourtCase.findOne({ caseCode: code });
+  assert.equal(updated.contract.status, 'signed');
+  assert.equal(updated.status, 'closed');
+  assert.equal(updated.verdict, 'acquitted');
+});
+
+

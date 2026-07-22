@@ -1751,6 +1751,39 @@ function renderEnergyBar(percent) {
     return interaction.showModal(modal);
   }
 
+  if (customId.startsWith("court_send_contract_")) {
+    if (interaction.member && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: "❌ Bu butonu sadece yetkili ve yöneticiler kullanabilir.", ephemeral: true });
+    }
+
+    const caseCode = customId.replace("court_send_contract_", "");
+    const modal = new ModalBuilder()
+      .setCustomId(`court_contract_modal_${caseCode}`)
+      .setTitle("📜 Sözleşme İmzalatma Paneli");
+
+    const termsInput = new TextInputBuilder()
+      .setCustomId("court_contract_terms")
+      .setLabel("Sözleşme / Uzlaşma Şartları Metni")
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder("Davalı taraf 200 Coin ödeyecek ve özür dileyecektir...")
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(termsInput));
+    return interaction.showModal(modal);
+  }
+
+  if (customId.startsWith("court_sign_contract_accept_")) {
+    const caseCode = customId.replace("court_sign_contract_accept_", "");
+    const { handleContractSignature } = require("../services/courtService");
+    return handleContractSignature(interaction, caseCode, true);
+  }
+
+  if (customId.startsWith("court_sign_contract_reject_")) {
+    const caseCode = customId.replace("court_sign_contract_reject_", "");
+    const { handleContractSignature } = require("../services/courtService");
+    return handleContractSignature(interaction, caseCode, false);
+  }
+
   if (customId.startsWith("invest_addmember_")) {
     const channelId = customId.replace("invest_addmember_", "");
     const modal = new ModalBuilder()

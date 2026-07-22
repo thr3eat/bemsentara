@@ -935,6 +935,16 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId.startsWith('court_contract_modal_')) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    const caseCode = interaction.customId.replace('court_contract_modal_', '');
+    const terms = interaction.fields.getTextInputValue('court_contract_terms');
+
+    const { sendContractToDM } = require('../services/courtService');
+    await sendContractToDM(interaction, caseCode, terms);
+    return;
+  }
+
   // ── Soruşturma Sistemi Modalleri ───────────────────────────────────────────
   if (interaction.customId === 'investigation_start_modal') {
     await interaction.deferReply({ ephemeral: true }).catch(() => {});

@@ -214,6 +214,34 @@ async function safeReply(interaction, options) {
 }
 
 /**
+ * Sends a DM notification with a clickable Link Button to a user
+ */
+async function notifyPartyWithChannelLink(client, userId, title, description, channelUrl) {
+  try {
+    if (!userId || !channelUrl) return;
+    const userObj = await client.users.fetch(userId).catch(() => null);
+    if (!userObj) return;
+
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(0x3498db)
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel('📂 Soruşturma / Dava Kanalına Git')
+        .setURL(channelUrl)
+    );
+
+    await userObj.send({ embeds: [embed], components: [row] }).catch(() => {});
+  } catch (err) {
+    console.error('[courtService] notifyPartyWithChannelLink error:', err.message);
+  }
+}
+
+/**
  * Finds court case flexibly by code, ignoring case-sensitivity and DAVA- prefix variations
  */
 async function findCourtCase(caseCode) {
@@ -303,14 +331,16 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
   const category = await getOrCreateCourtCategory(guild);
 
   // Find or create #gizli-soruşturma channel under EKO YILDIZ SORUŞTURMALAR category
+  // HIDE FROM @EVERYONE STRICTLY
   let secrecyChannel = guild.channels.cache.find(c => c.name.includes('gizli-sorusturma') || c.name.includes('gizli-soruşturma'));
   if (!secrecyChannel) {
     const roles = await ensureCourtRoles(guild);
     const overwrites = [
-      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
     ];
-    if (roles['Savcı']) overwrites.push({ id: roles['Savcı'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
-    if (roles['Başhakim / Yargıç']) overwrites.push({ id: roles['Başhakim / Yargıç'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
+    if (roles['Savcı']) overwrites.push({ id: roles['Savcı'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+    if (roles['Başhakim / Yargıç']) overwrites.push({ id: roles['Başhakim / Yargıç'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
 
     secrecyChannel = await guild.channels.create({
       name: '🕵️-gizli-soruşturma',
@@ -346,6 +376,10 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
       .setLabel('📋 İddianame Hazırla & Dava Aç')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
+      .setCustomId(`court_send_contract_${caseCode}`)
+      .setLabel('📜 SÖZLEŞMEYİ İMZALAT')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
       .setCustomId(`court_kyok_${caseCode}`)
       .setLabel('❌ Kovuşturmaya Yer Yok (KYOK)')
       .setStyle(ButtonStyle.Danger),
@@ -365,6 +399,31 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
 
   if (secrecyChannel && secrecyChannel.isTextBased()) {
     await secrecyChannel.send({ embeds: [prosecutionEmbed], components: [actionRow] }).catch(() => {});
+  }
+
+  // Send DM Notifications with Link Button to both Davacı and Davalı
+  if (secrecyChannel) {
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      interaction.user.id,
+      '⚖️ Dava Dilekçeniz Kayda Alındı!',
+      `Dilekçeniz **${investigationNo}** (\`${caseCode}\`) ile Savcılık Makamına ulaşmış ve soruşturma başlatılmıştır.\n\n` +
+      `👤 **Davacı (İhbar Eden):** <@${interaction.user.id}>\n` +
+      `👤 **Davalı (Şüpheli):** <@${targetUserId}>\n\n` +
+      `Aşağıdaki **"📂 Soruşturma / Dava Kanalına Git"** butonuna tıklayarak kanala ulaşabilir ve soruşturmayı takip edebilirsiniz.`,
+      channelLink
+    );
+
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      targetUserId,
+      '⚖️ Hakkınızda Soruşturma Başlatıldı!',
+      `Hakkınızda **${investigationNo}** (\`${caseCode}\`) kapsamında savcılık incelemesi ve soruşturması başlatılmıştır.\n\n` +
+      `👤 **Davacı:** <@${interaction.user.id}>\n` +
+      `👤 **Davalı (Şüpheli):** <@${targetUserId}>\n\n` +
+      `Aşağıdaki **"📂 Soruşturma / Dava Kanalına Git"** butonuna tıklayarak kanala ulaşabilir ve detayları inceleyebilirsiniz.`,
+      channelLink
+    );
   }
 }
 
@@ -409,16 +468,17 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
   await courtCase.save();
 
   // Create Trial Channel #dava-caseCode under EKO YILDIZ SORUŞTURMALAR category
+  // HIDE FROM @EVERYONE STRICTLY
   const category = await getOrCreateCourtCategory(guild);
 
   const roles = await ensureCourtRoles(guild);
   const overwrites = [
-    { id: guild.id, deny: [PermissionFlagsBits.SendMessages] },
-    { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-    { id: courtCase.defendantId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    { id: courtCase.defendantId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
   ];
-  if (roles['Başhakim / Yargıç']) overwrites.push({ id: roles['Başhakim / Yargıç'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] });
-  if (roles['Savcı']) overwrites.push({ id: roles['Savcı'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
+  if (roles['Başhakim / Yargıç']) overwrites.push({ id: roles['Başhakim / Yargıç'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ReadMessageHistory] });
+  if (roles['Savcı']) overwrites.push({ id: roles['Savcı'], allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
 
   const trialChannel = await guild.channels.create({
     name: `dava-${caseCode.toLowerCase()}`,
@@ -439,28 +499,6 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
   const pastRecords = targetDbUser?.criminalRecord || [];
   const isTekerrur = pastRecords.length > 0;
 
-  // Send Official DM Tebligat
-  const defendantUser = await interaction.client.users.fetch(courtCase.defendantId).catch(() => null);
-  if (defendantUser) {
-    const summonsEmbed = new EmbedBuilder()
-      .setTitle('⚖️ EKOYILDIZ MAHKEMESİ BİLİŞİM SUÇLARI BÜROSU — RESMİ TEBLİGAT')
-      .setDescription(
-        `Sayın <@${courtCase.defendantId}>,\n\n` +
-        `Hakkınızda **${courtCase.lawArticle} (${courtCase.lawArticleTitle})** kapsamında Savcılık İddianamesi kabul edilmiş ve dava açılmıştır.\n\n` +
-        `📂 **${courtCase.investigationNo}** (\`${courtCase.caseCode}\`)\n` +
-        `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
-        `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n` +
-        `🏛️ **Mahkeme Salonu:** <#${trialChannel?.id || 'Mahkeme Salonu'}>\n` +
-        (trialLink ? `🔗 **Duruşma Kanal Linki:** [📂 Duruşma Salonuna Katıl / Giriş Yap](${trialLink})\n\n` : '\n') +
-        `📋 **İddianame Özeti:** ${indictmentText}\n\n` +
-        `*Savunmanızı hazırlamanız ve bir avukat tayin etmeniz önemle rica olunur. Duruşmada mazeretsiz bulunmamanız halinde gıyabi yargılama yapılacaktır.*`
-      )
-      .setColor(0xed4245)
-      .setTimestamp();
-
-    await defendantUser.send({ embeds: [summonsEmbed] }).catch(() => {});
-  }
-
   // Send Trial Panel to channel
   const trialEmbed = new EmbedBuilder()
     .setTitle(`⚖️ MAHKEME SALONU — Duruşma Başladı (${caseCode})`)
@@ -471,28 +509,54 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
       `📋 **İddianame:** ${indictmentText}\n` +
       (trialLink ? `🔗 **Kanal Giriş Linki:** [${trialLink}](${trialLink})\n\n` : '\n') +
       (isTekerrur ? `⚠️ **TEKERRÜR UYARISI:** Sanığın geçmişte **${pastRecords.length} adet** sabıka kaydı bulunmaktadır! Yaptırım katlanarak uygulanacaktır.\n\n` : '') +
-      `📜 **Resmi Tebligat Sanığa DM İle Gönderilmiştir.**`
+      `📜 **Resmi Tebligat Taraflara DM İle Gönderilmiştir.**`
     )
     .setColor(0xd4af37);
 
   const controlRow1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`court_hire_lawyer_${caseCode}`).setLabel('💼 Avukat Tut / Ata').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`court_jury_start_${caseCode}`).setLabel('📊 Jüri Oylaması Başlat').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`court_send_contract_${caseCode}`).setLabel('📜 SÖZLEŞMEYİ İMZALAT').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`court_jury_start_${caseCode}`).setLabel('📊 Jüri Oylaması').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`court_witness_${caseCode}`).setLabel('🕵️ Şahit Çağır').setStyle(ButtonStyle.Secondary)
   );
 
   const controlRow2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`court_precaution_toggle_${caseCode}`).setLabel('🚨 İhtiyati Tedbir (Sohbet Hapsi)').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`court_bribe_${caseCode}`).setLabel('💸 Gizli Rüşvet Teklif Et').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`court_precaution_toggle_${caseCode}`).setLabel('🚨 İhtiyati Tedbir').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`court_bribe_${caseCode}`).setLabel('💸 Rüşvet Teklifi').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`court_verdict_${caseCode}`).setLabel('⚖️ Karar Açıkla / Hüküm Ver').setStyle(ButtonStyle.Success)
   );
 
   if (trialChannel) {
     await trialChannel.send({ embeds: [trialEmbed], components: [controlRow1, controlRow2] });
+
+    // Send DM Notification with URL Button to both Davacı and Davalı
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      courtCase.plaintiffId,
+      '⚖️ Dava Duruşması Başladı!',
+      `**${courtCase.investigationNo}** (\`${courtCase.caseCode}\`) dosyasında İddianame kabul edilmiş ve mahkeme duruşması başlamıştır.\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n\n` +
+      `Aşağıdaki **"📂 Soruşturma / Dava Kanalına Git"** butonuna tıklayarak duruşma salonuna katılabilirsiniz.`,
+      trialLink
+    );
+
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      courtCase.defendantId,
+      '⚖️ RESMİ TEBLİGAT & MAHKEME DURUŞMASI',
+      `Hakkınızda **${courtCase.lawArticle} (${courtCase.lawArticleTitle})** kapsamında Savcılık İddianamesi kabul edilmiş ve duruşma açılmıştır.\n\n` +
+      `📂 **Dosya:** ${courtCase.investigationNo} (\`${courtCase.caseCode}\`)\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n` +
+      `📋 **İddianame Özeti:** ${indictmentText}\n\n` +
+      `Aşağıdaki **"📂 Soruşturma / Dava Kanalına Git"** butonuna tıklayarak duruşma salonuna katılabilir ve savunmanızı sunabilirsiniz.`,
+      trialLink
+    );
   }
 
   return safeReply(interaction, {
-    content: `✅ İddianame kabul edildi! Resmi tebligat DM ile sanığa yollandı ve duruşma kanalı açıldı:\n` +
+    content: `✅ İddianame kabul edildi! Resmi tebligat DM ile taraflara yollandı ve duruşma kanalı açıldı:\n` +
       `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
       `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n` +
       `🏛️ **Duruşma Kanalı:** <#${trialChannel?.id}> | [📂 Kanala Giriş Yap / Katıl](${trialLink})`,
@@ -552,11 +616,12 @@ async function sendToSettlement(interaction, caseCode) {
   courtCase.phase = 'settlement';
   await courtCase.save();
 
+  // HIDE FROM @EVERYONE STRICTLY
   const category = await getOrCreateCourtCategory(guild);
   const overwrites = [
     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-    { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-    { id: courtCase.defendantId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+    { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    { id: courtCase.defendantId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
   ];
 
   const settleChannel = await guild.channels.create({
@@ -588,10 +653,33 @@ async function sendToSettlement(interaction, caseCode) {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`court_settle_agree_${caseCode}`).setLabel('🤝 Uzlaşmayı Kabul Et (Dava Düşsün)').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`court_send_contract_${caseCode}`).setLabel('📜 SÖZLEŞMEYİ İMZALAT').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`court_settle_reject_${caseCode}`).setLabel('❌ Uzlaşmayı Reddet (Mahkemeye Git)').setStyle(ButtonStyle.Danger)
     );
 
     await settleChannel.send({ embeds: [embed], components: [row] });
+
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      courtCase.plaintiffId,
+      '🤝 Uzlaştırma Bürosu Görüşmesi Başladı',
+      `Dosya **${courtCase.investigationNo}** Uzlaştırma Bürosuna sevk edilmiştir.\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı:** <@${courtCase.defendantId}>\n\n` +
+      `Aşağıdaki butona tıklayarak uzlaşma kanalına katılabilirsiniz.`,
+      settleLink
+    );
+
+    await notifyPartyWithChannelLink(
+      interaction.client,
+      courtCase.defendantId,
+      '🤝 Uzlaştırma Bürosu Görüşmesi Başladı',
+      `Dosya **${courtCase.investigationNo}** Uzlaştırma Bürosuna sevk edilmiştir.\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı:** <@${courtCase.defendantId}>\n\n` +
+      `Aşağıdaki butona tıklayarak uzlaşma kanalına katılabilirsiniz.`,
+      settleLink
+    );
   }
 
   return safeReply(interaction, {
@@ -874,6 +962,181 @@ async function applyVerdict(interaction, caseCode, verdictType, verdictNote = ''
   return safeReply(interaction, { embeds: [verdictEmbed], components: [appealRow] });
 }
 
+/**
+ * Sends agreement contract to defendant via DM for digital signature
+ */
+async function sendContractToDM(interaction, caseCode, terms) {
+  const guild = interaction.guild;
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
+
+  const isStaff = interaction.member && (
+    interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+    interaction.member.permissions.has(PermissionFlagsBits.Administrator)
+  );
+
+  if (!isStaff) {
+    return safeReply(interaction, { content: '❌ Bu işlemi sadece yetkili / yöneticiler gerçekleştirebilir.', ephemeral: true });
+  }
+
+  courtCase.contract = {
+    terms,
+    status: 'pending_signature',
+    sentBy: interaction.user.id,
+    createdAt: new Date()
+  };
+  await courtCase.save();
+
+  const defendantUser = await interaction.client.users.fetch(courtCase.defendantId).catch(() => null);
+  if (!defendantUser) {
+    return safeReply(interaction, { content: '❌ Davalı kullanıcıya DM gönderilemedi (Kullanıcı bulunamadı).', ephemeral: true });
+  }
+
+  const contractEmbed = new EmbedBuilder()
+    .setTitle(`📜 RESMİ UZLAŞMA & MAHKEME SÖZLEŞMESİ — ${courtCase.caseCode}`)
+    .setDescription(
+      `Sayın <@${courtCase.defendantId}>,\n\n` +
+      `Mahkeme Heyeti / Yetkili <@${interaction.user.id}> tarafından davanız için resmi sözleşme metni hazırlanmıştır:\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı (Sanık):** <@${courtCase.defendantId}>\n\n` +
+      `📝 **SÖZLEŞME ŞARTLARI VE HÜKÜMLER:**\n\`\`\`${terms}\`\`\`\n\n` +
+      `*Aşağıdaki butonları kullanarak sözleşmeyi dijital olarak imzalayabilir veya reddedebilirsiniz. İmzalamanız halinde dava dostane olarak kapatılacaktır.*`
+    )
+    .setColor(0x3498db)
+    .setTimestamp();
+
+  const signRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`court_sign_contract_accept_${courtCase.caseCode}`)
+      .setLabel('🖋️ Sözleşmeyi İmzala & Kabul Et')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`court_sign_contract_reject_${courtCase.caseCode}`)
+      .setLabel('❌ Reddet')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  let dmSent = false;
+  await defendantUser.send({ embeds: [contractEmbed], components: [signRow] })
+    .then(() => { dmSent = true; })
+    .catch(() => { dmSent = false; });
+
+  if (!dmSent) {
+    return safeReply(interaction, { content: '❌ Davalının DM kutusu kapalı olduğu için sözleşme iletilemedi!', ephemeral: true });
+  }
+
+  const channelEmbed = new EmbedBuilder()
+    .setTitle(`📜 SÖZLEŞME HAZIRLANDI VE DM İLE GÖNDERİLDİ`)
+    .setDescription(
+      `Yetkili <@${interaction.user.id}> tarafından sözleşme hazırlanıp sanık <@${courtCase.defendantId}> kullanıcısına DM ile iletilmiştir.\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı:** <@${courtCase.defendantId}>\n` +
+      `📝 **Sözleşme Metni:**\n\`\`\`${terms}\`\`\`\n\n` +
+      `⏳ *Sanığın DM üzerinden onay imzası bekleniyor...*`
+    )
+    .setColor(0xf1c40f);
+
+  if (guild) {
+    const chan = guild.channels.cache.get(courtCase.channelId);
+    if (chan && chan.isTextBased()) {
+      await chan.send({ embeds: [channelEmbed] }).catch(() => {});
+    }
+  }
+
+  return safeReply(interaction, { content: `✅ Sözleşme başarıyla <@${courtCase.defendantId}> kullanıcısına DM ile yollandı!`, ephemeral: true });
+}
+
+/**
+ * Handles defendant clicking "Sözleşmeyi İmzala" or "Reddet" in DM
+ */
+async function handleContractSignature(interaction, caseCode, isAccepted) {
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase || !courtCase.contract) {
+    return safeReply(interaction, { content: '❌ Sözleşme dosyası veya dava bulunamadı.', ephemeral: true });
+  }
+
+  if (interaction.user.id !== courtCase.defendantId) {
+    return safeReply(interaction, { content: '❌ Bu sözleşmeyi sadece davanın sanığı/davalısı imzalayabilir!', ephemeral: true });
+  }
+
+  if (courtCase.contract.status === 'signed' || courtCase.contract.status === 'rejected') {
+    return safeReply(interaction, { content: `⚠️ Bu sözleşme zaten **${courtCase.contract.status === 'signed' ? 'İmzalandı' : 'Reddedildi'}**.`, ephemeral: true });
+  }
+
+  const terms = courtCase.contract.terms || 'Belirtilmedi';
+
+  if (isAccepted) {
+    courtCase.contract.status = 'signed';
+    courtCase.status = 'closed';
+    courtCase.phase = 'closed';
+    courtCase.verdict = 'acquitted';
+    courtCase.verdictNote = `Taraflar dijital sözleşmeyi imzalayarak uzlaştı: ${terms}`;
+    await courtCase.save();
+
+    const signedDmEmbed = new EmbedBuilder()
+      .setTitle('🖋️ SÖZLEŞME BAŞARIYLA İMZALANDI')
+      .setDescription(
+        `Sayın <@${interaction.user.id}>,\n\n` +
+        `Sözleşmeyi dijital olarak imzaladınız ve kabul ettiniz! Dava kapandı ve mahkeme kaydı güncellendi.\n\n` +
+        `📝 **İmzalanan Şartlar:**\n\`\`\`${terms}\`\`\``
+      )
+      .setColor(0x2ecc71)
+      .setTimestamp();
+
+    await interaction.update({ embeds: [signedDmEmbed], components: [] }).catch(() => {});
+
+    // Notify lawsuit channel across guild
+    if (interaction.client) {
+      for (const g of interaction.client.guilds.cache.values()) {
+        const chan = g.channels.cache.get(courtCase.channelId);
+        if (chan && chan.isTextBased()) {
+          const chanEmbed = new EmbedBuilder()
+            .setTitle('🎉 SÖZLEŞME İMZALANDI — DAVA DÜŞÜRÜLDÜ')
+            .setDescription(
+              `Sanık / Davalı <@${courtCase.defendantId}> DM üzerinden sözleşmeyi dijital olarak **İMZALADI**!\n\n` +
+              `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+              `👤 **Davalı (Sanık):** <@${courtCase.defendantId}>\n\n` +
+              `📝 **İmzalanan Resmi Sözleşme Metni:**\n\`\`\`${terms}\`\`\`\n\n` +
+              `*Dava uzlaşma ile sonuçlandı ve dosya kapatıldı.*`
+            )
+            .setColor(0x2ecc71)
+            .setTimestamp();
+
+          await chan.send({ embeds: [chanEmbed] }).catch(() => {});
+        }
+      }
+    }
+  } else {
+    courtCase.contract.status = 'rejected';
+    await courtCase.save();
+
+    const rejectedDmEmbed = new EmbedBuilder()
+      .setTitle('❌ SÖZLEŞME İMZASI REDDEDİLDİ')
+      .setDescription(`Sözleşme teklifini reddettiniz. Yargılama süreci mahkeme salonunda devam edecektir.`)
+      .setColor(0xe74c3c)
+      .setTimestamp();
+
+    await interaction.update({ embeds: [rejectedDmEmbed], components: [] }).catch(() => {});
+
+    if (interaction.client) {
+      for (const g of interaction.client.guilds.cache.values()) {
+        const chan = g.channels.cache.get(courtCase.channelId);
+        if (chan && chan.isTextBased()) {
+          const chanEmbed = new EmbedBuilder()
+            .setTitle('⚠️ SÖZLEŞME REDDEDİLDİ')
+            .setDescription(
+              `Davalı <@${courtCase.defendantId}> sunulan sözleşmeyi **REDDETTİ**.\n` +
+              `Duruşma ve yargılama süreci kaldığı yerden devam etmektedir.`
+            )
+            .setColor(0xe74c3c);
+
+          await chan.send({ embeds: [chanEmbed] }).catch(() => {});
+        }
+      }
+    }
+  }
+}
+
 async function handleCourtMessageCount(message) {
   if (!message || message.author.bot || !message.guild) return;
   const userId = message.author.id;
@@ -914,5 +1177,7 @@ module.exports = {
   offerBribe,
   exposeBribe,
   applyVerdict,
-  handleCourtMessageCount
+  handleCourtMessageCount,
+  sendContractToDM,
+  handleContractSignature
 };
