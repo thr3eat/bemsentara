@@ -59,3 +59,24 @@ test('User criminal record and Örnek Vatandaş tracking', async () => {
   embed = await getSabikaKaydi(testUserId);
   assert.match(embed.data.description, /SABIKA KAYDI VAR/);
 });
+
+test('CourtCase flexible caseCode lookup (case-insensitive and prefix tolerant)', async () => {
+  const num = Math.floor(100000 + Math.random() * 900000);
+  const code = `DAVA-${num}`;
+  await CourtCase.create({
+    caseCode: code,
+    plaintiffId: '999111',
+    defendantId: '888222',
+    reason: 'Test case lookup'
+  });
+
+  const match1 = await CourtCase.findOne({ caseCode: code });
+  assert.ok(match1);
+
+  const match2 = await CourtCase.findOne({ caseCode: `dava-${num}` });
+  assert.ok(match2);
+
+  const match3 = await CourtCase.findOne({ caseCode: `${num}` });
+  assert.ok(match3);
+});
+

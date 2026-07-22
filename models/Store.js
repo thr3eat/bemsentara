@@ -84,6 +84,10 @@ class InMemoryCollection {
       const b = value;
       if (key === "discordId" || key === "robloxId" || key === "_id") {
         if (String(a) !== String(b)) return false;
+      } else if (key === "caseCode" || key === "caseId") {
+        const normA = String(a || "").trim().toUpperCase().replace(/^DAVA-?/, "");
+        const normB = String(b || "").trim().toUpperCase().replace(/^DAVA-?/, "");
+        if (normA !== normB) return false;
       } else if (a !== b) {
         return false;
       }

@@ -198,11 +198,70 @@ async function setupCourtTriggerButton(client) {
 }
 
 /**
+ * Safe helper to reply or editReply depending on interaction state
+ */
+async function safeReply(interaction, options) {
+  try {
+    if (!interaction) return null;
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.editReply(options).catch(() => {});
+    } else {
+      return await interaction.reply(options).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[courtService] safeReply error:', err.message);
+  }
+}
+
+/**
+ * Finds court case flexibly by code, ignoring case-sensitivity and DAVA- prefix variations
+ */
+async function findCourtCase(caseCode) {
+  if (!caseCode) return null;
+  const raw = String(caseCode).trim();
+  let c = await CourtCase.findOne({ caseCode: raw });
+  if (!c) {
+    c = await CourtCase.findOne({ caseCode: raw.toUpperCase() });
+  }
+  if (!c && !raw.toUpperCase().startsWith('DAVA-')) {
+    c = await CourtCase.findOne({ caseCode: `DAVA-${raw.toUpperCase()}` });
+  }
+  return c;
+}
+
+/**
+ * Ensures all court and lawsuit channels are placed under "EKO YILDIZ SORUŞTURMALAR" category
+ */
+async function getOrCreateCourtCategory(guild) {
+  if (!guild) return null;
+  const COURT_CATEGORY_ID = '1523809020115419147';
+  let category = guild.channels.cache.get(COURT_CATEGORY_ID);
+  if (!category) {
+    category = guild.channels.cache.find(c =>
+      c.type === ChannelType.GuildCategory &&
+      (
+        c.name.toLowerCase().includes('soruşturma') ||
+        c.name.toLowerCase().includes('eko yıldız') ||
+        c.name.toLowerCase().includes('mahkeme')
+      )
+    );
+  }
+  if (!category) {
+    category = await guild.channels.create({
+      name: '📂 EKO YILDIZ SORUŞTURMALAR',
+      type: ChannelType.GuildCategory,
+      reason: 'Mahkeme & Dava kanalları için oluşturuldu.'
+    }).catch(() => null);
+  }
+  return category;
+}
+
+/**
  * 🏢 1. Savcılık Evresi & Gizli Soruşturma Dosyası Oluşturma
  */
 async function filePetition(interaction, { defendantInput, articleKey, details, evidence, requestedPenalty }) {
   const guild = interaction.guild;
-  if (!guild) return interaction.editReply({ content: '❌ Sunucu bulunamadı.' });
+  if (!guild) return safeReply(interaction, { content: '❌ Sunucu bulunamadı.', ephemeral: true });
 
   let targetUserId = defendantInput.replace(/[<@!>]/g, '').trim();
   if (!/^\d+$/.test(targetUserId)) {
@@ -213,7 +272,7 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
     if (member) {
       targetUserId = member.id;
     } else {
-      return interaction.editReply({ content: `❌ Şüpheli kullanıcı ID veya kullanıcı adı bulunamadı: \`${defendantInput}\`` });
+      return safeReply(interaction, { content: `❌ Şüpheli kullanıcı ID veya kullanıcı adı bulunamadı: \`${defendantInput}\``, ephemeral: true });
     }
   }
 
@@ -241,7 +300,9 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
     requestedPenalty: requestedPenalty || article.penalty
   });
 
-  // Find or create #gizli-soruşturma channel
+  const category = await getOrCreateCourtCategory(guild);
+
+  // Find or create #gizli-soruşturma channel under EKO YILDIZ SORUŞTURMALAR category
   let secrecyChannel = guild.channels.cache.find(c => c.name.includes('gizli-sorusturma') || c.name.includes('gizli-soruşturma'));
   if (!secrecyChannel) {
     const roles = await ensureCourtRoles(guild);
@@ -254,20 +315,26 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
     secrecyChannel = await guild.channels.create({
       name: '🕵️-gizli-soruşturma',
       type: ChannelType.GuildText,
+      parent: category ? category.id : null,
       permissionOverwrites: overwrites,
       reason: 'Savcılık gizli soruşturma dosyaları için oluşturuldu.'
     }).catch(() => null);
+  } else if (category && secrecyChannel.parentId !== category.id) {
+    await secrecyChannel.setParent(category.id, { lockPermissions: false }).catch(() => {});
   }
+
+  const channelLink = secrecyChannel ? `https://discord.com/channels/${guild.id}/${secrecyChannel.id}` : '';
 
   const prosecutionEmbed = new EmbedBuilder()
     .setTitle(`🕵️ GİZLİ SORUŞTURMA DOSYASI — ${investigationNo}`)
     .setDescription(
       `**Dava Kodu:** \`${caseCode}\`\n` +
-      `**İhbar Eden (Davacı):** <@${interaction.user.id}>\n` +
-      `**Şüpheli (Davalı):** <@${targetUserId}> *(Şüpheliye henüz tebligat gitmedi - Soruşturma Gizli)*\n\n` +
+      `👤 **İhbar Eden (Davacı):** <@${interaction.user.id}>\n` +
+      `👤 **Şüpheli (Davalı):** <@${targetUserId}> *(Şüpheliye henüz tebligat gitmedi - Soruşturma Gizli)*\n\n` +
       `📖 **Suçlama:** ${article.code} - ${article.title}\n` +
       `📋 **Detay:** ${details}\n` +
-      `📸 **Kanıtlar:** ${evidence}`
+      `📸 **Kanıtlar:** ${evidence}\n\n` +
+      (secrecyChannel ? `🏛️ **Soruşturma Kanalı:** <#${secrecyChannel.id}>\n🔗 **Kanal Giriş Linki:** [📂 Kanala Giriş Yap / Katıl](${channelLink})` : '')
     )
     .setColor(0xe67e22)
     .setFooter({ text: 'Savcılık Makamı kanıtları inceleyip KYOK veya İddianame kararı verecektir.' })
@@ -288,8 +355,11 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
       .setStyle(ButtonStyle.Secondary)
   );
 
-  await interaction.editReply({
-    content: `✅ Dilekçeniz **${investigationNo}** ile Savcılık Makamına ulaştı. Gizli soruşturma başlatıldı!`,
+  await safeReply(interaction, {
+    content: `✅ Dilekçeniz **${investigationNo}** (\`${caseCode}\`) ile Savcılık Makamına ulaştı. Gizli soruşturma başlatıldı!\n\n` +
+      `👤 **Davacı:** <@${interaction.user.id}>\n` +
+      `👤 **Davalı (Şüpheli):** <@${targetUserId}>\n` +
+      (secrecyChannel ? `🏛️ **Soruşturma Kanalı:** <#${secrecyChannel.id}>\n🔗 **Kanal Giriş Linki:** [📂 Kanala Giriş Yap / Katıl](${channelLink})` : ''),
     ephemeral: true
   });
 
@@ -302,8 +372,8 @@ async function filePetition(interaction, { defendantInput, articleKey, details, 
  * 🏢 Takipsizlik (KYOK - Kovuşturmaya Yer Yoktur) Kararı
  */
 async function issueKYOK(interaction, caseCode, reason = 'Kanıt Yetersizliği') {
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   courtCase.phase = 'kyok';
   courtCase.status = 'rejected';
@@ -314,12 +384,14 @@ async function issueKYOK(interaction, caseCode, reason = 'Kanıt Yetersizliği')
     .setTitle(`❌ TAKİPSİZLİK KARARI (KYOK) — ${courtCase.investigationNo}`)
     .setDescription(
       `Savcılık Makamı incelemesi sonucunda ihbar edilen konu hakkında **Kovuşturmaya Yer Yoktur (KYOK)** kararı verilmiştir.\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı (Şüpheli):** <@${courtCase.defendantId}>\n` +
       `**Gerekçe:** ${reason}\n` +
       `Dosya işlemden kaldırılmış ve kapatılmıştır.`
     )
     .setColor(0x7f8c8d);
 
-  return interaction.reply({ embeds: [kyokEmbed] });
+  return safeReply(interaction, { embeds: [kyokEmbed] });
 }
 
 /**
@@ -327,8 +399,8 @@ async function issueKYOK(interaction, caseCode, reason = 'Kanıt Yetersizliği')
  */
 async function issueIndictment(interaction, caseCode, indictmentText) {
   const guild = interaction.guild;
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   courtCase.phase = 'trial';
   courtCase.status = 'court_active';
@@ -336,14 +408,8 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
   courtCase.summonsSentAt = new Date();
   await courtCase.save();
 
-  // Create Trial Channel #dava-caseCode
-  let category = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toUpperCase().includes('MAHKEME'));
-  if (!category) {
-    category = await guild.channels.create({
-      name: '⚖️ MAHKEME SALONU',
-      type: ChannelType.GuildCategory
-    }).catch(() => null);
-  }
+  // Create Trial Channel #dava-caseCode under EKO YILDIZ SORUŞTURMALAR category
+  const category = await getOrCreateCourtCategory(guild);
 
   const roles = await ensureCourtRoles(guild);
   const overwrites = [
@@ -366,6 +432,8 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
     await courtCase.save();
   }
 
+  const trialLink = trialChannel ? `https://discord.com/channels/${guild.id}/${trialChannel.id}` : '';
+
   // Check Sabıka Kaydı for Tekerrür Suçu
   const targetDbUser = await User.findOne({ discordId: courtCase.defendantId });
   const pastRecords = targetDbUser?.criminalRecord || [];
@@ -379,8 +447,11 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
       .setDescription(
         `Sayın <@${courtCase.defendantId}>,\n\n` +
         `Hakkınızda **${courtCase.lawArticle} (${courtCase.lawArticleTitle})** kapsamında Savcılık İddianamesi kabul edilmiş ve dava açılmıştır.\n\n` +
-        `📂 **${courtCase.investigationNo}**\n` +
+        `📂 **${courtCase.investigationNo}** (\`${courtCase.caseCode}\`)\n` +
+        `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+        `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n` +
         `🏛️ **Mahkeme Salonu:** <#${trialChannel?.id || 'Mahkeme Salonu'}>\n` +
+        (trialLink ? `🔗 **Duruşma Kanal Linki:** [📂 Duruşma Salonuna Katıl / Giriş Yap](${trialLink})\n\n` : '\n') +
         `📋 **İddianame Özeti:** ${indictmentText}\n\n` +
         `*Savunmanızı hazırlamanız ve bir avukat tayin etmeniz önemle rica olunur. Duruşmada mazeretsiz bulunmamanız halinde gıyabi yargılama yapılacaktır.*`
       )
@@ -396,8 +467,9 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
     .setDescription(
       `**${courtCase.investigationNo}**\n` +
       `**Suçlama:** ${courtCase.lawArticle} - ${courtCase.lawArticleTitle}\n` +
-      `**Davacı:** <@${courtCase.plaintiffId}> | **Sanık:** <@${courtCase.defendantId}>\n\n` +
-      `📋 **İddianame:** ${indictmentText}\n\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}> | 👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n\n` +
+      `📋 **İddianame:** ${indictmentText}\n` +
+      (trialLink ? `🔗 **Kanal Giriş Linki:** [${trialLink}](${trialLink})\n\n` : '\n') +
       (isTekerrur ? `⚠️ **TEKERRÜR UYARISI:** Sanığın geçmişte **${pastRecords.length} adet** sabıka kaydı bulunmaktadır! Yaptırım katlanarak uygulanacaktır.\n\n` : '') +
       `📜 **Resmi Tebligat Sanığa DM İle Gönderilmiştir.**`
     )
@@ -419,7 +491,13 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
     await trialChannel.send({ embeds: [trialEmbed], components: [controlRow1, controlRow2] });
   }
 
-  return interaction.reply({ content: `✅ İddianame kabul edildi! Resmi tebligat DM ile sanığa yollandı ve duruşma kanalı açıldı: <#${trialChannel?.id}>`, ephemeral: true });
+  return safeReply(interaction, {
+    content: `✅ İddianame kabul edildi! Resmi tebligat DM ile sanığa yollandı ve duruşma kanalı açıldı:\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n` +
+      `🏛️ **Duruşma Kanalı:** <#${trialChannel?.id}> | [📂 Kanala Giriş Yap / Katıl](${trialLink})`,
+    ephemeral: true
+  });
 }
 
 /**
@@ -427,8 +505,8 @@ async function issueIndictment(interaction, caseCode, indictmentText) {
  */
 async function applyPrecautionaryMeasure(interaction, caseCode, measureType) {
   const guild = interaction.guild;
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   const roles = await ensureCourtRoles(guild);
   const defendantMember = await guild.members.fetch(courtCase.defendantId).catch(() => null);
@@ -441,10 +519,10 @@ async function applyPrecautionaryMeasure(interaction, caseCode, measureType) {
     if (defendantMember && roles['İhtiyati Tedbir']) {
       if (!isRestricted) {
         await defendantMember.roles.add(roles['İhtiyati Tedbir']).catch(() => {});
-        return interaction.reply({ content: `🚨 Sanık <@${courtCase.defendantId}> hakkında **İhtiyati Tedbir (Sohbet Hapsi)** uygulandı. Dava bitene kadar genel kanallara yazamaz!`, ephemeral: false });
+        return safeReply(interaction, { content: `🚨 Sanık <@${courtCase.defendantId}> (Davacı: <@${courtCase.plaintiffId}>) hakkında **İhtiyati Tedbir (Sohbet Hapsi)** uygulandı. Dava bitene kadar genel kanallara yazamaz!`, ephemeral: false });
       } else {
         await defendantMember.roles.remove(roles['İhtiyati Tedbir']).catch(() => {});
-        return interaction.reply({ content: `✅ Sanık <@${courtCase.defendantId}> üzerindeki İhtiyati Tedbir kaldırıldı.`, ephemeral: false });
+        return safeReply(interaction, { content: `✅ Sanık <@${courtCase.defendantId}> üzerindeki İhtiyati Tedbir kaldırıldı.`, ephemeral: false });
       }
     }
   }
@@ -456,10 +534,10 @@ async function applyPrecautionaryMeasure(interaction, caseCode, measureType) {
 
     const embed = new EmbedBuilder()
       .setTitle('📢 RESMİ YAYIN YASAĞI KARARI')
-      .setDescription(`Dava konusu **${caseCode}** hakkındaki olayların genel sohbette tartışılması Mahkeme kararıyla **YASAKLANMIŞTIR**. İhlal edenler Mahkemeye Hakaret (Madde 301) ile cezalandırılacaktır.`)
+      .setDescription(`Dava konusu **${caseCode}** (Davacı: <@${courtCase.plaintiffId}> | Davalı: <@${courtCase.defendantId}>) hakkındaki olayların genel sohbette tartışılması Mahkeme kararıyla **YASAKLANMIŞTIR**. İhlal edenler Mahkemeye Hakaret (Madde 301) ile cezalandırılacaktır.`)
       .setColor(0xed4245);
 
-    return interaction.reply({ embeds: [embed] });
+    return safeReply(interaction, { embeds: [embed] });
   }
 }
 
@@ -468,13 +546,13 @@ async function applyPrecautionaryMeasure(interaction, caseCode, measureType) {
  */
 async function sendToSettlement(interaction, caseCode) {
   const guild = interaction.guild;
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   courtCase.phase = 'settlement';
   await courtCase.save();
 
-  // Create #uzlaştırma-caseCode channel
+  const category = await getOrCreateCourtCategory(guild);
   const overwrites = [
     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: courtCase.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
@@ -484,9 +562,12 @@ async function sendToSettlement(interaction, caseCode) {
   const settleChannel = await guild.channels.create({
     name: `uzlaşma-${caseCode.toLowerCase()}`,
     type: ChannelType.GuildText,
+    parent: category ? category.id : null,
     permissionOverwrites: overwrites,
     reason: 'Uzlaştırma Bürosu görüşmesi için oluşturuldu.'
   }).catch(() => null);
+
+  const settleLink = settleChannel ? `https://discord.com/channels/${guild.id}/${settleChannel.id}` : '';
 
   if (settleChannel) {
     courtCase.settlement.settlementChannelId = settleChannel.id;
@@ -498,6 +579,9 @@ async function sendToSettlement(interaction, caseCode) {
       .setDescription(
         `Sayın Davacı <@${courtCase.plaintiffId}> ve Davalı <@${courtCase.defendantId}>,\n\n` +
         `Olay mahkemeye intikal etmeden önce **Uzlaştırma Bürosunda** buluşturuluyorsunuz.\n` +
+        `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+        `👤 **Davalı:** <@${courtCase.defendantId}>\n` +
+        (settleLink ? `🔗 **Uzlaşma Kanal Linki:** [📂 Kanala Giriş Yap / Katıl](${settleLink})\n\n` : '\n') +
         `Suçlu taraf özür dileyerek veya mağdurun kabul edeceği sembolik bir şartı (Örn: Özür mesajı, maça davet, 50 Coin aktarımı) yerine getirerek davayı tatlıya bağlayabilir.`
       )
       .setColor(0x3498db);
@@ -510,18 +594,24 @@ async function sendToSettlement(interaction, caseCode) {
     await settleChannel.send({ embeds: [embed], components: [row] });
   }
 
-  return interaction.reply({ content: `🤝 Dosya Uzlaştırma Bürosuna sevk edildi! Kanal: <#${settleChannel?.id}>`, ephemeral: true });
+  return safeReply(interaction, {
+    content: `🤝 Dosya Uzlaştırma Bürosuna sevk edildi!\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı:** <@${courtCase.defendantId}>\n` +
+      `🏛️ **Uzlaşma Kanalı:** <#${settleChannel?.id}> | [📂 Kanala Katıl / Git](${settleLink})`,
+    ephemeral: true
+  });
 }
 
 /**
  * ⚖️ 4. İtiraz Mekanizması (İstinaf ve Anayasa Mahkemesi AYM)
  */
 async function applyAppeal(interaction, caseCode, appealLevel, reason) {
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   if (courtCase.status !== 'closed') {
-    return interaction.reply({ content: '⚠️ Yalnızca karara bağlanmış kapatılmış davalar için itiraz edilebilir.', ephemeral: true });
+    return safeReply(interaction, { content: '⚠️ Yalnızca karara bağlanmış kapatılmış davalar için itiraz edilebilir.', ephemeral: true });
   }
 
   if (!courtCase.appeals) courtCase.appeals = [];
@@ -543,6 +633,8 @@ async function applyAppeal(interaction, caseCode, appealLevel, reason) {
     .setTitle(title)
     .setDescription(
       `**Dava Kodu:** \`${caseCode}\`\n` +
+      `👤 **Davacı:** <@${courtCase.plaintiffId}>\n` +
+      `👤 **Davalı:** <@${courtCase.defendantId}>\n` +
       `**İtiraz Eden:** <@${interaction.user.id}>\n` +
       `**İtiraz Gerekçesi:** ${reason}\n\n` +
       (appealLevel === 'aym'
@@ -552,7 +644,7 @@ async function applyAppeal(interaction, caseCode, appealLevel, reason) {
     .setColor(appealLevel === 'aym' ? 0xd4af37 : 0x3498db)
     .setTimestamp();
 
-  return interaction.reply({ embeds: [embed] });
+  return safeReply(interaction, { embeds: [embed] });
 }
 
 /**
@@ -594,8 +686,8 @@ async function rejectCase(interaction, caseCode) {
 }
 
 async function hireLawyer(interaction, caseCode, targetLawyerId, isBlackmarket = false) {
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   courtCase.lawyerId = targetLawyerId;
   courtCase.isBlackmarketLawyer = isBlackmarket;
@@ -609,22 +701,22 @@ async function hireLawyer(interaction, caseCode, targetLawyerId, isBlackmarket =
   const title = isBlackmarket ? '🕵️ Karaborsa Avukat Savunmaya Katıldı!' : '💼 Resmi Avukat Duruşmaya Katıldı!';
   const embed = new EmbedBuilder()
     .setTitle(title)
-    .setDescription(`<@${targetLawyerId}> sanık <@${courtCase.defendantId}> tarafını savunmak üzere davaya dahil oldu.`)
+    .setDescription(`👤 **Davacı:** <@${courtCase.plaintiffId}>\n👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n<@${targetLawyerId}> sanık tarafını savunmak üzere davaya dahil oldu.`)
     .setColor(isBlackmarket ? 0x9b59b6 : 0x3498db);
 
-  return interaction.reply({ embeds: [embed] });
+  return safeReply(interaction, { embeds: [embed] });
 }
 
 async function startJuryVote(interaction, caseCode) {
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   courtCase.juryVote = { active: true, endsAt: new Date(Date.now() + 10 * 60 * 1000), guiltyVotes: [], innocentVotes: [] };
   await courtCase.save();
 
   const pollEmbed = new EmbedBuilder()
     .setTitle(`📊 JÜRİ OYLAMASI BAŞLADI — Dava ${caseCode}`)
-    .setDescription(`Sanık <@${courtCase.defendantId}> hakkında jüri oylaması başladı!\n\n👍 **SUÇLU** | 👎 **SUÇSUZ**`)
+    .setDescription(`👤 **Davacı:** <@${courtCase.plaintiffId}>\n👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\nhakkında jüri oylaması başladı!\n\n👍 **SUÇLU** | 👎 **SUÇSUZ**`)
     .setColor(0x9b59b6);
 
   const voteRow = new ActionRowBuilder().addComponents(
@@ -632,13 +724,13 @@ async function startJuryVote(interaction, caseCode) {
     new ButtonBuilder().setCustomId(`court_vote_innocent_${caseCode}`).setLabel('👎 Suçsuz (Innocent)').setStyle(ButtonStyle.Success)
   );
 
-  return interaction.reply({ embeds: [pollEmbed], components: [voteRow] });
+  return safeReply(interaction, { embeds: [pollEmbed], components: [voteRow] });
 }
 
 async function voteJury(interaction, caseCode, isGuilty) {
-  const courtCase = await CourtCase.findOne({ caseCode });
+  const courtCase = await findCourtCase(caseCode);
   if (!courtCase || !courtCase.juryVote || !courtCase.juryVote.active) {
-    return interaction.reply({ content: '❌ Aktif oylama bulunamadı.', ephemeral: true });
+    return safeReply(interaction, { content: '❌ Aktif oylama bulunamadı.', ephemeral: true });
   }
 
   const userId = interaction.user.id;
@@ -646,7 +738,7 @@ async function voteJury(interaction, caseCode, isGuilty) {
   const innocent = courtCase.juryVote.innocentVotes || [];
 
   if (guilty.includes(userId) || innocent.includes(userId)) {
-    return interaction.reply({ content: '⚠️ Zaten oy kullandınız.', ephemeral: true });
+    return safeReply(interaction, { content: '⚠️ Zaten oy kullandınız.', ephemeral: true });
   }
 
   if (isGuilty) guilty.push(userId); else innocent.push(userId);
@@ -654,15 +746,15 @@ async function voteJury(interaction, caseCode, isGuilty) {
   courtCase.juryVote.innocentVotes = innocent;
   await courtCase.save();
 
-  return interaction.reply({ content: `✅ Oyunuz kaydedildi! (Suçlu: ${guilty.length} | Suçsuz: ${innocent.length})`, ephemeral: true });
+  return safeReply(interaction, { content: `✅ Oyunuz kaydedildi! (Suçlu: ${guilty.length} | Suçsuz: ${innocent.length})`, ephemeral: true });
 }
 
 async function offerBribe(interaction, caseCode, amount) {
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   if (interaction.user.id !== courtCase.defendantId) {
-    return interaction.reply({ content: '❌ Rüşvet teklifini sadece sanık yapabilir!', ephemeral: true });
+    return safeReply(interaction, { content: '❌ Rüşvet teklifini sadece sanık yapabilir!', ephemeral: true });
   }
 
   courtCase.briberyState = { offered: true, amount: Number(amount) || 500, targetId: courtCase.moderatorId, exposed: false };
@@ -670,7 +762,7 @@ async function offerBribe(interaction, caseCode, amount) {
 
   const bribeEmbed = new EmbedBuilder()
     .setTitle('💸 GİZLİ RÜŞVET TEKLİFİ!')
-    .setDescription(`Sanık <@${interaction.user.id}> davanın düşürülmesi karşılığında **${amount} Coin** rüşvet teklif etti!`)
+    .setDescription(`👤 **Davacı:** <@${courtCase.plaintiffId}>\n👤 **Sanık (Davalı):** <@${interaction.user.id}>\ndavanın düşürülmesi karşılığında **${amount} Coin** rüşvet teklif etti!`)
     .setColor(0xe74c3c);
 
   const bribeRow = new ActionRowBuilder().addComponents(
@@ -678,13 +770,13 @@ async function offerBribe(interaction, caseCode, amount) {
     new ButtonBuilder().setCustomId(`court_bribe_expose_${caseCode}`).setLabel('🚨 İFŞA ET (Yolsuzluk Davası)').setStyle(ButtonStyle.Danger)
   );
 
-  return interaction.reply({ embeds: [bribeEmbed], components: [bribeRow], ephemeral: true });
+  return safeReply(interaction, { embeds: [bribeEmbed], components: [bribeRow], ephemeral: true });
 }
 
 async function exposeBribe(interaction, caseCode) {
-  const courtCase = await CourtCase.findOne({ caseCode });
+  const courtCase = await findCourtCase(caseCode);
   if (!courtCase || !courtCase.briberyState || !courtCase.briberyState.offered) {
-    return interaction.reply({ content: '❌ Aktif rüşvet teklifi bulunamadı.', ephemeral: true });
+    return safeReply(interaction, { content: '❌ Aktif rüşvet teklifi bulunamadı.', ephemeral: true });
   }
 
   courtCase.briberyState.exposed = true;
@@ -694,16 +786,16 @@ async function exposeBribe(interaction, caseCode) {
 
   const exposeEmbed = new EmbedBuilder()
     .setTitle('🚨 RÜŞVET VE YOLSUZLUK İFŞALANDI!')
-    .setDescription(`Sanık <@${courtCase.defendantId}> mahkeme heyetine **${courtCase.briberyState.amount} Coin** rüşvet teklif ederken İFŞALANDI! Ceza katlanacaktır!`)
+    .setDescription(`👤 **Davacı:** <@${courtCase.plaintiffId}>\n👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\nmahkeme heyetine **${courtCase.briberyState.amount} Coin** rüşvet teklif ederken İFŞALANDI! Ceza katlanacaktır!`)
     .setColor(0xed4245);
 
-  return interaction.reply({ embeds: [exposeEmbed] });
+  return safeReply(interaction, { embeds: [exposeEmbed] });
 }
 
 async function applyVerdict(interaction, caseCode, verdictType, verdictNote = '') {
   const guild = interaction.guild;
-  const courtCase = await CourtCase.findOne({ caseCode });
-  if (!courtCase) return interaction.reply({ content: '❌ Dava bulunamadı.', ephemeral: true });
+  const courtCase = await findCourtCase(caseCode);
+  if (!courtCase) return safeReply(interaction, { content: '❌ Dava bulunamadı.', ephemeral: true });
 
   const roles = await ensureCourtRoles(guild);
   const defendantMember = await guild.members.fetch(courtCase.defendantId).catch(() => null);
@@ -720,7 +812,7 @@ async function applyVerdict(interaction, caseCode, verdictType, verdictNote = ''
     if (!defUser) defUser = await User.create({ discordId: courtCase.defendantId });
     if (!defUser.criminalRecord) defUser.criminalRecord = [];
     defUser.criminalRecord.push({
-      caseCode,
+      caseCode: courtCase.caseCode,
       lawArticle: courtCase.lawArticle,
       verdict: verdictType,
       date: new Date()
@@ -730,7 +822,7 @@ async function applyVerdict(interaction, caseCode, verdictType, verdictNote = ''
   }
 
   let verdictTitle = '⚖️ MAHKEME KARARI AÇIKLANDI';
-  let verdictDesc = `**Sanık:** <@${courtCase.defendantId}>\n**Gerekçe:** ${verdictNote || 'Mahkeme kararı'}\n\n`;
+  let verdictDesc = `👤 **Davacı:** <@${courtCase.plaintiffId}>\n👤 **Sanık (Davalı):** <@${courtCase.defendantId}>\n**Gerekçe:** ${verdictNote || 'Mahkeme kararı'}\n\n`;
   let embedColor = 0x2ecc71;
 
   if (verdictType === 'acquitted') {
@@ -775,11 +867,11 @@ async function applyVerdict(interaction, caseCode, verdictType, verdictNote = ''
 
   // Add Appeal Buttons (İstinaf & AYM)
   const appealRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`court_appeal_istinaf_${caseCode}`).setLabel('⚖️ İstinaf (İtiraz) Et').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`court_appeal_aym_${caseCode}`).setLabel('🏛️ Anayasa Mahkemesi (AYM)').setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId(`court_appeal_istinaf_${courtCase.caseCode}`).setLabel('⚖️ İstinaf (İtiraz) Et').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`court_appeal_aym_${courtCase.caseCode}`).setLabel('🏛️ Anayasa Mahkemesi (AYM)').setStyle(ButtonStyle.Danger)
   );
 
-  return interaction.reply({ embeds: [verdictEmbed], components: [appealRow] });
+  return safeReply(interaction, { embeds: [verdictEmbed], components: [appealRow] });
 }
 
 async function handleCourtMessageCount(message) {
