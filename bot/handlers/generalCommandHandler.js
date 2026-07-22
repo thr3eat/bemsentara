@@ -3524,13 +3524,81 @@ async function handlePanelCommand(interaction) {
     }
 
     try {
-      return interaction.editReply({
-        content: `✅ **GrupÇekEko** işlemi **${username}** için başlatıldı. Rütbeleri en alta çekiliyor...`
-      });
+      const noblox = require("noblox.js");
+      const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+      const User = require("../../models/User");
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+
+      // Resolve Roblox ID
+      let robloxId = null;
+      let robloxUsername = username;
+      try {
+        robloxId = await noblox.getIdFromUsername(username);
+      } catch (_) { }
+
+      if (!robloxId) {
+        // Try DB lookup
+        const dbUser = await User.findOne({ robloxUsername: { $regex: new RegExp(`^${username}$`, 'i') } });
+        if (dbUser && dbUser.robloxId) {
+          robloxId = parseInt(dbUser.robloxId);
+          robloxUsername = dbUser.robloxUsername || username;
+        }
+      }
+
+      if (!robloxId) {
+        return interaction.editReply({ content: `❌ **${username}** adlı Roblox kullanıcısı bulunamadı.` });
+      }
+
+      const logs = [];
+      const savedRanks = {};
+
+      for (const [groupId, groupName] of Object.entries(ROBLOX_GROUPS)) {
+        try {
+          const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxId);
+          if (rankInGroup > 0) {
+            const roles = await noblox.getRoles(parseInt(groupId));
+            const lowest = roles.filter(r => r.rank > 0).sort((a, b) => a.rank - b.rank)[0];
+            if (lowest && rankInGroup !== lowest.rank) {
+              savedRanks[groupId] = { oldRank: rankInGroup };
+              await noblox.setRank({ group: parseInt(groupId), target: robloxId, rank: lowest.rank });
+              logs.push(`✅ **${groupName}** — Rütbe düşürüldü`);
+            } else if (lowest && rankInGroup === lowest.rank) {
+              logs.push(`🔘 **${groupName}** — Zaten en düşük rütbede`);
+            }
+          }
+        } catch (err) {
+          logs.push(`❌ **${groupName}** — Hata: ${err.message.slice(0, 60)}`);
+        }
+      }
+
+      // Kayıtlı rütbeleri DB'ye yaz
+      try {
+        let dbUser = await User.findOne({ robloxId: String(robloxId) });
+        if (!dbUser) {
+          dbUser = new User({ robloxId: String(robloxId), robloxUsername });
+        }
+        if (Object.keys(savedRanks).length > 0) {
+          dbUser.tambanSavedRanks = savedRanks;
+          await dbUser.save();
+        }
+      } catch (_) { }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🔻 GrupÇekEko — ${robloxUsername}`)
+        .setColor(0xed4245)
+        .setDescription(
+          `**Roblox ID:** \`${robloxId}\`\n` +
+          `**Kullanıcı:** \`${robloxUsername}\`\n\n` +
+          `**İşlenen Gruplar:**\n${logs.slice(0, 20).join('\n') || 'Hiçbir grupta üye değil.'}`
+        )
+        .setFooter({ text: `İşlemi yapan: ${interaction.user.tag}` })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[system-grupcekeko]', err);
       return interaction.editReply({
-        content: `❌ Hata: ${err.message}`
+        content: `❌ GrupÇekEko hatası: ${err.message}`
       });
     }
   }
@@ -3544,16 +3612,80 @@ async function handlePanelCommand(interaction) {
     }
 
     try {
-      return interaction.editReply({
-        content: `✅ **GrupÇekEko İade** işlemi **${username}** için başlatıldı. Rütbeleri iade ediliyor...`
-      });
+      const noblox = require("noblox.js");
+      const { ROBLOX_GROUPS } = require("../services/robloxGroupManager");
+      const User = require("../../models/User");
+
+      // Resolve Roblox ID
+      let robloxId = null;
+      let robloxUsername = username;
+      try {
+        robloxId = await noblox.getIdFromUsername(username);
+      } catch (_) { }
+
+      let dbUser = null;
+      if (robloxId) {
+        dbUser = await User.findOne({ robloxId: String(robloxId) });
+      }
+      if (!dbUser) {
+        dbUser = await User.findOne({ robloxUsername: { $regex: new RegExp(`^${username}$`, 'i') } });
+        if (dbUser && dbUser.robloxId) {
+          robloxId = parseInt(dbUser.robloxId);
+          robloxUsername = dbUser.robloxUsername || username;
+        }
+      }
+
+      if (!robloxId) {
+        return interaction.editReply({ content: `❌ **${username}** adlı Roblox kullanıcısı bulunamadı.` });
+      }
+
+      const savedRanks = dbUser?.tambanSavedRanks || {};
+      const logs = [];
+
+      for (const [groupId, groupName] of Object.entries(ROBLOX_GROUPS)) {
+        try {
+          const saved = savedRanks[groupId];
+          if (saved && saved.oldRank) {
+            await noblox.setRank({ group: parseInt(groupId), target: robloxId, rank: saved.oldRank });
+            logs.push(`✅ **${groupName}** — Eski rütbeye iade edildi (Rank: ${saved.oldRank})`);
+          } else {
+            // Check if they're in the group at all
+            const rankInGroup = await noblox.getRankInGroup(parseInt(groupId), robloxId).catch(() => 0);
+            if (rankInGroup > 0) {
+              logs.push(`🔘 **${groupName}** — Kayıtlı rütbe yok, mevcut rütbe korundu`);
+            }
+          }
+        } catch (err) {
+          logs.push(`❌ **${groupName}** — Hata: ${err.message.slice(0, 60)}`);
+        }
+      }
+
+      // Kayıtlı rütbeleri temizle
+      if (dbUser) {
+        dbUser.tambanSavedRanks = {};
+        await dbUser.save().catch(() => { });
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🔺 GrupÇekEko İade — ${robloxUsername}`)
+        .setColor(0x4ade80)
+        .setDescription(
+          `**Roblox ID:** \`${robloxId}\`\n` +
+          `**Kullanıcı:** \`${robloxUsername}\`\n\n` +
+          `**İşlenen Gruplar:**\n${logs.slice(0, 20).join('\n') || 'İade edilecek kayıtlı rütbe bulunamadı.'}`
+        )
+        .setFooter({ text: `İşlemi yapan: ${interaction.user.tag}` })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[system-grupcekekogerial]', err);
       return interaction.editReply({
-        content: `❌ Hata: ${err.message}`
+        content: `❌ GrupÇekEko İade hatası: ${err.message}`
       });
     }
   }
+
 
   // Coach welcome reset command
   if (commandName === "coach-welcome-reset") {

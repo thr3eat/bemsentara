@@ -2360,16 +2360,17 @@ async function handlePanelModal(interaction) {
     const username = interaction.fields.getTextInputValue("username").trim();
 
     try {
-      const { handleSlashCommand } = require("../handlers/slashHandler");
+      const { handleGeneralCommand } = require("../handlers/generalCommandHandler");
       const cmdName =
-        customId === "panel_modal_sys_grupcekeko" ? "grupcekeko" : "grupcekekogerial";
+        customId === "panel_modal_sys_grupcekeko" ? "system-grupcekeko" : "system-grupcekekogerial";
       const proxy = buildProxy(interaction, cmdName, { getString: () => username });
-      await handleSlashCommand(proxy);
+      await handleGeneralCommand(proxy);
     } catch (e) {
       return interaction.editReply(`❌ Roblox GrupÇekEko işlemi başarısız: ${e.message}`);
     }
     return;
   }
+
 
   // ── XP ÇEKİLİŞİ ───────────────────────────────────────────────────────────
   if (customId === "panel_modal_sys_xpcekilis") {

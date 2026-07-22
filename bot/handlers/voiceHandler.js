@@ -44,12 +44,32 @@ function initializeVoiceAndBanHandlers(client) {
           ban.reason || "Belirtilmedi",
           "ban"
         );
+
+        // AI soruşturma DM'i — Aras botu kısa gecikmeli olarak ikinci DM atar
+        setTimeout(async () => {
+          try {
+            const { sendBanInvestigationDM } = require("../services/banInvestigationAI");
+            await sendBanInvestigationDM(
+              ban.user.id,
+              {
+                reason: ban.reason || "Belirtilmedi",
+                bannedBy: dbUser?.bannedBy || null,
+                bannedAt: new Date(),
+                guildName: ban.guild.name,
+              },
+              client
+            );
+          } catch (aiErr) {
+            console.warn("[guildBanAdd] AI soruşturma DM gönderilemedi:", aiErr.message);
+          }
+        }, 3000); // 3 sn gecikme
       } else {
         console.log(`[guildBanAdd] Tam Ban tespit edildi, DM gönderimi atlandı: ${ban.user.tag}`);
       }
     } catch (err) {
       console.warn("[guildBanAdd] İtiraz DM gönderilemedi:", err.message);
     }
+
   });
 
   client.on("guildBanRemove", async (ban) => {

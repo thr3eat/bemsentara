@@ -139,6 +139,16 @@ function initializeDiscordHandlers(client) {
     startAtaturkHistoryScheduler(client);
     startEkoYildizHistoryScheduler(client);
 
+    // Aras AI soruşturma botu (DISCORDTOKENVERY token ile)
+    try {
+      const { initVeryBot } = require("../services/banInvestigationAI");
+      initVeryBot(client).catch(err => {
+        console.warn("[ready] Aras (VeryBot) başlatılamadı:", err.message);
+      });
+    } catch (err) {
+      console.warn("[ready] banInvestigationAI yüklenemedi:", err.message);
+    }
+
     // Haftalık ve Aylık Lider Yetkili Seçim Zamanlayıcısı
     try {
       const { startModSelectionScheduler } = require("../services/modSelectionService");

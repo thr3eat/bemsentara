@@ -1938,6 +1938,20 @@ async function checkPromotion(progress, client) {
         return;
       }
 
+      // Sınav zaten planlanmış ve tarihi geçmişse anında tetikle (catch-up)
+      if (progress.exam && progress.exam.status === 'scheduled' && progress.exam.scheduledAt && new Date(progress.exam.scheduledAt) <= new Date()) {
+        try {
+          const { checkActiveExams } = require('./aiExamService');
+          if (client) {
+            console.log(`[staffSystem] checkPromotion catch-up: ${progress.userId} sınav tarihi geçmiş, anında tetikleniyor.`);
+            await checkActiveExams(client);
+          }
+        } catch (catchupErr) {
+          console.error('[staffSystem] checkPromotion catch-up error:', catchupErr.message);
+        }
+        return;
+      }
+
       // Her rütbe geçişinde terfi yerine sınav sürecini başlat
       if (!progress.exam || progress.exam.status === 'none') {
         try {
@@ -2491,6 +2505,11 @@ async function getMorningBriefingComponents(progress) {
   }
 
   const isBurnout = (progress.daily?.ticketsSolvedToday >= 30) || (progress.daily?.dutyMinutesToday >= 240);
+  // Burnout süresi dolmuşsa otomatik temizle
+  if (progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) <= new Date()) {
+    progress.burnoutLeaveUntil = null;
+    await progress.save().catch(() => {});
+  }
   const isResting = progress.burnoutLeaveUntil && new Date(progress.burnoutLeaveUntil) > new Date();
 
   if (isResting) {
