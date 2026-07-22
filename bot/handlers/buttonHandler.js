@@ -2270,6 +2270,44 @@ function renderEnergyBar(percent) {
     }
     return;
   }
+  if (customId === "staff_claim_promotion") {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const StaffProgress = require("../../models/StaffProgress");
+      const { isPromotionEligible, promote, checkPromotion, ROLE_NAMES } = require("../services/staffSystem");
+      const p = await StaffProgress.findOne({ userId: interaction.user.id });
+
+      if (!p) return interaction.editReply({ content: "❌ Personel sisteminde kayıtlı bir profiliniz bulunamadı." });
+
+      const eligible = isPromotionEligible(p);
+      if (eligible) {
+        const targetLevel = (p.level || 1) + 1;
+        const targetRoleName = ROLE_NAMES[targetLevel] || `Seviye ${targetLevel}`;
+        await promote(p, interaction.client);
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle(`🎉 TEBRİKLER! TERFİİNİZ GERÇEKLEŞTİ!`)
+          .setDescription(
+            `Tebrikler <@${interaction.user.id}>!\n\n` +
+            `Tüm terfi şartlarını başarıyla tamamladınız ve **${targetRoleName}** rütbesine yükseldiniz! 🥳\n\n` +
+            `• **Yeni Rütbeniz:** \`${targetRoleName}\`\n` +
+            `• **Rol Yetkileri:** Otomatik olarak hesabınıza tanımlandı.`
+          )
+          .setFooter({ text: "Eko Yıldız • İnsan Kaynakları & Terfi Kurumu" })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        await checkPromotion(p, interaction.client);
+        return interaction.editReply({ content: "ℹ️ Terfi durumunuz kontrol edildi. Şartlar tamamlandığında bu butondan terfinizi alabilirsiniz." });
+      }
+    } catch (err) {
+      console.error('[staff_claim_promotion] Hata:', err.message);
+      return interaction.editReply({ content: `❌ Terfi işlemi sırasında bir hata oluştu: ${err.message}` });
+    }
+  }
+
   if (customId === "tactical_alarm_all") {
     await interaction.deferReply({ ephemeral: true });
     try {

@@ -5536,39 +5536,6 @@ function renderBriefingOnboardingModal(user = null) {
   `;
   return _layout('Briefing Formu', user, content, '', '/briefing-form');
 }
-        ).join('\\n\\n');
-        
-        document.getElementById('answers-textarea').value = summary;
-      }
-
-      async function submitBriefingForm() {
-        try {
-          const response = await fetch('/api/briefing/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ answers })
-          });
-
-          const data = await response.json();
-          
-          if (data.success) {
-            alert('✅ Formu gönderdin! Briefing sayfasına yönlendiriliyorsun...');
-            window.location.href = '/briefing';
-          } else {
-            alert('❌ Hata: ' + (data.error || 'Bilinmeyen hata'));
-          }
-        } catch (error) {
-          alert('❌ Sunucu hatası: ' + error.message);
-        }
-      }
-
-      // İlk soruyu yükle
-      loadQuestion();
-    </script>
-  `;
-
-  return content;
-}
 
 // ─────────────────────────────────────────────
 // SENTARA SOCIAL PAGE

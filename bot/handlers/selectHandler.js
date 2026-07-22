@@ -116,6 +116,71 @@ async function handleSelectInteraction(interaction) {
     }
   }
 
+  // ── Moderatör Brifing Detay Sub-Menu İşleyicisi
+  if (customId === 'staff_briefing_submenu') {
+    const selected = interaction.values[0];
+    const StaffProgress = require('../../models/StaffProgress');
+    const p = await StaffProgress.findOne({ userId: interaction.user.id });
+
+    if (!p) return interaction.reply({ content: '❌ Personel profiliniz bulunamadı.', ephemeral: true });
+
+    if (selected === 'staff_menu_details') {
+      const gamif = p.gamification || {};
+      const mkt = { state: p.marketState || 'Boğa', mult: Number(p.marketMultiplier || 2.5), rate: Number(p.diamondRate || 8), trend: p.marketTrend || '📈' };
+      const embed = new EmbedBuilder()
+        .setTitle('📊 DETAYLI İSTATİSTİKLER & EKO-CÜZDAN')
+        .setColor(0x3498db)
+        .addFields(
+          { name: '💰 Bakiye (TL)', value: `\`${Math.floor(gamif.ecoCoins || 0)}\` TL`, inline: true },
+          { name: '💎 Elmaslar', value: `\`${gamif.diamonds || 0}\` 💎`, inline: true },
+          { name: '📊 Borç Durumu', value: p.loanAmount > 0 ? `\`${Math.floor(p.loanAmount)}\` TL` : '✅ Borç Yok', inline: true },
+          { name: '📈 Borsa Durumu', value: `**${mkt.state}** ${mkt.trend}\n1💎 = \`${mkt.rate} TL\` (Kaldıraç: x${mkt.mult.toFixed(1)})`, inline: false }
+        );
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (selected === 'staff_menu_tasks') {
+      const { getDailyRequirements, getDailyTaskCompletionStats } = require('../services/staffSystem');
+      const req = getDailyRequirements(p.level, p.stats?.consecutiveDays || 0);
+      const stats = getDailyTaskCompletionStats(p);
+      const embed = new EmbedBuilder()
+        .setTitle('📋 GÜNLÜK GÖREV DETAYLARI')
+        .setColor(0x2ecc71)
+        .setDescription(
+          `💬 **Selamlaşma:** \`${stats.greetProgress}/${req.greets}\` ${p.daily?.greeted ? '✅ Tamamlandı' : '⏳ Devam Ediyor'}\n` +
+          `🎤 **Ses Süresi:** \`${Math.floor(p.daily?.voiceMinutes || 0)}/${req.voiceMinutes} dk\` ${(p.daily?.voiceMinutes || 0) >= req.voiceMinutes ? '✅ Tamamlandı' : '⏳ Devam Ediyor'}\n` +
+          (p.daily?.chosenTask ? `🎯 **Seçilen Görev:** ${p.daily?.chosenTaskCompleted ? '✅ Tamamlandı' : '⏳ Devam Ediyor'}` : '')
+        );
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (selected === 'staff_menu_performance') {
+      const { calculateKpi } = require('../services/staffDutyService');
+      const kpi = calculateKpi(p);
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 PERFORMANS & KPI DÖKÜMÜ')
+        .setColor(0xf1c40f)
+        .addFields(
+          { name: '📊 KPI Skoru', value: `\`${kpi}/100\``, inline: true },
+          { name: '💚 Teşekkürler', value: `\`${p.disciplinary?.commendations?.length || 0}\``, inline: true },
+          { name: '⚠️ Uyarılar', value: `\`${p.disciplinary?.warns?.length || 0}\``, inline: true }
+        );
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (selected === 'staff_menu_coffee') {
+      const newEndTime = new Date(Date.now() + 15 * 60 * 1000);
+      p.burnoutLeaveUntil = newEndTime;
+      await p.save();
+
+      const embed = new EmbedBuilder()
+        .setTitle('☕ İsteğe Bağlı Kahve Molası')
+        .setDescription(`15 dakikalık isteğe bağlı kahve molanız başlatıldı! İstediğiniz an çalışmanıza devam edebilirsiniz.\n\n⏰ Mola Bitiş: <t:${Math.floor(newEndTime.getTime() / 1000)}:R>`)
+        .setColor(0xe67e22);
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+  }
+
   // ── Panel hızlı menü (home) seçimi
   if (customId === 'panel_home_select') {
     const selected = interaction.values[0];
