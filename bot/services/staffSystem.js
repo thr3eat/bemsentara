@@ -405,67 +405,52 @@ function getDailyTaskCompletionStats(progress) {
   const today = todayStr();
   const isToday = progress.daily?.date === today;
 
-  if (!progress.daily?.assignedTasks || progress.daily?.assignedTasks.length < 3) {
-    progress.daily = progress.daily || {};
-    progress.daily.assignedTasks = getRandomDutyDeck();
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  if (progress.pip?.isActive && progress.pip?.signed) {
+    req.greets = Math.min(req.greets * 2, 20);
+    req.voiceMinutes = Math.min(req.voiceMinutes * 2, 180);
   }
 
-  const assignedKeys = progress.daily.assignedTasks || ['task_chat', 'task_voice', 'task_ticket'];
-  let completedCount = 0;
-
-  const assignedDutyDeck = assignedKeys.map(key => {
-    const info = RANDOM_DUTY_POOL[key] || { name: '📌 Günlük Görev', desc: 'Görev hedefini tamamla', target: 1, type: 'chat' };
-    let current = 0;
-    const target = info.target;
-
-    if (info.type === 'chat') current = isToday ? (progress.daily?.chatMessagesToday || 0) : 0;
-    else if (info.type === 'voice') current = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
-    else if (info.type === 'ticket') current = isToday ? (progress.daily?.ticketsSolvedToday || 0) : 0;
-    else if (info.type === 'mod') current = isToday ? (progress.daily?.moderationActionsToday || 0) : 0;
-    else if (info.type === 'greet') current = isToday ? (progress.daily?.greetCount || 0) : 0;
-    else if (info.type === 'word_game') current = isToday ? (progress.daily?.wordGamesPlayed || 0) : 0;
-    else if (info.type === 'bom_game') current = isToday ? (progress.daily?.bomGamesPlayed || 0) : 0;
-    else if (info.type === 'report') current = isToday ? (progress.daily?.incidentReportsToday || 0) : 0;
-
-    const isDone = current >= target;
-    if (isDone) completedCount++;
-
-    return {
-      key,
-      name: info.name,
-      desc: info.desc,
-      target,
-      current: Math.min(target, current),
-      progressText: `${Math.min(target, current)}/${target}`,
-      isDone,
-      icon: isDone ? '✅' : '⏳'
-    };
-  });
-
-  const totalTasks = assignedDutyDeck.length;
-  const totalPercent = Math.round((completedCount / totalTasks) * 100);
-  const progressBar = getProgressBar(totalPercent);
-
-  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const targetVoice = req.voiceMinutes + (isToday ? (progress.daily?.transferredVoiceMinutes || 0) : 0);
   const targetGreets = req.greets + (isToday ? (progress.daily?.transferredGreets || 0) : 0);
+
   const greetsSent = isToday ? (progress.daily?.greetCount || 0) : 0;
   const voiceMinutes = isToday ? (progress.daily?.voiceMinutes || 0) : 0;
 
+  const greetDone = greetsSent >= targetGreets;
+  const voiceDone = voiceMinutes >= targetVoice;
+
+  const greetPercent = targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100;
+  const voicePercent = targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100;
+
+  // Seçmeli zor görev (isteğe bağlı)
+  let chosenTaskText = '💡 *Seçilmedi (Aşağıdaki Sistem Harekât Masası menüsünden seçebilirsiniz)*';
+  let chosenTaskDone = false;
+
+  if (progress.daily?.chosenTask && CHOSEN_TASKS[progress.daily.chosenTask]) {
+    chosenTaskDone = !!progress.daily.chosenTaskCompleted;
+    const taskName = CHOSEN_TASKS[progress.daily.chosenTask];
+    chosenTaskText = `${chosenTaskDone ? '✅' : '⏳'} **${taskName}** ${chosenTaskDone ? '*(Tamamlandı! +Bonus Kazandın!)*' : '*(Devam Ediyor)*'}`;
+  }
+
+  const totalPercent = Math.min(100, Math.round(greetPercent * 0.45 + voicePercent * 0.45 + (chosenTaskDone ? 10 : 0)));
+  const progressBar = getProgressBar(totalPercent);
+
   return {
-    assignedDutyDeck,
-    completedCount,
-    totalTasks,
+    greetDone,
+    voiceDone,
+    greetPercent,
+    voicePercent,
     totalPercent,
     progressBar,
-    greetPercent: targetGreets > 0 ? Math.min(100, Math.round((greetsSent / targetGreets) * 100)) : 100,
-    voicePercent: targetVoice > 0 ? Math.min(100, Math.round((voiceMinutes / targetVoice) * 100)) : 100,
     greetProgress: `${greetsSent}/${targetGreets}`,
     voiceProgress: `${voiceMinutes}/${targetVoice} dk`,
     greetsSent,
     targetGreets,
     voiceMinutes,
-    targetVoice
+    targetVoice,
+    chosenTaskText,
+    chosenTaskDone
   };
 }
 
@@ -2402,15 +2387,20 @@ async function generateMorningBriefingEmbed(progress, client) {
     }
   }
 
-  // 4. 📋 GÜNÜN RASTGELE GÖREV DESTESİ
+  // 4. 📋 BUGÜNKÜ GÖREV ÖZETİ
   if (enabled.tasks !== false) {
     const stats = getDailyTaskCompletionStats(progress);
-    let tasksText = stats.assignedDutyDeck.map(t =>
-      `${t.icon} **${t.name}:** \`${t.progressText}\` — *${t.desc}*`
-    ).join('\n');
+    let tasksText =
+      `📌 **Zorunlu Günlük Görevler:**\n` +
+      `💬 **Sohbet & Selamlaşma:** \`${stats.greetProgress}\` ${stats.greetDone ? '✅' : '⏳'}\n` +
+      `🎤 **Ses Kanalı Süresi:** \`${stats.voiceProgress}\` ${stats.voiceDone ? '✅' : '⏳'}\n\n` +
+      `🎯 **Seçmeli Ek Görev (İsteğe Bağlı Bonus):**\n` +
+      `${stats.chosenTaskText}\n\n` +
+      `📊 **İlerleme:** ${stats.progressBar}`;
+
     fieldsMap['tasks'] = {
-      name: `🎯 Günün Rastgele Görev Destesi (${stats.completedCount}/${stats.totalTasks})`,
-      value: tasksText + `\n${stats.progressBar}`,
+      name: `📋 Bugünkü Görev Özeti`,
+      value: tasksText,
       inline: false
     };
   }
@@ -2726,8 +2716,37 @@ async function sendWarningDM(progress, client) {
 
   const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
   const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
-  const warnCount = progress.warnings?.count || 0;
-  const warnLeft = Math.max(0, MAX_WARNINGS - warnCount);
+/**
+ * Rütbeye özel toleranslı görev yapmama sınırı (gün cinsinden)
+ * Level 1 (Stajyer): 3 gün
+ * Level 2 (Personel): 5 gün
+ * Level 3 (Kıdemli Personel): 25 gün
+ * Level 4 (Sekreter): 30 gün
+ * Level 5 (Kıdemli Sekreter): 35 gün
+ * Level 6 (Genel Koordinatör): 40 gün
+ */
+function getInactivityLimit(level) {
+  if (level <= 1) return 3;
+  if (level === 2) return 5;
+  if (level === 3) return 25;
+  if (level === 4) return 30;
+  if (level === 5) return 35;
+  return 40;
+}
+
+// ── Uyarı DM ──────────────────────────────────────────────────────────────
+async function sendWarningDM(progress, client) {
+  if (progress.settings?.warningsEnabled === false) {
+    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
+    return;
+  }
+  if (await hasInactivityRole(progress.userId, client)) return;
+
+  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
+  const maxLimit = getInactivityLimit(progress.level);
+  const warnCount = progress.warnings?.count || 1;
+  const warnLeft = Math.max(0, maxLimit - warnCount);
+  const roleName = ROLE_NAMES[progress.level] || 'Moderatör';
 
   // Quick guard: if both today's greet and voice tasks are already done, skip sending warning
   try {
@@ -2740,23 +2759,51 @@ async function sendWarningDM(progress, client) {
     }
   } catch (_) { }
 
+  // Escalating Anger & Tone based on ratio = warnCount / maxLimit
+  const ratio = warnCount / maxLimit;
+  let title = `🟢 Günlük Görev Hatırlatması (${warnCount}/${maxLimit} Gün)`;
+  let color = 0x2ecc71; // Green
+  let toneHeader = `Merhaba ${roleName} 👋 İşlerin yoğun galiba, hiç sorun değil! Müsait olduğunda görevini tamamlamayı unutma 💪`;
+  let aiTonePrompt = 'nazik, anlayışlı ve dostça';
+
+  if (ratio > 0.8) {
+    title = `🔥 ÖFKELİ MUHTIRA & SON İHTAR (${warnCount}/${maxLimit} Gün)`;
+    color = 0xe74c3c; // Red
+    toneHeader =
+      `⚠️ **SON İHTAR! SİSTEM VE YÖNETİM ÇILDIRMAK ÜZERE!** 🔥\n` +
+      `Tam **${warnCount} gündür** hiçbir görev yapmadın! **${roleName}** RÜTBENİ VE TÜM YETKİLERİNİ KAYBETMENE SADECE **${warnLeft} GÜN** KALDI!\n` +
+      `Bugün nöbete başlamazsan rütben düşürülecek ve yetkilerin tamamen askıya alınacak! 🔥`;
+    aiTonePrompt = 'SON DERECE ÖFKELİ, SERT VE TEHDİTKAR (RÜTBE GİDİYOR!)';
+  } else if (ratio > 0.55) {
+    title = `😠 SERT UYARI: Görev İhmali Devam Ediyor (${warnCount}/${maxLimit} Gün)`;
+    color = 0xe67e22; // Orange
+    toneHeader =
+      `Bu tutum kabul edilemez! 😠 Rütben yükseldikçe alt kademedeki personele örnek olman gerekirken **${warnCount} gündür** ortalarda yoksun!\n` +
+      `Yöneticilerin ve Sentara'nın sabrı tükenmeye başladı.`;
+    aiTonePrompt = 'KIZGIN, TEPKİLİ VE CİDDİ';
+  } else if (ratio > 0.25) {
+    title = `⚠️ Görev İhmali Uyarısı (${warnCount}/${maxLimit} Gün)`;
+    color = 0xf1c40f; // Yellow
+    toneHeader = `Bayağıdır görev yapmıyorsun! 🧐 **${roleName}** rütbesinin getirdiği sorumlulukları unutma. Ekip arkadaşların senin aktifliğini bekliyor!`;
+    aiTonePrompt = 'CİDDİ VE DİKKAT ÇEKİCİ UYARI';
+  }
+
+  // System Notification
   try {
     const { addNotification } = require("../../utils/notification");
     await addNotification(progress.userId, {
-      title: `⏰ Görev İhmali Uyarısı (${warnCount}/${MAX_WARNINGS})`,
-      message: `Bugün günlük görevlerinizi tamamlamadınız. Rolünüzün alınmasına ${warnLeft} gün kaldı. Lütfen görevlerinizi tamamlayın!`,
-      icon: "⏰"
+      title: title,
+      message: `${warnCount}/${maxLimit} gündür görev yapılmadı. Kalan süre: ${warnLeft} gün.`,
+      icon: ratio > 0.8 ? "🔥" : ratio > 0.55 ? "😠" : "⏰"
     });
-  } catch (nErr) {
-    console.error("[staffSystem] sendWarningDM notification error:", nErr.message);
-  }
+  } catch (nErr) { }
 
-  // AI'dan uyarı mesajı
+  // AI Koçu Duygusal Uyarı Mesajı
   let aiWarn = '';
   try {
-    const prompt = `Eko Yıldız personeli ${ROLE_NAMES[progress.level]} günlük görevlerini yapmadı.
-Bu ${warnCount || 1}. uyarısı. ${warnLeft} hakkı kaldı.
-Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı ol!`;
+    const prompt = `Eko Yıldız personeli ${roleName} ${warnCount} gündür görev yapmadı (Limit: ${maxLimit} gün).
+Bu uyarının tonu: ${aiTonePrompt}.
+Kısa (max 120 karakter), bu tona uygun Türkçe uyarı cümlesi yaz!`;
     aiWarn = await chatWithAI([{ role: 'user', content: prompt }], '').catch(() => '');
     aiWarn = aiWarn?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || '';
   } catch (_) { }
@@ -2764,7 +2811,6 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
   const today = todayStr();
   const isGreetDone = progress.daily?.date === today && progress.daily?.greeted;
   const voiceDone = progress.daily?.date === today && (progress.daily?.voiceMinutes || 0) >= req.voiceMinutes;
-
   const greetsSent = progress.daily?.greetCount || 0;
   const voiceMins = progress.daily?.voiceMinutes || 0;
 
@@ -2773,29 +2819,25 @@ Kısa (max 100 karakter), sakin ama yapıcı Türkçe uyarı yaz. Anlayışlı o
     `• **Ses Aktifliği Görevi:** ${voiceDone ? '✅ Tamamlandı' : '❌ Eksik'} (${voiceMins}/${req.voiceMinutes} dk)`;
 
   const stats = getDailyTaskCompletionStats(progress);
-  const bothTasksDone = isGreetDone && voiceDone;
 
   const embed = new EmbedBuilder()
-    .setColor(warnLeft <= 1 ? 0xff6b6b : warnLeft <= 2 ? 0xff9500 : 0xfbbf24)
-    .setTitle(`⏰ Günlük Görev Uyarısı — ${warnCount}/${MAX_WARNINGS}`)
+    .setColor(color)
+    .setTitle(title)
     .setDescription(
+      `${toneHeader}\n\n` +
       (aiWarn ? `🤖 **AI Koçu:** ${aiWarn}\n\n` : '') +
-      (bothTasksDone
-        ? `Görevlerini tamamladın ama sistem uyarısı alıyorsun. 😟 Bu bir hata olabilir.\n\n`
-        : `Bugün günlük görevlerini tamamlamadın. 😟 Sorun var mı?\n\n`) +
-      `**🕐 ${warnLeft === 1 ? '⚠️ SON UYARI!' : `${warnLeft} gün daha`} yapmazsan rolün geçici alınır.** (Ama geri gelmen çok kolay!)\n\n` +
+      `**🕐 ${warnLeft === 1 ? '⚠️ SON GÜN! BUGÜN NÖBETE GEÇ!' : `${warnLeft} gün daha yapılmazsa rolünüz alınır.`}**\n\n` +
       `📊 **Görev İlerlemesi:** \`[${stats.progressBar}]\` **%${stats.totalPercent}**\n\n` +
       `📋 **Görevlerinin Durumu:**\n` +
       `${taskStatusText}\n\n` +
-      `💡 **Meşgulsen, yöneticilere yazabilirsin!** İzin isteyebilirsin. 😊\n` +
-      `Bugün yaparsan uyarı sayacın sıfırlanır! İçin rahat olsun. 💚`
+      `💡 **Meşgulseniz:** İzin kredinizi kullanabilir veya yöneticilerle iletişime geçebilirsiniz. 😊`
     )
     .addFields(
-      { name: '⚠️ Uyarı', value: `${warnCount}/${MAX_WARNINGS}`, inline: true },
-      { name: '📊 Seviye', value: ROLE_NAMES[progress.level], inline: true },
-      { name: '🕐 Kalan Hakkı', value: warnLeft === 1 ? '🔴 1 gün (SON)' : `${warnLeft} gün`, inline: true },
+      { name: '⚠️ İnaktif Gün', value: `${warnCount}/${maxLimit} Gün`, inline: true },
+      { name: '📊 Seviye', value: roleName, inline: true },
+      { name: '🕐 Kalan Tolerans', value: warnLeft <= 2 ? `🔴 ${warnLeft} gün (KRİTİK)` : `${warnLeft} gün`, inline: true },
     )
-    .setFooter({ text: 'Eko Yıldız • Personel Sistemi | Seninle çözeriz! 💚' })
+    .setFooter({ text: 'Eko Yıldız • Personel Disiplin & Takip Sistemi' })
     .setTimestamp();
 
   try {
@@ -3608,182 +3650,10 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
     await user.send({ embeds: [embed] });
   } catch (_) { }
 
-  // Yönetici bildirim
-  try {
-    const admin = await client.users.fetch(dismissedBy);
-    const embed = new EmbedBuilder()
-      .setColor(0xff9500)
-      .setTitle('✅ Personel Kov İşlemi Tamamlandı')
-      .setDescription(
-        `**Kişi:** <@${userId}>\n` +
-        `**Seviye:** ${levelName}\n` +
-        `**Sebep:** ${reason || 'Belirtilmedi'}`
-      )
-      .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
-      .setTimestamp();
-    await admin.send({ embeds: [embed] }).catch(() => { });
-  } catch (_) { }
-
-  console.log(`[staffSystem] Kov: ${userId} (${levelName}) - Sebep: ${reason}`);
-  return { success: true, levelName };
-}
-
-// ── İSTİFA sistemi ─────────────────────────────────────────────────────────
-async function resignFromStaff(userId, reason, client) {
-  const p = await StaffProgress.findOne({ userId });
-  if (!p) return { success: false, message: 'Personel sisteminde kayıtlı değilsin.' };
-  if (p.status === 'resigned') return { success: false, message: 'Zaten istifa etmişsin.' };
-  if (p.status === 'retired') return { success: false, message: 'Zaten emeklisin.' };
-
-  const levelName = ROLE_NAMES[p.level];
-  const totalDays = (p.stats?.activeDays || 0) + (p.stats?.consecutiveDays || 0);
-
-  // Emeklilik hakkı var mı kontrol (90+ gün = emekli olabilir)
-  const canRetire = totalDays >= 90;
-
-  const rolesToRemove = [
-    ...Object.values(ROLES),
-    '1517656567481372772', '1517651154220355836', // Level 5 rolleri
-    '1467082387933499524', '1480592150273200330', '1479818628152168479', '1467082891556163727', // Temel mod rollerimiz
-    '1467082280035160269', '1467082211839836344', '1467082157800423515', '1467079795711148062', // Ranklar
-    '1467076700415328266', '1467076595507527834', '1467076260441231401', '1467073280237371527', // Ranklar
-    '1467077436532457545', '1479839884075073567', '1479840791454154782', '1466948998463225859', // Kaptan vb.
-    '1467152505862357250', // Security bypass
-    '1517919240861257758', '1517919442279858307' // Seviye Rol Eşlemeleri
-  ];
-
-  // Rolleri kaldır
-  try {
-    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
-    if (member) {
-      for (const roleId of rolesToRemove) {
-        if (roleId && member.roles.cache.has(roleId)) {
-          await member.roles.remove(roleId, 'İstifa').catch(() => { });
-        }
-      }
-    }
-
-    const mainGuild = await client.guilds.fetch('1367646464804655104').catch(() => null);
-    if (mainGuild) {
-      const mainMember = await mainGuild.members.fetch(userId).catch(() => null);
-      if (mainMember) {
-        for (const roleId of rolesToRemove) {
-          if (roleId && mainMember.roles.cache.has(roleId)) {
-            await mainMember.roles.remove(roleId, 'İstifa').catch(() => { });
-          }
-        }
-      }
-    }
-  } catch (_) { }
-
-  // İstifa kaydını işle
-  if (canRetire) {
-    // 90+ gün: Emeklilik statüsüne çevir, kaydı tut
-    p.status = 'retired';
-    p.retiredAt = new Date();
-    await p.save();
-    console.log(`[staffSystem] İstifa → Emeklilik: ${userId} (${levelName})`);
-  } else {
-    // 90 günden az: Önce status'u güncelle (silme başarısız olursa DM gitmemesi için), sonra kaydı sil
-    p.status = 'resigned';
-    p.resignedAt = new Date();
-    p.resignReason = reason?.slice(0, 300) || 'Belirtilmedi';
-    await p.save();
-    await StaffProgress.deleteOne({ userId });
-    console.log(`[staffSystem] İstifa & Kayıt Silinme: ${userId} (${levelName})`);
-  }
-
-  // Kullanıcıya DM
-  try {
-    const user = await client.users.fetch(userId);
-    const embed = new EmbedBuilder()
-      .setColor(0xfbbf24)
-      .setTitle('👋 İstifan Alındı')
-      .setDescription(
-        `**${levelName}** görevinden istifa ettin.\n\n` +
-          `**Geçirdiğin süre:** ${totalDays}+ aktif gün\n` +
-          `**Sebep:** ${reason || 'Belirtilmedi'}\n\n` +
-          canRetire
-          ? `🏅 **90+ gün aktif kaldığın için** emeklilik statüsüne geçtiniz!\n**Kaydın sistemde korunmaktadır.**\n\`/emeklilik\` komutunu kullanarak resmi olarak emekli olabilirsin.`
-          : `Tekrar başvurmak istersen yöneticilere yazabilirsin. Başarılar!`
-      )
-      .setFooter({ text: 'Eko Yıldız • Teşekkürler!' })
-      .setTimestamp();
-    await user.send({ embeds: [embed] });
-  } catch (_) { }
-
-  return { success: true, canRetire, recordDeleted: !canRetire };
-}
-
-// ── EMEKLİLİK sistemi ──────────────────────────────────────────────────────
-const RETIREMENT_ROLE_ID = process.env.RETIREMENT_ROLE_ID || ''; // Emekli Personel rolü (opsiyonel)
-const RETIREMENT_MIN_DAYS = 90; // Emeklilik için minimum aktif gün
-
-async function retireFromStaff(userId, client) {
-  const p = await StaffProgress.findOne({ userId });
-  if (!p) return { success: false, message: 'Personel sisteminde kayıtlı değilsin.' };
-  if (p.status === 'retired') return { success: false, message: 'Zaten emeklisin.' };
-
-  const totalDays = (p.stats?.activeDays || 0);
-  if (totalDays < RETIREMENT_MIN_DAYS) {
-    return {
-      success: false,
-      message: `Emeklilik için en az **${RETIREMENT_MIN_DAYS} aktif gün** gerekli. Şu an: ${totalDays} gün.`,
-    };
-  }
-
-  const levelName = ROLE_NAMES[p.level];
-  const oldLevel = p.level;
-
-  // Emeklilik kaydı
-  p.status = 'retired';
-  p.retiredAt = new Date();
-  p.retiredAt = new Date();
-  await p.save();
-
-  // Staff rollerini kaldır, emekli rolü ver
-  try {
-    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
-    if (member) {
-      for (const roleId of Object.values(ROLES)) {
-        if (roleId && member.roles.cache.has(roleId)) {
-          await member.roles.remove(roleId, 'Emeklilik').catch(() => { });
-        }
-      }
-      if (RETIREMENT_ROLE_ID) {
-        await member.roles.add(RETIREMENT_ROLE_ID, 'Emeklilik').catch(() => { });
-      }
-    }
-  } catch (_) { }
-
-  // Emeklilik DM
-  try {
-    const user = await client.users.fetch(userId);
-    const embed = new EmbedBuilder()
-      .setColor(0xffd700)
-      .setTitle('🏅 EMEKLİLİK — Tebrikler!')
-      .setDescription(
-        `**${totalDays} aktif gün** sonra emekli oldun!\n\n` +
-        `**Son görevin:** ${levelName}\n\n` +
-        `Eko Yıldız topluluğuna verdiğin emek için çok teşekkürler! 🙏\n` +
-        `Emekli olsan da her zaman burasının bir parçasısın. ❤️\n\n` +
-        (RETIREMENT_ROLE_ID ? `🎖️ **Emekli Personel** rozeti verildi!` : '')
-      )
-      .addFields(
-        { name: '⏰ Toplam Aktif Gün', value: `${totalDays} gün`, inline: true },
-        { name: '📊 Son Seviye', value: levelName, inline: true },
-        { name: '🎫 Çözülen Ticket', value: `${p.stats?.ticketsSolved || 0}+`, inline: true },
-      )
-      .setFooter({ text: 'Eko Yıldız • Emeklilik Belgesi 🎖️' })
-      .setTimestamp();
-    await user.send({ embeds: [embed] });
-  } catch (_) { }
-
   console.log(`[staffSystem] Emeklilik: ${userId} (${levelName}, ${totalDays} gün)`);
   return { success: true, totalDays, levelName };
 }
+
 async function runDailyCheck(client) {
   if (global.SPAM_STOPPED) {
     console.log('[staffSystem] runDailyCheck skipped (global.SPAM_STOPPED is true)');
@@ -3793,7 +3663,7 @@ async function runDailyCheck(client) {
   console.log(`[staffSystem] Günlük kontrol başladı (Hedef Tarih: ${checkDate})...`);
 
   try {
-    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 4 }, status: 'active' });
+    const rawProgress = await StaffProgress.find({ level: { $gte: 1, $lte: 6 }, status: 'active' });
     const allProgress = await syncAndFilterActiveStaff(rawProgress, client);
 
     for (const p of allProgress) {
@@ -3915,8 +3785,9 @@ async function runDailyCheck(client) {
         p.warnings.count = (p.warnings.count || 0) + 1;
         p.warnings.lowActivityNotified = false; // Aktif gün < 2 kontrolü için sıfırla
 
-        // 3 gün uyarısı sonrası PIP sürecine al
-        if (p.warnings.count >= 3) {
+        // Rütbeye özel inaktiflik sınırını kontrol et
+        const maxLimit = getInactivityLimit(p.level);
+        if (p.warnings.count >= maxLimit) {
           p.pip = {
             isActive: true,
             signed: false,
@@ -3932,7 +3803,7 @@ async function runDailyCheck(client) {
               .setTitle("⚠️ Performans İyileştirme Planı (PIP) Kontratı")
               .setDescription(
                 `Sayın Yetkili <@${p.userId}>,\n\n` +
-                `Günlük hedeflerinizi 3 gün boyunca aksattığınız tespit edilmiştir. Sistem tarafından kadrodan ihraç edilmek veya tenzilat (demote) almak üzeresiniz.\n\n` +
+                `Günlük hedeflerinizi ${maxLimit} gün boyunca aksattığınız tespit edilmiştir. Sistem tarafından kadrodan ihraç edilmek veya tenzilat (demote) almak üzeresiniz.\n\n` +
                 `Ancak İnsan Kaynakları politikalarımız gereği size son bir şans tanınarak **Performans İyileştirme Planı (PIP)** başlatılmıştır.\n\n` +
                 `• **Ne Yapmalısınız?** Panelinizdeki **[📋 PIP Kontratını İmzala]** butonuna tıklayarak kontratı imzalamalı ve 3 gün boyunca iki katı olan hedefleri başarıyla tamamlamalısınız.\n` +
                 `• **İmzalamazsanız?** Görevinize son verilecektir.`
@@ -5706,4 +5577,5 @@ module.exports = {
   getBriefingSettingsComponents,
   generateTutorialEmbed,
   getTutorialComponents,
+  getInactivityLimit,
 };

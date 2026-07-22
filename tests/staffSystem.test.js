@@ -36,3 +36,14 @@ test('generateTutorialEmbed and getTutorialComponents support 3 steps', () => {
   assert.ok(comp1.length > 0);
 });
 
+test('getInactivityLimit scales threshold based on staff rank level', () => {
+  const { getInactivityLimit } = require('../bot/services/staffSystem');
+  assert.equal(getInactivityLimit(1), 3);
+  assert.equal(getInactivityLimit(2), 5);
+  assert.equal(getInactivityLimit(3), 25);
+  assert.equal(getInactivityLimit(4), 30);
+  assert.equal(getInactivityLimit(5), 35);
+  assert.equal(getInactivityLimit(6), 40);
+});
+
+

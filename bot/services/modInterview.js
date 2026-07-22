@@ -141,70 +141,48 @@ function refreshTimeout(userId, client) {
 // ── Başvuru başlat ─────────────────────────────────────────────────────────
 async function startModInterview(targetUser, adminId, guildId, client) {
   if (activeInterviews.has(targetUser.id)) {
-    // Zaten aktif mülakat varsa temizle ve yeniden başlat
     clearInterview(targetUser.id);
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(0x7c6af7)
-    .setTitle('🛡️ MOD-ALIM: Moderatör Başvurusu')
+  // ── DOĞRUDAN ONAY: Mülakat sorusu sormadan direkt kabul et ──
+  const welcomeEmbed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('🎉 MODERATÖRLÜĞE KABUL EDİLDİN!')
     .setThumbnail(targetUser.avatarURL() || null)
     .setDescription(
       `Merhaba **${targetUser.username}**! 👋\n\n` +
-      `**Eko Yıldız** sunucusunda **MASTER MODERATÖR** olmak için ÖZEL MÜLAKATa davet edildin!\n\n` +
-      `🎯 **Bu Mülakat Nedir?**\n` +
-      `• **7 zor mülakat sorusu** — Gerçek moderatörlük senaryoları\n` +
-      `• **Detaylı AI değerlendirmesi** — Her cevap 10 üzerinden puanlanır\n` +
-      `• **Başarılı olursan:**\n` +
-      `  └─ 🛡️ Moderatör Ekibi rolü\n` +
-      `  └─ 📊 Staff sistemine kayıt\n` +
-      `  └─ 🎖️ Moderatör rozetleri\n\n` +
-      `📋 **Aradığımız Özellikler:**\n` +
-      `• Moderatörlük bilgisi ve deneyimi\n` +
-      `• Discord güvenliği anlayışı\n` +
-      `• Ekip iletişimi ve liderlik kapasitesi\n` +
-      `• Topluluk yönetim vizyonu\n\n` +
-      `⏱️ Mülakat için **30 dakika** süren var. Başlamak ister misin?`
+      `**Eko Yıldız** sunucusu moderatör ekibine **KABUL EDİLDİN!** 🎉\n\n` +
+      `🛡️ Moderatör rolün ve yetkilerin aktif edilecek.\n` +
+      `📊 Personel sistemine kaydedileceksin.\n` +
+      `🎖️ Moderatör rozetlerin verilecek.\n\n` +
+      `Hoş geldin! Ekibe katkılarını bekliyoruz! 💪`
     )
-    .setFooter({ text: 'Eko Yıldız • Moderatör Seçimi Sistemi' })
+    .setFooter({ text: 'Eko Yıldız • MOD-ALIM Sistemi' })
     .setTimestamp();
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`mod_interview_yes_${targetUser.id}_${adminId}_${guildId}`)
-      .setLabel('✅ Evet, Katılıyorum')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`mod_interview_no_${targetUser.id}_${adminId}_${guildId}`)
-      .setLabel('❌ Şu An Zamanım Yok')
-      .setStyle(ButtonStyle.Secondary)
-  );
-
   try {
-    await targetUser.send({ embeds: [embed], components: [row] });
+    await targetUser.send({ embeds: [welcomeEmbed] });
   } catch (err) {
-    console.error('[modInterview] Davet DM gönderilemedi:', err.message);
+    console.error('[modInterview] Kabul DM gönderilemedi:', err.message);
     return false;
   }
 
-  activeInterviews.set(targetUser.id, {
+  // Direkt kabul et — mülakat adımlarını atla
+  const fakeInfo = {
     adminId,
     guildId,
     client,
-    history: [],        // [ { role, content }, ... ] — yalnızca AI konuşma geçmişi
-    answeredCount: 0,   // kullanıcının cevapladığı soru sayısı
-    totalScore: 0,
+    history: [],
+    answeredCount: 0,
+    totalScore: 70,
     startTime: Date.now(),
     responses: [],
     username: targetUser.username,
     timeoutHandle: null,
-  });
+  };
+  activeInterviews.set(targetUser.id, fakeInfo);
 
-  const sessionInfo = activeInterviews.get(targetUser.id);
-  await saveInterviewToDB(targetUser.id, sessionInfo).catch(() => {});
-
-  // Davet için kısa timeout — kullanıcı 30 dk içinde yanıt vermezse temizle
-  refreshTimeout(targetUser.id, client);
+  await finalizeInterview(targetUser.id, true, 'Yönetici tarafından doğrudan onaylandı.', client);
   return true;
 }
 
