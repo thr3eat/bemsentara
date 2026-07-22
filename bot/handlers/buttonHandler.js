@@ -478,7 +478,6 @@ function renderEnergyBar(percent) {
   }
 
   if (customId === 'exchange_leverage') {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
     try {
       const StaffProgress = require('../../models/StaffProgress');
       const Ticket = require('../../models/Ticket');
@@ -486,7 +485,7 @@ function renderEnergyBar(percent) {
       const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 
       const p = await StaffProgress.findOne({ userId: interaction.user.id });
-      if (!p) return interaction.editReply({ content: '❌ Kayıt bulunamadı.' });
+      if (!p) return interaction.reply({ content: '❌ Kayıt bulunamadı.', ephemeral: true });
 
       // Initialize gamification if missing
       p.gamification = p.gamification || {};
@@ -511,8 +510,9 @@ function renderEnergyBar(percent) {
       const loanAmount = p.loanAmount || 0;
 
       if (loanAmount > 0) {
-        return interaction.editReply({
-          content: `❌ Aktif Borç Var!\n\nŞu anda ${loanAmount} TL borcunuz bulunuyor. Önce borcunuzu ödeyin.\n\n**Borç Ödeme Talimatları:**\n1. Vardiyeye girin ve TL kazanın\n2. 💰 Eko-Borsa → Borç Durumunu Gör butonundan ödeme yapın\n3. Yeni kaldıraçlı işlem yapmadan önce borç sıfırlanmalıdır.`
+        return interaction.reply({
+          content: `❌ Aktif Borç Var!\n\nŞu anda ${loanAmount} TL borcunuz bulunuyor. Önce borcunuzu ödeyin.\n\n**Borç Ödeme Talimatları:**\n1. Vardiyeye girin ve TL kazanın\n2. 💰 Eko-Borsa → Borç Durumunu Gör butonundan ödeme yapın\n3. Yeni kaldıraçlı işlem yapmadan önce borç sıfırlanmalıdır.`,
+          ephemeral: true
         });
       }
 
@@ -554,10 +554,14 @@ function renderEnergyBar(percent) {
         new ActionRowBuilder().addComponents(typeInput)
       );
 
-      await interaction.showModal(modal);
+      return interaction.showModal(modal);
     } catch (err) {
       console.error('[exchange_leverage] Error:', err.message);
-      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      if (interaction.replied || interaction.deferred) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` }).catch(() => {});
+      } else {
+        return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true }).catch(() => {});
+      }
     }
   }
 
@@ -2397,13 +2401,12 @@ function renderEnergyBar(percent) {
   }
 
     if (customId === "tactical_change_radio") {
-    await interaction.deferReply({ ephemeral: true });
     try {
       const StaffProgress = require("../../models/StaffProgress");
       const managerProgress = await StaffProgress.findOne({ userId: interaction.user.id });
       const isManager = (managerProgress && managerProgress.level >= 6) || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
       if (!isManager) {
-        return interaction.editReply({ content: "❌ Bu işlemi başlatmak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!" });
+        return interaction.reply({ content: "❌ Bu işlemi başlatmak için **En Yüksek Rütbe** (Level 6) yetkisine sahip olmalısınız!", ephemeral: true });
       }
 
       const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
@@ -2419,12 +2422,15 @@ function renderEnergyBar(percent) {
         .setRequired(true);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
+      return interaction.showModal(modal);
     } catch (err) {
       console.error('[Tactical-Radio] Hata:', err.message);
-      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+      if (interaction.replied || interaction.deferred) {
+        return interaction.editReply({ content: `❌ Hata: ${err.message}` }).catch(() => {});
+      } else {
+        return interaction.reply({ content: `❌ Hata: ${err.message}`, ephemeral: true }).catch(() => {});
+      }
     }
-    return;
   }
 
   if (customId.startsWith("staff_2fa_")) {
