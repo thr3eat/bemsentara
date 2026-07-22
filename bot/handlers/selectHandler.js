@@ -193,6 +193,32 @@ async function handleSelectInteraction(interaction) {
       const components = getTutorialComponents(1);
       return interaction.reply({ embeds: [embed], components, ephemeral: true });
     }
+
+    if (selected === 'staff_menu_abuse_appeal') {
+      const { abuseLog } = require('../services/abuseLogService');
+      const userId = interaction.user.id;
+      
+      const embed = abuseLog.createAbuseLogEmbed(userId);
+      
+      // Dileğe butonu ekle
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const row = new ActionRowBuilder();
+      
+      const abuses = abuseLog.getUserAbuses(userId);
+      const active = abuses.filter(r => r.status === 'ACTIVE');
+      
+      if (active.length > 0) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId('abuse_appeal_submit')
+            .setLabel('📝 Dileğe Gönder')
+            .setStyle(ButtonStyle.Primary)
+        );
+      }
+      
+      const components = row.components.length > 0 ? [row] : [];
+      return interaction.reply({ embeds: [embed], components, ephemeral: true });
+    }
   }
 
   // ── Panel hızlı menü (home) seçimi

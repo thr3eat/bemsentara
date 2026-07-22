@@ -1132,8 +1132,17 @@ async function addVoiceMinutes(userId, minutes, client) {
         if (!ub) {
           ub = new UnitBudget({ unitName: normalizedUnitName });
         }
-        ub.budget = (ub.budget || 0) + minutes * 0.5; // 0.5 TL per voice minute
-        ub.diamonds = (ub.diamonds || 0) + minutes * 2; // 2 diamonds per voice minute
+        // FIX: Saatlik limit (60 dakika = 5 TL / 10 Elmas) ve günlük cap (50 TL / 100 Elmas)
+        const dailyBudgetCap = 50;
+        const dailyDiamondsCap = 100;
+        const minuteRate = 1/12; // 60 dakika = 5 TL (0.083 TL per dakika)
+        const diamondRate = 1/6;  // 60 dakika = 10 Elmas (0.167 Elmas per dakika)
+        
+        const budgetGain = Math.min(minutes * minuteRate, dailyBudgetCap - (ub.budget || 0));
+        const diamondsGain = Math.min(minutes * diamondRate, dailyDiamondsCap - (ub.diamonds || 0));
+        
+        ub.budget = (ub.budget || 0) + budgetGain;
+        ub.diamonds = (ub.diamonds || 0) + diamondsGain;
         await ub.save();
       }
     } catch (e) {
@@ -1596,23 +1605,22 @@ async function checkChosenTaskCompletion(progress, client) {
     if (completed) {
       progress.daily.chosenTaskCompleted = true;
 
-      // %25 terfi katkısı ekle
-      const nextReq = PROMOTION_REQUIREMENTS[progress.level];
-      if (nextReq) {
-        const ticketsBonus = Math.ceil((nextReq.ticketsSolved || 0) * 0.25);
-        const chatBonus = Math.ceil((nextReq.chatMessages || 0) * 0.25);
-        const voiceBonus = Math.ceil((nextReq.totalVoiceMinutes || 0) * 0.25);
-        const activeDaysBonus = Math.ceil((nextReq.activeDays || 0) * 0.25);
-        const modsBonus = Math.ceil((nextReq.moderationActions || 0) * 0.25);
-        const reportsBonus = Math.ceil((nextReq.weeklyReports || 0) * 0.25);
+      // FIXED: %25 yerine SABIT değerler - Rütbeye bağlı değil
+      // Her görev tamamlanması = +2 Ticket, +10 Mesaj, +30 Ses Dk, +1 Aktif Gün
+      const FIXED_TASK_BONUS = {
+        ticketsSolved: 2,
+        chatMessages: 10,
+        totalVoiceMinutes: 30,
+        activeDays: 1,
+        moderationActions: 1,
+        weeklyReports: 0
+      };
 
-        progress.stats.ticketsSolved = (progress.stats.ticketsSolved || 0) + ticketsBonus;
-        progress.stats.chatMessages = (progress.stats.chatMessages || 0) + chatBonus;
-        progress.stats.totalVoiceMinutes = (progress.stats.totalVoiceMinutes || 0) + voiceBonus;
-        progress.stats.activeDays = (progress.stats.activeDays || 0) + activeDaysBonus;
-        progress.stats.moderationActions = (progress.stats.moderationActions || 0) + modsBonus;
-        progress.stats.weeklyReports = (progress.stats.weeklyReports || 0) + reportsBonus;
-      }
+      progress.stats.ticketsSolved = (progress.stats.ticketsSolved || 0) + FIXED_TASK_BONUS.ticketsSolved;
+      progress.stats.chatMessages = (progress.stats.chatMessages || 0) + FIXED_TASK_BONUS.chatMessages;
+      progress.stats.totalVoiceMinutes = (progress.stats.totalVoiceMinutes || 0) + FIXED_TASK_BONUS.totalVoiceMinutes;
+      progress.stats.activeDays = (progress.stats.activeDays || 0) + FIXED_TASK_BONUS.activeDays;
+      progress.stats.moderationActions = (progress.stats.moderationActions || 0) + FIXED_TASK_BONUS.moderationActions;
 
       await progress.save().catch(err => {
         console.error('[staffSystem] Save failed in checkChosenTaskCompletion:', err.message);
@@ -1622,7 +1630,7 @@ async function checkChosenTaskCompletion(progress, client) {
         const { addNotification } = require("../../utils/notification");
         await addNotification(progress.userId, {
           title: "🎯 Seçmeli Görev Tamamlandı!",
-          message: `Bugünün seçimli görevi olan "${CHOSEN_TASKS[task] || task}" başarıyla tamamlandı. Terfi hedeflerinize %25 doğrudan katkı sağlandı!`,
+          message: `Bugünün seçimli görevi olan "${CHOSEN_TASKS[task] || task}" başarıyla tamamlandı. Terfi hedeflerinize sabit bonus verildi!`,
           icon: "🎉"
         });
       } catch (nErr) {
@@ -1639,7 +1647,8 @@ async function checkChosenTaskCompletion(progress, client) {
             .setTitle('🎯 Seçmeli Görev Başarıyla Tamamlandı!')
             .setDescription(
               `Tebrikler <@${progress.userId}>, bugünün seçimli görevi olan **"${taskLabel}"** başarıyla tamamlandı! 🎉\n\n` +
-              `🚀 **Ödülünüz:** Bir sonraki rütbeye terfi etmeniz için gereken hedeflerinize **%25 doğrudan ilerleme katkısı** sağlandı! Tebrikler! 💪`
+              `🚀 **Ödülünüz:** +${FIXED_TASK_BONUS.ticketsSolved} Ticket, +${FIXED_TASK_BONUS.chatMessages} Mesaj, +${FIXED_TASK_BONUS.totalVoiceMinutes} Ses Dk \n` +
+              `Terfi hedeflerinize sabit bonus eklendi! 💪`
             )
             .setFooter({ text: 'Eko Yıldız • Personel Sistemi' })
             .setTimestamp();
@@ -2343,9 +2352,9 @@ async function generateMorningBriefingEmbed(progress, client) {
       if (u) displayName = u.globalName || u.username;
     } catch (_) { }
 
-    const prompt = `${displayName} için samimi 1-2 cümlelik sabah selaması yap. Şehir: ${progress.city || 'Türkiye'}. Soru sorma.`;
+    const prompt = `${displayName} için samimi 1-2 cümlelik sabah selaması yap. Şehir: ${progress.city || 'Türkiye'}. Cümleler sorgulamadan olmalı (nokta ile bitmeli).`;
     aiMessage = await chatWithAI([{ role: 'user', content: prompt }]).catch(() => '');
-    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\?+/g, '.').trim() || 'Günaydın! 💪';
+    aiMessage = aiMessage?.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || 'Günaydın! 💪';
 
     fieldsMap['greeting'] = { name: '☀️ Sabah Selamı', value: aiMessage, inline: false };
   }
@@ -2678,6 +2687,12 @@ async function getMorningBriefingComponents(progress) {
         description: 'İstediğiniz an 15 dakikalık dinlenme molası alın',
         value: 'staff_menu_coffee',
         emoji: '☕'
+      },
+      {
+        label: '⚖️ Abuse Dileğesi & Ceza İtirazı',
+        description: 'Sistem tarafından uygulanan cezalara itiraz edin',
+        value: 'staff_menu_abuse_appeal',
+        emoji: '⚖️'
       }
     ]);
 
@@ -2706,16 +2721,6 @@ async function getMorningBriefingComponents(progress) {
   return [rowTop, rowSubmenu, rowDesk];
 }
 
-// ── Uyarı DM ──────────────────────────────────────────────────────────────
-async function sendWarningDM(progress, client) {
-  if (progress.settings?.warningsEnabled === false) {
-    console.log(`[staffSystem] Warnings disabled for user ${progress.userId}. Skipping DM.`);
-    return;
-  }
-  if (await hasInactivityRole(progress.userId, client)) return;
-
-  const req = getDailyRequirements(progress.level, progress.stats?.consecutiveDays || 0);
-  const MAX_WARNINGS = 3; // 5 → 3 gün (sıkılaştırıldı)
 /**
  * Rütbeye özel toleranslı görev yapmama sınırı (gün cinsinden)
  * Level 1 (Stajyer): 3 gün
@@ -3650,7 +3655,8 @@ async function dismissStaff(userId, reason, dismissedBy, client) {
     await user.send({ embeds: [embed] });
   } catch (_) { }
 
-  console.log(`[staffSystem] Emeklilik: ${userId} (${levelName}, ${totalDays} gün)`);
+  const totalDays = p.stats?.activeDays || 0;
+  console.log(`[staffSystem] Kov (İşten Çıkarma): ${userId} (${levelName}, ${totalDays} gün), Sebep: ${reason}`);
   return { success: true, totalDays, levelName };
 }
 
@@ -5086,6 +5092,10 @@ async function applyNightShiftMorningCarryover(progress) {
 
   progress.daily.nightShiftActive = false;
   progress.daily.nightShiftAcceptedAt = null;
+
+  // ⚠️ CRITICIAL: Burada resetDaily() çağrı YAPMA!
+  // Çünkü 23:30'da carryover yapıldığında todayStr() hala bugünü gösterir.
+  // Ama 00:00'da resetDaily() zaten tetiklenir ve transferler aktarılır.
 }
 
 async function recordOvertimeTask(userId, type, client) {

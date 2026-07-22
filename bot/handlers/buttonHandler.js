@@ -4245,6 +4245,147 @@ function renderEnergyBar(percent) {
     return interaction.showModal(modal).catch(() => {});
   }
 
+  // ── Abuse Appeal Butonu ─────────────────────────────────────────────────────
+  if (customId === 'abuse_appeal_submit') {
+    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+    try {
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      const { abuseLog } = require('../services/abuseLogService');
+      
+      const userId = interaction.user.id;
+      const abuses = abuseLog.getUserAbuses(userId);
+      const active = abuses.filter(r => r.status === 'ACTIVE');
+
+      if (active.length === 0) {
+        return interaction.editReply({ content: '✅ Aktif bir ceza kaydınız bulunmuyor.' });
+      }
+
+      // En son abuse'ı dileğe açabileceğini göster
+      const latestAbuse = active[active.length - 1];
+
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_abuse_appeal_${latestAbuse.id}`)
+        .setTitle('⚖️ Abuse Dileğesi Gönder');
+
+      const messageInput = new TextInputBuilder()
+        .setCustomId('appeal_message')
+        .setLabel('Dileğe Nedeni & Açıklaması')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Cezaya neden itiraz ettiğinizi detaylıca açıklayın...')
+        .setMinLength(10)
+        .setMaxLength(500)
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
+      
+      return interaction.showModal(modal);
+    } catch (err) {
+      console.error('[abuse_appeal] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  // ── Mod Appeal Approval/Rejection Buttons ─────────────────────────────────────
+  if (customId && customId.startsWith('approve_appeal_')) {
+    await interaction.deferUpdate().catch(() => { });
+    try {
+      const { abuseLog } = require('../services/abuseLogService');
+      const StaffProgress = require('../../models/StaffProgress');
+
+      const recordId = customId.replace('approve_appeal_', '');
+      const record = abuseLog.resolveAppeal(recordId, true);
+
+      if (!record) {
+        return interaction.editReply({ content: '❌ Dileğe kaydı bulunamadı.' });
+      }
+
+      // Ceza kaldırıldı
+      const p = await StaffProgress.findOne({ userId: record.userId });
+      if (p && p.salary) {
+        p.salary.lastCut = Math.max(0, (p.salary.lastCut || 0) - Math.floor(p.salary.monthly * 0.2));
+        await p.save();
+      }
+
+      // Kullanıcıya DM gönder
+      const user = await interaction.client.users.fetch(record.userId).catch(() => null);
+      if (user) {
+        const embed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('✅ Dileğeniz Onaylandı!')
+          .setDescription(
+            `Abuse dileğeniz inceleme sonucunda **ONAYLANMIŞTIR**.\n\n` +
+            `**Bilgiler:**\n` +
+            `• Kayıt: \`${record.id}\`\n` +
+            `• İşlem: ${record.abuseType}\n` +
+            `• Sonuç: ✅ Ceza Kaldırıldı\n\n` +
+            `Maaştan yapılan kesinti iade edilmiştir. İyi çalışmalar!`
+          )
+          .setFooter({ text: 'Eko Yıldız • Adalet Sistemi' })
+          .setTimestamp();
+
+        await user.send({ embeds: [embed] }).catch(() => { });
+      }
+
+      // Panelde mesajı güncelle
+      const embed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('✅ Dileğe Onaylandı')
+        .setDescription(`Dileğe başarıyla incelenmiş ve **ONAYLANMIŞTIR**. Ceza kaldırılmıştır.`)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [] });
+    } catch (err) {
+      console.error('[approve_appeal] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
+  if (customId && customId.startsWith('reject_appeal_')) {
+    await interaction.deferUpdate().catch(() => { });
+    try {
+      const { abuseLog } = require('../services/abuseLogService');
+
+      const recordId = customId.replace('reject_appeal_', '');
+      const record = abuseLog.resolveAppeal(recordId, false);
+
+      if (!record) {
+        return interaction.editReply({ content: '❌ Dileğe kaydı bulunamadı.' });
+      }
+
+      // Kullanıcıya DM gönder
+      const user = await interaction.client.users.fetch(record.userId).catch(() => null);
+      if (user) {
+        const embed = new EmbedBuilder()
+          .setColor(0xFF0000)
+          .setTitle('❌ Dileğeniz Reddedildi')
+          .setDescription(
+            `Abuse dileğeniz inceleme sonucunda **REDDEDİLMİŞTİR**.\n\n` +
+            `**Bilgiler:**\n` +
+            `• Kayıt: \`${record.id}\`\n` +
+            `• İşlem: ${record.abuseType}\n` +
+            `• Sonuç: ❌ Ceza Geçerli Kalmıştır\n\n` +
+            `Uygulanan ceza devam etmektedir. Kural ihlallerini tekrar etmemenizi önemle tavsiye ederiz.`
+          )
+          .setFooter({ text: 'Eko Yıldız • Adalet Sistemi' })
+          .setTimestamp();
+
+        await user.send({ embeds: [embed] }).catch(() => { });
+      }
+
+      // Panelde mesajı güncelle
+      const embed = new EmbedBuilder()
+        .setColor(0xFF0000)
+        .setTitle('❌ Dileğe Reddedildi')
+        .setDescription(`Dileğe inceleme sonucunda **REDDEDİLMİŞTİR**. Ceza devam etmektedir.`)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [] });
+    } catch (err) {
+      console.error('[reject_appeal] Error:', err.message);
+      return interaction.editReply({ content: `❌ Hata: ${err.message}` });
+    }
+  }
+
   // ── Kahve Molası Başlat/Bitir butonu ───────────────────────────────────────
   if (customId === "staff_duty_break_start" || customId === "staff_duty_break_end") {
     await interaction.deferUpdate().catch(() => { });
@@ -4261,7 +4402,48 @@ function renderEnergyBar(percent) {
         logChan = guild.channels.cache.find(c => c.name === 'yetkili-rapor-log');
       }
 
+      const { abuseLog } = require('../services/abuseLogService');
+      const now = new Date();
+
       if (customId === "staff_duty_break_start") {
+        // Abuse detection: Aynı gün içinde kaç kere mola alındı?
+        const breakCount = abuseLog.getAbuseCount(interaction.user.id, 'COFFEE_BREAK_ABUSE');
+        const lastAbuse = abuseLog.getActiveAbuse(interaction.user.id, 'COFFEE_BREAK_ABUSE');
+
+        // Limit: 24 saat içinde 3'ten fazla mola = abuse
+        if (breakCount >= 3) {
+          const record = abuseLog.logAbuse(interaction.user.id, 'COFFEE_BREAK_ABUSE', {
+            timestamp: now.toISOString(),
+            breakCount: breakCount + 1,
+            penalty: '20% maaş kesintisi',
+            reason: 'Aşırı mola kullanımı (24 saatte 3+ kez)'
+          });
+
+          // Maaşa 20% kesinti uygula
+          if (p.salary) {
+            p.salary.lastCut = (p.salary.lastCut || 0) + Math.floor(p.salary.monthly * 0.2);
+            p.salary.abuseCutApplied = true;
+          }
+          await p.save();
+
+          const embed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle('🚫 Mola Kuralı İhlali')
+            .setDescription(
+              `❌ **Aşırı Mola Kullanımı Tespit Edildi!**\n\n` +
+              `24 saatlik sürede **${breakCount + 1} kez mola** aldığınız tespit edilmiştir.\n` +
+              `**Kural:** Günde maksimum 3 mola alabilirsiniz.\n\n` +
+              `⚖️ **Uygulanan Ceza:** 20% maaş kesintisi\n` +
+              `💬 **Dileğe:** Ekrana gelen dileğe butonundan itiraz edebilirsiniz.\n\n` +
+              `Kaydınız sistem tarafından loglanmıştır.`
+            )
+            .setFooter({ text: 'Eko Yıldız • Abuse Sistemi' })
+            .setTimestamp();
+
+          await interaction.editReply({ embeds: [embed] }).catch(() => { });
+          return;
+        }
+
         p.duty.isBreakActive = true;
         p.duty.breakStartedAt = new Date();
         await p.save();
@@ -4276,6 +4458,20 @@ function renderEnergyBar(percent) {
       } else {
         const breakStarted = p.duty.breakStartedAt ? new Date(p.duty.breakStartedAt).getTime() : Date.now();
         const breakMins = Math.floor((Date.now() - breakStarted) / 1000 / 60);
+
+        // Mola süresi 2 saatten fazlaysa abuse kaydı yap
+        if (breakMins > 120) {
+          abuseLog.logAbuse(interaction.user.id, 'EXCESSIVE_BREAK_TIME', {
+            timestamp: now.toISOString(),
+            breakMins: breakMins,
+            penalty: '10% maaş kesintisi',
+            reason: `Çok uzun mola süresi (${breakMins} dakika)`
+          });
+
+          if (p.salary) {
+            p.salary.lastCut = (p.salary.lastCut || 0) + Math.floor(p.salary.monthly * 0.1);
+          }
+        }
 
         p.duty.isBreakActive = false;
         p.duty.breakStartedAt = null;
