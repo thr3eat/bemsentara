@@ -105,20 +105,19 @@ async function ensureCourtRoles(guild) {
 async function setupCourtTriggerButton(client) {
   try {
     for (const guild of client.guilds.cache.values()) {
+      // Otomatik açılan '🔍-soruşturma-başlat' kanallarını temizle (Sabit kanal ID'si hariç)
+      const autoCreated = guild.channels.cache.filter(c => c.name === '🔍-soruşturma-başlat' && c.id !== DAVA_TRIGGER_CHANNEL_ID);
+      for (const autoChan of autoCreated.values()) {
+        await autoChan.delete('Otomatik soruşturma kanalı oluşturma iptal edildi.').catch(() => null);
+      }
+
+      // Sadece sunucuda ZATEN VAR OLAN kanalı bul (Yeni kanal ASLA oluşturulmaz)
       let channel = guild.channels.cache.find(c =>
         c.id === DAVA_TRIGGER_CHANNEL_ID ||
-        c.name.includes('sorusturma-baslat') ||
-        c.name.includes('soruşturma-başlat') ||
-        c.name.includes('dava-talebi')
+        c.name === 'sorusturma-baslat' ||
+        c.name === 'soruşturma-başlat' ||
+        c.name === 'dava-talebi'
       );
-
-      if (!channel) {
-        channel = await guild.channels.create({
-          name: '🔍-soruşturma-başlat',
-          type: ChannelType.GuildText,
-          reason: 'Mahkeme paneli için otomatik oluşturuldu.'
-        }).catch(() => null);
-      }
 
       if (channel && channel.isTextBased()) {
         const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
