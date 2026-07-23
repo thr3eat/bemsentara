@@ -63,6 +63,7 @@ const staffProgressSchema = new mongoose.Schema({
     consecutiveDays: { type: Number, default: 0 },
     moderationActions: { type: Number, default: 0 }, // Mod işlemleri
     weeklyReports: { type: Number, default: 0 },  // Haftalık rapor sayısı
+    weeklyReportWeek: { type: String, default: '' }, // Haftalık rapor sayacının hangi hafta için olduğu
     lastCompleteDay: { type: String, default: '' }, // Son tamamlanan gün
     dailyTicketsToday: { type: Number, default: 0 },
     breakCredits: { type: Number, default: 0 },  // İzin kredileri
